@@ -90,6 +90,6 @@ pub mod native {
     pub use super::settings_window::{
         OpenSettings, SettingsAsked, SettingsAt, SettingsWindows, settings_root,
     };
-    pub use super::window::{Ask, MessageOpen, OpenWindow, Windows, message_root};
+    pub use super::window::{MessageOpen, message_root};
     pub use crate::handoff::{ActivationToken, Requests};
 }

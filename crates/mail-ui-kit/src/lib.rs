@@ -41,6 +41,7 @@ pub mod space;
 pub mod text;
 pub mod today;
 pub mod view;
+pub mod window;
 pub mod vip;
 
 /// The log target of the window's few traces of what it was asked from outside (a banner's

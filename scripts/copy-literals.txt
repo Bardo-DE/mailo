@@ -69,7 +69,6 @@ crates/mail-ui/src/ui/rules/work.rs 18
 crates/mail-ui/src/ui/settings_window/account/mod.rs 2
 crates/mail-ui/src/ui/unsubscribe/head.rs 5
 crates/mail-ui/src/ui/unsubscribe/mod.rs 12
-crates/mail-ui/src/ui/window/mod.rs 1
 crates/mail-ui/src/ui/window/note.rs 3
 crates/mail-ui-kit/src/bin.rs 11
 crates/mail-ui-kit/src/data.rs 1
@@ -79,6 +78,7 @@ crates/mail-ui-kit/src/remedy.rs 16
 crates/mail-ui-kit/src/saved.rs 14
 crates/mail-ui-kit/src/text.rs 1
 crates/mail-ui-kit/src/view.rs 8
+crates/mail-ui-kit/src/window.rs 1
 crates/mail-ui-kit/src/downloads/open.rs 14
 crates/mail-ui-kit/src/downloads/panel.rs 13
 crates/mail-ui-kit/src/files/export_sheet.rs 18

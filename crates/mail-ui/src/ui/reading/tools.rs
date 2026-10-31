@@ -64,7 +64,7 @@ pub(super) fn view_items(current: Peek, keymap: &chordkit::Keymap) -> Vec<MenuIt
             )
         })
         .collect();
-    items.push(super::super::window::menu_item(keymap));
+    items.push(mail_ui_kit::window::menu_item(keymap));
     items
 }
 
@@ -96,8 +96,8 @@ fn ViewMenu(
             items: keys.with_keymap(|keymap| view_items(peek, keymap)),
             on_pick: move |key: String| {
                 on_close.call(());
-                if key == super::super::window::OPEN_KEY {
-                    super::super::window::open_in_window(thread);
+                if key == mail_ui_kit::window::OPEN_KEY {
+                    mail_ui_kit::window::open_in_window(thread);
                 } else if let Some(mode) = MODES.iter().find(|mode| mode.slug() == key) {
                     shell.write().peek = *mode;
                 }
@@ -508,7 +508,7 @@ mod tests {
             assert_eq!(checked, [current.label()]);
             assert_eq!(
                 items.last().map(|item| item.key.as_str()),
-                Some(super::super::super::window::OPEN_KEY)
+                Some(mail_ui_kit::window::OPEN_KEY)
             );
         }
     }

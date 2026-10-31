@@ -57,6 +57,8 @@ pub(in crate::ui) fn MessageShell(thread: ThreadId) -> Element {
     use_context_provider(|| icons);
     crate::ui::provider_chip::use_fetch_missing(icons);
     mail_ui_kit::host::use_window_host();
+    // "Open in new window" from here opens through quire too, unless a test gave a recorder.
+    super::use_windows();
     // The settings its root watches (brand logos, spelling, server search), or, drawn by a test,
     // read from its config directory.
     let _ = mail_ui_kit::prefs::use_prefs(

@@ -194,7 +194,7 @@ pub(super) fn ListRow(
                     == Some(mail_ui_kit::actions::Heard::Own(mail_ui_kit::actions::Own::OpenInWindow));
                 if let (true, Some(id)) = (opens, id) {
                     event.stop_propagation();
-                    super::window::open_in_window(id);
+                    mail_ui_kit::window::open_in_window(id);
                 }
             },
             ThreadRow {

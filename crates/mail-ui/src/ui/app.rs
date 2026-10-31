@@ -730,7 +730,7 @@ pub(super) fn App() -> Element {
         if intent == Some(Intent::OpenInWindow) {
             let open = shell.read().open;
             if let Some(open) = open {
-                super::window::open_in_window(open);
+                mail_ui_kit::window::open_in_window(open);
             }
             return;
         }

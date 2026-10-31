@@ -582,7 +582,7 @@ mod tests {
                 m::SHOW_ALL_HEADERS,
                 m::VIEW_SOURCE,
                 m::VIEW,
-                crate::ui::window::OPEN_NAME,
+                mail_ui_kit::window::OPEN_NAME,
             ] {
                 assert!(!listed.iter().any(|row| row == not), "{not} in {listed:?}");
             }
