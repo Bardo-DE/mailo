@@ -15,12 +15,12 @@
 //! is written is the stored bytes, never a rendering, so a message that draws wrongly can be
 //! handed on whole.
 
-use super::super::row::act::{Pressed, press};
-use super::super::row::menu::{Pick, reader_groups, rows_blocking, with_files};
-use super::super::toolbar::{Tool, ToolButton};
+use mail_ui_kit::row_act::{Pressed, press};
+use mail_ui_kit::row_menu::{Pick, reader_groups, rows_blocking, with_files};
+use mail_ui_kit::toolbar::{Tool, ToolButton};
 use super::fetch;
 use mail_ui_kit::downloads::{Origin, Saving};
-use crate::ui::menus::FurtherMenus;
+use mail_ui_kit::menus::FurtherMenus;
 use crate::ui::unsubscribe::{Confirm, Offer, Phase, ask};
 use dioxus::prelude::*;
 use ds::components::controls::button_model::{Bezel, ImagePosition};

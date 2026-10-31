@@ -70,7 +70,7 @@ impl When {
         Tz::Offset: std::fmt::Display,
     {
         match self {
-            When::At(at) => super::super::menus::when_words(at, now, zone, clock),
+            When::At(at) => mail_ui_kit::menus::when_words(at, now, zone, clock),
             _ => self.label(clock),
         }
     }

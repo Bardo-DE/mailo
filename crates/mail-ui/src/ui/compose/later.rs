@@ -20,7 +20,7 @@ use mail_client::undo::{Resend, Undo};
 use mail_client::when::Clock;
 use mail_domain::{ChangeId, Draft, DraftId, Patch, SendState};
 
-use super::super::menus::{when_in_sentence, when_words};
+use mail_ui_kit::menus::{when_in_sentence, when_words};
 use super::desk::{Desk, refusal};
 use super::page::{Float, Page, When};
 use mail_client::compose::Leaves;

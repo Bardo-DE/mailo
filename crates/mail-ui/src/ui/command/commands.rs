@@ -112,7 +112,7 @@ fn empty(acts: Acts, bin: Bin) {
     if let Some(index) = index {
         crate::ui::sidebar::go_to(shell, pages, index);
         let client = mail_ui_kit::live::client();
-        crate::ui::destroy::ask_everything(&client, shell);
+        mail_ui_kit::destroy::ask_everything(&client, shell);
     }
 }
 

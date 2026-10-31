@@ -5,7 +5,7 @@
 //! `App`; this reads the memos it is handed rather than cloning their answers in the parent.
 
 use super::page::ListMore;
-use super::picks::PickBar;
+use mail_ui_kit::picks::PickBar;
 use super::row::listed::Listed;
 use super::row::{AccountMark, ListRow};
 use super::server_search::{Asked, ServerSearch, found_threads};
@@ -666,7 +666,7 @@ fn PlaceTools(
         }
         div { class: "bar-tools",
             // Trash and Spam alone: everything in them, deleted forever, once asked.
-            super::destroy::EmptyButton { shell }
+            mail_ui_kit::destroy::EmptyButton { shell }
             // A search being typed can be kept as a view, and a view shown can be changed.
             if !shell.read().search.trim().is_empty() {
                 Button {

@@ -6,7 +6,7 @@
 //! whatever a gesture does to five conversations is one entry on the undo stack, one toast, and
 //! one Ctrl Z that puts all five back.
 
-use crate::ui::toolbar::{Tool, ToolButton};
+use crate::toolbar::{Tool, ToolButton};
 use dioxus::prelude::*;
 use ds::components::controls::button_model::{Bezel, ImagePosition};
 use ds::prelude::*;
@@ -15,14 +15,14 @@ use ds::style::tokens::control_size::ControlSize;
 use mail_client::Client;
 use mail_client::conversation::mute_for_all;
 use mail_domain::*;
-use mail_ui_kit::motion::{act_all, act_kind_all};
-use mail_ui_kit::press::on_primary;
-use mail_ui_kit::view::{Shell, Shortcut, mute_label, op_for_selection};
+use crate::motion::{act_all, act_kind_all};
+use crate::press::on_primary;
+use crate::view::{Shell, Shortcut, mute_label, op_for_selection};
 use mail_ui_model::copy::{aria, menus, status, tooltips};
 
 /// What `action` does to the conversations it means among `listed`: the picked ones, or with
 /// none picked the open one. One gesture, one undo. Returns how many it reached.
-pub(super) fn act_on_picked(
+pub fn act_on_picked(
     client: &Client,
     shell: Signal<Shell>,
     action: Shortcut,
@@ -41,7 +41,7 @@ pub(super) fn act_on_picked(
 
 /// Put `label` on each of `threads`, or take it off: off when every one already wears it, on
 /// otherwise, and only on the ones it changes. One gesture, one undo.
-pub(super) fn label_all(
+pub(crate) fn label_all(
     client: &Client,
     shell: Signal<Shell>,
     threads: &[ThreadId],
@@ -72,7 +72,7 @@ pub(super) fn label_all(
 
 /// Mute each of `threads`, or unmute them: unmute when every one is already muted, mute
 /// otherwise, and only the ones it changes. One gesture, one undo.
-pub(in crate::ui) fn mute_all(
+pub fn mute_all(
     client: &Client,
     shell: Signal<Shell>,
     threads: &[ThreadId],
@@ -98,7 +98,7 @@ pub(in crate::ui) fn mute_all(
 
 /// [`mute_all`] over what `action`s mean among `listed`: the picked ones, or with none picked
 /// the open one. `m`, and the pick bar's Mute.
-pub(super) fn mute_picked(
+pub fn mute_picked(
     client: &Client,
     shell: Signal<Shell>,
     listed: &[ThreadSummary],
@@ -113,7 +113,7 @@ pub(super) fn mute_picked(
 /// Label and Move to… are the picked rows' own menus, which act on the whole selection; this
 /// bar holds the ones a button can carry.
 #[component]
-pub(super) fn PickBar(shell: Signal<Shell>, threads: Memo<Vec<ThreadSummary>>) -> Element {
+pub fn PickBar(shell: Signal<Shell>, threads: Memo<Vec<ThreadSummary>>) -> Element {
     let listed = threads();
     let ids: Vec<ThreadId> = listed.iter().map(|summary| summary.id).collect();
     let chosen = shell.read().picked.chosen(&ids);
@@ -150,10 +150,10 @@ pub(super) fn PickBar(shell: Signal<Shell>, threads: Memo<Vec<ThreadSummary>>) -
     let back = mail_client::conversation::says_for_all(OpKind::Restore, &summaries, now)
         .map(|say| ToolButton::of(OpKind::Restore, menus::offered(say)));
     // In Trash or Spam, and only there, the picked mail can be deleted forever, once asked.
-    let bin = mail_ui_kit::bin::bin_shown(&shell.read());
+    let bin = crate::bin::bin_shown(&shell.read());
     let destroyable = summaries
         .iter()
-        .any(|summary| mail_ui_kit::bin::offered(bin, summary));
+        .any(|summary| crate::bin::offered(bin, summary));
     rsx! {
         span { class: "status", {status::selected(count)} }
         // The actions wrap within the list column when it is too narrow for one line.
@@ -164,7 +164,7 @@ pub(super) fn PickBar(shell: Signal<Shell>, threads: Memo<Vec<ThreadSummary>>) -
                     tool,
                     aria: Some(aria::on_selected(tool.label, count)),
                     onclick: on_primary(move || {
-                        let client = mail_ui_kit::live::client();
+                        let client = crate::live::client();
                         act_on_picked(&client, shell, action, &threads.peek());
                     }),
                 }
@@ -174,7 +174,7 @@ pub(super) fn PickBar(shell: Signal<Shell>, threads: Memo<Vec<ThreadSummary>>) -
                     tool: back,
                     aria: Some(aria::on_selected(back.label, count)),
                     onclick: on_primary(move || {
-                        let client = mail_ui_kit::live::client();
+                        let client = crate::live::client();
                         let ids: Vec<ThreadId> = threads.peek().iter().map(|summary| summary.id).collect();
                         let targets = shell.peek().acted_on(&ids);
                         act_kind_all(&client, shell, &targets, OpKind::Restore);
@@ -185,7 +185,7 @@ pub(super) fn PickBar(shell: Signal<Shell>, threads: Memo<Vec<ThreadSummary>>) -
                 tool: mute,
                 aria: Some(aria::on_selected(mute.label, count)),
                 onclick: on_primary(move || {
-                    let client = mail_ui_kit::live::client();
+                    let client = crate::live::client();
                     mute_picked(&client, shell, &threads.peek());
                 }),
             }
@@ -194,10 +194,10 @@ pub(super) fn PickBar(shell: Signal<Shell>, threads: Memo<Vec<ThreadSummary>>) -
                     tool: ToolButton::of(OpKind::Destroy, aria::DELETE_FOREVER),
                     aria: Some(aria::delete_selected_forever(count)),
                     onclick: on_primary(move || {
-                        let client = mail_ui_kit::live::client();
+                        let client = crate::live::client();
                         let ids: Vec<ThreadId> = threads.peek().iter().map(|summary| summary.id).collect();
                         let chosen = shell.peek().picked.chosen(&ids);
-                        super::destroy::ask_chosen(&client, shell, &chosen);
+                        crate::destroy::ask_chosen(&client, shell, &chosen);
                     }),
                 }
             }
@@ -208,7 +208,7 @@ pub(super) fn PickBar(shell: Signal<Shell>, threads: Memo<Vec<ThreadSummary>>) -
                 label: aria::CLEAR_THE_SELECTION.to_owned(),
                 icon: Icon::X,
                 title: Some(tooltips::CLEAR_SELECTION.to_owned()),
-                title_shortcut: Some(mail_ui_kit::actions::escape()),
+                title_shortcut: Some(crate::actions::escape()),
                 common: Common {
                     aria_label: Some(aria::CLEAR_THE_SELECTION.to_owned()),
                     ..Common::default()

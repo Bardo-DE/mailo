@@ -17,7 +17,7 @@ use ds::root::common::Common;
 use ds::style::tokens::control_size::ControlSize;
 use mail_ui_model::copy;
 
-use super::super::menus::{snooze_help, when_words};
+use mail_ui_kit::menus::{snooze_help, when_words};
 use super::later::{PICK_KEY as LATER_PICK, PICK_LABEL, PickTime};
 use super::page::{Float, Fold, Page, When};
 use super::protection;

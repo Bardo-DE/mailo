@@ -14,7 +14,7 @@ use mail_domain::id::account_id_from_uuid;
 use mail_domain::*;
 use porter_core::AccountId;
 
-use super::{destinations, folder_label, items};
+use mail_ui_kit::move_to::{destinations, folder_label, items};
 use crate::ui::fixtures::{
     FakePointer, INSIDE_THE_SHELL, Seen, chord, click, dispatching, empty, listed_subjects,
     menu_names, open_row_menu, pick_named, pointer, rebuild_into, row_named,

@@ -19,10 +19,10 @@ use ds::root::common::Common;
 use ds::root::pass_through::ExtraClass;
 use mail_client::Client;
 use mail_domain::*;
-use mail_ui_kit::menu::{MenuKey, anchor_for, menu_key};
-use mail_ui_kit::motion::{Follow, Restore, tell};
-use mail_ui_kit::ops::newest;
-use mail_ui_kit::view::Shell;
+use crate::menu::{MenuKey, anchor_for, menu_key};
+use crate::motion::{Follow, Restore, tell};
+use crate::ops::newest;
+use crate::view::Shell;
 use mail_ui_model::copy;
 
 /// What pressing Return with `typed` in the field comes to: the addresses, or why there are none.
@@ -36,7 +36,7 @@ pub(super) fn recipients(typed: &str) -> Result<Vec<Address>, String> {
 
 /// Redirect `id`'s newest message to `to`, and say how it went: with an Undo while it waits.
 fn redirect(client: &Client, id: ThreadId, to: &[Address]) -> (String, Follow) {
-    let grace = mail_ui_kit::prefs::current().compose.undo_send.grace();
+    let grace = crate::prefs::current().compose.undo_send.grace();
     let went = newest(client, id).and_then(|message| {
         client
             .compose()
@@ -54,7 +54,7 @@ fn redirect(client: &Client, id: ThreadId, to: &[Address]) -> (String, Follow) {
 
 /// The popover, anchored where the menu that asked for it stood.
 #[component]
-pub(in crate::ui) fn RedirectMenu(
+pub(crate) fn RedirectMenu(
     id: ThreadId,
     shell: Signal<Shell>,
     anchor: Option<MountedRef>,
@@ -89,7 +89,7 @@ pub(in crate::ui) fn RedirectMenu(
                             event.prevent_default();
                             match recipients(&typed()) {
                                 Ok(to) => {
-                                    let client = mail_ui_kit::live::client();
+                                    let client = crate::live::client();
                                     let (said, follow) = redirect(&client, id, &to);
                                     done();
                                     tell(said, follow);

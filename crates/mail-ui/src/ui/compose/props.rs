@@ -26,7 +26,7 @@ use mail_ui_kit::press::on_primary;
 
 use dioxus::prelude::*;
 
-use super::super::menus::snooze_help;
+use mail_ui_kit::menus::snooze_help;
 use super::later::{PICK_KEY, PICK_LABEL};
 use super::page::{Float, Guard, List, Page, PageKind, When};
 use super::protection::ProtectionRow;
@@ -403,7 +403,7 @@ where
         .collect();
     let (help, on) = match when {
         When::At(at) => (
-            Some(super::super::menus::when_words(at, now, zone, clock)),
+            Some(mail_ui_kit::menus::when_words(at, now, zone, clock)),
             true,
         ),
         _ => (None, false),

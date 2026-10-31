@@ -1,4 +1,4 @@
-use super::super::app::App;
+use crate::ui::app::App;
 use crate::ui::fixtures::{acct_account, dispatching, inbox_query, realistic};
 use chrono::TimeZone;
 use dioxus::prelude::*;
@@ -132,7 +132,7 @@ mod naming_a_conversation {
 fn snooze_help_is_the_time_snooze_until_resolves() {
     let now = chrono::Utc.with_ymd_and_hms(2026, 9, 23, 15, 0, 0).unwrap();
     let zone = chrono::Utc;
-    let items = super::snooze_items(now, &zone, Clock::H24);
+    let items = mail_ui_kit::menus::snooze_items(now, &zone, Clock::H24);
     let expect = [
         ("later", mail_ui_model::copy::menus::LATER_TODAY),
         ("tomorrow", mail_ui_model::copy::menus::TOMORROW),
@@ -145,7 +145,7 @@ fn snooze_help_is_the_time_snooze_until_resolves() {
         items
             .last()
             .map(|item| (item.key.as_str(), item.name.as_str())),
-        Some((super::CHOOSE, mail_ui_model::copy::menus::CHOOSE_TIME))
+        Some((mail_ui_kit::menus::CHOOSE, mail_ui_model::copy::menus::CHOOSE_TIME))
     );
     assert!(
         items
@@ -162,7 +162,7 @@ fn snooze_help_is_the_time_snooze_until_resolves() {
         let at = mail_core::snooze::snooze_until(phrase, now, &zone).expect(phrase);
         assert_eq!(
             item.right,
-            Right::Hint(super::snooze_hint(at, now, &zone, Clock::H24)),
+            Right::Hint(mail_ui_kit::menus::snooze_hint(at, now, &zone, Clock::H24)),
             "{phrase}"
         );
     }
@@ -175,7 +175,7 @@ fn the_snooze_menu_writes_its_hours_by_the_persons_clock() {
     let zone = chrono::Utc;
     let hint = |phrase: &str, clock| {
         let at = mail_core::snooze::snooze_until(phrase, now, &zone).expect(phrase);
-        super::snooze_hint(at, now, &zone, clock)
+        mail_ui_kit::menus::snooze_hint(at, now, &zone, clock)
     };
     assert_eq!(hint("later", Clock::H24), "18:00");
     assert_eq!(hint("later", Clock::H12), "6:00 PM");
@@ -184,7 +184,7 @@ fn the_snooze_menu_writes_its_hours_by_the_persons_clock() {
     // Past the week the day is enough, and there is no hour to write.
     let far = chrono::Utc.with_ymd_and_hms(2026, 10, 12, 9, 0, 0).unwrap();
     assert_eq!(
-        super::snooze_hint(far, now, &zone, Clock::H12),
+        mail_ui_kit::menus::snooze_hint(far, now, &zone, Clock::H12),
         "Mon 12 Oct"
     );
 }
@@ -194,16 +194,16 @@ fn a_typed_time_is_read_as_snooze_reads_it_and_must_be_to_come() {
     let now = chrono::Utc.with_ymd_and_hms(2026, 9, 23, 15, 0, 0).unwrap();
     let zone = chrono::Utc;
     assert_eq!(
-        super::chosen_time("+2h", now, &zone, Clock::H24),
+        mail_ui_kit::menus::chosen_time("+2h", now, &zone, Clock::H24),
         Ok(chrono::Utc.with_ymd_and_hms(2026, 9, 23, 17, 0, 0).unwrap())
     );
     assert_eq!(
-        super::chosen_time("  ", now, &zone, Clock::H24),
+        mail_ui_kit::menus::chosen_time("  ", now, &zone, Clock::H24),
         Err(mail_ui_model::copy::fields::TYPE_A_TIME.to_owned())
     );
-    let gone = super::chosen_time("today 09:00", now, &zone, Clock::H24).unwrap_err();
+    let gone = mail_ui_kit::menus::chosen_time("today 09:00", now, &zone, Clock::H24).unwrap_err();
     assert!(gone.contains("has passed"), "{gone}");
-    assert!(super::chosen_time("whenever", now, &zone, Clock::H24).is_err());
+    assert!(mail_ui_kit::menus::chosen_time("whenever", now, &zone, Clock::H24).is_err());
 }
 
 #[test]
@@ -221,7 +221,7 @@ fn create_appears_only_for_a_new_name_and_checks_follow_the_thread() {
         labels: vec![travel],
         ..mail_domain::testing::summary()
     };
-    let worn = super::label_items(&known, &summary, "");
+    let worn = mail_ui_kit::menus::label_items(&known, &summary, "");
     assert!(
         worn.iter().all(|item| !item.key.starts_with("create:")),
         "an empty filter offered to create a label: {worn:?}"
@@ -237,14 +237,14 @@ fn create_appears_only_for_a_new_name_and_checks_follow_the_thread() {
     assert_eq!(travel_row.right, Right::Check(true));
     assert_eq!(home_row.right, Right::Check(false));
 
-    let again = super::label_items(&known, &summary, "travel");
+    let again = mail_ui_kit::menus::label_items(&known, &summary, "travel");
     assert!(
         again.iter().all(|item| !item.name.starts_with("Create")),
         "an existing name offered Create: {again:?}"
     );
 
     summary.labels.clear();
-    let fresh = super::label_items(&known, &summary, "zephyr");
+    let fresh = mail_ui_kit::menus::label_items(&known, &summary, "zephyr");
     let create = fresh
         .iter()
         .find(|item| item.key == "create:zephyr")

@@ -17,7 +17,7 @@ use mail_client::Client;
 use mail_client::when::Clock;
 use mail_domain::{DateRange, Vacation};
 
-use super::super::menus::when_words;
+use mail_ui_kit::menus::when_words;
 use super::server::{configured, reach_away};
 use mail_ui_kit::common::Problem;
 use mail_ui_kit::common::classed;

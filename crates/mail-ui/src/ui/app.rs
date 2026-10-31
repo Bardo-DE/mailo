@@ -570,7 +570,7 @@ pub(super) fn App() -> Element {
         // what it would have done to the rows behind it. Only its button deletes.
         if shell.read().destroying.is_some() {
             if key == "Escape" {
-                super::destroy::close(shell);
+                mail_ui_kit::destroy::close(shell);
             }
             return;
         }
@@ -798,7 +798,7 @@ pub(super) fn App() -> Element {
                 }
             }
             Shortcut::ToggleMute => {
-                super::picks::mute_picked(&client, shell, &threads());
+                mail_ui_kit::picks::mute_picked(&client, shell, &threads());
             }
             Shortcut::Compose => {
                 // The only shortcut that does not consult the conversation under the cursor, and
@@ -813,7 +813,7 @@ pub(super) fn App() -> Element {
                 // The picked conversations, or with none picked the open one. Resolved against
                 // their own summaries, so the keyboard reaches exactly what their rows offer and
                 // nothing else, and all of it is one gesture with one undo.
-                super::picks::act_on_picked(&client, shell, action, &threads());
+                mail_ui_kit::picks::act_on_picked(&client, shell, action, &threads());
             }
         }
     };
@@ -928,7 +928,7 @@ pub(super) fn App() -> Element {
                 super::reading::PeekView { shell }
             }
             if shell.read().destroying.is_some() {
-                super::destroy::DestroyAlert { shell }
+                mail_ui_kit::destroy::DestroyAlert { shell }
             }
             if shell.read().applying_rules.is_some() {
                 super::rules::apply::ApplyRulesAlert { shell }

@@ -16,7 +16,7 @@
 //! the whole selection, takes the keyboard back first, asks before deleting
 //! forever, and lands on the undo stack like any other op.
 
-use super::act::{Pressed, op_icon};
+use crate::row_act::{Pressed, op_icon};
 use chrono::{DateTime, Utc};
 use dioxus::prelude::*;
 use ds::components::menus::item::item::{MenuImage, MenuItem};
@@ -30,7 +30,7 @@ use mail_ui_model::copy::menus;
 
 /// A row of the menu.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::ui) enum Pick {
+pub enum Pick {
     /// One of the row's actions, as the old strip pressed it.
     Press(Pressed),
     /// Download: the conversation's messages as the server sent them, an `.eml` each, into the
@@ -69,7 +69,7 @@ pub(in crate::ui) enum Pick {
     /// the newest. The reader's ⋯ only.
     Again,
     /// Add to VIPs or Remove from VIPs, for the conversation's sender: the row's last row, named
-    /// by the row, which knows the VIPs ([`mail_ui_kit::vip::menu_words`]).
+    /// by the row, which knows the VIPs ([`crate::vip::menu_words`]).
     Vip,
     /// Flag ▸: the seven colours and Clear Flag, a submenu ([`flag_rows`]). Never picked itself:
     /// its rows are [`Pressed::Flag`].
@@ -88,7 +88,7 @@ fn op(kind: OpKind) -> Pick {
 /// Spam) once the conversation is out of the inbox, and nothing in a place mail is only filed in,
 /// as Sent. Move to Trash is Delete Forever… for a conversation already in Trash, which asks
 /// first.
-pub(in crate::ui) fn groups(summary: &ThreadSummary) -> Vec<Vec<Pick>> {
+pub fn groups(summary: &ThreadSummary) -> Vec<Vec<Pick>> {
     let read = match summary.read {
         ReadState::Unread => OpKind::MarkRead,
         ReadState::Read => OpKind::MarkUnread,
@@ -127,7 +127,7 @@ pub(in crate::ui) fn groups(summary: &ThreadSummary) -> Vec<Vec<Pick>> {
 /// Download, and last the message as it came: Show All Headers and View Source. Block Sender is
 /// there only where `block` says the conversation has a sender to block, one that is not the user
 /// ([`mail_core::rules::block::who_to_block`]).
-pub(in crate::ui) fn reader_groups(
+pub fn reader_groups(
     summary: &ThreadSummary,
     toolbar: &[OpKind],
     view: bool,
@@ -170,7 +170,7 @@ pub(in crate::ui) fn reader_groups(
 /// `groups`, the reader's ⋯, with Save Attachments… after Download: the files of the message the
 /// reader means are saved from the menu as well as from their tiles, which a right click or the
 /// pointer alone reach.
-pub(in crate::ui) fn with_files(mut groups: Vec<Vec<Pick>>) -> Vec<Vec<Pick>> {
+pub fn with_files(mut groups: Vec<Vec<Pick>>) -> Vec<Vec<Pick>> {
     if let Some(group) = groups
         .iter_mut()
         .find(|group| group.contains(&Pick::Download))
@@ -187,7 +187,7 @@ pub(in crate::ui) fn with_files(mut groups: Vec<Vec<Pick>>) -> Vec<Vec<Pick>> {
 /// What a row is called: the side of its action the conversation is offered
 /// ([`mail_client::conversation::says`]), so an archived one says Move to Inbox and a pinned one Unpin. One
 /// that opens a further menu or a sheet ends in "…", as the Mac's do.
-pub(super) fn name(pick: Pick, summary: &ThreadSummary, now: DateTime<Utc>) -> &'static str {
+pub fn name(pick: Pick, summary: &ThreadSummary, now: DateTime<Utc>) -> &'static str {
     match pick {
         Pick::Download => menus::DOWNLOAD,
         Pick::SaveFiles => menus::SAVE_ATTACHMENTS,
@@ -214,7 +214,7 @@ pub(super) fn name(pick: Pick, summary: &ThreadSummary, now: DateTime<Utc>) -> &
 
 /// Edit as New, or Send Again for a conversation that is only in Sent: there the new message is
 /// the old one going out again.
-pub(in crate::ui) fn again(summary: &ThreadSummary) -> &'static str {
+pub fn again(summary: &ThreadSummary) -> &'static str {
     if summary.mailboxes == mail_domain::MailboxSet::only(MailboxRole::Sent) {
         menus::SEND_AGAIN
     } else {
@@ -237,7 +237,7 @@ fn icon(pick: Pick) -> Icon {
         Pick::Source => Icon::FileCode,
         Pick::DeleteDraft => Icon::Trash,
         Pick::CancelSending => Icon::X,
-        Pick::Vip => mail_ui_kit::vip::GLYPH,
+        Pick::Vip => crate::vip::GLYPH,
         Pick::Flags | Pick::Press(Pressed::Flag(_)) => Icon::Star,
         Pick::Press(Pressed::MoveTo) => Icon::FolderInput,
         Pick::Press(Pressed::CopyTo) => Icon::Copy,
@@ -246,7 +246,7 @@ fn icon(pick: Pick) -> Icon {
 }
 
 /// quire's dot for a flag's colour: the tag colour of the same name.
-pub(in crate::ui) fn swatch(hue: Hue) -> SystemHue {
+pub fn swatch(hue: Hue) -> SystemHue {
     match hue {
         Hue::Red => SystemHue::Red,
         Hue::Orange => SystemHue::Orange,
@@ -260,7 +260,7 @@ pub(in crate::ui) fn swatch(hue: Hue) -> SystemHue {
 
 /// The Flag submenu for `summary`: Apple Mail's seven colours, the one it wears checked, then
 /// Clear Flag while it is flagged.
-pub(in crate::ui) fn flag_rows(summary: &ThreadSummary) -> Vec<MenuItem<Pick>> {
+pub(crate) fn flag_rows(summary: &ThreadSummary) -> Vec<MenuItem<Pick>> {
     let worn = (summary.star == Star::Starred).then_some(summary.flag);
     let mut out: Vec<MenuItem<Pick>> = Hue::ALL
         .into_iter()
@@ -283,7 +283,7 @@ pub(in crate::ui) fn flag_rows(summary: &ThreadSummary) -> Vec<MenuItem<Pick>> {
 }
 
 /// The groups as quire's menu rows, a rule between each group, named for `summary` at `now`.
-pub(in crate::ui) fn rows(
+pub fn rows(
     groups: &[Vec<Pick>],
     summary: &ThreadSummary,
     now: DateTime<Utc>,
@@ -313,7 +313,7 @@ pub(in crate::ui) fn rows(
 }
 
 /// [`rows`], with Block Sender naming `blocking`, the address its rule is about.
-pub(in crate::ui) fn rows_blocking(
+pub fn rows_blocking(
     groups: &[Vec<Pick>],
     summary: &ThreadSummary,
     now: DateTime<Utc>,
@@ -333,7 +333,7 @@ pub(in crate::ui) fn rows_blocking(
 }
 
 /// A draft's menu: Cancel Sending while it is `held` for a time, Delete Draft otherwise.
-pub(super) fn draft_rows(held: bool) -> Vec<MenuItem<Pick>> {
+pub fn draft_rows(held: bool) -> Vec<MenuItem<Pick>> {
     let (pick, name) = if held {
         (Pick::CancelSending, menus::CANCEL_SENDING)
     } else {
@@ -344,7 +344,7 @@ pub(super) fn draft_rows(held: bool) -> Vec<MenuItem<Pick>> {
 
 /// The row's menu, a context menu at `at`, against the row's box `anchor` until a rect is known.
 #[component]
-pub(super) fn RowMenu(
+pub fn RowMenu(
     at: Rect,
     anchor: Option<MountedRef>,
     subject: String,
@@ -355,7 +355,7 @@ pub(super) fn RowMenu(
     rsx! {
         Menu::<Pick> {
             placement: MenuPlacement::Context,
-            anchor: mail_ui_kit::menu::anchor_for(anchor, Some(at)),
+            anchor: crate::menu::anchor_for(anchor, Some(at)),
             items,
             common: Common {
                 aria_label: Some(mail_ui_model::copy::aria::actions_for(&subject)),
@@ -371,7 +371,7 @@ pub(super) fn RowMenu(
 mod tests {
     use super::*;
     use chrono::TimeZone;
-    use mail_ui_kit::view::Shell;
+    use crate::view::Shell;
     use mail_ui_model::copy::menus as m;
 
     use mail_domain::*;
@@ -582,7 +582,7 @@ mod tests {
                 m::SHOW_ALL_HEADERS,
                 m::VIEW_SOURCE,
                 m::VIEW,
-                mail_ui_kit::window::OPEN_NAME,
+                crate::window::OPEN_NAME,
             ] {
                 assert!(!listed.iter().any(|row| row == not), "{not} in {listed:?}");
             }

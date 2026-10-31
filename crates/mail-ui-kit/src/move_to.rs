@@ -21,17 +21,17 @@ use ds::prelude::*;
 use mail_client::Client;
 use mail_domain::Label;
 use mail_domain::*;
-use mail_ui_kit::menu::{MenuItem, anchor_for, narrowed, palette_groups};
-use mail_ui_kit::motion::drag::Drag;
-use mail_ui_kit::motion::with_selection;
-use mail_ui_kit::motion::{act_all, motion};
-use mail_ui_kit::view::Shell;
+use crate::menu::{MenuItem, anchor_for, narrowed, palette_groups};
+use crate::motion::drag::Drag;
+use crate::motion::with_selection;
+use crate::motion::{act_all, motion};
+use crate::view::Shell;
 use mail_ui_model::copy;
 use porter_core::AccountId;
 
 /// What a pick in the menu does with the conversation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::ui) enum Gesture {
+pub enum Gesture {
     /// Out of where it is, into the folder: [`Op::File`].
     Move,
     /// Into the folder as well: [`Op::Copy`].
@@ -50,7 +50,7 @@ impl Gesture {
 
 /// One folder a conversation can be moved to.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(in crate::ui) struct Destination {
+pub struct Destination {
     /// The folder's path, as the server names it and the menu shows it.
     pub path: String,
 }
@@ -58,7 +58,7 @@ pub(in crate::ui) struct Destination {
 /// The account's own folders that hold mail, by path: never the inbox or a special-use folder,
 /// which are places with ops of their own, never a label that is only a label, and never a
 /// mailbox with no name of the person's ([`Folder::named`]).
-pub(in crate::ui) fn destinations(client: &Client, account: AccountId) -> Vec<Destination> {
+pub fn destinations(client: &Client, account: AccountId) -> Vec<Destination> {
     let mut folders: Vec<Folder> = client
         .stored()
         .folders(account)
@@ -75,7 +75,7 @@ pub(in crate::ui) fn destinations(client: &Client, account: AccountId) -> Vec<De
 
 /// The label `Op::File` files under for the folder at `path`: the server's own label of that
 /// name where there is one, made (as the server's) where there is not.
-pub(in crate::ui) fn folder_label(
+pub fn folder_label(
     client: &Client,
     account: AccountId,
     path: &str,
@@ -111,7 +111,7 @@ pub(in crate::ui) fn folder_label(
 }
 
 /// The account `thread` belongs to.
-pub(in crate::ui) fn account_of(client: &Client, thread: ThreadId) -> Option<AccountId> {
+pub fn account_of(client: &Client, thread: ThreadId) -> Option<AccountId> {
     let loaded = client.stored().thread(thread).ok()?;
     let first = loaded.messages.first()?;
     client.stored().message(*first).ok().map(|m| m.account)
@@ -120,7 +120,7 @@ pub(in crate::ui) fn account_of(client: &Client, thread: ThreadId) -> Option<Acc
 /// File each of `threads` on the folder's account into it, with the undo and the toast, as one
 /// gesture: one undo puts them all back. Nothing happens to one on another account: a folder is
 /// one server's. Returns how many were filed.
-pub(in crate::ui) fn file_all_into(
+pub(crate) fn file_all_into(
     client: &Client,
     shell: Signal<Shell>,
     threads: &[ThreadId],
@@ -130,7 +130,7 @@ pub(in crate::ui) fn file_all_into(
 }
 
 /// [`file_all_into`], moving or copying as `gesture` says.
-pub(in crate::ui) fn put_all_into(
+pub(crate) fn put_all_into(
     client: &Client,
     shell: Signal<Shell>,
     threads: &[ThreadId],
@@ -161,13 +161,13 @@ pub(in crate::ui) fn put_all_into(
 }
 
 /// Whether a row is being dragged. Read while drawing, so a folder row lights up for it.
-pub(in crate::ui) fn dragging() -> bool {
+pub fn dragging() -> bool {
     motion().is_some_and(|state| matches!(*state.drag.read(), Drag::Live { .. }))
 }
 
 /// A row let go over the folder row for `folder`: file it there, as the menu would. Returns
 /// whether a dragged row was there to take; the window's own release then has nothing to drop.
-pub(in crate::ui) fn drop_on(shell: Signal<Shell>, folder: &MailboxRef) -> bool {
+pub fn drop_on(shell: Signal<Shell>, folder: &MailboxRef) -> bool {
     let Some(mut state) = motion() else {
         return false;
     };
@@ -175,13 +175,13 @@ pub(in crate::ui) fn drop_on(shell: Signal<Shell>, folder: &MailboxRef) -> bool 
         return false;
     };
     state.drag.set(Drag::Idle);
-    let client = mail_ui_kit::live::client();
+    let client = crate::live::client();
     file_all_into(&client, shell, &with_selection(shell, thread), folder);
     true
 }
 
 /// The menu's rows: one per folder, keyed by its path.
-pub(in crate::ui) fn items(destinations: &[Destination]) -> Vec<MenuItem> {
+pub fn items(destinations: &[Destination]) -> Vec<MenuItem> {
     destinations
         .iter()
         .map(|d| MenuItem::icon(d.path.clone(), Icon::FolderInput, d.path.clone()))
@@ -192,7 +192,7 @@ pub(in crate::ui) fn items(destinations: &[Destination]) -> Vec<MenuItem> {
 /// under the control that opened it, its field narrowing the account's folders as it is typed
 /// into.
 #[component]
-pub(in crate::ui) fn MoveMenu(
+pub(crate) fn MoveMenu(
     thread: ThreadId,
     shell: Signal<Shell>,
     anchor: Option<MountedRef>,
@@ -204,7 +204,7 @@ pub(in crate::ui) fn MoveMenu(
     gesture: Gesture,
     on_close: EventHandler<()>,
 ) -> Element {
-    let client = mail_ui_kit::live::client();
+    let client = crate::live::client();
     let account = account_of(&client, thread);
     let found = account
         .clone()
@@ -244,7 +244,7 @@ pub(in crate::ui) fn MoveMenu(
             oninput: move |text: String| query.set(text),
             onpick: move |path: String| {
                 let Some(account) = account.clone() else { return };
-                let client = mail_ui_kit::live::client();
+                let client = crate::live::client();
                 let folder = MailboxRef { account, path };
                 on_close.call(());
                 // The whole selection when this row is picked, as one gesture.
@@ -271,5 +271,3 @@ fn within(rows: Vec<MenuItem>, title: &str) -> Vec<MenuItem> {
         .collect()
 }
 
-#[cfg(test)]
-mod tests;

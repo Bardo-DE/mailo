@@ -1,6 +1,6 @@
 //! Delete Forever and Empty Trash in the window: the alert that asks, and what opens it.
 //!
-//! Empty Trash is offered while Trash or Spam is the place shown (`mail_ui_kit::bin`); Delete
+//! Empty Trash is offered while Trash or Spam is the place shown (`crate::bin`); Delete
 //! Forever wherever a conversation already in one of them is. Every way in (a row's menu, the
 //! selection bar, the list bar's Empty button, ⌘K) opens the same alert, which names how many
 //! messages go and says it cannot be undone; only its button deletes. Nothing here is on the undo
@@ -14,10 +14,10 @@ use ds::root::common::Common;
 use ds::style::tokens::control_size::ControlSize;
 use mail_client::Client;
 use mail_domain::*;
-use mail_ui_kit::bin::{Bin, Destroying, Reach, bin_shown, doomed, offered, words};
-use mail_ui_kit::motion::destroy_all;
-use mail_ui_kit::press::on_primary;
-use mail_ui_kit::view::Shell;
+use crate::bin::{Bin, Destroying, Reach, bin_shown, doomed, offered, words};
+use crate::motion::destroy_all;
+use crate::press::on_primary;
+use crate::view::Shell;
 use mail_ui_model::copy;
 
 /// How many conversations one page of the Empty count reads.
@@ -27,7 +27,7 @@ const PAGE: u32 = 500;
 /// search), in the bin the first of them is in. Nothing opens when none of them has mail there.
 ///
 /// The conversations are read off the thread that draws, and the alert opens when they are.
-pub(in crate::ui) fn ask_chosen(client: &Client, shell: Signal<Shell>, threads: &[ThreadId]) {
+pub(crate) fn ask_chosen(client: &Client, shell: Signal<Shell>, threads: &[ThreadId]) {
     let shown = bin_shown(&shell.peek());
     let client = client.clone();
     let threads = threads.to_vec();
@@ -58,7 +58,7 @@ fn chosen_in(client: &Client, shown: Option<Bin>, threads: &[ThreadId]) -> Optio
 /// Ask about everything the bin shown holds, in the accounts in view: Empty Trash.
 ///
 /// The bin is paged through off the thread that draws, and the alert opens when it has been.
-pub(in crate::ui) fn ask_everything(client: &Client, shell: Signal<Shell>) {
+pub fn ask_everything(client: &Client, shell: Signal<Shell>) {
     let Some(bin) = bin_shown(&shell.peek()) else {
         return;
     };
@@ -116,9 +116,9 @@ fn counted(client: &Client, bin: Bin, reach: Reach, threads: Vec<ThreadId>) -> D
 }
 
 /// Close the alert, deleting nothing, and give the keyboard back to the window.
-pub(in crate::ui) fn close(mut shell: Signal<Shell>) {
+pub fn close(mut shell: Signal<Shell>) {
     shell.write().destroying = None;
-    mail_ui_kit::host::Host::focus_app();
+    crate::host::Host::focus_app();
 }
 
 /// The alert's own button: delete what it named, then close.
@@ -127,14 +127,14 @@ fn confirm(shell: Signal<Shell>) {
         return;
     };
     close(shell);
-    let client = mail_ui_kit::live::client();
+    let client = crate::live::client();
     destroy_all(&client, shell, &asked.threads);
 }
 
 /// The confirmation, quire's critical alert over the window while it is open: its Cancel answers
 /// Escape and only its destructive button deletes.
 #[component]
-pub(in crate::ui) fn DestroyAlert(shell: Signal<Shell>) -> Element {
+pub fn DestroyAlert(shell: Signal<Shell>) -> Element {
     let Some(asked) = shell.read().destroying.clone() else {
         return rsx! {};
     };
@@ -166,7 +166,7 @@ pub(in crate::ui) fn DestroyAlert(shell: Signal<Shell>) -> Element {
 
 /// The list bar's Empty Trash or Empty Spam, while that place is shown.
 #[component]
-pub(in crate::ui) fn EmptyButton(shell: Signal<Shell>) -> Element {
+pub fn EmptyButton(shell: Signal<Shell>) -> Element {
     let Some(bin) = bin_shown(&shell.read()) else {
         return rsx! {};
     };
@@ -185,7 +185,7 @@ pub(in crate::ui) fn EmptyButton(shell: Signal<Shell>) -> Element {
                 ..Common::default()
             },
             onclick: on_primary(move || {
-                let client = mail_ui_kit::live::client();
+                let client = crate::live::client();
                 ask_everything(&client, shell);
             }),
         }

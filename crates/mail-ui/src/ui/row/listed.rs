@@ -6,9 +6,9 @@
 //! reader, a draft in the composer, a message held for its time on a page that says when it
 //! leaves — and each has its menu on a right click, built here from its own state.
 
-use super::menu::{self, Pick};
+use mail_ui_kit::row_menu::{self as menu, Pick};
 use super::runs;
-use crate::ui::menus::when_words;
+use mail_ui_kit::menus::when_words;
 use chrono::{DateTime, TimeZone, Utc};
 use ds::components::app::thread_height::ThreadLines;
 use ds::components::menus::item::item::MenuItem;

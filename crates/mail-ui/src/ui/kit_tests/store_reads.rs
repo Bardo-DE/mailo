@@ -9,7 +9,7 @@ fn the_files_that_draw_ask_the_store_nothing() {
         ("list.rs", include_str!("../list.rs")),
         ("window/root.rs", include_str!("../window/root.rs")),
         ("fetching/mod.rs", include_str!("../fetching/mod.rs")),
-        ("menus/mod.rs", include_str!("../menus/mod.rs")),
+        ("menus/mod.rs", include_str!("../../../../mail-ui-kit/src/menus/mod.rs")),
         ("views.rs", include_str!("../views.rs")),
         ("organise.rs", include_str!("../organise.rs")),
         ("reading/mod.rs", include_str!("../reading/mod.rs")),

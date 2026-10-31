@@ -6,19 +6,17 @@
 //! opens or picks it, and it draws no buttons: its actions are in its menu ([`menu`]), opened by
 //! a right click. Split from [`super::app`].
 
-pub(in crate::ui) mod act;
 pub(in crate::ui) mod listed;
 #[cfg(test)]
 mod listed_tests;
-pub(in crate::ui) mod menu;
 #[cfg(test)]
 mod tests;
 
 use super::marked::{Piece, pieces};
-use super::menus::FurtherMenus;
+use mail_ui_kit::menus::FurtherMenus;
 use crate::ui::compose::{cancel_scheduled, delete_stored_draft};
 use crate::ui::provider_chip::ProvChip;
-use act::press;
+use mail_ui_kit::row_act::{self as act, press};
 use chordkit::Platform;
 use dioxus::prelude::*;
 use ds::base::command::holds_primary;
@@ -43,7 +41,7 @@ use mail_ui_kit::view::Marks;
 use mail_ui_kit::view::{Opened, Shell};
 use mail_ui_model::copy;
 use mail_ui_model::selection::Click;
-use menu::{Pick, RowMenu};
+use mail_ui_kit::row_menu::{Pick, RowMenu};
 use std::ops::Range;
 
 /// `text` as quire's line, with a search's `marks` as `Mark` runs; plain when nothing is marked.

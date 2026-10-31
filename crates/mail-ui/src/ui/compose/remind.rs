@@ -10,7 +10,7 @@ use chrono::{DateTime, TimeZone, Utc};
 use dioxus::prelude::*;
 use mail_client::when::Clock;
 
-use super::super::menus::{snooze_help, when_in_sentence, when_words};
+use mail_ui_kit::menus::{snooze_help, when_in_sentence, when_words};
 use super::page::{Float, Page};
 use super::props::ChoiceRow;
 use ds::base::geometry::placement::{Align, Side};

@@ -4,7 +4,6 @@
 # A new word goes in crates/mail-ui-model/src/copy/. Format: "<file> <count>".
 crates/mail-ui/src/ui/app.rs 3
 crates/mail-ui/src/ui/brand.rs 1
-crates/mail-ui/src/ui/destroy.rs 1
 crates/mail-ui/src/ui/keyboard.rs 5
 crates/mail-ui/src/ui/no_account.rs 3
 crates/mail-ui/src/ui/reauth.rs 5
@@ -46,7 +45,6 @@ crates/mail-ui/src/ui/fetching/face.rs 3
 crates/mail-ui/src/ui/fetching/mod.rs 1
 crates/mail-ui/src/ui/invite/card.rs 25
 crates/mail-ui/src/ui/invite/draw.rs 24
-crates/mail-ui/src/ui/menus/mod.rs 9
 crates/mail-ui/src/ui/pgp/certs.rs 22
 crates/mail-ui/src/ui/pgp/key_row.rs 24
 crates/mail-ui/src/ui/pgp/keys.rs 11
@@ -72,6 +70,7 @@ crates/mail-ui/src/ui/unsubscribe/mod.rs 12
 crates/mail-ui/src/ui/window/note.rs 3
 crates/mail-ui-kit/src/bin.rs 11
 crates/mail-ui-kit/src/data.rs 1
+crates/mail-ui-kit/src/destroy.rs 1
 crates/mail-ui-kit/src/keymap.rs 17
 crates/mail-ui-kit/src/ops.rs 2
 crates/mail-ui-kit/src/remedy.rs 16
@@ -85,6 +84,7 @@ crates/mail-ui-kit/src/files/export_sheet.rs 18
 crates/mail-ui-kit/src/files/import_sheet.rs 20
 crates/mail-ui-kit/src/files/mod.rs 1
 crates/mail-ui-kit/src/files/work.rs 14
+crates/mail-ui-kit/src/menus/mod.rs 9
 crates/mail-ui-model/src/add_account/host.rs 1
 crates/mail-ui-model/src/add_account/provider.rs 2
 crates/mail-ui-model/src/fetching/status.rs 20

@@ -6,7 +6,7 @@
 
 use super::List;
 use super::props::{Line, list_label};
-use crate::ui::menus::when_words;
+use mail_ui_kit::menus::when_words;
 use chrono::{DateTime, Local, Utc};
 use dioxus::prelude::*;
 use ds::components::overlays::inline_banner::InlineBanner;

@@ -14,6 +14,7 @@ pub mod common;
 pub mod configured;
 pub mod data;
 pub mod debounce;
+pub mod destroy;
 pub mod downloads;
 pub mod files;
 pub mod frame_selection;
@@ -26,23 +27,29 @@ pub mod list_query;
 pub mod list_search;
 pub mod live;
 pub mod menu;
+pub mod menus;
 pub mod motion;
+pub mod move_to;
 pub mod ops;
 pub mod original;
 pub mod pasted_image;
 pub mod pick;
+pub mod picks;
 pub mod prefs;
 pub mod press;
 pub mod quick;
 pub mod remedy;
+pub mod row_act;
+pub mod row_menu;
 pub mod saved;
 pub mod sensitive_copy;
 pub mod space;
 pub mod text;
 pub mod today;
+pub mod toolbar;
 pub mod view;
-pub mod window;
 pub mod vip;
+pub mod window;
 
 /// The log target of the window's few traces of what it was asked from outside (a banner's
 /// click, a second launch's hand-off). They go to stderr beside the warnings: a window has no

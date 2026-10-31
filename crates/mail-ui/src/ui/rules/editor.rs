@@ -15,7 +15,7 @@ use ds::style::icon::render::Glyph;
 use mail_domain::{AfterMatch, Rule, RuleAction};
 use porter_core::AccountId;
 
-use super::super::move_to::destinations;
+use mail_ui_kit::move_to::destinations;
 use super::conditions::{self, ConditionRows};
 use super::when::Joined;
 use super::work::{self, Draft};

@@ -1,19 +1,19 @@
 //! What a row's actions do once picked from its menu: the op, at once, over the selection
 //! when the row is picked; or the menu, sheet or composer the op needs first.
 
-use super::super::picks::mute_all;
+use crate::picks::mute_all;
 use dioxus::prelude::*;
 use ds::prelude::*;
 use mail_client::Client;
 use mail_domain::*;
-use mail_ui_kit::motion::with_selection;
-use mail_ui_kit::motion::{act_all, act_kind, act_kind_all};
-use mail_ui_kit::ops::{Writes, composes, open_composer};
-use mail_ui_kit::view::{Further, FurtherMenu, Opened, Shell};
+use crate::motion::with_selection;
+use crate::motion::{act_all, act_kind, act_kind_all};
+use crate::ops::{Writes, composes, open_composer};
+use crate::view::{Further, FurtherMenu, Opened, Shell};
 
 /// Which of the row's actions was picked from its menu.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::ui) enum Pressed {
+pub enum Pressed {
     Op(OpKind),
     MoveTo,
     CopyTo,
@@ -22,7 +22,7 @@ pub(in crate::ui) enum Pressed {
 }
 
 /// The further menu `pressed` opens before it acts, if it opens one.
-pub(in crate::ui) fn further(pressed: Pressed) -> Option<Further> {
+pub fn further(pressed: Pressed) -> Option<Further> {
     match pressed {
         Pressed::MoveTo => Some(Further::Move),
         Pressed::CopyTo => Some(Further::Copy),
@@ -35,13 +35,13 @@ pub(in crate::ui) fn further(pressed: Pressed) -> Option<Further> {
 /// One of a conversation's actions picked, from its row (`opened`) or the reader: the op it
 /// names, at once. Label, snooze, move and copy open their menus where they were asked for (picked
 /// while open, they close); a reply opens the composer on its draft.
-pub(in crate::ui) fn press(
+pub fn press(
     mut shell: Signal<Shell>,
     id: ThreadId,
     pressed: Pressed,
     opened: Opened,
 ) {
-    let client = mail_ui_kit::live::client();
+    let client = crate::live::client();
     // Offered as the way out of a state (Unsnooze, Stop Reminding): at once, with no menu.
     if let Pressed::Op(kind) = pressed
         && turn_off(&client, shell, id, kind)
@@ -57,7 +57,7 @@ pub(in crate::ui) fn press(
         return;
     }
     if let Pressed::Flag(hue) = pressed {
-        mail_ui_kit::host::Host::focus_app();
+        crate::host::Host::focus_app();
         let op = hue.map_or(Op::SetStar(Star::Unstarred), Op::Flag);
         let ops = with_selection(shell, id)
             .into_iter()
@@ -71,13 +71,13 @@ pub(in crate::ui) fn press(
     };
     // Never at once: the sheet names how much and asks, over this row and every one picked.
     if kind == OpKind::Destroy {
-        crate::ui::destroy::ask_chosen(&client, shell, &with_selection(shell, id));
+        crate::destroy::ask_chosen(&client, shell, &with_selection(shell, id));
         return;
     }
     // An op may take the row out of the list. Take the keyboard back before it can leave
     // with the row.
     if composes(kind).is_none() {
-        mail_ui_kit::host::Host::focus_app();
+        crate::host::Host::focus_app();
     }
     // Mute takes its direction from the conversations it reaches, so a picked row mutes or
     // unmutes the whole selection as one gesture.
@@ -104,7 +104,7 @@ pub(in crate::ui) fn press(
 /// `kind` picked where the conversation is offered it as the way out of a state it is in
 /// ([`mail_client::conversation::turns_off`]): that, for it and for whatever is picked with it and in the
 /// same state, as one gesture. Returns whether it was; when not, `kind` opens its menu of times.
-pub(in crate::ui) fn turn_off(
+pub(crate) fn turn_off(
     client: &Client,
     shell: Signal<Shell>,
     id: ThreadId,
@@ -130,7 +130,7 @@ pub(in crate::ui) fn turn_off(
     true
 }
 
-pub(in crate::ui) fn op_icon(kind: OpKind) -> Icon {
+pub(crate) fn op_icon(kind: OpKind) -> Icon {
     match kind {
         OpKind::Archive => Icon::Archive,
         OpKind::Trash => Icon::Trash,

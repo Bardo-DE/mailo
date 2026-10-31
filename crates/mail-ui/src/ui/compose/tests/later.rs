@@ -378,7 +378,7 @@ async fn a_scheduled_message_opens_held_and_cancel_writes_it() {
         markup.contains("data-held=\"Friday\""),
         "not opened held:\n{markup}"
     );
-    let leaves = mail_ui_model::copy::status::leaves(&crate::ui::menus::when_words(
+    let leaves = mail_ui_model::copy::status::leaves(&mail_ui_kit::menus::when_words(
         at,
         Utc::now(),
         &chrono::Local,

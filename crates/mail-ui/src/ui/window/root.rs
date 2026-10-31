@@ -183,14 +183,14 @@ pub(in crate::ui) fn MessageShell(thread: ThreadId) -> Element {
                 on_thread(&client, shell, thread, action);
             }
             Shortcut::ToggleMute => {
-                crate::ui::picks::mute_all(&client, shell, &[thread]);
+                mail_ui_kit::picks::mute_all(&client, shell, &[thread]);
             }
             _ => {
                 // The same gesture the first window's keys make, over the one conversation
                 // there is: one undo, one toast.
                 let listed: Vec<ThreadSummary> =
                     conversation_of(&read.peek(), thread).into_iter().collect();
-                crate::ui::picks::act_on_picked(&client, shell, action, &listed);
+                mail_ui_kit::picks::act_on_picked(&client, shell, action, &listed);
             }
         }
     };

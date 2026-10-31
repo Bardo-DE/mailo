@@ -12,7 +12,7 @@ use ds::root::common::Common;
 use mail_client::Client;
 use mail_client::when::Clock;
 
-use super::super::menus::when_words;
+use mail_ui_kit::menus::when_words;
 use super::away::AwayPage;
 use super::server::reach_away;
 use super::{Said, push_away};

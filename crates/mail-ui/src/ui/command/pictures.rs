@@ -76,7 +76,7 @@ pub(in crate::ui) fn OpenMenus() -> Element {
             if let Some(summary) = summary {
                 {
                     let id = summary.id;
-                    rsx! { super::super::menus::LabelMenu { id, summary, shell, anchor: None } }
+                    rsx! { mail_ui_kit::menus::LabelMenu { id, summary, shell, anchor: None } }
                 }
             }
         }
