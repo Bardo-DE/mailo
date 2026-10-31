@@ -244,7 +244,7 @@ fn policy_of(settings: Option<Signal<MailSettings>>) -> ReadReceipts {
 /// decided the thread is read ([`answers_now`]): under Always the answers wait for it.
 #[component]
 pub(in crate::ui) fn Receipts(bodies: Bodies, settled: bool) -> Element {
-    let looks = crate::ui::reading::use_looks();
+    let looks = mail_ui_kit::cache::use_looks();
     let settings = use_hook(try_consume_context::<Signal<MailSettings>>);
     let client = mail_ui_kit::live::client();
     let asks = try_consume_context::<Asks>();
@@ -354,7 +354,7 @@ pub(in crate::ui) fn destination_note(question: &Question) -> Option<String> {
 /// meanwhile is refused by `answer`, which finds the request answered.
 pub(in crate::ui) fn give(message: MessageId, answer: ReceiptAnswer) {
     let looks =
-        try_consume_context::<std::sync::Arc<Looks>>().unwrap_or_else(crate::ui::reading::looks);
+        try_consume_context::<std::sync::Arc<Looks>>().unwrap_or_else(mail_ui_kit::cache::looks);
     let client = mail_ui_kit::live::client();
     let asks = try_consume_context::<Asks>();
     spawn(async move {

@@ -17,3 +17,4 @@ mod downloads_unedited_tests;
 mod vip_tests;
 mod move_to_tests;
 mod menus_tests;
+mod cache_tests;

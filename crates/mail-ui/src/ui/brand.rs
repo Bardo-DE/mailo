@@ -70,7 +70,7 @@ fn use_brand_logo(
     from: String,
 ) -> Signal<Option<String>> {
     let mut logo = use_signal(|| None::<String>);
-    let looks = super::reading::use_looks();
+    let looks = mail_ui_kit::cache::use_looks();
     let settings = mail_ui_kit::prefs::use_settings();
     let _find = use_resource(move || {
         // Read here, so turning brand logos on or off looks again.

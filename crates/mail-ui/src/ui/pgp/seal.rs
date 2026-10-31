@@ -31,7 +31,7 @@ pub(in crate::ui) fn Seal(
     body: Option<BlobId>,
     landed: Signal<u64>,
 ) -> Element {
-    let looks = crate::ui::reading::use_looks();
+    let looks = mail_ui_kit::cache::use_looks();
     let mut known = use_signal({
         let looks = looks.clone();
         move || cached(&looks, message, body)

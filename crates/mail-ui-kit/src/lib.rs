@@ -9,6 +9,7 @@
 pub mod actions;
 pub mod appearance;
 pub mod bin;
+pub mod cache;
 pub mod clock;
 pub mod common;
 pub mod configured;

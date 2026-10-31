@@ -2,7 +2,6 @@
 mod anyview;
 mod attachments;
 pub(super) mod blocks;
-mod cache;
 mod code;
 mod column;
 mod fetch;
@@ -14,13 +13,14 @@ mod images;
 mod list_post;
 mod marking;
 mod peek;
+mod render;
 mod source;
 mod thumb;
 mod tools;
 mod words;
 
 use attachments::Attachments;
-pub(in crate::ui) use cache::{frames, looks, use_frames, use_looks, use_warming};
+use mail_ui_kit::cache::{use_frames, use_looks};
 pub(in crate::ui) use column::reading_column;
 use dioxus::prelude::*;
 use ds::components::content::avatar::{
@@ -377,7 +377,7 @@ pub(super) fn Reader(
     let pressed = shell.read().show_remote_images && !block_all;
     let peek = shell.read().peek;
     // What this reader sent to be rendered off the thread, and the count that moves when some of
-    // it lands (`cache::render_later`).
+    // it lands (`render::render_later`).
     let sent = use_hook(|| std::rc::Rc::new(std::cell::RefCell::new(Sent::default())));
     let rendered_later = use_signal(|| 0u64);
     let _ = rendered_later();
@@ -457,7 +457,7 @@ pub(super) fn Reader(
         })
         .collect();
     if !later.is_empty() {
-        cache::render_later(
+        render::render_later(
             frames.clone(),
             client.clone(),
             later,

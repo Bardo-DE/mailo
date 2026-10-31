@@ -130,7 +130,7 @@ fn FullHead(
     landed: Signal<u64>,
 ) -> Element {
     let checks = use_checks(message.id, message.body.raw());
-    let looks = super::use_looks();
+    let looks = mail_ui_kit::cache::use_looks();
     // Moved by the seal once it knows; what it found is kept in `looks`, and read here.
     let _ = landed();
     let look = crate::ui::pgp::last(&looks, message.id, message.body.raw());

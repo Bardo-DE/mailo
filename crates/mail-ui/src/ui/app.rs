@@ -449,7 +449,7 @@ pub(super) fn App() -> Element {
     } = use_list(shell, pages);
     // Render what the person is about to open before they open it — the top of the list, and
     // the neighbours of the open conversation — so that opening it is a lookup.
-    super::reading::use_warming(shell, threads);
+    mail_ui_kit::cache::use_warming(shell, threads);
 
     // Every account's drafts, kept read, while Drafts or Scheduled is shown; nothing is read
     // for any other place.

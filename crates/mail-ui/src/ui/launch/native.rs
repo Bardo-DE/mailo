@@ -314,7 +314,7 @@ fn window_contexts(
     dirs: Option<WindowDirs>,
     start: crate::ui::ask::Open,
 ) -> RootContexts {
-    let looks = crate::ui::reading::looks();
+    let looks = mail_ui_kit::cache::looks();
     // The accounts and saved views read before the first window asks, so its first frame has its
     // places: kept for as long as the windows are, by their root.
     let primed = Primed {
@@ -333,7 +333,7 @@ fn window_contexts(
         .with(start)
         // The one cache of rendered bodies every reader and the warming share, and the one set
         // of per-message lookups they and the opened bodies come from.
-        .with(crate::ui::reading::frames(looks.clone()))
+        .with(mail_ui_kit::cache::frames(looks.clone()))
         .with(looks);
     if let Some(spaces) = spaces {
         contexts = contexts.with(spaces);

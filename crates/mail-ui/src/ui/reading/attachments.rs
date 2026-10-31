@@ -106,7 +106,7 @@ pub(super) fn Attachments(
 ) -> Element {
     let downloads: Downloads = use_signal(HashMap::new);
     let toasts = use_hook(try_consume_context::<ds::stack::toast_hub::ToastHub>);
-    let looks = super::use_looks();
+    let looks = mail_ui_kit::cache::use_looks();
     let reauth = try_consume_context::<Reauth>();
     let mut menu = use_signal(|| None::<Held>);
     let mut picked = use_signal(|| None::<(Pick, Part)>);

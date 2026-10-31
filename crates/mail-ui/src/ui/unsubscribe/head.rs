@@ -39,7 +39,7 @@ pub(in crate::ui) fn Lookout(
     tag: String,
     found: Signal<Option<(String, Offer)>>,
 ) -> Element {
-    let looks = crate::ui::reading::use_looks();
+    let looks = mail_ui_kit::cache::use_looks();
     let _look = use_resource(move || {
         let bodies = bodies.clone();
         let looks = looks.clone();

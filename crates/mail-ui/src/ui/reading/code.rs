@@ -22,7 +22,7 @@ use mail_ui_model::copy::{controls, status, toasts};
 /// message's code is never drawn under another.
 #[component]
 pub(super) fn CodeLine(message: MessageId, body: Option<BlobId>) -> Element {
-    let looks = super::use_looks();
+    let looks = mail_ui_kit::cache::use_looks();
     let mut known = use_signal({
         let looks = looks.clone();
         move || looks.code_cached(message, body)

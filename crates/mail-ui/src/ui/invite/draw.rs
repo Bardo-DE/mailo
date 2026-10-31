@@ -69,7 +69,7 @@ impl Disclosure {
 /// reader on the message and its body, so one message's card is never drawn under another.
 #[component]
 pub(in crate::ui) fn Invitation(message: MessageId, body: Option<BlobId>) -> Element {
-    let looks = crate::ui::reading::use_looks();
+    let looks = mail_ui_kit::cache::use_looks();
     let hours = mail_ui_kit::clock::hours();
     let mut known = use_signal({
         let looks = looks.clone();
@@ -106,7 +106,7 @@ pub(in crate::ui) fn InviteCard(
     #[props(default)]
     opens: Disclosure,
 ) -> Element {
-    let looks = crate::ui::reading::use_looks();
+    let looks = mail_ui_kit::cache::use_looks();
     let mut phase = use_signal(|| Phase::Resting);
     let mut disclosure = use_signal(|| opens);
     let mut more = use_signal(|| false);

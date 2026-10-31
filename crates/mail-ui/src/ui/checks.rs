@@ -87,7 +87,7 @@ pub(in crate::ui) fn use_checks(
     message: MessageId,
     body: Option<BlobId>,
 ) -> Signal<Option<Option<AuthResults>>> {
-    let looks = super::reading::use_looks();
+    let looks = mail_ui_kit::cache::use_looks();
     let known = use_signal({
         let looks = looks.clone();
         move || body.and_then(|raw| looks.checks_cached(message, raw))

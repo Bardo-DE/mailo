@@ -20,7 +20,7 @@ pub(super) fn PostLookout(
     tag: String,
     found: Signal<Option<String>>,
 ) -> Element {
-    let looks = super::use_looks();
+    let looks = mail_ui_kit::cache::use_looks();
     let _look = use_resource(move || {
         let bodies = bodies.clone();
         let looks = looks.clone();
