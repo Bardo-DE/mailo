@@ -191,4 +191,3 @@ pub(crate) fn tilde_here(path: &std::path::Path) -> String {
             .map(std::path::Path::as_os_str),
     )
 }
-

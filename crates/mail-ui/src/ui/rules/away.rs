@@ -17,11 +17,11 @@ use mail_client::Client;
 use mail_client::when::Clock;
 use mail_domain::{DateRange, Vacation};
 
-use mail_ui_kit::menus::when_words;
 use super::server::{configured, reach_away};
 use mail_ui_kit::common::Problem;
 use mail_ui_kit::common::classed;
 use mail_ui_kit::data::AccountRow;
+use mail_ui_kit::menus::when_words;
 use mail_ui_kit::press::{available, on_primary};
 use mail_ui_kit::remedy::plainly;
 use mail_ui_model::copy;

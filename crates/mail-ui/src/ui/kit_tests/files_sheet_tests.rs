@@ -11,9 +11,9 @@ use mail_core::{SqliteStore, Store};
 use mail_domain::*;
 use porter_core::AccountId;
 
+use crate::ui::fixtures::{Seen, click, dispatching, drain_seen, rebuild_into};
 use mail_ui_kit::files::work::{Dest, Looked, import_now, look};
 use mail_ui_kit::files::{FilesSheet, Phase, Report};
-use crate::ui::fixtures::{Seen, click, dispatching, drain_seen, rebuild_into};
 use mail_ui_kit::view::{FileSheet, Shell};
 
 /// The first render, then the ones after it, keeping every attribute they set: a quire sheet is

@@ -20,11 +20,11 @@ use mail_client::undo::{Resend, Undo};
 use mail_client::when::Clock;
 use mail_domain::{ChangeId, Draft, DraftId, Patch, SendState};
 
-use mail_ui_kit::menus::{when_in_sentence, when_words};
 use super::desk::{Desk, refusal};
 use super::page::{Float, Page, When};
 use mail_client::compose::Leaves;
 use mail_ui_kit::menu::{MenuKey, menu_key};
+use mail_ui_kit::menus::{when_in_sentence, when_words};
 use mail_ui_kit::motion::{Follow, record, tell};
 use mail_ui_kit::space::Scope;
 use mail_ui_kit::view::Shell;

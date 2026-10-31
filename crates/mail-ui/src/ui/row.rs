@@ -13,10 +13,7 @@ mod listed_tests;
 mod tests;
 
 use super::marked::{Piece, pieces};
-use mail_ui_kit::menus::FurtherMenus;
 use crate::ui::compose::{cancel_scheduled, delete_stored_draft};
-use crate::ui::provider_chip::ProvChip;
-use mail_ui_kit::row_act::{self as act, press};
 use chordkit::Platform;
 use dioxus::prelude::*;
 use ds::base::command::holds_primary;
@@ -34,14 +31,17 @@ use ds::style::icon::render::Glyph;
 use listed::{Listed, Opens, RowModel};
 use mail_client::provider::Provider;
 use mail_domain::*;
+use mail_ui_kit::menus::FurtherMenus;
 use mail_ui_kit::motion::drawn_order;
 use mail_ui_kit::motion::{act_kind, drag, motion};
 use mail_ui_kit::ops::{Writes, open_composer};
+use mail_ui_kit::provider_chip::ProvChip;
+use mail_ui_kit::row_act::{self as act, press};
+use mail_ui_kit::row_menu::{Pick, RowMenu};
 use mail_ui_kit::view::Marks;
 use mail_ui_kit::view::{Opened, Shell};
 use mail_ui_model::copy;
 use mail_ui_model::selection::Click;
-use mail_ui_kit::row_menu::{Pick, RowMenu};
 use std::ops::Range;
 
 /// `text` as quire's line, with a search's `marks` as `Mark` runs; plain when nothing is marked.

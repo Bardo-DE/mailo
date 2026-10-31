@@ -15,12 +15,7 @@
 //! is written is the stored bytes, never a rendering, so a message that draws wrongly can be
 //! handed on whole.
 
-use mail_ui_kit::row_act::{Pressed, press};
-use mail_ui_kit::row_menu::{Pick, reader_groups, rows_blocking, with_files};
-use mail_ui_kit::toolbar::{Tool, ToolButton};
 use super::fetch;
-use mail_ui_kit::downloads::{Origin, Saving};
-use mail_ui_kit::menus::FurtherMenus;
 use crate::unsubscribe::{Confirm, Offer, Phase, ask};
 use dioxus::prelude::*;
 use ds::components::controls::button_model::{Bezel, ImagePosition};
@@ -31,9 +26,14 @@ use ds::style::tokens::control_size::ControlSize;
 use mail_client::Client;
 use mail_client::conversation::says;
 use mail_domain::*;
+use mail_ui_kit::downloads::{Origin, Saving};
 use mail_ui_kit::menu::{Floating, MenuItem, Right, anchor_at};
+use mail_ui_kit::menus::FurtherMenus;
 use mail_ui_kit::motion::{Follow, tell};
 use mail_ui_kit::ops::{Composes, Writes, open_composer};
+use mail_ui_kit::row_act::{Pressed, press};
+use mail_ui_kit::row_menu::{Pick, reader_groups, rows_blocking, with_files};
+use mail_ui_kit::toolbar::{Tool, ToolButton};
 use mail_ui_kit::view::{FurtherMenu, Opened, Peek, Shell};
 use mail_ui_model::copy;
 use mail_ui_model::copy::menus::offered;

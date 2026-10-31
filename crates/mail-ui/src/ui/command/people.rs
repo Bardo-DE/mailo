@@ -10,8 +10,8 @@ use std::collections::HashMap;
 
 use chrono::Utc;
 
-use mail_ui_kit::book::suggest;
 use mail_client::search::{PersonHit, Results, Top};
+use mail_ui_kit::book::suggest;
 use mail_ui_kit::history::History;
 
 /// People rows under the top hit.

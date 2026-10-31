@@ -70,11 +70,7 @@ pub fn automatic(
 /// Pure, so the whole table is a test. A request whose receipt would go to another domain is
 /// still asked about, with the address said beside it ([`Question::destination`]): the person
 /// decides, knowing where it would go.
-pub fn asks(
-    policy: ReadReceipts,
-    state: &ReceiptState,
-    mailbox: MailboxRole,
-) -> bool {
+pub fn asks(policy: ReadReceipts, state: &ReceiptState, mailbox: MailboxRole) -> bool {
     policy == ReadReceipts::Ask
         && mailbox != MailboxRole::Spam
         && matches!(state, ReceiptState::Pending(_))
@@ -118,11 +114,7 @@ pub fn destination(ask: &ReceiptAsk) -> Destination {
 
 /// The requests among `standings` that `policy` puts to the person, each looked up again in the
 /// client for where its message is now. Blocking: the reader calls it on a blocking thread.
-pub fn questions(
-    client: &Client,
-    standings: &[Standing],
-    policy: ReadReceipts,
-) -> Vec<Question> {
+pub fn questions(client: &Client, standings: &[Standing], policy: ReadReceipts) -> Vec<Question> {
     standings
         .iter()
         .filter_map(|standing| {
@@ -425,4 +417,3 @@ pub fn ReceiptMark(message: MessageId) -> Element {
 pub fn mark_id(message: MessageId) -> String {
     format!("receipt-mark-{message}")
 }
-

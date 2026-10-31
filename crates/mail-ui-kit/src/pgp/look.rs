@@ -15,8 +15,8 @@ use mail_domain::*;
 use mail_mime::Parsed;
 
 use super::{Said, Scheme, Tried, said, said_smime};
-use mail_client::password::Password;
 use crate::text::{AttachmentRow, Kept as Where};
+use mail_client::password::Password;
 
 /// What a protected message's glyph in the reader's head says at a glance: the best thing that
 /// can be said for it. What went wrong is a banner of its own (`seal::Seal`), not a glyph.
@@ -118,11 +118,7 @@ fn scheme_of(scheme: mail_client::message::Scheme) -> Scheme {
 }
 
 /// What was found for `message` holding `body`, if it was opened under the keys held now.
-pub fn cached(
-    looks: &Looks,
-    message: MessageId,
-    body: Option<BlobId>,
-) -> Option<Look> {
+pub fn cached(looks: &Looks, message: MessageId, body: Option<BlobId>) -> Option<Look> {
     looks.sealed_cached(message, body).map(look_of)
 }
 

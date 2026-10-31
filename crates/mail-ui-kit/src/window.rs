@@ -56,14 +56,10 @@ pub const OPEN_NAME: &str = "Open in new window";
 pub fn menu_item(keymap: &chordkit::Keymap) -> crate::menu::MenuItem {
     let shortcut = crate::actions::hint_own(keymap, crate::actions::Own::OpenInWindow);
     crate::menu::MenuItem {
-        right: shortcut.map_or(
-            crate::menu::Right::None,
-            crate::menu::Right::Shortcut,
-        ),
+        right: shortcut.map_or(crate::menu::Right::None, crate::menu::Right::Shortcut),
         ..crate::menu::MenuItem::icon(OPEN_KEY, Icon::Window, OPEN_NAME)
     }
 }
 
 /// The menu row's key.
 pub const OPEN_KEY: &str = "open-window";
-

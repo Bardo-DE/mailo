@@ -1,13 +1,13 @@
 //! A contact group in the To field's menu: offered above the people for a word of its name, and
 //! choosing it puts each member on the message once.
 
-use super::super::page::{Float};
-use mail_ui_kit::lines::List;
+use super::super::page::Float;
 use super::super::recipients::{people_items, pick_person, typed};
 use super::*;
 use crate::ui::contacts::tests::{ADDED, HEARD, WRITTEN, the_book};
 use mail_core::Store;
 use mail_core::contacts::{Group, GroupHome, GroupId};
+use mail_ui_kit::lines::List;
 
 #[test]
 fn a_group_is_offered_first_and_choosing_it_puts_each_member_on_once() {

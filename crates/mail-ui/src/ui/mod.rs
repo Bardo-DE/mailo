@@ -28,10 +28,9 @@ mod launcher_count;
 mod list;
 mod marked;
 mod no_account;
-mod original_frame;
 mod organise;
+mod original_frame;
 mod page;
-mod provider_chip;
 mod reauth;
 mod row;
 mod rules;
@@ -72,10 +71,10 @@ pub mod native {
     pub use super::launch::DesktopSettings;
     pub use super::launch::gate::{Found, found as damaged_files};
     pub use super::launch::native::{contexts, contexts_passing, live_root, root};
-    pub use super::provider_chip::read as read_icons;
     pub use super::original_frame::OriginalFrame;
     pub use super::server_search::{Search, ServerSearcher};
     pub use super::settings_window::settings_root;
     pub use super::window::{MessageOpen, message_root};
     pub use crate::handoff::{ActivationToken, Requests};
+    pub use mail_ui_kit::provider_chip::read as read_icons;
 }

@@ -10,7 +10,6 @@ use chrono::{DateTime, TimeZone, Utc};
 use dioxus::prelude::*;
 use mail_client::when::Clock;
 
-use mail_ui_kit::menus::{snooze_help, when_in_sentence, when_words};
 use super::page::{Float, Page};
 use super::props::ChoiceRow;
 use ds::base::geometry::placement::{Align, Side};
@@ -22,6 +21,7 @@ use ds::prelude::*;
 use ds::root::common::Common;
 use ds::root::pass_through::ExtraClass;
 use mail_ui_kit::menu::{MenuItem, MenuKey, Right, menu_key};
+use mail_ui_kit::menus::{snooze_help, when_in_sentence, when_words};
 
 /// The Remind menu's key for "Off".
 pub(in crate::ui) const OFF_KEY: &str = "off";

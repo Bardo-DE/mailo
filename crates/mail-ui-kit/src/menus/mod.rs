@@ -10,7 +10,11 @@ mod further;
 mod redirect;
 pub use further::FurtherMenus;
 
+use crate::menu::{Floating, MenuItem, MenuKey, Right, anchor_for, menu_key, palette_groups};
+use crate::motion::with_selection;
+use crate::motion::{act, act_all};
 use crate::picks::label_all;
+use crate::view::Shell;
 use chrono::{DateTime, TimeZone, Utc};
 use dioxus::prelude::*;
 use ds::base::geometry::placement::{Align, Side};
@@ -24,10 +28,6 @@ use ds::root::common::Common;
 use ds::root::pass_through::ExtraClass;
 use mail_client::when::Clock;
 use mail_domain::*;
-use crate::menu::{Floating, MenuItem, MenuKey, Right, anchor_for, menu_key, palette_groups};
-use crate::motion::with_selection;
-use crate::motion::{act, act_all};
-use crate::view::Shell;
 use mail_ui_model::copy;
 
 /// The four times the snooze menu offers, as `(what it says, the phrase it means)`.
@@ -97,11 +97,7 @@ where
 
 /// The snooze menu's rows: the four times, each with [`snooze_hint`] of
 /// [`mail_client::snooze::snooze_until`] at its end, then Choose Time….
-pub fn snooze_items<Tz: TimeZone>(
-    now: DateTime<Utc>,
-    zone: &Tz,
-    clock: Clock,
-) -> Vec<MenuItem>
+pub fn snooze_items<Tz: TimeZone>(now: DateTime<Utc>, zone: &Tz, clock: Clock) -> Vec<MenuItem>
 where
     Tz::Offset: std::fmt::Display,
 {
@@ -401,4 +397,3 @@ pub fn LabelMenu(
         }
     }
 }
-

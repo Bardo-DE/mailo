@@ -6,7 +6,10 @@
 //! whatever a gesture does to five conversations is one entry on the undo stack, one toast, and
 //! one Ctrl Z that puts all five back.
 
+use crate::motion::{act_all, act_kind_all};
+use crate::press::on_primary;
 use crate::toolbar::{Tool, ToolButton};
+use crate::view::{Shell, Shortcut, mute_label, op_for_selection};
 use dioxus::prelude::*;
 use ds::components::controls::button_model::{Bezel, ImagePosition};
 use ds::prelude::*;
@@ -15,9 +18,6 @@ use ds::style::tokens::control_size::ControlSize;
 use mail_client::Client;
 use mail_client::conversation::mute_for_all;
 use mail_domain::*;
-use crate::motion::{act_all, act_kind_all};
-use crate::press::on_primary;
-use crate::view::{Shell, Shortcut, mute_label, op_for_selection};
 use mail_ui_model::copy::{aria, menus, status, tooltips};
 
 /// What `action` does to the conversations it means among `listed`: the picked ones, or with
@@ -72,11 +72,7 @@ pub(crate) fn label_all(
 
 /// Mute each of `threads`, or unmute them: unmute when every one is already muted, mute
 /// otherwise, and only the ones it changes. One gesture, one undo.
-pub fn mute_all(
-    client: &Client,
-    shell: Signal<Shell>,
-    threads: &[ThreadId],
-) -> usize {
+pub fn mute_all(client: &Client, shell: Signal<Shell>, threads: &[ThreadId]) -> usize {
     let summaries: Vec<ThreadSummary> = threads
         .iter()
         .filter_map(|thread| {
@@ -98,11 +94,7 @@ pub fn mute_all(
 
 /// [`mute_all`] over what `action`s mean among `listed`: the picked ones, or with none picked
 /// the open one. `m`, and the pick bar's Mute.
-pub fn mute_picked(
-    client: &Client,
-    shell: Signal<Shell>,
-    listed: &[ThreadSummary],
-) -> usize {
+pub fn mute_picked(client: &Client, shell: Signal<Shell>, listed: &[ThreadSummary]) -> usize {
     let ids: Vec<ThreadId> = listed.iter().map(|summary| summary.id).collect();
     let targets = shell.peek().acted_on(&ids);
     mute_all(client, shell, &targets)

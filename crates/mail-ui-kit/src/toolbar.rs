@@ -7,6 +7,7 @@
 //! a button is called, looks like or is bound to.
 
 use crate::row_act::op_icon;
+use crate::view::Shortcut;
 use dioxus::prelude::*;
 use ds::base::press::Press;
 use ds::components::controls::button_model::{Bezel, ImagePosition};
@@ -14,7 +15,6 @@ use ds::prelude::*;
 use ds::root::common::Common;
 use ds::style::tokens::control_size::ControlSize;
 use mail_domain::OpKind;
-use crate::view::Shortcut;
 
 /// The key that does what `kind` does, for a tooltip's hint. Both sides of a pair share one key,
 /// as the keymap's toggles do. `None` for what no key reaches.
@@ -61,11 +61,7 @@ impl ToolButton {
 /// `tool` as a toolbar button. `aria` is what a screen reader says, which a bar over several
 /// conversations says with their count.
 #[component]
-pub fn Tool(
-    tool: ToolButton,
-    aria: Option<String>,
-    onclick: EventHandler<Press>,
-) -> Element {
+pub fn Tool(tool: ToolButton, aria: Option<String>, onclick: EventHandler<Press>) -> Element {
     rsx! {
         Button {
             bezel: Bezel::Toolbar,

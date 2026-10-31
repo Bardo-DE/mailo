@@ -5,12 +5,12 @@
 //! read again on every revision as the labels are, so a mark made anywhere moves the rows, the
 //! reader and the VIPs place together.
 
+use crate::motion::tell_through;
+use crate::view::Shell;
 use dioxus::prelude::*;
 use ds::prelude::*;
 use ds::style::icon::render::Glyph;
 use mail_client::vip::Mark;
-use crate::motion::tell_through;
-use crate::view::Shell;
 use mail_ui_model::copy;
 
 /// Where a mark made in the reader lands: the window's shell.

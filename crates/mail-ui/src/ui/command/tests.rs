@@ -38,11 +38,10 @@ fn a_person_the_ranker_put_on_top_is_the_books_best_match() {
     // Nobody but the book says who "da" is: the menu's people are its answer, in its order.
     let (store, _dir) = crate::ui::contacts::tests::the_book();
     let drawn = people_for(&store, "da");
-    let book: Vec<String> =
-        mail_ui_kit::book::suggest(&crate::ui::fixtures::client(&store), "da")
-            .into_iter()
-            .map(|person| person.address)
-            .collect();
+    let book: Vec<String> = mail_ui_kit::book::suggest(&crate::ui::fixtures::client(&store), "da")
+        .into_iter()
+        .map(|person| person.address)
+        .collect();
     assert!(!drawn.is_empty(), "no people for da");
     assert_eq!(drawn, book[..drawn.len()], "the menu and the book disagree");
     // Operators alone name nobody.
@@ -318,8 +317,8 @@ fn Runs(command: &'static dyn Command) -> Element {
 /// Settings… is the one row for Settings: it opens the window, which keeps its own pages.
 #[tokio::test]
 async fn settings_opens_the_settings_window() {
-    use mail_ui_kit::settings_at::SettingsWindows;
     use crate::ui::settings_window::tests::Asked;
+    use mail_ui_kit::settings_at::SettingsWindows;
     let command: &'static dyn Command = &Settings;
     crate::ui::fixtures::dispatching();
     let asked = Arc::new(Asked::default());

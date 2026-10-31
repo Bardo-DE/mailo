@@ -8,7 +8,6 @@
 //! each place asked for while it is open.
 
 use super::SettingsView;
-use mail_ui_kit::settings_at::SettingsAsked;
 use crate::ui::app::Frame;
 use crate::ui::style::STYLE;
 use dioxus::prelude::*;
@@ -16,6 +15,7 @@ use ds::base::spawner::Spawner;
 use ds::components::app::spaces::{Switched, use_spaces};
 use ds_settings::use_environment;
 use mail_ui_kit::appearance::WindowDirs;
+use mail_ui_kit::settings_at::SettingsAsked;
 use mail_ui_kit::space::{Recall, Spaces};
 use mail_ui_kit::view::{PageId, Shell};
 use std::sync::Arc;
@@ -47,7 +47,7 @@ fn SettingsShell() -> Element {
     let loaded = try_consume_context::<mail_client::provider::icon::Loaded>().unwrap_or_default();
     let icons = use_signal(|| loaded);
     use_context_provider(|| icons);
-    crate::ui::provider_chip::use_fetch_missing(icons);
+    mail_ui_kit::provider_chip::use_fetch_missing(icons);
     mail_ui_kit::host::use_window_host();
     let dirs = try_consume_context::<WindowDirs>();
     let asked = try_consume_context::<SettingsAsked>();

@@ -26,11 +26,7 @@ use mail_client::password::Password;
 /// another. `landed` is the reader's: moved when anything but a plain message is found, so the
 /// reader draws the body it opened to, and the head its glyph.
 #[component]
-pub fn Seal(
-    message: MessageId,
-    body: Option<BlobId>,
-    landed: Signal<u64>,
-) -> Element {
+pub fn Seal(message: MessageId, body: Option<BlobId>, landed: Signal<u64>) -> Element {
     let looks = crate::cache::use_looks();
     let mut known = use_signal({
         let looks = looks.clone();

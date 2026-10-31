@@ -12,12 +12,12 @@ use ds::root::common::Common;
 use mail_client::Client;
 use mail_client::when::Clock;
 
-use mail_ui_kit::menus::when_words;
 use super::away::AwayPage;
 use super::server::reach_away;
 use super::{Said, push_away};
 use mail_ui_kit::common::Told;
 use mail_ui_kit::data::{AccountRow, use_account_rows};
+use mail_ui_kit::menus::when_words;
 use mail_ui_kit::view::{Shell, VacationAt};
 use mail_ui_model::copy;
 
@@ -115,7 +115,7 @@ fn VacationList(shell: Signal<Shell>, rows: Vec<AccountRow>) -> Element {
                 shown.clone(),
                 rsx! {
                     Row {
-                        leading: crate::ui::provider_chip::account_mark(&row),
+                        leading: mail_ui_kit::provider_chip::account_mark(&row),
                         title: shown.clone(),
                         accessory: Accessory::Text(state),
                         size: RowSize::Settings,

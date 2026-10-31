@@ -14,10 +14,10 @@ use mail_crypto::smime::{Cert, Identity, Sealing};
 use mail_domain::*;
 
 use super::pgp_tests::{ME, arrive, lines, reader, reader_looking, seals, shows, until};
-use mail_ui_kit::pgp::{Said, Tone, doubt, said_smime};
 use crate::ui::fixtures::seeded;
 use crate::ui::fixtures::smime_support::{Person, identity, pki, rng, stranger_pki};
 use mail_core::smime::Protected;
+use mail_ui_kit::pgp::{Said, Tone, doubt, said_smime};
 
 const BEA: &str = "bea@example.test";
 pub(super) const PASSWORD: &str = "p12 password";
@@ -563,7 +563,8 @@ async fn an_encrypted_smime_message_shows_its_body_and_lists_what_is_attached_in
     assert_eq!(saved.file_name().unwrap(), "map.bin");
     assert_eq!(std::fs::read(saved).unwrap(), [0, 1, 2, 3, 4, 5, 6, 7]);
     assert!(
-        mail_ui_kit::pgp::save_attachment(&looks, message.id, message.body.raw(), 1, dir.path()).is_err(),
+        mail_ui_kit::pgp::save_attachment(&looks, message.id, message.body.raw(), 1, dir.path())
+            .is_err(),
         "there is one attachment"
     );
 }

@@ -7,18 +7,18 @@ use ds::components::fields::text_field_model::Invalid;
 use ds::motion::detail::stamp::EventStamp;
 use ds::prelude::*;
 
-use dioxus::prelude::*;
 use crate::common::in_card;
+use dioxus::prelude::*;
 
 use super::work::{self, Counted};
 use super::{Phase, Report, run};
-use mail_client::export::{Target, usual};
-use mail_client::formats::{Writer, writers};
 use crate::common::classed;
 use crate::debounce::use_debounced;
 use crate::pick::{Ask, choose};
 use crate::press::{SheetClose, available, on_primary};
 use crate::view::{FileSheet, Shell};
+use mail_client::export::{Target, usual};
+use mail_client::formats::{Writer, writers};
 
 /// The query the sheet's field holds.
 fn typed(shell: &Shell) -> String {

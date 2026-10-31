@@ -16,10 +16,10 @@ use dioxus::prelude::*;
 use mail_client::Client;
 use mail_domain::{Draft, Fingerprint};
 
-use mail_ui_kit::pgp::{Busy, Passphrase, Scheme, Tried, WRONG, seams, short};
 use mail_client::password::Password;
 use mail_client::pgp::PgpError;
 use mail_client::smime::SmimeError;
+use mail_ui_kit::pgp::{Busy, Passphrase, Scheme, Tried, WRONG, seams, short};
 use mail_ui_kit::press::on_primary;
 
 /// What the warning bar says about signing and encrypting.

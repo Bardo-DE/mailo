@@ -2,9 +2,6 @@
 //! Save for printing take, and read back with pdfrum as a reader of the PDF would, for its pages,
 //! its text and its images. No test here opens a print dialog: the [`Printer`] is a recorder.
 
-use mail_ui_reader::print::native_print::{BUSY, Dated, Printer, Sources, made, print_through, said};
-use mail_ui_reader::print::paper::{self, Cjk, Families, PICTURES_NOTE, Paper};
-use mail_ui_reader::print::{Job, build};
 use crate::ui::fixtures::{acct_account, seeded};
 use chrono::TimeZone;
 use ds_blitz::{PageSize, PrintError, PrintOutcome};
@@ -13,6 +10,11 @@ use mail_core::{SqliteStore, Store};
 use mail_domain::*;
 use mail_reader::{Pages, Script};
 use mail_ui_kit::original::{Consent, FetchImage, Got, ReaderNet};
+use mail_ui_reader::print::native_print::{
+    BUSY, Dated, Printer, Sources, made, print_through, said,
+};
+use mail_ui_reader::print::paper::{self, Cjk, Families, PICTURES_NOTE, Paper};
+use mail_ui_reader::print::{Job, build};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
 

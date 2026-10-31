@@ -120,4 +120,3 @@ fn toast_text(said: &str) -> String {
         None => String::new(),
     }
 }
-

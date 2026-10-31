@@ -91,22 +91,13 @@ pub use mail_client::message::Bodies;
 
 /// The answer already found for `thread` at `key`, if one has been. `Some(None)` is a thread
 /// that was looked at and offers nothing.
-pub fn cached(
-    looks: &Looks,
-    thread: ThreadId,
-    key: &Bodies,
-) -> Option<Option<Offer>> {
+pub fn cached(looks: &Looks, thread: ThreadId, key: &Bodies) -> Option<Option<Offer>> {
     looks.offer_cached(thread, key)
 }
 
 /// [`cached`], else read from the stored mail and remembered. This reads a blob: it runs on a
 /// blocking thread, for the thread the reader has open, and nowhere else.
-pub fn lookup(
-    looks: &Looks,
-    client: &Client,
-    thread: ThreadId,
-    key: &Bodies,
-) -> Option<Offer> {
+pub fn lookup(looks: &Looks, client: &Client, thread: ThreadId, key: &Bodies) -> Option<Offer> {
     client.looking(looks).offer(thread, key)
 }
 
@@ -213,4 +204,3 @@ pub fn said(outcome: &Outcome, list: &str) -> String {
         Outcome::Page { .. } => "This list can only be left on its web page".to_owned(),
     }
 }
-

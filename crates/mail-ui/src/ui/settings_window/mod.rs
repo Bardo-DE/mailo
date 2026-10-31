@@ -57,8 +57,7 @@ use ds::prelude::*;
 use ds_blitz::{WindowHandle, WindowSpec};
 use mail_ui_kit::settings_at::{OpenSettings, SettingsAsked, SettingsAt, SettingsWindows};
 use mail_ui_kit::view::{
-    AccountStep, AccountsPane, ContactsPage, PageId, RulesAt, Shell, SpacesPage,
-    VacationAt,
+    AccountStep, AccountsPane, ContactsPage, PageId, RulesAt, Shell, SpacesPage, VacationAt,
 };
 use mail_ui_model::copy;
 use std::cell::RefCell;
@@ -98,7 +97,6 @@ impl OpenSettings for Quire {
         quire();
     }
 }
-
 
 /// Show `page` in this Settings window, Accounts and Rules at their lists as System Settings shows
 /// a pane chosen in its sidebar.

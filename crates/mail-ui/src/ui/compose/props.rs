@@ -26,21 +26,21 @@ use mail_ui_kit::press::on_primary;
 
 use dioxus::prelude::*;
 
-use mail_ui_kit::menus::snooze_help;
 use super::later::{PICK_KEY, PICK_LABEL};
 use super::page::{Float, Guard, Page, PageKind, When};
-use mail_ui_kit::lines::{Line, list_label};
-use mail_ui_kit::lines::List;
 use super::protection::ProtectionRow;
 use super::receipt::ReceiptRow;
 use super::recipients::{commit_typed, people_items, pick_person, pop_last, remove, typed};
 use super::remind::RemindRow;
-use crate::ui::provider_chip::ProvChip;
 use mail_client::provider::{provider, service_name};
 use mail_ui_kit::actions::{self, Own};
+use mail_ui_kit::lines::List;
+use mail_ui_kit::lines::{Line, list_label};
 use mail_ui_kit::menu::{
     Floating, MenuItem, MenuKey, Right, Tile, anchor_at, menu_items, menu_key,
 };
+use mail_ui_kit::menus::snooze_help;
+use mail_ui_kit::provider_chip::ProvChip;
 use mail_ui_kit::view::Shell;
 use mail_ui_model::copy;
 
@@ -249,7 +249,7 @@ fn FromRow(page: Signal<Page>, shell: Signal<Shell>) -> Element {
             MenuItem {
                 tile: Tile::Avatar {
                     letter: email.chars().next().unwrap_or('?').to_ascii_uppercase(),
-                    color: super::super::command::avatar_color(email),
+                    color: mail_ui_kit::avatar::avatar_color(email),
                 },
                 help: identity.from.display_name().map(str::to_owned).or(service),
                 right: Right::Check(identity.id == chosen),

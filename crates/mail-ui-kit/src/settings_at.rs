@@ -4,7 +4,7 @@
 //! gives, quire's event loop or a test's recorder). The window itself is `mail-ui`'s.
 
 use crate::space::SpaceId;
-use crate::view::{AccountsPage, AccountsPane, ContactsPage, PageId, AccountStep, SpacesPage};
+use crate::view::{AccountStep, AccountsPage, AccountsPane, ContactsPage, PageId, SpacesPage};
 use dioxus::prelude::*;
 use ds::prelude::*;
 use porter_core::AccountId;
@@ -128,7 +128,6 @@ impl std::fmt::Debug for SettingsWindows {
         f.write_str("SettingsWindows")
     }
 }
-
 
 /// Open Settings, or raise it on the page it shows.
 pub fn open() {

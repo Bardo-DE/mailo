@@ -104,7 +104,7 @@ pub(in crate::ui) fn people_rows(people: Vec<&Person>) -> Vec<MenuItem> {
                     .next()
                     .and_then(|ch| ch.to_uppercase().next())
                     .unwrap_or('?'),
-                color: super::super::command::avatar_color(&person.address),
+                color: mail_ui_kit::avatar::avatar_color(&person.address),
             },
             help: Some(person.address.clone()),
             ..MenuItem::plain(person.address.clone(), person.name.clone())

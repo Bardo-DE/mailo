@@ -20,7 +20,6 @@ mod tools;
 mod words;
 
 use attachments::Attachments;
-use mail_ui_kit::cache::{use_frames, use_looks};
 pub use column::reading_column;
 use dioxus::prelude::*;
 use ds::components::content::avatar::{
@@ -35,6 +34,7 @@ use mail_client::message::{INLINE_BYTES, Sent};
 use mail_client::query::{Conversation, Messages};
 use mail_domain::*;
 use mail_reader::FrameBody;
+use mail_ui_kit::cache::{use_frames, use_looks};
 use mail_ui_kit::press::on_primary;
 use mail_ui_kit::text::{attachment_rows, stamp};
 use mail_ui_kit::view::Raw;
@@ -587,7 +587,8 @@ pub fn Reader(
     let attached: Vec<_> = shown
         .iter()
         .map(|(message, ..)| {
-            mail_ui_kit::pgp::attachments(&looks, message).unwrap_or_else(|| attachment_rows(message))
+            mail_ui_kit::pgp::attachments(&looks, message)
+                .unwrap_or_else(|| attachment_rows(message))
         })
         .collect();
 

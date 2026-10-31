@@ -11,7 +11,6 @@
 //! shows nothing — fetching it to find out would be a POP3 `RETR`, which marks it read. What its
 //! OpenPGP or S/MIME says is the seal's to find; this reads what the seal kept.
 
-use mail_ui_kit::pgp::{Look, Mark, Said, Tone};
 use dioxus::prelude::*;
 use ds::base::geometry::placement::{Align, Side};
 use ds::components::content::label::{LabelRole, LabelStyle};
@@ -25,6 +24,7 @@ use mail_client::auth::{Standing, standing};
 use mail_domain::{BlobId, MessageId};
 use mail_mime::AuthResults;
 use mail_ui_kit::menu::anchor_at;
+use mail_ui_kit::pgp::{Look, Mark, Said, Tone};
 use mail_ui_model::copy;
 
 /// What the head says about a message's sender, worked out from what is known so far.
@@ -83,10 +83,7 @@ pub fn trust_of(look: Option<&Look>, results: Option<&AuthResults>) -> Trust {
 /// known, then `Some(None)` for a message without a believed field. Looked up off the thread
 /// that draws the first time; the caller is keyed on the message and its body, so a body
 /// arriving asks again and one message's answer is never drawn under another.
-pub fn use_checks(
-    message: MessageId,
-    body: Option<BlobId>,
-) -> Signal<Option<Option<AuthResults>>> {
+pub fn use_checks(message: MessageId, body: Option<BlobId>) -> Signal<Option<Option<AuthResults>>> {
     let looks = mail_ui_kit::cache::use_looks();
     let known = use_signal({
         let looks = looks.clone();
@@ -206,9 +203,9 @@ fn said_in_popover(at: usize, said: Said) -> Element {
 #[cfg(test)]
 mod tests {
     use super::{Trust, trust_of};
-    use mail_ui_kit::pgp::{Look, Mark, Opened, Said, Scheme, Tone};
     use mail_client::auth::Standing;
     use mail_mime::{AuthResults, Check, Verdict};
+    use mail_ui_kit::pgp::{Look, Mark, Opened, Said, Scheme, Tone};
 
     fn said(tone: Tone, text: &str) -> Said {
         Said {

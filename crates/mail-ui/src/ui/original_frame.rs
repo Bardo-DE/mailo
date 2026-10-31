@@ -16,4 +16,3 @@ pub fn OriginalFrame(html: String) -> Element {
         }
     }
 }
-

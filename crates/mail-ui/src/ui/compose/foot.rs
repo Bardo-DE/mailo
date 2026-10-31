@@ -17,7 +17,6 @@ use ds::root::common::Common;
 use ds::style::tokens::control_size::ControlSize;
 use mail_ui_model::copy;
 
-use mail_ui_kit::menus::{snooze_help, when_words};
 use super::later::{PICK_KEY as LATER_PICK, PICK_LABEL, PickTime};
 use super::page::{Float, Fold, Page, When};
 use super::protection;
@@ -27,6 +26,7 @@ use super::templates::{self, SAVE_KEY};
 use mail_domain::{DeliveryReport, Priority, ReceiptRequest};
 use mail_ui_kit::actions::{self, Own};
 use mail_ui_kit::menu::{anchor_at, menu_items};
+use mail_ui_kit::menus::{snooze_help, when_words};
 use mail_ui_kit::press::on_primary;
 
 /// Send ▾'s keys: a Send Later choice is `later:` and the Sends key, a reminder `remind:` and its

@@ -1,18 +1,18 @@
 //! Invitations in the window. Opening shows the card and answers nothing; only Send does.
 
-use mail_ui_kit::files::SaveDir;
 use crate::ui::fixtures::settle_for;
 use crate::ui::fixtures::{
     Seen, acct_account, chord, click, dispatching, rebuild_into, seeded, type_into,
 };
-use mail_ui_reader::reading::Reader;
 use dioxus::html::input_data::keyboard_types::Modifiers;
 use dioxus::prelude::*;
 use dioxus_core::VirtualDom;
 use mail_core::message::{Looks, Read};
 use mail_core::{SqliteStore, Store};
 use mail_domain::*;
+use mail_ui_kit::files::SaveDir;
 use mail_ui_kit::view::Shell;
+use mail_ui_reader::reading::Reader;
 use std::sync::Arc;
 use std::time::Duration;
 

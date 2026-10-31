@@ -7,11 +7,12 @@
 //! is one keystroke away and never in the way. What it lists is [`rows`], pure over the client
 //! and Today, so a table test can say it.
 
-use super::items::{RECENT, avatar_color};
+use super::items::RECENT;
 use chrono::{DateTime, Utc};
 use ds::prelude::*;
 use mail_client::Client;
 use mail_domain::{Draft, DraftId, ThreadId};
+use mail_ui_kit::avatar::avatar_color;
 use mail_ui_kit::menu::{MenuItem, Tile};
 use mail_ui_kit::space::SpaceId;
 use mail_ui_kit::today::Today;

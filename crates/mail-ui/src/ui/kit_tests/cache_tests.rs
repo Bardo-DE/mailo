@@ -1,8 +1,8 @@
 use mail_client::message::Frames;
-use mail_domain::Message;
-use mail_reader::SanitizePolicy;
 use mail_core::Store;
+use mail_domain::Message;
 use mail_reader::RemoteImages;
+use mail_reader::SanitizePolicy;
 
 #[test]
 fn warming_a_conversation_makes_opening_it_a_lookup() {

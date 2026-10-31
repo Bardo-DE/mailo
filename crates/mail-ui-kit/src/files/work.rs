@@ -15,9 +15,9 @@ use mail_client::transfer::{self, IoCause, Refusal, Seen};
 use mail_domain::{Filter, MailboxRole, Star};
 use porter_core::AccountId;
 
+use crate::view::{Shell, Source as Listed};
 use mail_client::export::{Exported, Target};
 use mail_client::import::{Destination, Imported, Source};
-use crate::view::{Shell, Source as Listed};
 use mail_ui_model::copy;
 
 pub use mail_client::transfer::{expand_here, suggested};
@@ -276,8 +276,7 @@ pub fn prefill(shell: &Shell) -> String {
         Listed::Mail(Filter::HasLabel(_)) => Some(place.name.clone()),
         // A saved view in the words it lists by, when there are words for it.
         Listed::Saved(view) => {
-            if let Some(words) =
-                crate::saved::written(&view.filter, &shell.known(), &chrono::Local)
+            if let Some(words) = crate::saved::written(&view.filter, &shell.known(), &chrono::Local)
             {
                 return words;
             }

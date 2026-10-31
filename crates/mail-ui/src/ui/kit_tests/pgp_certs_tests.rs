@@ -14,17 +14,17 @@ use mail_core::{SqliteStore, Store};
 use mail_domain::signing::{SigningKeyId, SigningKeyRef};
 use mail_domain::*;
 
-use mail_ui_kit::pgp::certs::ordered;
-use mail_ui_kit::pgp::key_row::lifetime;
-use mail_ui_kit::pgp::keys::{KeysPage, Whose};
 use super::pgp_keys_tests::{alert_button, pick, settle};
 use super::pgp_smime_tests::{PASSWORD, identity_file, trust_root, with_identity};
 use super::pgp_tests::{own_key, seams_with};
-use mail_ui_kit::pgp::{Seams, cert_short, short};
 use crate::ui::fixtures::smime_support::pki;
 use crate::ui::fixtures::{
     Seen, acct_account, click, dispatching, drain_seen, rebuild_into, seeded, type_into,
 };
+use mail_ui_kit::pgp::certs::ordered;
+use mail_ui_kit::pgp::key_row::lifetime;
+use mail_ui_kit::pgp::keys::{KeysPage, Whose};
+use mail_ui_kit::pgp::{Seams, cert_short, short};
 
 /// The page inside a quire root, as the Settings window has it.
 #[component]

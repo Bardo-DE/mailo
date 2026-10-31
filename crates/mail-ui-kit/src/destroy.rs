@@ -6,6 +6,10 @@
 //! messages go and says it cannot be undone; only its button deletes. Nothing here is on the undo
 //! stack, and the toast carries no Undo.
 
+use crate::bin::{Bin, Destroying, Reach, bin_shown, doomed, offered, words};
+use crate::motion::destroy_all;
+use crate::press::on_primary;
+use crate::view::Shell;
 use dioxus::prelude::*;
 use ds::components::controls::button_model::{Bezel, ImagePosition};
 use ds::components::overlays::alert_model::{AlertButton, AlertRole, AlertStyle};
@@ -14,10 +18,6 @@ use ds::root::common::Common;
 use ds::style::tokens::control_size::ControlSize;
 use mail_client::Client;
 use mail_domain::*;
-use crate::bin::{Bin, Destroying, Reach, bin_shown, doomed, offered, words};
-use crate::motion::destroy_all;
-use crate::press::on_primary;
-use crate::view::Shell;
 use mail_ui_model::copy;
 
 /// How many conversations one page of the Empty count reads.

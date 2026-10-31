@@ -2,14 +2,11 @@
 //! to test against its local listener, and every fixture below that could reach it stops at
 //! the alert.
 
-use mail_ui_reader::unsubscribe::head::{Confirm, Phase};
-use mail_ui_reader::unsubscribe::{Offer, archive_from, ask, leave};
 use crate::ui::app::App;
 use crate::ui::fixtures::settle_for;
 use crate::ui::fixtures::{
     Seen, acct_account, click, dispatching, menu_names, rebuild_into, seeded,
 };
-use mail_ui_reader::reading::Reader;
 use dioxus::prelude::*;
 use dioxus_core::VirtualDom;
 use ds::prelude::*;
@@ -20,6 +17,9 @@ use mail_core::{SqliteStore, Store};
 use mail_domain::*;
 use mail_ui_kit::view::Shell;
 use mail_ui_model::copy::menus::UNSUBSCRIBE;
+use mail_ui_reader::reading::Reader;
+use mail_ui_reader::unsubscribe::head::{Confirm, Phase};
+use mail_ui_reader::unsubscribe::{Offer, archive_from, ask, leave};
 use std::sync::Arc;
 use std::time::Duration;
 

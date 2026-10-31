@@ -12,10 +12,12 @@ use mail_domain::id::new_account_id;
 use mail_domain::*;
 use porter_core::AccountId;
 
-use mail_ui_kit::files::work::{self, Counted, Dest, Looked, export_now, import_now, look, prefill, suggested};
 use mail_core::export::Target;
 use mail_core::formats::{Archive, writers};
 use mail_core::import::{AppleMail, Eml, Emlx, Maildir, Mbox, Source, Thunderbird};
+use mail_ui_kit::files::work::{
+    self, Counted, Dest, Looked, export_now, import_now, look, prefill, suggested,
+};
 use mail_ui_kit::view::Shell;
 
 fn now() -> DateTime<Utc> {
@@ -325,7 +327,11 @@ fn a_path_at_home_is_shown_with_a_tilde() {
         ("/home/ann2/Downloads", "/home/ann2/Downloads"),
     ];
     for (path, wanted) in SHOWN {
-        assert_eq!(mail_ui_kit::files::tilde(Path::new(path), home), *wanted, "{path:?}");
+        assert_eq!(
+            mail_ui_kit::files::tilde(Path::new(path), home),
+            *wanted,
+            "{path:?}"
+        );
     }
 }
 

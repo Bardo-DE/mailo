@@ -14,6 +14,11 @@
 //! and elsewhere the label a move into it files under, named by its path — the same one a rule
 //! finds or makes (`mail_client::rules`), so a folder is one label whichever way mail got there.
 
+use crate::menu::{MenuItem, anchor_for, narrowed, palette_groups};
+use crate::motion::drag::Drag;
+use crate::motion::with_selection;
+use crate::motion::{act_all, motion};
+use crate::view::Shell;
 use dioxus::prelude::*;
 use ds::components::content::avatar::AvatarSize;
 use ds::host::measure::MountedRef;
@@ -21,11 +26,6 @@ use ds::prelude::*;
 use mail_client::Client;
 use mail_domain::Label;
 use mail_domain::*;
-use crate::menu::{MenuItem, anchor_for, narrowed, palette_groups};
-use crate::motion::drag::Drag;
-use crate::motion::with_selection;
-use crate::motion::{act_all, motion};
-use crate::view::Shell;
 use mail_ui_model::copy;
 use porter_core::AccountId;
 
@@ -75,11 +75,7 @@ pub fn destinations(client: &Client, account: AccountId) -> Vec<Destination> {
 
 /// The label `Op::File` files under for the folder at `path`: the server's own label of that
 /// name where there is one, made (as the server's) where there is not.
-pub fn folder_label(
-    client: &Client,
-    account: AccountId,
-    path: &str,
-) -> Result<LabelId, String> {
+pub fn folder_label(client: &Client, account: AccountId, path: &str) -> Result<LabelId, String> {
     let labels = client
         .stored()
         .labels(account.clone())
@@ -270,4 +266,3 @@ fn within(rows: Vec<MenuItem>, title: &str) -> Vec<MenuItem> {
         })
         .collect()
 }
-

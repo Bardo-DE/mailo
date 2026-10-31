@@ -14,8 +14,6 @@
 //! suffer it retries by itself, and the sidebar foot's mark says while it does.
 
 use crate::ui::fetching::Fetching;
-use mail_ui_kit::need::{Need, Needing};
-use mail_ui_kit::reauth::{SIGN_IN, SignAgain};
 use dioxus::prelude::*;
 use ds::components::content::label::{Label, LabelStyle};
 use ds::components::lists::row::row::Outline;
@@ -28,7 +26,9 @@ use mail_client::fetch::Link;
 use mail_client::sync::report::Offer;
 use mail_ui_kit::common::in_card;
 use mail_ui_kit::data::account_rows;
+use mail_ui_kit::need::{Need, Needing};
 use mail_ui_kit::press::{SheetClose, on_primary};
+use mail_ui_kit::reauth::{SIGN_IN, SignAgain};
 use mail_ui_model::copy;
 use porter_core::AccountId;
 use std::collections::{BTreeMap, BTreeSet};

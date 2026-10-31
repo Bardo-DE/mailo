@@ -12,9 +12,9 @@ use chrono::{DateTime, TimeZone, Utc};
 use dioxus::prelude::*;
 use mail_domain::{Retry, SendState};
 
-use mail_ui_kit::menus::when_in_sentence;
 use super::desk::{Desk, Outgoing, take_back_said};
 use super::page::When;
+use mail_ui_kit::menus::when_in_sentence;
 use mail_ui_kit::view::Shell;
 
 /// How long "Sent" stays before the pill leaves.

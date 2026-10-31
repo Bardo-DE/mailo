@@ -1,13 +1,13 @@
 //! The card, drawn for every kind of invitation and every place the reader can stand in one.
 
-use mail_ui_reader::invite::draw::{Disclosure, InviteCard};
 use super::invite_tests::{ME, ics, request};
-use mail_ui_reader::invite::card::Card;
-use mail_ui_reader::invite::card_of;
 use chrono::{FixedOffset, TimeZone, Utc};
 use dioxus::prelude::*;
 use dioxus_core::VirtualDom;
 use mail_domain::*;
+use mail_ui_reader::invite::card::Card;
+use mail_ui_reader::invite::card_of;
+use mail_ui_reader::invite::draw::{Disclosure, InviteCard};
 
 /// The card alone, as the reader would draw it.
 #[component]

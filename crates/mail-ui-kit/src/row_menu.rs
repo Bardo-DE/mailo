@@ -370,8 +370,8 @@ pub fn RowMenu(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::TimeZone;
     use crate::view::Shell;
+    use chrono::TimeZone;
     use mail_ui_model::copy::menus as m;
 
     use mail_domain::*;

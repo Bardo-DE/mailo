@@ -1,7 +1,6 @@
 //! Unsubscribe… in the reader's ⋯: whether the open thread offers a way out, and the alert
 //! that says what it will do before it does it.
 
-use mail_ui_kit::queued::ShowQueued;
 use super::{Ask, Bodies, Offer, ask, cached, http, leave, lookup, said};
 use dioxus::prelude::*;
 use ds::components::overlays::alert_model::{AlertButton, AlertRole, AlertStyle};
@@ -11,6 +10,7 @@ use mail_client::unsubscribe::Outcome;
 use mail_domain::ThreadId;
 use mail_ui_kit::hover::copy;
 use mail_ui_kit::motion::{Deed, Follow, tell};
+use mail_ui_kit::queued::ShowQueued;
 
 /// Where the alert is.
 #[derive(Debug, Clone, PartialEq, Eq)]

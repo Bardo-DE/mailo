@@ -1,15 +1,15 @@
 //! What a row's actions do once picked from its menu: the op, at once, over the selection
 //! when the row is picked; or the menu, sheet or composer the op needs first.
 
+use crate::motion::with_selection;
+use crate::motion::{act_all, act_kind, act_kind_all};
+use crate::ops::{Writes, composes, open_composer};
 use crate::picks::mute_all;
+use crate::view::{Further, FurtherMenu, Opened, Shell};
 use dioxus::prelude::*;
 use ds::prelude::*;
 use mail_client::Client;
 use mail_domain::*;
-use crate::motion::with_selection;
-use crate::motion::{act_all, act_kind, act_kind_all};
-use crate::ops::{Writes, composes, open_composer};
-use crate::view::{Further, FurtherMenu, Opened, Shell};
 
 /// Which of the row's actions was picked from its menu.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -35,12 +35,7 @@ pub fn further(pressed: Pressed) -> Option<Further> {
 /// One of a conversation's actions picked, from its row (`opened`) or the reader: the op it
 /// names, at once. Label, snooze, move and copy open their menus where they were asked for (picked
 /// while open, they close); a reply opens the composer on its draft.
-pub fn press(
-    mut shell: Signal<Shell>,
-    id: ThreadId,
-    pressed: Pressed,
-    opened: Opened,
-) {
+pub fn press(mut shell: Signal<Shell>, id: ThreadId, pressed: Pressed, opened: Opened) {
     let client = crate::live::client();
     // Offered as the way out of a state (Unsnooze, Stop Reminding): at once, with no menu.
     if let Pressed::Op(kind) = pressed
@@ -104,12 +99,7 @@ pub fn press(
 /// `kind` picked where the conversation is offered it as the way out of a state it is in
 /// ([`mail_client::conversation::turns_off`]): that, for it and for whatever is picked with it and in the
 /// same state, as one gesture. Returns whether it was; when not, `kind` opens its menu of times.
-pub(crate) fn turn_off(
-    client: &Client,
-    shell: Signal<Shell>,
-    id: ThreadId,
-    kind: OpKind,
-) -> bool {
+pub(crate) fn turn_off(client: &Client, shell: Signal<Shell>, id: ThreadId, kind: OpKind) -> bool {
     // Only these two turn a state off; anything else needs no load to say no.
     if !matches!(kind, OpKind::Snooze | OpKind::FollowUp) {
         return false;

@@ -5,14 +5,11 @@
 //! `App`; this reads the memos it is handed rather than cloning their answers in the parent.
 
 use super::page::ListMore;
-use mail_ui_kit::picks::PickBar;
 use super::row::listed::Listed;
 use super::row::{AccountMark, ListRow};
 use super::server_search::{Asked, ServerSearch, found_threads};
 use super::view_groups::group_list;
 use crate::ui::fetching::{Fetching, HasRows, ListFace, list_face};
-use mail_ui_kit::need::Need;
-use mail_ui_kit::reauth::{SIGN_IN, SignAgain};
 use dioxus::prelude::*;
 use ds::components::app::thread_height::{ThreadLines, thread_card_gap, thread_card_height};
 use ds::components::chrome::toolbar::view::Toolbar;
@@ -29,8 +26,11 @@ use mail_ui_kit::common::classed;
 use mail_ui_kit::data::{AccountRow, syncs_nothing};
 use mail_ui_kit::list_search::{Marking, RowHit, Scope, row_hit};
 use mail_ui_kit::motion::{Ghost, Toast};
+use mail_ui_kit::need::Need;
 use mail_ui_kit::ops::{Writes, open_composer};
+use mail_ui_kit::picks::PickBar;
 use mail_ui_kit::press::on_primary;
+use mail_ui_kit::reauth::{SIGN_IN, SignAgain};
 use mail_ui_kit::view::{Nothing, Shell};
 use mail_ui_model::copy;
 use porter_core::AccountId;

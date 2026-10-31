@@ -4,9 +4,6 @@
 //! reach what leaves. The bar over it names the time and offers Cancel Sending, which makes it a
 //! draft again; the page then opens it in the composer, where it can be changed and sent anew.
 
-use mail_ui_kit::lines::List;
-use mail_ui_kit::lines::{Line, list_label};
-use mail_ui_kit::menus::when_words;
 use chrono::{DateTime, Local, Utc};
 use dioxus::prelude::*;
 use ds::components::overlays::inline_banner::InlineBanner;
@@ -14,6 +11,9 @@ use ds::prelude::*;
 use ds::root::common::Common;
 use mail_client::compose::addresses::join_addresses;
 use mail_domain::{Address, Draft};
+use mail_ui_kit::lines::List;
+use mail_ui_kit::lines::{Line, list_label};
+use mail_ui_kit::menus::when_words;
 use mail_ui_kit::press::on_primary;
 use mail_ui_kit::view::Shell;
 use mail_ui_model::copy;

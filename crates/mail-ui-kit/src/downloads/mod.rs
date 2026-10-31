@@ -22,10 +22,10 @@ pub use self::open::open as open_file;
 pub use self::panel::DownloadsButton;
 
 use self::log::{Entry, Log};
+use crate::appearance::WindowDirs;
 use dioxus::prelude::*;
 use mail_client::Client;
 use mail_domain::MessageId;
-use crate::appearance::WindowDirs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -205,4 +205,3 @@ impl std::fmt::Debug for Opener {
 fn opener() -> Opener {
     try_consume_context::<Opener>().unwrap_or_default()
 }
-

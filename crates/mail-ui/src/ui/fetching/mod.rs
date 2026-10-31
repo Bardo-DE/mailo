@@ -35,9 +35,9 @@ use std::sync::Arc;
 pub(in crate::ui) use delegate::Delegate;
 pub(in crate::ui) use face::{HasRows, ListFace, list_face};
 pub(in crate::ui) use folder::opened;
+use mail_ui_kit::need::{self, Need, needs_you};
 use mail_ui_model::fetching::status::{StatusLine, status_line};
 pub(in crate::ui) use marks::sync_availability;
-use mail_ui_kit::need::{self, Need, needs_you};
 pub(in crate::ui) use pass::Passer;
 
 /// The window's mail fetching. Copy, so a handler can take it.

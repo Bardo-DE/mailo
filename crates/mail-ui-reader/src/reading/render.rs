@@ -1,11 +1,11 @@
 //! The renderings the reader sends off the thread that draws (`mail_ui_kit::cache` keeps what they
 //! land in).
 
+use dioxus::prelude::*;
 use mail_client::Client;
 use mail_client::message::{Frames, Key, Sent};
 use mail_domain::Message;
 use mail_reader::SanitizePolicy;
-use dioxus::prelude::*;
 use std::sync::Arc;
 
 /// Render `later` on a blocking thread, then move `landed` so the reader draws them.

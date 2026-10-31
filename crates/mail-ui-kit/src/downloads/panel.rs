@@ -9,6 +9,8 @@
 
 use super::log::Entry;
 use super::{Shelf, forget, opener, reread};
+use crate::motion::{motion, tell_through};
+use crate::view::Shell;
 use dioxus::prelude::*;
 use ds::base::geometry::placement::{Align, Side};
 use ds::components::content::label::LabelRole;
@@ -20,8 +22,6 @@ use ds::prelude::*;
 use ds::root::common::Common;
 use ds::root::pass_through::ExtraClass;
 use mail_domain::ThreadId;
-use crate::motion::{motion, tell_through};
-use crate::view::Shell;
 use std::path::{Path, PathBuf};
 
 /// A row of the list: a file being saved, or one saved.

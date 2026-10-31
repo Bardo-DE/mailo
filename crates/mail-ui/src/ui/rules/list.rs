@@ -20,13 +20,13 @@ use ds::root::common::Common;
 use mail_domain::{Rule, RuleState};
 use porter_core::AccountId;
 
-use mail_ui_kit::files::Phase;
 use super::server::reach;
 use super::work::{self, Listed, Step};
 use super::{Said, open, row_id};
 use mail_ui_kit::common::Problem;
 use mail_ui_kit::common::{add_mark, classed};
 use mail_ui_kit::data::AccountRow;
+use mail_ui_kit::files::Phase;
 use mail_ui_kit::menu::{Floating, MenuItem};
 use mail_ui_kit::motion::{Follow, Restore, tell};
 use mail_ui_kit::view::{RulesAt, RulesPage as Showing, Shell};

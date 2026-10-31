@@ -506,4 +506,3 @@ pub mod native_print {
         Ok((printed.subject, pdf))
     }
 }
-

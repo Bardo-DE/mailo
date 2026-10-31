@@ -1,12 +1,7 @@
 //! Read receipts in the window: answered by the setting, once, and only where it is safe.
 
-use mail_ui_reader::receipt::{
-    DECLINE_KEY, Destination, SEND_KEY, Standing, answer_asked, answer_of, answer_one, answers_now,
-    asks, automatic, destination, items, mark_id,
-};
 use crate::ui::fixtures::{acct_account, dispatching, rebuild_into, seeded};
 use crate::ui::fixtures::{click, settle_for};
-use mail_ui_reader::reading::Reader;
 use dioxus::prelude::*;
 use dioxus_core::VirtualDom;
 use mail_core::message::{Looks, Read};
@@ -16,6 +11,11 @@ use mail_domain::*;
 use mail_mime::{ReceiptAsk, ReturnPath};
 use mail_ui_kit::view::Shell;
 use mail_ui_model::settings::{MailSettings, MarkRead, ReadReceipts};
+use mail_ui_reader::reading::Reader;
+use mail_ui_reader::receipt::{
+    DECLINE_KEY, Destination, SEND_KEY, Standing, answer_asked, answer_of, answer_one, answers_now,
+    asks, automatic, destination, items, mark_id,
+};
 use std::sync::Arc;
 use std::time::Duration;
 

@@ -1,4 +1,3 @@
-use mail_ui_reader::reading::{Reader, initial};
 use crate::ui::fixtures::{
     click, dispatching, held_and_remote, reader_markup, realistic, rebuild_into, seeded,
     thread_like,
@@ -8,6 +7,7 @@ use dioxus_core::VirtualDom;
 use mail_core::{SqliteStore, Store};
 use mail_domain::*;
 use mail_ui_kit::view::Shell;
+use mail_ui_reader::reading::{Reader, initial};
 use std::sync::Arc;
 
 #[test]

@@ -8,15 +8,15 @@
 //! the newest, says whom it went to and carries the trust glyph beside the sender's name
 //! (`ui::checks`), with one line under the head when the sender may not be who they say.
 
-use crate::checks::{TrustMark, trust_of, use_checks};
-use mail_ui_kit::lines::{Line, List, list_label};
 use super::sender_face;
+use crate::checks::{TrustMark, trust_of, use_checks};
 use dioxus::prelude::*;
 use ds::components::content::avatar::{AvatarFace, AvatarSize};
 use ds::components::content::label::{LabelRole, LabelStyle};
 use ds::components::overlays::inline_banner::InlineBanner;
 use ds::prelude::*;
 use mail_domain::{Address, BlobId, Message, MessageId};
+use mail_ui_kit::lines::{Line, List, list_label};
 use mail_ui_kit::text::{address, from_name};
 
 /// How much a message's header says.

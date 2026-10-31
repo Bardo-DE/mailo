@@ -137,7 +137,7 @@ pub fn run(
     let cache = mail_client::config::cache_dir();
     let icons = cache
         .as_ref()
-        .map(|dir| super::provider_chip::read(&dir.join("providers")))
+        .map(|dir| mail_ui_kit::provider_chip::read(&dir.join("providers")))
         .unwrap_or_default();
     let brand = cache.map(|dir| mail_ui_reader::brand::BrandCache(dir.join("bimi")));
     let found = gate::Found(dirs.as_ref().map(gate::found).unwrap_or_default());
@@ -256,7 +256,7 @@ fn Shell() -> Element {
     let loaded = try_consume_context::<Loaded>().unwrap_or_default();
     let icons = use_signal(|| loaded);
     use_context_provider(|| icons);
-    crate::ui::provider_chip::use_fetch_missing(icons);
+    mail_ui_kit::provider_chip::use_fetch_missing(icons);
     mail_ui_kit::host::use_window_host();
     rsx! { App {} }
 }

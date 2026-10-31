@@ -1,7 +1,6 @@
 use super::compose::{self, SendPill};
 use super::frame;
 use super::list::ThreadList;
-use mail_ui_reader::reading::{ReaderIn, reading_column};
 use super::sidebar::Places;
 use super::style::STYLE;
 use super::window_core::{use_window_core, use_window_desk};
@@ -28,6 +27,7 @@ use mail_ui_kit::view::{
     scoped_unread_filter,
 };
 use mail_ui_model::selection::Toward;
+use mail_ui_reader::reading::{ReaderIn, reading_column};
 
 /// The Spaces the window opens on, `first` as stored: a window started from a click (`mailo
 /// open`, its conversation already in the shell) opens on the Space [`ask::space_for`] chooses

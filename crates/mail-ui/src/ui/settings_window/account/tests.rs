@@ -7,12 +7,12 @@ use super::Seams;
 use crate::ui::fixtures::{
     INSIDE_THE_SHELL, Seen, Work, click, dispatching, drain_seen, press, rebuild_into, work,
 };
-use crate::ui::settings_window::tests::opened_on;
 use crate::ui::settings_window::settings_root;
-use mail_ui_kit::settings_at::{SettingsAsked, SettingsAt};
+use crate::ui::settings_window::tests::opened_on;
 use dioxus::dioxus_core::VirtualDom;
 use mail_core::Storage;
 use mail_ui_kit::data::account_rows;
+use mail_ui_kit::settings_at::{SettingsAsked, SettingsAt};
 use mail_ui_kit::view::PageId;
 use porter_core::AccountId;
 use std::sync::{Arc, Mutex};

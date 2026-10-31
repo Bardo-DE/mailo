@@ -27,11 +27,7 @@ pub fn list_label(list: List) -> &'static str {
 /// value or control from the value column's edge, which every line shares. Its `data-row` is what
 /// the page's tests and its layout find it by.
 #[component]
-pub fn Line(
-    #[props(into)] label: String,
-    row: &'static str,
-    children: Element,
-) -> Element {
+pub fn Line(#[props(into)] label: String, row: &'static str, children: Element) -> Element {
     rsx! {
         div { class: "c-line", role: "group", aria_label: "{label}", "data-row": row,
             Label {
@@ -44,4 +40,3 @@ pub fn Line(
         }
     }
 }
-

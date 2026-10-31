@@ -37,12 +37,7 @@ pub fn open(mut shell: Signal<Shell>, message: MessageId, index: usize) {
 /// Open in Peek the part of `message` (as stored) whose `Content-ID` is `cid`, an inline image
 /// clicked in its frame; nothing when it has none. `cid` came from that message's own markup and
 /// is only ever matched against that message's parts.
-pub fn open_inline(
-    shell: Signal<Shell>,
-    client: &Client,
-    message: MessageId,
-    cid: &str,
-) {
+pub fn open_inline(shell: Signal<Shell>, client: &Client, message: MessageId, cid: &str) {
     let Ok(stored) = client.stored().message(message) else {
         return;
     };

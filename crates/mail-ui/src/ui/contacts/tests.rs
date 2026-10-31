@@ -8,8 +8,8 @@ use mail_core::contacts::Origin;
 use mail_core::{SqliteStore, Store};
 use mail_domain::*;
 
-use mail_ui_kit::book;
 use crate::ui::fixtures::acct_account;
+use mail_ui_kit::book;
 
 /// The user's own address. It is on every message they sent, so the book learns it as theirs.
 pub(in crate::ui) const ME: &str = "dave.me@example.test";

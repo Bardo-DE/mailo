@@ -32,12 +32,7 @@ pub enum Whose {
 impl Whose {
     /// Whether a key or certificate for `emails`, whose secret half is `secret`, is listed here,
     /// `accounts` being the addresses of the accounts here, lowercased.
-    pub fn lists(
-        &self,
-        emails: &[String],
-        secret: SecretHeld,
-        accounts: &[String],
-    ) -> bool {
+    pub fn lists(&self, emails: &[String], secret: SecretHeld, accounts: &[String]) -> bool {
         let own = |address: &str| secret == SecretHeld::Held && emails.iter().any(|e| e == address);
         match self {
             Whose::Account(address) => own(&address.to_lowercase()),

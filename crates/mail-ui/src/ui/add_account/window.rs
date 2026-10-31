@@ -13,7 +13,7 @@
 //! window's notice: the current Space takes it in when it shows some accounts and not others.
 //! Every window draws the new account as the client says the store moved.
 
-use crate::ui::provider_chip::{MarkAt, style_of_mark};
+use mail_ui_kit::provider_chip::{MarkAt, style_of_mark};
 use mail_ui_kit::view::Marks;
 use std::sync::Arc;
 
@@ -122,7 +122,7 @@ fn AddAccountShell(wiring: Wiring, prefill: Option<String>, join: Join) -> Eleme
     let loaded = try_consume_context::<mail_client::provider::icon::Loaded>().unwrap_or_default();
     let icons = use_signal(|| loaded);
     use_context_provider(|| icons);
-    crate::ui::provider_chip::use_fetch_missing(icons);
+    mail_ui_kit::provider_chip::use_fetch_missing(icons);
     mail_ui_kit::host::use_window_host();
     let dirs = try_consume_context::<mail_ui_kit::appearance::WindowDirs>();
     let _ = mail_ui_kit::prefs::use_prefs(dirs.as_ref());

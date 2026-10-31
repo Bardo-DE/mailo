@@ -58,7 +58,11 @@ fn asking(store: &SqliteStore, openpgp: Option<Mode>) -> Draft {
 
 /// The page for `draft`, with `secrets` as the window's keyring.
 fn window(store: Arc<SqliteStore>, draft: Draft, secrets: Arc<MapSigningStore>) -> (Window, Seen) {
-    window_with(store, draft, crate::ui::kit_tests::pgp_tests::seams_with(secrets))
+    window_with(
+        store,
+        draft,
+        crate::ui::kit_tests::pgp_tests::seams_with(secrets),
+    )
 }
 
 fn window_with(

@@ -6,12 +6,12 @@
 use ds::prelude::Icon;
 use mail_client::Client;
 
-use mail_ui_kit::book::suggest;
-use mail_client::contacts::groups::Offer;
 use super::float::people_rows;
 use super::page::{Float, Misread, Page, person};
-use mail_ui_kit::lines::List;
+use mail_client::contacts::groups::Offer;
 use mail_editor::Person;
+use mail_ui_kit::book::suggest;
+use mail_ui_kit::lines::List;
 use mail_ui_kit::menu::MenuItem;
 
 /// Someone typed into `list`'s field. A comma commits what came before it.

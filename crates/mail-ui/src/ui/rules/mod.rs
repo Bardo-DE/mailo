@@ -29,13 +29,13 @@ use dioxus::prelude::*;
 use ds::prelude::*;
 use ds::root::common::Common;
 
-use mail_ui_kit::files::{Phase, run};
 use editor::RulePage;
 use list::RulesList;
 use mail_client::rules::server::AwayServer;
 use mail_domain::Rule;
 use mail_ui_kit::common::Told;
 use mail_ui_kit::data::AccountRow;
+use mail_ui_kit::files::{Phase, run};
 use mail_ui_kit::view::{RulesAt, Shell};
 use mail_ui_model::copy;
 use server::{AwaySetter, Pusher, put, reach, reach_away, set_away};

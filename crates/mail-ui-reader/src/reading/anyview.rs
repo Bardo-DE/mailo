@@ -256,12 +256,7 @@ mod tests {
 
     fn bytes_of(client: &Arc<SqliteStore>, data: &[u8], limit: u64) -> BlobBytes {
         let blob = client.blobs().put(data).unwrap();
-        BlobBytes::new(
-            as_client(client),
-            blob,
-            data.len() as u64,
-            limit,
-        )
+        BlobBytes::new(as_client(client), blob, data.len() as u64, limit)
     }
 
     #[test]
@@ -330,12 +325,7 @@ mod tests {
     fn a_part_that_is_not_in_the_store_is_an_error_not_a_panic() {
         let dir = tempfile::tempdir().unwrap();
         let client = client(dir.path());
-        let part = BlobBytes::new(
-            as_client(&client),
-            BlobId::generate(),
-            70_000,
-            1 << 20,
-        );
+        let part = BlobBytes::new(as_client(&client), BlobId::generate(), 70_000, 1 << 20);
         assert!(part.read_range(0..16).is_err());
         assert!(part.read_range(60_000..60_010).is_err());
     }

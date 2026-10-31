@@ -70,10 +70,7 @@ impl Ledger {
     /// Remove each recorded copy `due` picks that is as it was written, and let go of every one it
     /// picks, removed or not: an edited copy is the person's from then on. Returns what was
     /// removed.
-    pub fn remove_unedited(
-        &mut self,
-        due: impl Fn(&Written) -> bool,
-    ) -> Vec<PathBuf> {
+    pub fn remove_unedited(&mut self, due: impl Fn(&Written) -> bool) -> Vec<PathBuf> {
         let (picked, kept): (Vec<Written>, Vec<Written>) = std::mem::take(&mut self.entries)
             .into_iter()
             .partition(|w| due(w));
@@ -215,4 +212,3 @@ pub fn use_remove_unedited() {
         }
     });
 }
-

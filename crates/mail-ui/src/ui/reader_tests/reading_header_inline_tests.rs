@@ -1,6 +1,6 @@
-use mail_ui_reader::reading::header::{Detail, MessageHead, detail_at, recipients, to_line};
 use dioxus::prelude::*;
 use mail_domain::*;
+use mail_ui_reader::reading::header::{Detail, MessageHead, detail_at, recipients, to_line};
 
 fn person(name: &str, email: &str) -> Address {
     Address {

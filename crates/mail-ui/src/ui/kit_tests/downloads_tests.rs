@@ -1,12 +1,12 @@
 //! The list's own words: each row's second line and its icon.
 
-use mail_ui_kit::downloads::Origin;
-use mail_ui_kit::downloads::log::Entry;
-use mail_ui_kit::downloads::panel::{detail, icon_of};
 use chrono::{DateTime, Utc};
 use ds::prelude::Icon;
 use mail_core::when::Clock;
 use mail_domain::ThreadId;
+use mail_ui_kit::downloads::Origin;
+use mail_ui_kit::downloads::log::Entry;
+use mail_ui_kit::downloads::panel::{detail, icon_of};
 use std::path::PathBuf;
 
 fn at(hours: i64) -> DateTime<Utc> {

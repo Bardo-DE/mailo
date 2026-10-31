@@ -20,8 +20,8 @@ use std::path::{Path, PathBuf};
 
 use super::certs::CertJob;
 use super::{Seams, short, who};
-use mail_client::pgp::WithSecret;
 use crate::data::AccountRow;
+use mail_client::pgp::WithSecret;
 
 pub use super::keys_page::{KeysPage, Whose};
 
@@ -116,10 +116,7 @@ pub fn work(client: &Client, seams: &Seams, job: Job) -> Result<Done, String> {
                 .map_err(|e| e.to_string())?;
             let said = format!("Deleted the key of {}", who(&key));
             if key.secret == SecretHeld::Absent {
-                return Ok(Done::Gone(
-                    said,
-                    Box::new(crate::motion::Restore::Key(key)),
-                ));
+                return Ok(Done::Gone(said, Box::new(crate::motion::Restore::Key(key))));
             }
             said
         }

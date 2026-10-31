@@ -145,7 +145,10 @@ fn snooze_help_is_the_time_snooze_until_resolves() {
         items
             .last()
             .map(|item| (item.key.as_str(), item.name.as_str())),
-        Some((mail_ui_kit::menus::CHOOSE, mail_ui_model::copy::menus::CHOOSE_TIME))
+        Some((
+            mail_ui_kit::menus::CHOOSE,
+            mail_ui_model::copy::menus::CHOOSE_TIME
+        ))
     );
     assert!(
         items

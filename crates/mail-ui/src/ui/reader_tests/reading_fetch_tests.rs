@@ -1,4 +1,3 @@
-use mail_ui_reader::reading::fetch::*;
 use crate::ui::fixtures::{Seen, settle_until};
 use crate::ui::fixtures::{
     acct_account, click, dispatching, held_and_remote, rebuild_into, seeded,
@@ -6,12 +5,13 @@ use crate::ui::fixtures::{
 use dioxus::prelude::*;
 use dioxus_core::VirtualDom;
 use ds::prelude::*;
-use mail_ui_kit::need::Need;
 use mail_client::fetch::Body as BodyState;
-use std::path::Path;
 use mail_core::{SqliteStore, Store as _};
 use mail_domain::*;
+use mail_ui_kit::need::Need;
 use mail_ui_kit::view::Shell;
+use mail_ui_reader::reading::fetch::*;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 

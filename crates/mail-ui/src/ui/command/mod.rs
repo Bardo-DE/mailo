@@ -24,7 +24,6 @@ pub(in crate::ui) use bar::{Affordance, SearchBox, SearchHead, affordance, clear
 #[cfg(test)]
 pub(in crate::ui) use bar::{BOX_LABEL, CLEAR_LABEL};
 pub(in crate::ui) use commands::{Acts, Command, Settings, Sidebar, TidyUp};
-pub(in crate::ui) use items::avatar_color;
 #[cfg(test)]
 pub(in crate::ui) use spotlight::{FIELD, LABEL};
 pub(in crate::ui) use spotlight::{Spotlight, summon};

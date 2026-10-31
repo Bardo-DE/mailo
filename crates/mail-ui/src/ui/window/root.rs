@@ -8,7 +8,6 @@
 use super::note::left;
 use crate::ui::app::Frame;
 use crate::ui::compose::{self, SendPill};
-use mail_ui_reader::reading::{ReaderIn, reading_column};
 use crate::ui::style::STYLE;
 use crate::ui::window_core::{use_window_core, use_window_desk};
 use chordkit::StandardAction;
@@ -22,6 +21,7 @@ use mail_ui_kit::actions::{self, Heard};
 use mail_ui_kit::intent::{Intent, Scope, intent, on_thread};
 use mail_ui_kit::space::Spaces;
 use mail_ui_kit::view::{Shell, Shortcut};
+use mail_ui_reader::reading::{ReaderIn, reading_column};
 use std::sync::Arc;
 
 /// The conversation a window shows, as a root context: how a test's harness, which renders a
@@ -55,7 +55,7 @@ pub(in crate::ui) fn MessageShell(thread: ThreadId) -> Element {
     let loaded = try_consume_context::<mail_client::provider::icon::Loaded>().unwrap_or_default();
     let icons = use_signal(|| loaded);
     use_context_provider(|| icons);
-    crate::ui::provider_chip::use_fetch_missing(icons);
+    mail_ui_kit::provider_chip::use_fetch_missing(icons);
     mail_ui_kit::host::use_window_host();
     // "Open in new window" from here opens through quire too, unless a test gave a recorder.
     super::use_windows();

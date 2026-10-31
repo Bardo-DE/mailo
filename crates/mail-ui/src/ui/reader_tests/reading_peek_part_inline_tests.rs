@@ -1,8 +1,8 @@
-use mail_ui_reader::reading::peek::part::{LEFT_OPEN_FOR, OPEN_PREFIX, sweep_in, write_for_open};
-use mail_ui_kit::downloads::unedited;
 use mail_core::Store as _;
+use mail_ui_kit::downloads::unedited;
 use mail_ui_kit::view::Viewing;
 use mail_ui_model::settings::RemoveUnedited;
+use mail_ui_reader::reading::peek::part::{LEFT_OPEN_FOR, OPEN_PREFIX, sweep_in, write_for_open};
 use std::time::SystemTime;
 
 /// Open writes a copy of the part and records it: the quit removes it, unedited, under When

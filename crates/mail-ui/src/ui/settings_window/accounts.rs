@@ -15,7 +15,6 @@
 use super::account::{AccountPage, back};
 use super::rows::link_row;
 use crate::ui::add_account::Join;
-use crate::ui::provider_chip;
 use dioxus::prelude::*;
 use ds::components::lists::list::model::ListStyle;
 use ds::components::lists::row::size::RowSize;
@@ -24,6 +23,7 @@ use ds::prelude::*;
 use ds::root::common::Common;
 use ds::style::icon::family::PlateFamily;
 use mail_ui_kit::common::{add_mark, tile};
+use mail_ui_kit::provider_chip;
 use mail_ui_kit::view::{AccountStep, AccountsPage, Shell};
 use mail_ui_model::copy;
 use porter_core::AccountId;

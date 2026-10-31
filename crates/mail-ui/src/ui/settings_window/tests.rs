@@ -4,12 +4,12 @@
 //! pane is `account`'s (`account/tests.rs`).
 
 use super::settings_root;
-use mail_ui_kit::settings_at::{OpenSettings, SettingsAt, SettingsWindows};
 use crate::ui::app::App;
 use crate::ui::fixtures::{
     INSIDE_THE_SHELL, Seen, Work, chord, click, dispatching, drain_seen, rebuild_into, work,
 };
 use dioxus::dioxus_core::{self, VirtualDom};
+use mail_ui_kit::settings_at::{OpenSettings, SettingsAt, SettingsWindows};
 use mail_ui_kit::view::PageId;
 use mail_ui_model::settings::{BrandLogos, LoadRemoteImages, MailSettings, Spelling};
 use std::sync::{Arc, Mutex};

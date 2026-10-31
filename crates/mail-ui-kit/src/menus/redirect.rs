@@ -8,6 +8,10 @@
 //! toast, as every other outcome of a send is. A redirect that is queued waits out the same grace
 //! as a send, and its toast's Undo withdraws it.
 
+use crate::menu::{MenuKey, anchor_for, menu_key};
+use crate::motion::{Follow, Restore, tell};
+use crate::ops::newest;
+use crate::view::Shell;
 use dioxus::prelude::*;
 use ds::base::geometry::placement::{Align, Side};
 use ds::components::fields::text_field_model::Invalid;
@@ -19,10 +23,6 @@ use ds::root::common::Common;
 use ds::root::pass_through::ExtraClass;
 use mail_client::Client;
 use mail_domain::*;
-use crate::menu::{MenuKey, anchor_for, menu_key};
-use crate::motion::{Follow, Restore, tell};
-use crate::ops::newest;
-use crate::view::Shell;
 use mail_ui_model::copy;
 
 /// What pressing Return with `typed` in the field comes to: the addresses, or why there are none.

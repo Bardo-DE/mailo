@@ -8,6 +8,7 @@
 //! (`people.rs`), the one the composer's To field gets.
 
 use ds::prelude::*;
+use mail_ui_kit::avatar::avatar_color;
 use std::collections::HashMap;
 
 use super::commands::{COMMANDS, Command};
@@ -185,14 +186,6 @@ fn query_marks(query: &str, text: &str) -> Vec<u32> {
         .next()
         .map(|hit| hit.indices)
         .unwrap_or_default()
-}
-
-/// A person's avatar fill, stable for an address: quire's person hash (design/03 section 13),
-/// the colour its `Avatar` gives the same address, as the text a tile's style takes.
-pub(in crate::ui) fn avatar_color(email: &str) -> String {
-    ds::components::content::avatar::person_hue(email)
-        .hex()
-        .css()
 }
 
 /// A command row, with the chord of the standard action it is drawn from `keymap`: its first

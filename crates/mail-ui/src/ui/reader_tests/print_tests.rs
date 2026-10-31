@@ -1,5 +1,3 @@
-use mail_ui_reader::print::tool::{PrintChoice, ROWS, job_of};
-use mail_ui_reader::print::{Job, PrintMenu, SAVED_AS, Sources, build, save_into, started};
 use crate::ui::app::App;
 use crate::ui::fixtures::{
     INSIDE_THE_SHELL, Scripts, acct_account, chord, click, dispatching, rebuild_into, seeded, work,
@@ -10,6 +8,8 @@ use dioxus_core::{ElementId, VirtualDom};
 use mail_core::{SqliteStore, Store};
 use mail_domain::*;
 use mail_reader::Pages;
+use mail_ui_reader::print::tool::{PrintChoice, ROWS, job_of};
+use mail_ui_reader::print::{Job, PrintMenu, SAVED_AS, Sources, build, save_into, started};
 use std::sync::Arc;
 
 const SUBJECT: &str = "Quarterly figures, and what they mean";

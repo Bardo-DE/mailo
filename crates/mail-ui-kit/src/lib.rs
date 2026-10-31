@@ -8,6 +8,7 @@
 
 pub mod actions;
 pub mod appearance;
+pub mod avatar;
 pub mod bin;
 pub mod book;
 pub mod cache;
@@ -31,10 +32,10 @@ pub mod list_query;
 pub mod list_search;
 pub mod live;
 pub mod menu;
-pub mod need;
 pub mod menus;
 pub mod motion;
 pub mod move_to;
+pub mod need;
 pub mod ops;
 pub mod original;
 pub mod pasted_image;
@@ -43,6 +44,7 @@ pub mod pick;
 pub mod picks;
 pub mod prefs;
 pub mod press;
+pub mod provider_chip;
 pub mod queued;
 pub mod quick;
 pub mod reauth;

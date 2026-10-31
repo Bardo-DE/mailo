@@ -39,9 +39,9 @@ use mail_domain::{BlobId, MessageId, Retry};
 
 use super::fetch::{self, Again};
 use super::thumb::Thumb;
-use mail_ui_kit::reauth::{SIGN_IN, SignAgain};
 use mail_ui_kit::common::classed;
 use mail_ui_kit::pick::{Ask, choose};
+use mail_ui_kit::reauth::{SIGN_IN, SignAgain};
 use mail_ui_kit::text::{AttachmentRow, Kept};
 use mail_ui_kit::view::Shell;
 use mail_ui_model::copy;

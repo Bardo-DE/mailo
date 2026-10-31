@@ -29,9 +29,7 @@ mod unlock;
 
 #[cfg(any(test, feature = "testing"))]
 pub use look::Opened;
-pub use look::{
-    Look, Mark, attachments, cached, last, lookup, save_attachment, unlock,
-};
+pub use look::{Look, Mark, attachments, cached, last, lookup, save_attachment, unlock};
 #[cfg(any(test, feature = "testing"))]
 pub use said::doubt;
 pub use said::{Said, Tone, said, said_smime, whose};
@@ -46,8 +44,7 @@ use mail_client::prelude::SigningStore;
 use mail_domain::*;
 
 /// Look a key up by its address's domain. Blocks on the network: run it off the thread that draws.
-pub type Lookup =
-    dyn Fn(&Client, &str) -> Result<Option<PgpKey>, String> + Send + Sync;
+pub type Lookup = dyn Fn(&Client, &str) -> Result<Option<PgpKey>, String> + Send + Sync;
 /// Ask for a file to read. Blocks until the dialog is answered.
 pub(crate) type PickFile = dyn Fn() -> Option<PathBuf> + Send + Sync;
 /// Ask where to write a file, suggesting a name. Blocks until the dialog is answered.
@@ -155,4 +152,3 @@ pub fn who(key: &PgpKey) -> String {
         .cloned()
         .unwrap_or_else(|| "a key with no name".to_owned())
 }
-

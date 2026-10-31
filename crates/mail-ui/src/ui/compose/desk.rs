@@ -73,7 +73,12 @@ pub(in crate::ui) fn use_desk(
     });
     // What a send queued from elsewhere asks through, to be shown on the pill.
     let queued = use_callback(move |draft| {
-        show_queued(desk, &mail_ui_kit::live::client(), draft, chrono::Utc::now());
+        show_queued(
+            desk,
+            &mail_ui_kit::live::client(),
+            draft,
+            chrono::Utc::now(),
+        );
     });
     use_context_provider(|| mail_ui_kit::queued::ShowQueued(queued));
     desk

@@ -8,9 +8,9 @@ use mail_crypto::openpgp::Cert;
 use mail_domain::*;
 
 use super::pgp_tests::{ME, arrive, own_key, reader_looking, sealed, someone_elses, until};
-use mail_ui_kit::pgp::{Look, lookup, save_attachment};
 use crate::ui::fixtures::seeded;
 use mail_core::message::{Looks, Read};
+use mail_ui_kit::pgp::{Look, lookup, save_attachment};
 
 /// A message to me saying `text`, with `map.bin` attached, unique by `word`.
 fn letter(word: &str, text: &str) -> String {

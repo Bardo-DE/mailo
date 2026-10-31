@@ -16,12 +16,12 @@ use mail_core::{SqliteStore, Store};
 use mail_domain::signing::{SigningKeyId, SigningKeyRef};
 use mail_domain::*;
 
-use mail_ui_kit::pgp::keys::{KeysPage, Whose, ordered};
-use mail_ui_kit::pgp::short;
 use super::pgp_tests::{own_key, seams_with, someone_elses};
 use crate::ui::fixtures::{
     Seen, click, dispatching, drain_seen, later, rebuild_into, right_click, seeded,
 };
+use mail_ui_kit::pgp::keys::{KeysPage, Whose, ordered};
+use mail_ui_kit::pgp::short;
 
 /// The page inside a quire root, as the Settings window has it: its alerts and sheets float in
 /// the root's overlay.
@@ -37,7 +37,10 @@ fn Page() -> Element {
     }
 }
 
-pub(super) fn sheet(store: &Arc<SqliteStore>, seams: mail_ui_kit::pgp::Seams) -> (VirtualDom, Seen) {
+pub(super) fn sheet(
+    store: &Arc<SqliteStore>,
+    seams: mail_ui_kit::pgp::Seams,
+) -> (VirtualDom, Seen) {
     dispatching();
     let mut dom = VirtualDom::new(Page)
         .with_root_context(crate::ui::fixtures::client(store))

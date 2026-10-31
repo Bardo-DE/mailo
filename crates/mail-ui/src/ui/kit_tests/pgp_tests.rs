@@ -18,13 +18,13 @@ use mail_crypto::openpgp::{self, Cert, SecretCert, Unlocking};
 use mail_domain::*;
 use rand::SeedableRng;
 
-use mail_ui_kit::pgp::{Said, Seams, Tone, said};
 use crate::ui::fixtures::{
     Seen, acct_account, click, dispatching, rebuild_into, seeded, type_into,
 };
-use mail_ui_reader::reading::Reader;
 use mail_core::pgp::Protected;
+use mail_ui_kit::pgp::{Said, Seams, Tone, said};
 use mail_ui_kit::view::Shell;
+use mail_ui_reader::reading::Reader;
 
 pub(super) const ME: &str = "me@example.test";
 const BEA: &str = "bea@example.test";
@@ -676,7 +676,10 @@ const ASKED: &str = "Passphrase for key";
 fn field(seen: &Seen, key: Fingerprint) -> dioxus_core::ElementId {
     seen.one(
         "aria-label",
-        &format!("Passphrase: Passphrase for key {}", mail_ui_kit::pgp::short(key)),
+        &format!(
+            "Passphrase: Passphrase for key {}",
+            mail_ui_kit::pgp::short(key)
+        ),
     )
 }
 

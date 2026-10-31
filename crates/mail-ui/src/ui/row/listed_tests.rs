@@ -1,13 +1,13 @@
 //! What a row says, its menu and what a click on it opens, for each kind of row.
 
 use super::listed::{Listed, Opens};
-use mail_ui_kit::row_menu::{self as menu, Pick};
 use chrono::{DateTime, TimeZone, Utc};
 use ds::components::app::thread_height::ThreadLines;
 use ds::components::menus::item::item::MenuItem;
 use ds::prelude::*;
 use mail_domain::*;
 use mail_ui_kit::list_search::RowHit;
+use mail_ui_kit::row_menu::{self as menu, Pick};
 use mail_ui_model::copy;
 use mail_ui_model::selection::Click;
 

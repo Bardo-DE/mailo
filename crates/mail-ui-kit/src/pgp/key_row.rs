@@ -22,11 +22,11 @@ use super::actions::{Act, Opened, RowActions, line};
 use super::certs::CertJob;
 use super::keys::Job;
 use super::{Busy, Passphrase, cert_short, short, who};
-use mail_client::password::Password;
-use mail_client::pgp::WithSecret;
 use crate::common::tagged;
 use crate::common::{in_card, tile};
 use crate::press::{available, on_primary};
+use mail_client::password::Password;
+use mail_client::pgp::WithSecret;
 use mail_ui_model::copy::menus;
 
 /// A question the page is asking before it acts.
@@ -74,12 +74,7 @@ pub fn lifetime(key: &PgpKey, now: DateTime<Utc>) -> Vec<String> {
 /// One key: who it is for, what is known of it, and its actions. An act that cannot be undone
 /// sets `confirm`, and the page asks ([`Asking`]).
 #[component]
-pub fn KeyRow(
-    pgp: PgpKey,
-    confirm: Signal<Confirm>,
-    run: Callback<Job>,
-    busy: Busy,
-) -> Element {
+pub fn KeyRow(pgp: PgpKey, confirm: Signal<Confirm>, run: Callback<Job>, busy: Busy) -> Element {
     let working = busy == Busy::Working;
     let fingerprint = pgp.fingerprint;
     let name = who(&pgp);

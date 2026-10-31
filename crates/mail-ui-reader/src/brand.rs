@@ -158,8 +158,7 @@ fn use_card_photo(from: String) -> Signal<Option<String>> {
         let from = from.clone();
         async move {
             let found =
-                tokio::task::spawn_blocking(move || mail_ui_kit::book::photo(&client, &from))
-                    .await;
+                tokio::task::spawn_blocking(move || mail_ui_kit::book::photo(&client, &from)).await;
             if let Ok(Some(src)) = found {
                 photo.set(Some(src));
             }

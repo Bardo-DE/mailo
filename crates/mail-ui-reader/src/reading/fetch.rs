@@ -17,8 +17,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use mail_ui_kit::need::Need;
-use mail_ui_kit::reauth::{SIGN_IN, SignAgain};
 use mail_ui_kit::press::on_primary;
+use mail_ui_kit::reauth::{SIGN_IN, SignAgain};
 
 type BodyFetch = dyn Fn(Client, MessageId) -> Result<(), (Retry, String)> + Send + Sync;
 type PartFetch =
@@ -334,4 +334,3 @@ pub(super) fn BodyPane(message: MessageId, account: AccountId, mut landed: Signa
         },
     }
 }
-

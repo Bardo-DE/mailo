@@ -9,10 +9,10 @@
 //! short, so the column is drawn in the caller's scope.
 
 use super::{Reader, ReaderIn};
-use mail_ui_kit::composing::Composing;
 use dioxus::prelude::*;
 use ds::components::overlays::empty_state::{EmptyForm, EmptyState};
 use mail_domain::ThreadId;
+use mail_ui_kit::composing::Composing;
 use mail_ui_kit::view::Shell;
 
 /// Draw the open conversation with the reply under it, or the composer's page, or, with nothing

@@ -6,8 +6,7 @@
 use mail_core::Store;
 
 use super::super::foot::{More, more_items, pick_more, pick_send, send_items};
-use super::super::page::{Float};
-use mail_ui_kit::lines::List;
+use super::super::page::Float;
 use super::super::props::sends_items;
 use super::super::protection::{self, Protection};
 use super::super::receipt;
@@ -16,6 +15,7 @@ use super::*;
 use crate::ui::fixtures::{acct_account, seeded};
 use ds::components::menus::item::item::MenuItem as Line;
 use mail_core::SqliteStore;
+use mail_ui_kit::lines::List;
 
 /// Every row a choice or a list can draw, by its `data-row`.
 const OPTIONAL: [&str; 8] = [

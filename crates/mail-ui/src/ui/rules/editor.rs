@@ -15,7 +15,6 @@ use ds::style::icon::render::Glyph;
 use mail_domain::{AfterMatch, Rule, RuleAction};
 use porter_core::AccountId;
 
-use mail_ui_kit::move_to::destinations;
 use super::conditions::{self, ConditionRows};
 use super::when::Joined;
 use super::work::{self, Draft};
@@ -25,6 +24,7 @@ use mail_ui_kit::common::Problem;
 use mail_ui_kit::common::classed;
 use mail_ui_kit::data::AccountRow;
 use mail_ui_kit::menu::{Floating, MenuItem, anchor_at, narrowed, palette_groups};
+use mail_ui_kit::move_to::destinations;
 use mail_ui_kit::press::{available, on_primary};
 use mail_ui_kit::view::Shell;
 use mail_ui_model::copy;
