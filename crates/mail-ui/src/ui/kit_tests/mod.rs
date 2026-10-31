@@ -10,3 +10,8 @@ mod live;
 mod motion;
 mod ops;
 mod store_reads;
+pub(in crate::ui) mod files_sheet_tests;
+mod files_work_tests;
+mod downloads_tests;
+mod downloads_unedited_tests;
+mod vip_tests;

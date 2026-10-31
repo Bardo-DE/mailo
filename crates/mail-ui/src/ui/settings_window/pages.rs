@@ -367,7 +367,7 @@ fn FolderRow(
 ) -> Element {
     // A value that is not text is no folder: the default's.
     let chosen = value.as_str().unwrap_or_default().trim().to_owned();
-    let shown = crate::ui::files::save_dir();
+    let shown = mail_ui_kit::files::save_dir();
     let path = spec.path.0.clone();
     let reset = path.clone();
     rsx! {

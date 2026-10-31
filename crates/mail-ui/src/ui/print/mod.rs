@@ -129,9 +129,9 @@ pub(in crate::ui) fn print(job: Job) {
 pub(in crate::ui) fn save(job: Job) {
     let said = motion();
     let client = mail_ui_kit::live::client();
-    let dir = crate::ui::files::save_dir();
+    let dir = mail_ui_kit::files::save_dir();
     let sources = Sources::window();
-    let saving = crate::ui::downloads::Saving::quick();
+    let saving = mail_ui_kit::downloads::Saving::quick();
     let hours = mail_ui_kit::clock::hours();
     dioxus::core::spawn_forever(async move {
         let done = tokio::task::spawn_blocking(move || {
@@ -153,7 +153,7 @@ pub(in crate::ui) fn save(job: Job) {
                     .file_stem()
                     .map(|stem| stem.to_string_lossy().into_owned())
                     .unwrap_or_default();
-                let origin = crate::ui::downloads::Origin {
+                let origin = mail_ui_kit::downloads::Origin {
                     thread: job.thread,
                     subject,
                 };

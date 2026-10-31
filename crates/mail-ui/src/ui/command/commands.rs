@@ -530,7 +530,7 @@ impl Command for Import {
     }
 
     fn run(&self, acts: Acts) {
-        crate::ui::files::open_import(acts.shell);
+        mail_ui_kit::files::open_import(acts.shell);
     }
 }
 
@@ -553,7 +553,7 @@ impl Command for Export {
     /// The panel is closed first: the sheet opens on the search the window is showing, not on
     /// what was typed into this menu.
     fn run(&self, acts: Acts) {
-        crate::ui::files::open_export(acts.shell);
+        mail_ui_kit::files::open_export(acts.shell);
     }
 }
 

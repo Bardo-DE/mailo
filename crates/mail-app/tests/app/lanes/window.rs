@@ -16,7 +16,7 @@ use ds_blitz::{FocusFallback, PrintOutcome, RootContexts};
 use ds_harness::{Clock, Harness, HarnessConfig, Viewport};
 use mail_core::SqliteStore;
 use mail_core::notify::{Notification, Notifier};
-use mail_ui::ui::native::SaveDir;
+use mail_ui_kit::files::SaveDir;
 use mail_ui_kit::appearance::WindowDirs;
 use mail_ui_kit::clock::WallClock;
 use mail_ui_kit::configured::Configured;
@@ -82,10 +82,10 @@ impl Browse for Opened {
 /// the file.
 pub type Launched = Arc<Mutex<Vec<(&'static str, PathBuf)>>>;
 
-fn file_opener(launched: &Launched) -> mail_ui::ui::native::FileOpener {
+fn file_opener(launched: &Launched) -> mail_ui_kit::downloads::Opener {
     let opened = Arc::clone(launched);
     let revealed = Arc::clone(launched);
-    mail_ui::ui::native::FileOpener::new(
+    mail_ui_kit::downloads::Opener::new(
         move |path| {
             held(&opened).push(("open", path.to_owned()));
             Ok(())

@@ -28,16 +28,16 @@ pub enum NotOpened {
 impl NotOpened {
     /// What the window says: the sentence, or `said` with the library's words in the log.
     #[track_caller]
-    pub(in crate::ui) fn told(self, said: &str) -> String {
+    pub fn told(self, said: &str) -> String {
         match self {
             NotOpened::Said(sentence) => sentence,
-            NotOpened::Failed(why) => mail_ui_kit::remedy::plainly(said, why),
+            NotOpened::Failed(why) => crate::remedy::plainly(said, why),
         }
     }
 }
 
 /// Open `path` in the app the system associates with its kind.
-pub(in crate::ui) fn open(path: &Path) -> Result<(), NotOpened> {
+pub fn open(path: &Path) -> Result<(), NotOpened> {
     opened(path, reveal, launch)
 }
 
@@ -81,7 +81,7 @@ fn runs_when_opened(path: &Path) -> Option<String> {
 
 /// Show `path` in the file manager, selected where the desktop can do that; its folder opened
 /// where it cannot.
-pub(in crate::ui) fn reveal(path: &Path) -> Result<(), NotOpened> {
+pub fn reveal(path: &Path) -> Result<(), NotOpened> {
     if !path.exists() {
         return Err(gone(path));
     }

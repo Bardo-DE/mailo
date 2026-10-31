@@ -11,10 +11,6 @@ repository = "https://github.com/PoHsuanLai/mailo"
 authors = ["Po Hsuan Lai <pohsuanlai0208@gmail.com>"]
 
 [features]
-# Desktop extras (design/36 rule 3): what only our desktop has. Here: a saved file opens in
-# anyview, the desktop's viewer, over the session bus (`ui/downloads/open.rs`), with the system's
-# app when anyview does not answer. Off, a file opens in the system's app alone.
-quire-desktop = []
 # anyview's peek and card (github.com/PoHsuanLai/anyview) for the attachments mailo does not draw
 # itself: a picture in the reader's strip and a card in Peek, both over the stored bytes
 # (`ui/reading/anyview.rs`). Off, the strip shows a picture's or a PDF's thumbnail and Peek those,

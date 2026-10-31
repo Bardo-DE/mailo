@@ -118,7 +118,7 @@ pub(super) fn face(initial: char, index: usize) -> AvatarFace {
 /// sidebar's and ⌘K's. The VIPs place by its key, since what it lists is whoever they are.
 pub(in crate::ui) fn place_icon(place: &Place) -> Icon {
     if is_vips(place) {
-        return crate::ui::vip::GLYPH;
+        return mail_ui_kit::vip::GLYPH;
     }
     let source = &place.source;
     let role = |role: MailboxRole| *source == Source::Mail(for_role(role));

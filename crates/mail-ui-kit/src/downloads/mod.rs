@@ -10,28 +10,28 @@
 //! The list is stored once for every window (`downloads.json` in the state directory), so a
 //! file a message window saved is there too: the list is read again each time it opens.
 
-mod log;
+pub mod log;
 mod open;
-mod panel;
-pub(in crate::ui) mod unedited;
+pub mod panel;
+pub mod unedited;
 
-pub(in crate::ui) use self::log::Origin;
+pub use self::log::Origin;
 pub use self::open::NotOpened;
 /// A saved file opened in its app, as a Downloads row opens it: Peek's Open uses it too.
-pub(in crate::ui) use self::open::open as open_file;
-pub(in crate::ui) use self::panel::DownloadsButton;
+pub use self::open::open as open_file;
+pub use self::panel::DownloadsButton;
 
 use self::log::{Entry, Log};
 use dioxus::prelude::*;
 use mail_client::Client;
 use mail_domain::MessageId;
-use mail_ui_kit::appearance::WindowDirs;
+use crate::appearance::WindowDirs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 /// What the Downloads button and its list draw.
 #[derive(Debug, Clone, Default, PartialEq)]
-pub(in crate::ui) struct Shelf {
+pub struct Shelf {
     /// The saved files, newest first.
     pub log: Log,
     /// Files being saved now, oldest first.
@@ -43,13 +43,13 @@ pub(in crate::ui) struct Shelf {
 
 /// A file being saved: a download from the server can take a while.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(in crate::ui) struct Going {
+pub struct Going {
     pub id: u64,
     pub name: String,
 }
 
 /// Provide the window's [`Shelf`], read from the state directory once.
-pub(in crate::ui) fn use_provide_shelf(dirs: Option<&WindowDirs>) -> Signal<Shelf> {
+pub fn use_provide_shelf(dirs: Option<&WindowDirs>) -> Signal<Shelf> {
     let state = dirs.map(|dirs| dirs.state.clone());
     use_context_provider(move || {
         Signal::new(Shelf {
@@ -62,7 +62,7 @@ pub(in crate::ui) fn use_provide_shelf(dirs: Option<&WindowDirs>) -> Signal<Shel
 /// One save's report to the Downloads list. Taken in the handler that starts the save, where
 /// the window's context is in reach, and ended wherever the save finishes.
 #[derive(Debug, Clone)]
-pub(in crate::ui) struct Saving {
+pub struct Saving {
     shelf: Option<Signal<Shelf>>,
     state: Option<PathBuf>,
     id: Option<u64>,
@@ -70,7 +70,7 @@ pub(in crate::ui) struct Saving {
 
 impl Saving {
     /// A save that may take a while: `name` shows as being saved until [`Saving::end`].
-    pub(in crate::ui) fn begin(name: impl Into<String>) -> Saving {
+    pub fn begin(name: impl Into<String>) -> Saving {
         let mut saving = Saving::quick();
         if let Some(mut shelf) = saving.shelf {
             let mut shelf = shelf.write();
@@ -86,7 +86,7 @@ impl Saving {
     }
 
     /// A save that is over as soon as it starts: nothing shows until [`Saving::end`].
-    pub(in crate::ui) fn quick() -> Saving {
+    pub fn quick() -> Saving {
         Saving {
             shelf: try_consume_context::<Signal<Shelf>>(),
             state: try_consume_context::<WindowDirs>().map(|dirs| dirs.state),
@@ -96,7 +96,7 @@ impl Saving {
 
     /// The save is over: `saved` is the file written, if one was. Kept in the stored list and
     /// shown first in this window's.
-    pub(in crate::ui) fn end(self, saved: Option<&Path>, origin: Option<Origin>) {
+    pub fn end(self, saved: Option<&Path>, origin: Option<Origin>) {
         if let (Some(mut shelf), Some(id)) = (self.shelf, self.id) {
             shelf.write().going.retain(|going| going.id != id);
         }
@@ -130,7 +130,7 @@ impl Saving {
 }
 
 /// The message a saved file came out of, as the list names it; `None` when it is not stored.
-pub(in crate::ui) fn origin(client: &Client, message: MessageId) -> Option<Origin> {
+pub fn origin(client: &Client, message: MessageId) -> Option<Origin> {
     client.stored().message(message).ok().map(|m| Origin {
         thread: m.thread,
         subject: m.subject,
@@ -206,5 +206,3 @@ fn opener() -> Opener {
     try_consume_context::<Opener>().unwrap_or_default()
 }
 
-#[cfg(test)]
-mod tests;

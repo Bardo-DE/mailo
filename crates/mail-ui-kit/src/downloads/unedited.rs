@@ -19,7 +19,7 @@ use std::time::SystemTime;
 
 /// One copy Open wrote: where, out of which message, and how it was as it was written.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(in crate::ui) struct Written {
+pub struct Written {
     /// The folder Open writes into, which `path` is inside.
     root: PathBuf,
     pub path: PathBuf,
@@ -30,7 +30,7 @@ pub(in crate::ui) struct Written {
 
 /// Why a file was not recorded.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(in crate::ui) enum NotRecorded {
+pub enum NotRecorded {
     /// It is not inside the folder Open writes into.
     Outside,
     /// It is not a plain file that could be looked at: gone, a link, a folder.
@@ -39,14 +39,14 @@ pub(in crate::ui) enum NotRecorded {
 
 /// Every copy Open wrote and has not yet removed or let go.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub(in crate::ui) struct Ledger {
+pub struct Ledger {
     entries: Vec<Written>,
 }
 
 impl Ledger {
     /// Record `path`, just written into `root` for `message`, as it is now. A path that is not a
     /// file inside `root` is refused.
-    pub(in crate::ui) fn record(
+    pub fn record(
         &mut self,
         root: &Path,
         path: &Path,
@@ -70,7 +70,7 @@ impl Ledger {
     /// Remove each recorded copy `due` picks that is as it was written, and let go of every one it
     /// picks, removed or not: an edited copy is the person's from then on. Returns what was
     /// removed.
-    pub(in crate::ui) fn remove_unedited(
+    pub fn remove_unedited(
         &mut self,
         due: impl Fn(&Written) -> bool,
     ) -> Vec<PathBuf> {
@@ -99,12 +99,12 @@ impl Ledger {
     }
 
     /// Whether nothing is recorded.
-    pub(in crate::ui) fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
 
     /// The messages the recorded copies came out of, each once.
-    fn messages(&self) -> Vec<MessageId> {
+    pub fn messages(&self) -> Vec<MessageId> {
         let mut messages: Vec<MessageId> = self.entries.iter().map(|w| w.message).collect();
         messages.sort();
         messages.dedup();
@@ -147,8 +147,8 @@ static OPENED: Mutex<Ledger> = Mutex::new(Ledger {
 
 /// Held by a test that records into [`OPENED`] and then removes from it: the ledger is the run's,
 /// and tests of the one run would otherwise remove each other's copies.
-#[cfg(test)]
-pub(in crate::ui) static RUN: Mutex<()> = Mutex::new(());
+#[cfg(any(test, feature = "testing"))]
+pub static RUN: Mutex<()> = Mutex::new(());
 
 fn opened() -> std::sync::MutexGuard<'static, Ledger> {
     OPENED.lock().unwrap_or_else(PoisonError::into_inner)
@@ -156,7 +156,7 @@ fn opened() -> std::sync::MutexGuard<'static, Ledger> {
 
 /// Record a copy Open wrote into `root` for `message`. One that cannot be recorded is only
 /// logged: it stays where it is, as every copy did before it could be removed.
-pub(in crate::ui) fn record(root: &Path, path: &Path, message: MessageId) {
+pub fn record(root: &Path, path: &Path, message: MessageId) {
     if let Err(why) = opened().record(root, path, message) {
         log::warn!(
             "an opened attachment was not recorded for removal ({why:?}): {}",
@@ -166,7 +166,7 @@ pub(in crate::ui) fn record(root: &Path, path: &Path, message: MessageId) {
 }
 
 /// What the quit does: under [`RemoveUnedited::WhenMailoQuits`], every unedited copy goes.
-pub(in crate::ui) fn remove_on_quit(setting: RemoveUnedited) {
+pub fn remove_on_quit(setting: RemoveUnedited) {
     if setting == RemoveUnedited::WhenMailoQuits {
         let removed = opened().remove_unedited(|_| true);
         log::info!("removed {} unedited opened attachments", removed.len());
@@ -174,7 +174,7 @@ pub(in crate::ui) fn remove_on_quit(setting: RemoveUnedited) {
 }
 
 /// Remove the unedited copies whose message is deleted: in Trash, or no longer stored.
-pub(in crate::ui) fn remove_for_deleted(client: &Client) -> Vec<PathBuf> {
+pub fn remove_for_deleted(client: &Client) -> Vec<PathBuf> {
     let messages = opened().messages();
     let deleted: Vec<MessageId> = messages
         .into_iter()
@@ -188,7 +188,7 @@ pub(in crate::ui) fn remove_for_deleted(client: &Client) -> Vec<PathBuf> {
 
 /// Whether `message` is deleted: in Trash, or gone from the client. A client that could not be read
 /// says nothing either way, and the copy stays.
-fn is_deleted(client: &Client, message: MessageId) -> bool {
+pub fn is_deleted(client: &Client, message: MessageId) -> bool {
     match client.stored().message(message) {
         Ok(stored) => stored.mailbox == MailboxRole::Trash,
         Err(StoreError::NoMessage(_)) => true,
@@ -198,24 +198,21 @@ fn is_deleted(client: &Client, message: MessageId) -> bool {
 
 /// Under [`RemoveUnedited::AfterMessageIsDeleted`], look again on every revision, since a delete
 /// is one, and remove the copies whose message went.
-pub(in crate::ui) fn use_remove_unedited() {
-    let settings = mail_ui_kit::prefs::use_settings();
+pub fn use_remove_unedited() {
+    let settings = crate::prefs::use_settings();
     let _removing = use_resource(move || {
         // Read only to run again on the next revision.
-        let _ = mail_ui_kit::live::moved_for(mail_client::Topics::SUMMARIES);
+        let _ = crate::live::moved_for(mail_client::Topics::SUMMARIES);
         let due =
             settings.read().attachments.remove_unedited == RemoveUnedited::AfterMessageIsDeleted;
         async move {
             if !due || opened().is_empty() {
                 return;
             }
-            let client = mail_ui_kit::live::client();
+            let client = crate::live::client();
             // The client is read and the files removed off the thread that draws; nothing is said.
             let _ = tokio::task::spawn_blocking(move || remove_for_deleted(&client)).await;
         }
     });
 }
 
-#[cfg(test)]
-#[path = "unedited_tests.rs"]
-mod tests;

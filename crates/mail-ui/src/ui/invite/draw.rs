@@ -404,12 +404,12 @@ fn give(
 /// Write the event's `.ics` into the save directory on a blocking thread; the toast says where.
 fn save_file(message: MessageId, title: String, mut phase: Signal<Phase>) {
     let client = mail_ui_kit::live::client();
-    let dir = super::super::files::save_dir();
-    let saving = crate::ui::downloads::Saving::quick();
+    let dir = mail_ui_kit::files::save_dir();
+    let saving = mail_ui_kit::downloads::Saving::quick();
     spawn(async move {
         let done = tokio::task::spawn_blocking(move || {
             let saved = save_ics(&client, message, &title, &dir);
-            (saved, crate::ui::downloads::origin(&client, message))
+            (saved, mail_ui_kit::downloads::origin(&client, message))
         })
         .await;
         match done {

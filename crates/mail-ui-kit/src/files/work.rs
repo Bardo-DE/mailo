@@ -17,14 +17,14 @@ use porter_core::AccountId;
 
 use mail_client::export::{Exported, Target};
 use mail_client::import::{Destination, Imported, Source};
-use mail_ui_kit::view::{Shell, Source as Listed};
+use crate::view::{Shell, Source as Listed};
 use mail_ui_model::copy;
 
-pub(in crate::ui) use mail_client::transfer::{expand_here, suggested};
+pub use mail_client::transfer::{expand_here, suggested};
 
 /// What a typed path holds, as the sheet says it.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(in crate::ui) enum Looked {
+pub enum Looked {
     /// Nothing typed yet.
     Blank,
     /// Mail this can import: which kind, how many messages, and the line that says so.
@@ -40,7 +40,7 @@ pub(in crate::ui) enum Looked {
 /// Look at `path` the way an import will read it, and count what is there.
 ///
 /// Blocking and as slow as reading the source: an mbox is read to its end to count it.
-pub(in crate::ui) fn look(path: &Path) -> Looked {
+pub fn look(path: &Path) -> Looked {
     match transfer::look(path) {
         Seen::Blank => Looked::Blank,
         Seen::Mail { source, count } => {
@@ -57,7 +57,7 @@ pub(in crate::ui) fn look(path: &Path) -> Looked {
 
 /// What the sheet says of a source it found: its kind and message count, and for a Thunderbird
 /// profile that only what Thunderbird kept offline can be imported.
-pub(in crate::ui) fn described(source: &Source, count: usize) -> String {
+pub fn described(source: &Source, count: usize) -> String {
     let slug = source.archive.slug();
     let said = format!("{}, {}", copy::status::source_kind(slug), messages(count));
     match copy::status::source_note(slug) {
@@ -104,7 +104,7 @@ fn sentence(why: &dyn std::fmt::Display) -> String {
 }
 
 /// `1 message`, `1 204 messages`: thousands apart, the way a count is read aloud.
-pub(in crate::ui) fn messages(count: usize) -> String {
+pub fn messages(count: usize) -> String {
     if count == 1 {
         "1 message".to_owned()
     } else {
@@ -113,7 +113,7 @@ pub(in crate::ui) fn messages(count: usize) -> String {
 }
 
 /// `1 204`: a number with its thousands apart, held together by no-break spaces.
-pub(in crate::ui) fn grouped(count: usize) -> String {
+pub fn grouped(count: usize) -> String {
     let digits = count.to_string();
     let mut out = String::new();
     for (index, digit) in digits.chars().enumerate() {
@@ -127,7 +127,7 @@ pub(in crate::ui) fn grouped(count: usize) -> String {
 
 /// Where imported mail goes, as the sheet's menu offers it.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub(in crate::ui) enum Dest {
+pub enum Dest {
     /// The local-only account.
     #[default]
     Local,
@@ -141,7 +141,7 @@ pub(in crate::ui) enum Dest {
 
 impl Dest {
     /// The menu key that picks this.
-    pub(in crate::ui) fn key(&self) -> String {
+    pub fn key(&self) -> String {
         match self {
             Dest::Local => "local".to_owned(),
             Dest::Folder {
@@ -151,7 +151,7 @@ impl Dest {
     }
 
     /// What the destination button says.
-    pub(in crate::ui) fn label(&self) -> String {
+    pub fn label(&self) -> String {
         match self {
             Dest::Local => "Local folders".to_owned(),
             Dest::Folder {
@@ -175,7 +175,7 @@ impl Dest {
 
 /// Every place imported mail can go: local folders first, then each IMAP account's folders as
 /// the client lists them, accounts oldest first. POP3 has no folders to upload into.
-pub(in crate::ui) fn destinations(client: &Client) -> Vec<Dest> {
+pub fn destinations(client: &Client) -> Vec<Dest> {
     std::iter::once(Dest::Local)
         .chain(
             client
@@ -193,7 +193,7 @@ pub(in crate::ui) fn destinations(client: &Client) -> Vec<Dest> {
 
 /// What an import did, and whether an upload now waits in an account's outbox.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(in crate::ui) struct Done {
+pub struct Done {
     pub total: Imported,
     /// `import::said`, as one line.
     pub said: String,
@@ -205,7 +205,7 @@ pub(in crate::ui) struct Done {
 ///
 /// The window's function, and the one its tests drive. Nothing leaves here; see
 /// [`import_then_send`].
-pub(in crate::ui) fn import_now(
+pub fn import_now(
     client: &Client,
     source: &Source,
     into: &Dest,
@@ -229,7 +229,7 @@ pub(in crate::ui) fn import_now(
 /// [`import_now`], then an upload sent while the person watches, as `mailo import
 /// --to-mailbox` does. Whatever does not go stays queued for the next sync, and the sentence
 /// says so.
-pub(in crate::ui) fn import_then_send(
+pub(crate) fn import_then_send(
     client: &Client,
     source: &Source,
     into: &Dest,
@@ -264,7 +264,7 @@ pub(in crate::ui) fn import_then_send(
 
 /// What the export field opens with: the search being shown, or else the place's name in the
 /// words `export::select` reads.
-pub(in crate::ui) fn prefill(shell: &Shell) -> String {
+pub fn prefill(shell: &Shell) -> String {
     let search = shell.search.trim();
     if !search.is_empty() {
         return search.to_owned();
@@ -277,7 +277,7 @@ pub(in crate::ui) fn prefill(shell: &Shell) -> String {
         // A saved view in the words it lists by, when there are words for it.
         Listed::Saved(view) => {
             if let Some(words) =
-                mail_ui_kit::saved::written(&view.filter, &shell.known(), &chrono::Local)
+                crate::saved::written(&view.filter, &shell.known(), &chrono::Local)
             {
                 return words;
             }
@@ -329,7 +329,7 @@ fn place_words(source: &Listed) -> Option<&'static str> {
 }
 
 /// How many messages `query` means, as the sheet says it, or why it means none.
-pub(in crate::ui) fn counted(client: &Client, query: &str, now: DateTime<Utc>) -> Counted {
+pub fn counted(client: &Client, query: &str, now: DateTime<Utc>) -> Counted {
     if query.trim().is_empty() {
         return Counted::Blank;
     }
@@ -341,14 +341,14 @@ pub(in crate::ui) fn counted(client: &Client, query: &str, now: DateTime<Utc>) -
 
 /// The export field's answer.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(in crate::ui) enum Counted {
+pub enum Counted {
     Blank,
     Some(usize),
     Refused(String),
 }
 
 /// Export what `query` means to `target`: the window's function, and the one its tests drive.
-pub(in crate::ui) fn export_now(
+pub fn export_now(
     client: &Client,
     query: &str,
     target: &Target,

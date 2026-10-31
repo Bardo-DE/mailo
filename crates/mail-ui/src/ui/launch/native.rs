@@ -212,7 +212,7 @@ pub(super) fn run(opening: Opening) -> Result<(), ds_blitz::LaunchError> {
 /// No settings to ask, nothing removed.
 fn clean_up_at_quit(root: Option<&ds_settings::ConfigRoot>) {
     if let Some(root) = root {
-        crate::ui::downloads::unedited::remove_on_quit(
+        mail_ui_kit::downloads::unedited::remove_on_quit(
             mail_ui_model::settings::load(root)
                 .attachments
                 .remove_unedited,
@@ -223,7 +223,7 @@ fn clean_up_at_quit(root: Option<&ds_settings::ConfigRoot>) {
 #[cfg(test)]
 mod quit_tests {
     use super::clean_up_at_quit;
-    use crate::ui::downloads::unedited;
+    use mail_ui_kit::downloads::unedited;
     use mail_ui_model::settings::RemoveUnedited;
 
     /// The quit asks the settings under its root, and removes the recorded copies only under When

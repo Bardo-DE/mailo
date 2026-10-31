@@ -19,7 +19,7 @@ use super::super::row::act::{Pressed, press};
 use super::super::row::menu::{Pick, reader_groups, rows_blocking, with_files};
 use super::super::toolbar::{Tool, ToolButton};
 use super::fetch;
-use crate::ui::downloads::{Origin, Saving};
+use mail_ui_kit::downloads::{Origin, Saving};
 use crate::ui::menus::FurtherMenus;
 use crate::ui::unsubscribe::{Confirm, Offer, Phase, ask};
 use dioxus::prelude::*;
@@ -385,7 +385,7 @@ fn save_thread(client: &Client, thread: ThreadId, dir: &Path) -> Downloaded {
         match client.export().save_eml(message, dir) {
             Ok(Some(path)) => done
                 .saved
-                .push((path, crate::ui::downloads::origin(client, message))),
+                .push((path, mail_ui_kit::downloads::origin(client, message))),
             Ok(None) => done.absent += 1,
             Err(error) => {
                 done.failed = Some(String::from(error));
@@ -430,7 +430,7 @@ fn download(thread: ThreadId) {
     let saving = Saving::quick();
     let client = mail_ui_kit::live::client();
     let toasts = try_consume_context::<ds::stack::toast_hub::ToastHub>();
-    let dir = crate::ui::files::save_dir();
+    let dir = mail_ui_kit::files::save_dir();
     spawn(async move {
         let done = tokio::task::spawn_blocking(move || save_thread(&client, thread, &dir))
             .await

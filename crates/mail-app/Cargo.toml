@@ -77,11 +77,11 @@ path = "src/main.rs"
 
 [features]
 # Desktop extras (design/36 rule 3): what only our desktop has. Here: a saved file opens in
-# anyview, the desktop's viewer, over the session bus (`ui/downloads/open.rs` in `mail-ui`), with
+# anyview, the desktop's viewer, over the session bus (`downloads/open.rs` in `mail-ui-kit`), with
 # the system's app when anyview does not answer. On by default; a build for another desktop, and the portable
 # gate (`cargo check --workspace --no-default-features`), opens files in the system's app alone.
 default = ["quire-desktop", "anyview"]
-quire-desktop = ["mail-ui/quire-desktop"]
+quire-desktop = ["mail-ui-kit/quire-desktop"]
 # anyview's peek and card (github.com/PoHsuanLai/anyview) for the attachments mailo does not draw
 # itself: a picture in the reader's strip and a card in Peek, both over the stored bytes
 # (`ui/reading/anyview.rs` in `mail-ui`). On by default; off, the strip shows a picture's or a PDF's thumbnail

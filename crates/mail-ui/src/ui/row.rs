@@ -108,15 +108,15 @@ pub(super) fn ListRow(
     let mut menu_rows = listed.menu(chrono::Utc::now());
     if let Some((email, _)) = sender
         .as_ref()
-        .filter(|(email, _)| crate::ui::vip::markable(&shell.read(), email))
+        .filter(|(email, _)| mail_ui_kit::vip::markable(&shell.read(), email))
     {
         menu_rows.push(DsMenuItem::Separator);
         menu_rows.push(
             DsMenuItem::new(
                 Pick::Vip,
-                crate::ui::vip::menu_words(&shell.read().vips, email),
+                mail_ui_kit::vip::menu_words(&shell.read().vips, email),
             )
-            .with_image(MenuImage::Icon(crate::ui::vip::GLYPH)),
+            .with_image(MenuImage::Icon(mail_ui_kit::vip::GLYPH)),
         );
     }
     let dragged = thread.as_ref().is_some_and(|summary| {
@@ -148,7 +148,7 @@ pub(super) fn ListRow(
     let via = match (vip, via) {
         (false, via) => via,
         (true, via) => Some(rsx! {
-            crate::ui::vip::VipMark {}
+            mail_ui_kit::vip::VipMark {}
             {via}
         }),
     };
@@ -262,8 +262,8 @@ pub(super) fn ListRow(
                             (Pick::Vip, Some(_), _) => {
                                 if let Some((email, name)) = &sender {
                                     let mark = mail_client::vip::toggled(&shell.peek().vips, email);
-                                    let marking = crate::ui::vip::Marking { shell };
-                                    crate::ui::vip::set(marking, email, name.as_deref(), mark);
+                                    let marking = mail_ui_kit::vip::Marking { shell };
+                                    mail_ui_kit::vip::set(marking, email, name.as_deref(), mark);
                                 }
                             }
                             // A refusal is said in the toast; the message stays as it was.

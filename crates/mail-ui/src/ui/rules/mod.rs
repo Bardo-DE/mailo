@@ -29,7 +29,7 @@ use dioxus::prelude::*;
 use ds::prelude::*;
 use ds::root::common::Common;
 
-use super::files::{Phase, run};
+use mail_ui_kit::files::{Phase, run};
 use editor::RulePage;
 use list::RulesList;
 use mail_client::rules::server::AwayServer;

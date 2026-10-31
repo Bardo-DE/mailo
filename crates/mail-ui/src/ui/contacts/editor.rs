@@ -142,12 +142,12 @@ fn show_card(address: &str, in_mail: &str) {
 /// when the mail gave no name (`in_mail` empty), and the VIP mark after it when they are one. A
 /// right click offers Edit Contact…, which opens [`ContactEditor`] hung from the name, and Add to
 /// VIPs or Remove from VIPs where the reader says where a mark lands
-/// ([`crate::ui::vip::Marking`]).
+/// ([`mail_ui_kit::vip::Marking`]).
 #[component]
 pub(in crate::ui) fn SenderName(shown: String, in_mail: String, address: String) -> Element {
     let mut asked = use_signal(|| Asked::Resting);
     let mut at = use_signal(|| None::<MountedRef>);
-    let marking = try_use_context::<crate::ui::vip::Marking>();
+    let marking = try_use_context::<mail_ui_kit::vip::Marking>();
     let vips = marking.map(|marking| marking.shell.read().vips.clone());
     let vip = vips.as_ref().is_some_and(|vips| vips.includes(&address));
     let mut items = vec![mail_ui_kit::menu::MenuItem::icon(
@@ -157,12 +157,12 @@ pub(in crate::ui) fn SenderName(shown: String, in_mail: String, address: String)
     )];
     items.push(card_row(&address));
     let markable =
-        marking.is_some_and(|marking| crate::ui::vip::markable(&marking.shell.read(), &address));
+        marking.is_some_and(|marking| mail_ui_kit::vip::markable(&marking.shell.read(), &address));
     if let (Some(vips), true) = (&vips, markable) {
         items.push(mail_ui_kit::menu::MenuItem::icon(
             VIP,
-            crate::ui::vip::GLYPH,
-            crate::ui::vip::menu_words(vips, &address),
+            mail_ui_kit::vip::GLYPH,
+            mail_ui_kit::vip::menu_words(vips, &address),
         ));
     }
     let on_vip = {
@@ -171,7 +171,7 @@ pub(in crate::ui) fn SenderName(shown: String, in_mail: String, address: String)
             if let (Some(marking), Some(vips)) = (marking, &vips) {
                 let name = Some(in_mail.as_str()).filter(|name| !name.trim().is_empty());
                 let mark = mail_client::vip::toggled(vips, &address);
-                crate::ui::vip::set(marking, &address, name, mark);
+                mail_ui_kit::vip::set(marking, &address, name, mark);
             }
         }
     };
@@ -187,7 +187,7 @@ pub(in crate::ui) fn SenderName(shown: String, in_mail: String, address: String)
             Label { text: shown, style: LabelStyle::Headline, common: mail_ui_kit::common::classed("truncate") }
         }
         if vip {
-            crate::ui::vip::VipMark {}
+            mail_ui_kit::vip::VipMark {}
         }
         match asked() {
             Asked::Resting => rsx! {},

@@ -221,7 +221,7 @@ pub(super) fn Reader(
 ) -> Element {
     let client = mail_ui_kit::live::client();
     // Where the sender's name marks a VIP: this window's shell.
-    use_context_provider(|| crate::ui::vip::Marking { shell });
+    use_context_provider(|| mail_ui_kit::vip::Marking { shell });
     // The read receipts the thread's messages ask about, which their headers draw a mark for.
     use_context_provider(|| super::receipt::Asks(Signal::new(Vec::new())));
     let read = mail_ui_kit::live::use_live(use_reactive!(|thread| Conversation(thread)));

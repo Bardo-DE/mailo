@@ -10,7 +10,7 @@
 
 mod export_sheet;
 mod import_sheet;
-pub(in crate::ui) mod work;
+pub mod work;
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -21,8 +21,8 @@ use ds::components::controls::progress::model::{Progress, ProgressStyle};
 use ds::components::controls::progress::view::ProgressIndicator;
 use ds::prelude::*;
 
-use mail_ui_kit::motion::{Follow, tell};
-use mail_ui_kit::view::{FileSheet, Shell};
+use crate::motion::{Follow, tell};
+use crate::view::{FileSheet, Shell};
 
 /// Where the sheets suggest and start, and Save writes: the downloads directory, unless the
 /// window was handed another one. Tests hand one as a root context, so nothing looks at the real
@@ -32,8 +32,8 @@ pub struct SaveDir(pub std::path::PathBuf);
 
 /// Where a file is saved without asking: the folder chosen in Settings
 /// (`attachments.downloads_folder`), else the one [`SaveDir`] names.
-pub(in crate::ui) fn save_dir() -> std::path::PathBuf {
-    mail_ui_kit::prefs::current()
+pub fn save_dir() -> std::path::PathBuf {
+    crate::prefs::current()
         .attachments
         .downloads_in()
         .or_else(|| try_consume_context::<SaveDir>().map(|dir| dir.0))
@@ -41,7 +41,7 @@ pub(in crate::ui) fn save_dir() -> std::path::PathBuf {
 }
 
 /// Open the Import sheet with an empty path, and put the cursor in it.
-pub(in crate::ui) fn open_import(mut shell: Signal<Shell>) {
+pub fn open_import(mut shell: Signal<Shell>) {
     shell.write().files = Some(FileSheet::Import {
         path: String::new(),
     });
@@ -49,25 +49,25 @@ pub(in crate::ui) fn open_import(mut shell: Signal<Shell>) {
 }
 
 /// Open the Export sheet on what the window is showing, and put the cursor in its field.
-pub(in crate::ui) fn open_export(mut shell: Signal<Shell>) {
+pub fn open_export(mut shell: Signal<Shell>) {
     let query = work::prefill(&shell.peek());
     shell.write().files = Some(FileSheet::Export { query });
     focus();
 }
 
 fn focus() {
-    mail_ui_kit::host::Host::focus_next_frame(".sheet-form input");
+    crate::host::Host::focus_next_frame(".sheet-form input");
 }
 
 /// Close the sheet and give the keyboard back to the window.
-pub(in crate::ui) fn close(mut shell: Signal<Shell>) {
+pub fn close(mut shell: Signal<Shell>) {
     shell.write().files = None;
-    mail_ui_kit::host::Host::focus_app();
+    crate::host::Host::focus_app();
 }
 
 /// Whichever sheet is open. Mounted while `shell.files` is `Some`.
 #[component]
-pub(in crate::ui) fn FilesSheet(shell: Signal<Shell>) -> Element {
+pub fn FilesSheet(shell: Signal<Shell>) -> Element {
     match shell.read().files {
         Some(FileSheet::Import { .. }) => rsx! { import_sheet::ImportSheet { shell } },
         Some(FileSheet::Export { .. }) => rsx! { export_sheet::ExportSheet { shell } },
@@ -77,7 +77,7 @@ pub(in crate::ui) fn FilesSheet(shell: Signal<Shell>) -> Element {
 
 /// Where a job stands.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(in crate::ui) enum Phase {
+pub enum Phase {
     /// Nothing started.
     Ready,
     /// Running: messages done so far, of how many.
@@ -89,7 +89,7 @@ pub(in crate::ui) enum Phase {
 }
 
 impl Phase {
-    pub(in crate::ui) fn running(&self) -> bool {
+    pub fn running(&self) -> bool {
         matches!(self, Phase::Running { .. })
     }
 }
@@ -101,7 +101,7 @@ const TICK: std::time::Duration = std::time::Duration::from_millis(120);
 /// it said in the sheet and the toast. `after` runs once it has finished either way.
 ///
 /// Call it from an event handler: that is where a spawned task is polled.
-pub(in crate::ui) fn run(
+pub fn run(
     mut phase: Signal<Phase>,
     of: usize,
     job: impl FnOnce(&(dyn Fn(usize) + Sync)) -> Result<String, String> + Send + 'static,
@@ -137,7 +137,7 @@ pub(in crate::ui) fn run(
 /// The progress line and bar, or the result, under a sheet's fields: quire's progress bar and
 /// labels.
 #[component]
-fn Report(phase: Phase, verb: &'static str) -> Element {
+pub fn Report(phase: Phase, verb: &'static str) -> Element {
     match phase {
         Phase::Ready => rsx! {},
         Phase::Running { done, of } => {
@@ -170,7 +170,7 @@ fn Report(phase: Phase, verb: &'static str) -> Element {
 
 /// `path` with the home directory written `~`, as the fields show a hint. Compared by whole
 /// components: `/home/ann2` is not inside `/home/ann`.
-pub(in crate::ui) fn tilde(path: &std::path::Path, home: Option<&std::ffi::OsStr>) -> String {
+pub fn tilde(path: &std::path::Path, home: Option<&std::ffi::OsStr>) -> String {
     match home
         .map(std::path::Path::new)
         .and_then(|home| path.strip_prefix(home).ok())
@@ -183,7 +183,7 @@ pub(in crate::ui) fn tilde(path: &std::path::Path, home: Option<&std::ffi::OsStr
 }
 
 /// [`tilde`] against this user's home directory.
-pub(in crate::ui) fn tilde_here(path: &std::path::Path) -> String {
+pub(crate) fn tilde_here(path: &std::path::Path) -> String {
     tilde(
         path,
         mail_client::config::home_dir()
@@ -192,7 +192,3 @@ pub(in crate::ui) fn tilde_here(path: &std::path::Path) -> String {
     )
 }
 
-#[cfg(test)]
-pub(in crate::ui) mod sheet_tests;
-#[cfg(test)]
-mod work_tests;

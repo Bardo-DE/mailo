@@ -162,11 +162,11 @@ type Toasts = Option<ds::stack::toast_hub::ToastHub>;
 /// Save the part to the downloads folder, as the strip's Save does, and say where in a toast.
 fn save(viewing: Viewing, toasts: Toasts) {
     let client = mail_ui_kit::live::client();
-    let dir = crate::ui::files::save_dir();
+    let dir = mail_ui_kit::files::save_dir();
     let said = match client.attach().save(viewing.message, viewing.index, &dir) {
         Ok(path) => {
-            let origin = crate::ui::downloads::origin(&client, viewing.message);
-            crate::ui::downloads::Saving::quick().end(Some(&path), origin);
+            let origin = mail_ui_kit::downloads::origin(&client, viewing.message);
+            mail_ui_kit::downloads::Saving::quick().end(Some(&path), origin);
             super::super::fetch::saved_toast(&path)
         }
         Err(why) => attachment_failure(why, copy::errors::ATTACHMENT_NOT_SAVED),
@@ -305,7 +305,7 @@ fn write_for_open(client: &Client, root: &Path, viewing: Viewing) -> Result<Path
         .attach()
         .save(viewing.message, viewing.index, &dir)
         .map_err(|why| attachment_failure(why, said))?;
-    crate::ui::downloads::unedited::record(root, &path, viewing.message);
+    mail_ui_kit::downloads::unedited::record(root, &path, viewing.message);
     Ok(path)
 }
 
@@ -319,7 +319,7 @@ pub(super) fn open_in_app(viewing: Viewing) {
         let opened = tokio::task::spawn_blocking(move || {
             let root = open_root().map_err(|why| plainly(said, why))?;
             let path = write_for_open(&client, &root, viewing)?;
-            crate::ui::downloads::open_file(&path).map_err(|why| why.told(said))
+            mail_ui_kit::downloads::open_file(&path).map_err(|why| why.told(said))
         })
         .await
         .unwrap_or_else(|why| Err(plainly(said, why)));
@@ -476,7 +476,7 @@ fn SheetView(sheet: Sheet) -> Element {
 #[cfg(test)]
 mod tests {
     use super::{LEFT_OPEN_FOR, OPEN_PREFIX, sweep_in, write_for_open};
-    use crate::ui::downloads::unedited;
+    use mail_ui_kit::downloads::unedited;
     use mail_core::Store as _;
     use mail_ui_kit::view::Viewing;
     use mail_ui_model::settings::RemoveUnedited;

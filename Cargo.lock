@@ -5502,6 +5502,7 @@ dependencies = [
  "log",
  "mail-client",
  "mail-core",
+ "mail-os",
  "mail-store",
  "mail-ui-model",
  "mailo-domain",

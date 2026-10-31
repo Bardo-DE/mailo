@@ -1,6 +1,6 @@
 //! Invitations in the window. Opening shows the card and answers nothing; only Send does.
 
-use crate::ui::files::SaveDir;
+use mail_ui_kit::files::SaveDir;
 use crate::ui::fixtures::settle_for;
 use crate::ui::fixtures::{
     Seen, acct_account, chord, click, dispatching, rebuild_into, seeded, type_into,

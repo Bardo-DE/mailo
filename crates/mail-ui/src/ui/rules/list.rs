@@ -20,7 +20,7 @@ use ds::root::common::Common;
 use mail_domain::{Rule, RuleState};
 use porter_core::AccountId;
 
-use super::super::files::Phase;
+use mail_ui_kit::files::Phase;
 use super::server::reach;
 use super::work::{self, Listed, Step};
 use super::{Said, open, row_id};

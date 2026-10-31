@@ -20,10 +20,8 @@ pub use compose::discarding_draft;
 mod contacts;
 pub mod default_mail;
 mod destroy;
-mod downloads;
 mod erase;
 mod fetching;
-mod files;
 mod folder_open;
 mod follow_up;
 mod frame;
@@ -57,20 +55,17 @@ mod toolbar;
 mod unsubscribe;
 mod view_groups;
 mod views;
-mod vip;
 mod window;
 mod window_core;
 
 #[cfg(test)]
 mod fixtures;
 #[cfg(test)]
-mod kit_tests;
+pub(in crate::ui) mod kit_tests;
 #[cfg(test)]
 mod shell_tests;
 #[cfg(test)]
 mod tips_tests;
-#[cfg(test)]
-mod vip_tests;
 
 pub use ds_blitz::LaunchError;
 pub use launch::{KeepBadge, Program, Resident, run};
@@ -84,8 +79,6 @@ pub mod native {
     };
     pub use super::brand::BrandCache;
     pub use super::compose::Dictionaries;
-    pub use super::downloads::{NotOpened as FileNotOpened, Opener as FileOpener};
-    pub use super::files::SaveDir;
     pub use super::follow_up::Notices;
     pub use super::launch::DesktopSettings;
     pub use super::launch::gate::{Found, found as damaged_files};

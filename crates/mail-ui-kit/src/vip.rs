@@ -9,20 +9,20 @@ use dioxus::prelude::*;
 use ds::prelude::*;
 use ds::style::icon::render::Glyph;
 use mail_client::vip::Mark;
-use mail_ui_kit::motion::tell_through;
-use mail_ui_kit::view::Shell;
+use crate::motion::tell_through;
+use crate::view::Shell;
 use mail_ui_model::copy;
 
 /// Where a mark made in the reader lands: the window's shell.
 /// The reader provides it, so the sender's name below it can mark without being handed both.
-#[derive(Clone, Copy)]
-pub(in crate::ui) struct Marking {
+#[derive(Clone, Copy, Debug)]
+pub struct Marking {
     pub shell: Signal<Shell>,
 }
 
 /// Whether `address` may be marked a VIP: anyone's but the person's own, whose mail is not mail
 /// to be heard of.
-pub(in crate::ui) fn markable(shell: &Shell, address: &str) -> bool {
+pub fn markable(shell: &Shell, address: &str) -> bool {
     !shell
         .accounts
         .iter()
@@ -32,10 +32,10 @@ pub(in crate::ui) fn markable(shell: &Shell, address: &str) -> bool {
 /// Mark `address` a VIP (`name` the name the mail gave) or take the mark off, and say only a
 /// failure. The write runs on a blocking thread; the shell's copy is read again when it has
 /// landed, and the store moving makes the VIPs place and every other window follow.
-pub(in crate::ui) fn set(marking: Marking, address: &str, name: Option<&str>, mark: Mark) {
+pub fn set(marking: Marking, address: &str, name: Option<&str>, mark: Mark) {
     let Marking { mut shell } = marking;
-    let client = mail_ui_kit::live::client();
-    let motion = mail_ui_kit::motion::motion();
+    let client = crate::live::client();
+    let motion = crate::motion::motion();
     let (address, name) = (address.to_owned(), name.map(str::to_owned));
     spawn(async move {
         let done = tokio::task::spawn_blocking(move || {
@@ -43,7 +43,7 @@ pub(in crate::ui) fn set(marking: Marking, address: &str, name: Option<&str>, ma
                 .query()
                 .set_vip(&address, name.as_deref(), mark)
                 .map(|()| client.query().vips())
-                .map_err(mail_ui_kit::remedy::told)
+                .map_err(crate::remedy::told)
         })
         .await
         .unwrap_or_else(|why| Err(why.to_string()));
@@ -55,7 +55,7 @@ pub(in crate::ui) fn set(marking: Marking, address: &str, name: Option<&str>, ma
 }
 
 /// The menu row that marks `address`, or takes the mark off: its words, by what `vips` holds.
-pub(in crate::ui) fn menu_words(vips: &mail_client::vip::Vips, address: &str) -> &'static str {
+pub fn menu_words(vips: &mail_client::vip::Vips, address: &str) -> &'static str {
     match mail_client::vip::toggled(vips, address) {
         Mark::Vip => copy::menus::ADD_TO_VIPS,
         Mark::NotVip => copy::menus::REMOVE_FROM_VIPS,
@@ -65,12 +65,12 @@ pub(in crate::ui) fn menu_words(vips: &mail_client::vip::Vips, address: &str) ->
 /// The one glyph that means VIP, wherever a VIP is marked or listed: the mark beside a name, the
 /// menu rows that add or remove one, and the VIPs place in the sidebar. Not the star, which is
 /// the conversation's own.
-pub(in crate::ui) const GLYPH: Icon = Icon::Sparkles;
+pub const GLYPH: Icon = Icon::Sparkles;
 
 /// The mark beside a VIP's name: a small [`GLYPH`] in the quiet ink, named VIP. Its tooltip says
 /// what the mark means.
 #[component]
-pub(in crate::ui) fn VipMark() -> Element {
+pub fn VipMark() -> Element {
     rsx! {
         Tooltip { text: copy::aria::VIP.to_owned(),
             span { class: "vip-mark", aria_label: copy::aria::VIP, "data-vip": "true",

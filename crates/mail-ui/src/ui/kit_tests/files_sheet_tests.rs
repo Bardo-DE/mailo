@@ -11,8 +11,8 @@ use mail_core::{SqliteStore, Store};
 use mail_domain::*;
 use porter_core::AccountId;
 
-use super::work::{Dest, Looked, import_now, look};
-use super::{FilesSheet, Phase, Report};
+use mail_ui_kit::files::work::{Dest, Looked, import_now, look};
+use mail_ui_kit::files::{FilesSheet, Phase, Report};
 use crate::ui::fixtures::{Seen, click, dispatching, drain_seen, rebuild_into};
 use mail_ui_kit::view::{FileSheet, Shell};
 
@@ -55,7 +55,7 @@ fn Sheet(open: FileSheet) -> Element {
 fn sheet(store: &Arc<SqliteStore>, saves: &Path, open: FileSheet) -> VirtualDom {
     VirtualDom::new_with_props(Sheet, SheetProps { open })
         .with_root_context(crate::ui::fixtures::client(store))
-        .with_root_context(super::SaveDir(saves.to_owned()))
+        .with_root_context(mail_ui_kit::files::SaveDir(saves.to_owned()))
 }
 
 /// The progress line in every phase a run passes through.

@@ -151,7 +151,7 @@ pub(super) fn App() -> Element {
         }
     });
     // The files this window saves, behind the sidebar's Downloads button.
-    super::downloads::use_provide_shelf(dirs.as_ref());
+    mail_ui_kit::downloads::use_provide_shelf(dirs.as_ref());
     let mut side_hidden = use_signal(|| false);
     let prefs = mail_ui_kit::prefs::use_prefs(dirs.as_ref());
     // The places' orders follow `settings.toml`, so one chosen in another window sorts this one.
@@ -545,7 +545,7 @@ pub(super) fn App() -> Element {
         // The Import and Export sheets likewise: their fields take letters, Esc closes them.
         if shell.read().files.is_some() {
             if key == "Escape" {
-                super::files::close(shell);
+                mail_ui_kit::files::close(shell);
             }
             return;
         }
@@ -824,7 +824,7 @@ pub(super) fn App() -> Element {
     super::follow_up::use_reminders();
     super::follow_up::use_snooze_wake();
     // The copies Open wrote, removed once their message is deleted when the setting says so.
-    super::downloads::unedited::use_remove_unedited();
+    mail_ui_kit::downloads::unedited::use_remove_unedited();
 
     let peek = shell.read().peek;
     let frame_class = if side_hidden() { "app no-side" } else { "app" };
@@ -919,7 +919,7 @@ pub(super) fn App() -> Element {
             // The search panel, at the top centre of the window while it is up.
             super::command::Spotlight { shell, pages, in_a_field, side_hidden, spaces }
             if shell.read().files.is_some() {
-                super::files::FilesSheet { shell }
+                mail_ui_kit::files::FilesSheet { shell }
             }
             if shell.read().view_editor.is_some() {
                 super::views::ViewSheet { shell, pages }

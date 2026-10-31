@@ -1,7 +1,7 @@
 //! What an account's page says: the account's servers and sign-in as rows, what Remove takes
 //! with it, and why a removal did not happen. Pure, so each is a table test.
 
-use crate::ui::files::work::messages;
+use mail_ui_kit::files::work::messages;
 use mail_client::Storage;
 use mail_client::account::RemoveError;
 use mail_domain::{AccountPlan, AuthPlan, HttpAuth, Incoming, LeaveOnServer, Outgoing, Tls};

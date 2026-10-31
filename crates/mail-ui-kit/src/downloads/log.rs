@@ -12,11 +12,11 @@ use std::path::{Path, PathBuf};
 const FILE_NAME: &str = "downloads.json";
 
 /// How many files the list remembers; the oldest goes first.
-pub(in crate::ui) const KEPT: usize = 50;
+pub const KEPT: usize = 50;
 
 /// The conversation a file came out of.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub(in crate::ui) struct Origin {
+pub struct Origin {
     pub thread: ThreadId,
     /// Its subject when the file was saved, so the list need not read the store to draw.
     pub subject: String,
@@ -24,7 +24,7 @@ pub(in crate::ui) struct Origin {
 
 /// One saved file.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub(in crate::ui) struct Entry {
+pub struct Entry {
     /// Where it was written.
     pub path: PathBuf,
     /// When.
@@ -38,7 +38,7 @@ pub(in crate::ui) struct Entry {
 
 impl Entry {
     /// The name the list shows: the file's own.
-    pub(in crate::ui) fn name(&self) -> String {
+    pub fn name(&self) -> String {
         self.path.file_name().map_or_else(
             || self.path.display().to_string(),
             |name| name.to_string_lossy().into_owned(),
@@ -48,32 +48,32 @@ impl Entry {
 
 /// Every saved file the list remembers, newest first.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub(in crate::ui) struct Log {
+pub struct Log {
     pub entries: Vec<Entry>,
 }
 
 impl Log {
     /// Put `entry` first. A file saved again under the same path is one entry, not two; past
     /// [`KEPT`] the oldest is forgotten.
-    pub(in crate::ui) fn record(&mut self, entry: Entry) {
+    pub fn record(&mut self, entry: Entry) {
         self.entries.retain(|kept| kept.path != entry.path);
         self.entries.insert(0, entry);
         self.entries.truncate(KEPT);
     }
 
     /// Forget the entry for `path`; the file stays where it is.
-    pub(in crate::ui) fn remove(&mut self, path: &Path) {
+    pub fn remove(&mut self, path: &Path) {
         self.entries.retain(|kept| kept.path != path);
     }
 }
 
 /// The stored list, or an empty one when there is no file or it cannot be read.
-pub(in crate::ui) fn load(dir: &Path) -> Log {
+pub fn load(dir: &Path) -> Log {
     read_json(dir, FILE_NAME)
 }
 
 /// Write `log` to `dir/downloads.json`, creating `dir` if needed.
-pub(in crate::ui) fn save(dir: &Path, log: &Log) -> Result<(), String> {
+pub fn save(dir: &Path, log: &Log) -> Result<(), String> {
     write_json(dir, FILE_NAME, log).map_err(String::from)
 }
 

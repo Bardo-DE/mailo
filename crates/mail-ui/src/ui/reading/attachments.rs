@@ -192,7 +192,7 @@ pub(super) fn Attachments(
                     common: Common { aria_label: Some(format!("{label} {name}")), ..Common::default() },
                     availability: if busy { Availability::Busy } else { Availability::Enabled },
                     onclick: mail_ui_kit::press::on_primary(move || {
-                        let dir = crate::ui::files::save_dir();
+                        let dir = mail_ui_kit::files::save_dir();
                         saved_saver.save(saved_part.clone(), dir);
                     }),
                 }
@@ -212,7 +212,7 @@ pub(super) fn Attachments(
                                 label: mail_ui_model::copy::controls::TRY_AGAIN,
                                 common: Common { aria_label: Some(mail_ui_model::copy::aria::try_again_to_download(&name)), ..Common::default() },
                                 onclick: mail_ui_kit::press::on_primary(move || {
-                                    let dir = crate::ui::files::save_dir();
+                                    let dir = mail_ui_kit::files::save_dir();
                                     again_saver.save(again_part.clone(), dir);
                                 }),
                             }
@@ -252,7 +252,7 @@ pub(super) fn Attachments(
             };
             picked.set(None);
             match pick {
-                Pick::Save => all.save(part, crate::ui::files::save_dir()),
+                Pick::Save => all.save(part, mail_ui_kit::files::save_dir()),
                 Pick::SaveTo => all.save_to(part),
                 Pick::SaveAll => all.save_all_to(parts.clone()),
             }
@@ -357,7 +357,7 @@ impl Saver {
         let saver = self.clone();
         choose(
             Ask::Folder,
-            Some(crate::ui::files::save_dir()),
+            Some(mail_ui_kit::files::save_dir()),
             move |folders| {
                 if let Some(dir) = folders.into_iter().next() {
                     saver.save(part, dir);
@@ -371,7 +371,7 @@ impl Saver {
         let saver = self.clone();
         choose(
             Ask::Folder,
-            Some(crate::ui::files::save_dir()),
+            Some(mail_ui_kit::files::save_dir()),
             move |folders| {
                 if let Some(dir) = folders.into_iter().next() {
                     save_all(&saver, parts, dir);
@@ -386,7 +386,7 @@ impl Saver {
 /// under the strip, as its own Save would.
 fn save_all(saver: &Saver, parts: Vec<Part>, dir: PathBuf) {
     let downloads = saver.downloads;
-    let begun: Vec<(Part, crate::ui::downloads::Saving)> = parts
+    let begun: Vec<(Part, mail_ui_kit::downloads::Saving)> = parts
         .into_iter()
         .filter(|part| {
             send(downloads, part.index, DownloadEvent::Start) == Some(DownloadEffect::Begin)
@@ -410,7 +410,7 @@ fn save_all(saver: &Saver, parts: Vec<Part>, dir: PathBuf) {
                 .iter()
                 .map(|part| write(&client, &looks, &fetchers, message, body, part, &dir))
                 .collect();
-            (saved, crate::ui::downloads::origin(&client, message))
+            (saved, mail_ui_kit::downloads::origin(&client, message))
         })
         .await;
         let (saved, origin) = match done {
@@ -526,7 +526,7 @@ fn start(saver: &Saver, part: Part, dir: PathBuf) {
         // (`Client::net`), and `Runtime::block_on` inside an async context panics.
         let done = tokio::task::spawn_blocking(move || {
             let saved = write(&client, &looks, &fetchers, message, body, &part, &dir);
-            (saved, crate::ui::downloads::origin(&client, message))
+            (saved, mail_ui_kit::downloads::origin(&client, message))
         })
         .await;
         let (saved, origin) = match done {
@@ -548,10 +548,10 @@ fn stopped_early(error: &tokio::task::JoinError) -> String {
 
 /// How a part's save reports to Downloads: what is on the server takes a while, and shows there
 /// while it does.
-fn saving_for(part: &Part) -> crate::ui::downloads::Saving {
+fn saving_for(part: &Part) -> mail_ui_kit::downloads::Saving {
     match part.kept {
-        Kept::OnServer => crate::ui::downloads::Saving::begin(part.name.clone()),
-        Kept::Here | Kept::Opened => crate::ui::downloads::Saving::quick(),
+        Kept::OnServer => mail_ui_kit::downloads::Saving::begin(part.name.clone()),
+        Kept::Here | Kept::Opened => mail_ui_kit::downloads::Saving::quick(),
     }
 }
 
@@ -580,9 +580,9 @@ fn write(
 fn finish(
     downloads: Downloads,
     index: usize,
-    saving: crate::ui::downloads::Saving,
+    saving: mail_ui_kit::downloads::Saving,
     saved: Result<PathBuf, String>,
-    origin: Option<crate::ui::downloads::Origin>,
+    origin: Option<mail_ui_kit::downloads::Origin>,
 ) -> Option<PathBuf> {
     // Downloads lists only a file written; why one was not is the row's to say.
     saving.end(saved.as_deref().ok(), origin);

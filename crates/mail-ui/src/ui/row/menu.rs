@@ -69,7 +69,7 @@ pub(in crate::ui) enum Pick {
     /// the newest. The reader's ⋯ only.
     Again,
     /// Add to VIPs or Remove from VIPs, for the conversation's sender: the row's last row, named
-    /// by the row, which knows the VIPs ([`crate::ui::vip::menu_words`]).
+    /// by the row, which knows the VIPs ([`mail_ui_kit::vip::menu_words`]).
     Vip,
     /// Flag ▸: the seven colours and Clear Flag, a submenu ([`flag_rows`]). Never picked itself:
     /// its rows are [`Pressed::Flag`].
@@ -237,7 +237,7 @@ fn icon(pick: Pick) -> Icon {
         Pick::Source => Icon::FileCode,
         Pick::DeleteDraft => Icon::Trash,
         Pick::CancelSending => Icon::X,
-        Pick::Vip => crate::ui::vip::GLYPH,
+        Pick::Vip => mail_ui_kit::vip::GLYPH,
         Pick::Flags | Pick::Press(Pressed::Flag(_)) => Icon::Star,
         Pick::Press(Pressed::MoveTo) => Icon::FolderInput,
         Pick::Press(Pressed::CopyTo) => Icon::Copy,

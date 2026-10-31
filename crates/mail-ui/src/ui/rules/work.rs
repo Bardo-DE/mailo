@@ -11,7 +11,7 @@ use mail_client::rules::manage::{self, ConditionError, SaveError};
 use mail_domain::{AfterMatch, Filter, LabelId, Rule, RuleId, RuleState};
 use porter_core::AccountId;
 
-use super::super::files::work::{grouped, messages};
+use mail_ui_kit::files::work::{grouped, messages};
 use mail_ui_kit::remedy::plainly;
 use mail_ui_model::copy;
 

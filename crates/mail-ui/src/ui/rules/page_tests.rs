@@ -19,7 +19,7 @@ use super::away_tests::{answering, own_server};
 use super::list::RunProgress;
 use super::server::{AwaySetter, Pusher, reach};
 use super::work::{self, Draft};
-use crate::ui::files::Phase;
+use mail_ui_kit::files::Phase;
 use crate::ui::fixtures::{
     Seen, acct_account, click, dispatching, drain_seen, rebuild_into, right_click, type_into,
 };

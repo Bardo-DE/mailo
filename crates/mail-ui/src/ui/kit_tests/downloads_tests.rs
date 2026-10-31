@@ -1,8 +1,8 @@
 //! The list's own words: each row's second line and its icon.
 
-use super::Origin;
-use super::log::Entry;
-use super::panel::{detail, icon_of};
+use mail_ui_kit::downloads::Origin;
+use mail_ui_kit::downloads::log::Entry;
+use mail_ui_kit::downloads::panel::{detail, icon_of};
 use chrono::{DateTime, Utc};
 use ds::prelude::Icon;
 use mail_core::when::Clock;
@@ -32,7 +32,7 @@ fn a_rows_second_line() {
         subject: "  Minutes of the board ".to_owned(),
     };
     let size = mail_core::attach::human_size(2048);
-    let when = crate::ui::menus::when_words(at(0), at(1), &chrono::Local, Clock::H24);
+    let when = mail_client::when::upcoming(at(0), at(1), &chrono::Local, Clock::H24);
     let cases = [
         (
             "from a message",

@@ -1,4 +1,4 @@
-use super::{Ledger, NotRecorded, is_deleted, record, remove_for_deleted, remove_on_quit};
+use mail_ui_kit::downloads::unedited::{Ledger, NotRecorded, is_deleted, record, remove_for_deleted, remove_on_quit};
 use mail_core::Store as _;
 use mail_domain::MessageId;
 use mail_ui_model::settings::RemoveUnedited;
@@ -174,7 +174,7 @@ fn a_message_is_deleted_once_the_store_no_longer_has_it() {
 /// When Mailo Quits. This is the only test that records into the run's ledger.
 #[test]
 fn the_setting_decides_when_the_recorded_copies_go() {
-    let _alone = super::RUN
+    let _alone = mail_ui_kit::downloads::unedited::RUN
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let (store, _dir) = crate::ui::fixtures::seeded();

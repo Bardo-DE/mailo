@@ -11,16 +11,16 @@ use ds::prelude::*;
 use ds::root::common::Common;
 
 use dioxus::prelude::*;
-use mail_ui_kit::common::in_card;
+use crate::common::in_card;
 
 use super::work::{self, Dest, Looked};
 use super::{Phase, Report, run, tilde_here};
-use mail_ui_kit::common::classed;
-use mail_ui_kit::debounce::use_debounced;
-use mail_ui_kit::menu::{MenuItem, Right, anchor_at, narrowed, palette_groups};
-use mail_ui_kit::pick::{Ask, choose};
-use mail_ui_kit::press::{SheetClose, available, on_primary};
-use mail_ui_kit::view::{FileSheet, Shell};
+use crate::common::classed;
+use crate::debounce::use_debounced;
+use crate::menu::{MenuItem, Right, anchor_at, narrowed, palette_groups};
+use crate::pick::{Ask, choose};
+use crate::press::{SheetClose, available, on_primary};
+use crate::view::{FileSheet, Shell};
 use mail_ui_model::copy;
 
 /// The path the sheet's field holds.
@@ -92,7 +92,7 @@ pub(super) fn ImportSheet(shell: Signal<Shell>) -> Element {
     };
     // Read only while the menu is open: it lists every IMAP account's folders.
     let items = if menu_open() {
-        let client = mail_ui_kit::live::client();
+        let client = crate::live::client();
         dest_items(&work::destinations(&client), &chosen)
     } else {
         Vec::new()
@@ -102,7 +102,7 @@ pub(super) fn ImportSheet(shell: Signal<Shell>) -> Element {
             return;
         };
         let into = dest();
-        let client = mail_ui_kit::live::client();
+        let client = crate::live::client();
         run(
             phase,
             count,
@@ -184,7 +184,7 @@ pub(super) fn ImportSheet(shell: Signal<Shell>) -> Element {
                                 empty: "No folder matches.",
                                 oninput: move |text: String| find.set(text),
                                 onpick: move |key: String| {
-                                    let client = mail_ui_kit::live::client();
+                                    let client = crate::live::client();
                                     if let Some(found) = work::destinations(&client)
                                         .into_iter()
                                         .find(|one| one.key() == key)
@@ -216,7 +216,7 @@ pub(super) fn ImportSheet(shell: Signal<Shell>) -> Element {
 }
 
 /// The destination menu: local folders, then each IMAP account's folders under its address.
-pub(in crate::ui) fn dest_items(all: &[Dest], chosen: &Dest) -> Vec<MenuItem> {
+pub(crate) fn dest_items(all: &[Dest], chosen: &Dest) -> Vec<MenuItem> {
     all.iter()
         .map(|one| {
             let (name, group, icon, help) = match one {

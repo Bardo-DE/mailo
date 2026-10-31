@@ -2,8 +2,8 @@
 //! in their rows, the VIPs place appears and lists their conversations, and a row's menu takes
 //! the mark off again.
 
-use super::app::App;
-use super::fixtures::{
+use crate::ui::app::App;
+use crate::ui::fixtures::{
     Seen, click, dispatching, listed_subjects, pick_named, rebuild_into, right_click, settle,
     settle_quiet_seen, work,
 };
@@ -139,8 +139,8 @@ fn an_own_address_cannot_be_marked_a_vip() {
         )],
         ..Default::default()
     };
-    assert!(!crate::ui::vip::markable(&shell, "me@example.test"));
-    assert!(crate::ui::vip::markable(&shell, "bob@example.test"));
+    assert!(!mail_ui_kit::vip::markable(&shell, "me@example.test"));
+    assert!(mail_ui_kit::vip::markable(&shell, "bob@example.test"));
 }
 
 /// With the last VIP removed while the VIPs place is chosen, the choice goes to the Inbox: the

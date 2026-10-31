@@ -13,6 +13,10 @@ repository = "https://github.com/PoHsuanLai/mailo"
 authors = ["Po Hsuan Lai <pohsuanlai0208@gmail.com>"]
 
 [features]
+# Desktop extras (design/36 rule 3): what only our desktop has. Here: a saved file opens in
+# anyview, the desktop's viewer, over the session bus (`downloads/open.rs`), with the system's
+# app when anyview does not answer. Off, a file opens in the system's app alone.
+quire-desktop = []
 # The doubles the window's own tests drive its hooks with (a host that records its asks, a dialog
 # that answers, a write applied at once): off in the program.
 testing = []
@@ -26,6 +30,8 @@ mail-domain.workspace = true
 mail-client.workspace = true
 # What the window knows and says without drawing: the settings files, its words, what is picked.
 mail-ui-model.workspace = true
+# What an import or an export says of itself (`files`), from the operating-system seams that draw nothing.
+mail-os.workspace = true
 mail-reader.workspace = true
 mail-editor.workspace = true
 serde.workspace = true

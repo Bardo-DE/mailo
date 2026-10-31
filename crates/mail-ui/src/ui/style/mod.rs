@@ -141,7 +141,7 @@ pub(in crate::ui) mod tests {
     /// named with its surface.
     #[tokio::test]
     async fn every_class_each_surface_draws_is_styled() {
-        use crate::ui::{compose, files, invite, pgp, rules};
+        use crate::ui::{compose, invite, kit_tests::files_sheet_tests, pgp, rules};
         let surfaces = [
             ("the frame", frame_markup().await),
             ("the composer", compose::tests::render::drawn_states()),
@@ -158,7 +158,7 @@ pub(in crate::ui) mod tests {
             ("the rules page", rules::page_tests::drawn_states().await),
             (
                 "the mail file sheets",
-                files::sheet_tests::drawn_states().await,
+                files_sheet_tests::drawn_states().await,
             ),
             ("the keys page", pgp::keys_tests::drawn_states().await),
             ("the certificates", pgp::certs_tests::drawn_states().await),

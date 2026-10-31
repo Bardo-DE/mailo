@@ -37,10 +37,10 @@ pub(in crate::ui) fn import_cards() {
 /// Write the whole book into the downloads directory and say where it went.
 pub(in crate::ui) fn export_cards() {
     let client = mail_ui_kit::live::client();
-    let dir = crate::ui::files::save_dir();
+    let dir = mail_ui_kit::files::save_dir();
     match book::export(&client, &dir) {
         Ok(path) => {
-            crate::ui::downloads::Saving::quick().end(Some(&path), None);
+            mail_ui_kit::downloads::Saving::quick().end(Some(&path), None);
             tell(copy::toasts::saved_to(&path), Follow::Nothing);
         }
         Err(why) => tell(why, Follow::Nothing),

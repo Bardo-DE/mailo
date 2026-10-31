@@ -226,7 +226,7 @@ pub(super) fn Places(
                     style: carried.clone(),
                     SpaceHead { handle }
                 }
-                crate::ui::downloads::DownloadsButton { shell }
+                mail_ui_kit::downloads::DownloadsButton { shell }
             }
             div { class: moved("slide"), oncontextmenu: space_menu,
                 "data-swipe": swiping,
