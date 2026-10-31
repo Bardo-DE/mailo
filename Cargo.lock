@@ -5137,6 +5137,7 @@ dependencies = [
  "mail-runtime",
  "mail-store",
  "mail-ui",
+ "mail-ui-compose",
  "mail-ui-kit",
  "mail-ui-model",
  "mail-ui-reader",
@@ -5448,6 +5449,7 @@ dependencies = [
  "mail-runtime",
  "mail-store",
  "mail-ui",
+ "mail-ui-compose",
  "mail-ui-kit",
  "mail-ui-model",
  "mail-ui-reader",
@@ -5482,6 +5484,33 @@ dependencies = [
  "uuid",
  "webbrowser",
  "zbus",
+]
+
+[[package]]
+name = "mail-ui-compose"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "chordkit",
+ "chrono",
+ "dioxus",
+ "ds",
+ "ds-blitz",
+ "image",
+ "log",
+ "mail-client",
+ "mail-core",
+ "mail-ui-kit",
+ "mail-ui-model",
+ "mailo-domain",
+ "mailo-editor",
+ "mailo-mime",
+ "mailo-reader",
+ "porter-core",
+ "serde",
+ "tempfile",
+ "tokio",
+ "unicode-segmentation",
 ]
 
 [[package]]

@@ -72,7 +72,7 @@ pub(super) fn panel_rows(
             }
             // Scheduled is a place only while a send waits, as the sidebar draws it.
             let waiting = query.trim().is_empty()
-                && !crate::ui::compose::scheduled(client, &shell.scope).is_empty();
+                && !mail_ui_compose::compose::scheduled(client, &shell.scope).is_empty();
             let places: Vec<Destination> = shell
                 .places
                 .iter()

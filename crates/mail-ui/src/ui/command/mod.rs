@@ -85,7 +85,7 @@ fn act(ctx: Ctx, choice: Option<Choice>) {
         Choice::Draft(draft) => {
             close(shell);
             if let Some(desk) = desk {
-                crate::ui::compose::reopen(desk, shell, draft);
+                mail_ui_compose::compose::reopen(desk, shell, draft);
             }
         }
         Choice::Space(index) => {

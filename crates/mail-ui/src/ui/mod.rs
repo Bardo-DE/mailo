@@ -5,16 +5,13 @@
 //! rendering a stranger's HTML.
 
 pub mod ask;
-pub mod emoji;
 pub mod handoff;
-pub mod spelling;
 pub mod tidy;
 
 mod add_account;
 mod app;
 mod command;
-mod compose;
-pub use compose::discarding_draft;
+pub use mail_ui_compose::compose::discarding_draft;
 mod contacts;
 pub mod default_mail;
 mod erase;
@@ -46,6 +43,8 @@ mod window;
 mod window_core;
 
 #[cfg(test)]
+pub(in crate::ui) mod compose_tests;
+#[cfg(test)]
 mod fixtures;
 #[cfg(test)]
 pub(in crate::ui) mod kit_tests;
@@ -66,7 +65,6 @@ pub mod native {
         OpenAddAccount, Opened as AddAccountOpened, SignInDirectly, Wiring as AddAccountWiring,
         add_account_root,
     };
-    pub use super::compose::Dictionaries;
     pub use super::follow_up::Notices;
     pub use super::launch::DesktopSettings;
     pub use super::launch::gate::{Found, found as damaged_files};
@@ -76,5 +74,6 @@ pub mod native {
     pub use super::settings_window::settings_root;
     pub use super::window::{MessageOpen, message_root};
     pub use crate::handoff::{ActivationToken, Requests};
+    pub use mail_ui_compose::compose::Dictionaries;
     pub use mail_ui_kit::provider_chip::read as read_icons;
 }

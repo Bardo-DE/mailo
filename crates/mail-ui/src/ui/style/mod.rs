@@ -16,8 +16,8 @@
 #[cfg(test)]
 mod exceptions;
 
-/// The sheet, in the cascade's order: the window's own rules, then the reader's (`mail-ui-reader`
-/// brings its two files as one), then the rest. Joined once, on first use, and kept for the run.
+/// The sheet, in the cascade's order: the window's own rules, then the reader's and the composer's (each crate
+/// brings its files as one), then the rest. Joined once, on first use, and kept for the run.
 pub(super) static STYLE: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| {
     let before = concat!(
         include_str!("shell.css"),
@@ -25,7 +25,6 @@ pub(super) static STYLE: std::sync::LazyLock<&'static str> = std::sync::LazyLock
         include_str!("menus.css"),
     );
     let after = concat!(
-        include_str!("composer.css"),
         include_str!("contacts.css"),
         include_str!("files.css"),
         include_str!("accounts.css"),
@@ -34,7 +33,14 @@ pub(super) static STYLE: std::sync::LazyLock<&'static str> = std::sync::LazyLock
         include_str!("pgp.css"),
         include_str!("controls.css"),
     );
-    Box::leak(format!("{before}{}{after}", mail_ui_reader::STYLE).into_boxed_str())
+    Box::leak(
+        format!(
+            "{before}{}{}{after}",
+            mail_ui_reader::STYLE,
+            mail_ui_compose::STYLE
+        )
+        .into_boxed_str(),
+    )
 });
 
 #[cfg(test)]
@@ -147,22 +153,22 @@ pub(in crate::ui) mod tests {
     #[tokio::test]
     async fn every_class_each_surface_draws_is_styled() {
         use crate::ui::{
-            compose,
+            compose_tests,
             kit_tests::{files_sheet_tests, pgp_certs_tests, pgp_keys_tests},
             reader_tests::invite_card_tests,
             rules,
         };
         let surfaces = [
             ("the frame", frame_markup().await),
-            ("the composer", compose::tests::render::drawn_states()),
-            ("the people menu", compose::tests::people::drawn_states()),
+            ("the composer", compose_tests::render::drawn_states()),
+            ("the people menu", compose_tests::people::drawn_states()),
             (
                 "send later and templates",
-                compose::tests::later_render::drawn_states(),
+                compose_tests::later_render::drawn_states(),
             ),
             (
                 "the composer's seal bar",
-                compose::tests::openpgp::drawn_states().await,
+                compose_tests::openpgp::drawn_states().await,
             ),
             ("the invitation card", invite_card_tests::drawn_states()),
             ("the rules page", rules::page_tests::drawn_states().await),

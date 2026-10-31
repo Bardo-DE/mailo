@@ -121,7 +121,7 @@ pub(super) fn Places(
     });
     // Whether a message is waiting for its time on this Space's accounts: the Scheduled place is
     // drawn only then. Read again as a send is scheduled or taken back.
-    let desk = try_use_context::<crate::ui::compose::Desk>();
+    let desk = try_use_context::<mail_ui_compose::compose::Desk>();
     let held = use_live(move || {
         let accounts = accounts.read();
         let sending: Vec<(String, porter_core::AccountId)> = accounts
@@ -134,7 +134,7 @@ pub(super) fn Places(
                     .collect()
             })
             .unwrap_or_default();
-        mail_client::query::DraftsOf(crate::ui::compose::sending_in(&sending, &in_scope()))
+        mail_client::query::DraftsOf(mail_ui_compose::compose::sending_in(&sending, &in_scope()))
     });
     let scheduled = use_memo(move || {
         // A send just held for later is a place before the client has read it back.
@@ -143,13 +143,13 @@ pub(super) fn Places(
                 .outbox
                 .read()
                 .as_ref()
-                .is_some_and(|sent| sent.when != crate::ui::compose::When::Now)
+                .is_some_and(|sent| sent.when != mail_ui_compose::compose::When::Now)
         {
             return true;
         }
-        held.read()
-            .value()
-            .is_some_and(|drafts| !crate::ui::compose::scheduled_in(drafts.to_vec()).is_empty())
+        held.read().value().is_some_and(|drafts| {
+            !mail_ui_compose::compose::scheduled_in(drafts.to_vec()).is_empty()
+        })
     });
     let show = use_signal(|| Show::Followed);
     let folders = use_memo(move || {

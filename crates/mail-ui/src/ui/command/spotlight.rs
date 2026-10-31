@@ -48,7 +48,7 @@ pub(in crate::ui) fn Spotlight(
     let client = mail_ui_kit::live::use_client();
     let keys = use_keys();
     let drawn = use_signal(Drawn::default);
-    let desk = try_use_context::<crate::ui::compose::Desk>();
+    let desk = try_use_context::<mail_ui_compose::compose::Desk>();
     // What was opened and put aside, for Recent. The window provides it; a test may not.
     let today = try_use_context::<Signal<mail_ui_kit::today::Today>>();
     let mut top = use_signal(|| None::<MountedRef>);
@@ -233,7 +233,7 @@ pub(super) struct Ctx {
     pub drawn: Signal<Drawn>,
     /// Where a draft put aside comes back from, picked in Recent. Taken when the panel is made,
     /// as a handler may run outside the window's scope.
-    pub desk: Option<crate::ui::compose::Desk>,
+    pub desk: Option<mail_ui_compose::compose::Desk>,
 }
 
 /// Run the row keyed `key`: a template while the panel lists them, else what the search's row

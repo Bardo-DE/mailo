@@ -129,7 +129,7 @@ fn a_name_after_a_colon_and_the_picker_put_emoji_in_and_a_new_window_has_the_pic
     settle_until(&mut harness, |h| body(h) == ":smile 😊!");
     assert!(
         dirs.state
-            .join(mail_ui::ui::emoji::recent::FILE_NAME)
+            .join(mail_ui_compose::emoji::recent::FILE_NAME)
             .exists(),
         "the pick was kept"
     );

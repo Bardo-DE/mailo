@@ -10,7 +10,6 @@
 //! Undo puts the signature back. The composer reads the client when it opens a message, so the
 //! next one is signed with what was kept here.
 
-use crate::ui::compose::{Body, Page};
 use dioxus::prelude::*;
 use ds::components::controls::button_model::ButtonRole;
 use ds::components::fields::field_row::FieldRow;
@@ -22,6 +21,7 @@ use mail_client::Logged;
 use mail_client::signature;
 use mail_domain::{Draft, Identity, IdentityId, IsDefault, Signature, SignatureId, SignatureUse};
 use mail_editor::{Doc, Node, ParaKind, Session};
+use mail_ui_compose::compose::{Body, Page};
 use mail_ui_kit::motion::{Follow, Restore, tell};
 use mail_ui_kit::view::Shell;
 use mail_ui_model::copy;

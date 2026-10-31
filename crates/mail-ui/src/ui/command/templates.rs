@@ -7,7 +7,7 @@ use dioxus::prelude::*;
 use mail_client::Client;
 use mail_domain::Draft;
 
-use super::super::compose::{every_template, template_rows};
+use mail_ui_compose::compose::{every_template, template_rows};
 use mail_ui_kit::menu::MenuItem;
 use mail_ui_kit::motion::{Follow, tell};
 use mail_ui_kit::view::Shell;

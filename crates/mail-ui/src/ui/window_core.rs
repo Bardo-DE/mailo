@@ -4,10 +4,10 @@
 //! Two hooks, because the Spaces come between them: the keymap has to exist before `use_spaces`
 //! takes a default one, and the reply's desk needs the Spaces that call makes.
 
-use super::compose::{self, Desk};
 use super::frame;
 use dioxus::prelude::*;
 use ds::prelude::Keys;
+use mail_ui_compose::compose::{self, Desk};
 use mail_ui_kit::space::{Handle, Spaces};
 use mail_ui_kit::today::Today;
 use mail_ui_kit::view::Shell;
@@ -25,7 +25,7 @@ pub(super) struct WindowCore {
 pub(super) fn use_window_core() -> WindowCore {
     let keys = actions::use_registered();
     hover::use_hover();
-    motion::use_motion_resending(super::compose::send_again);
+    motion::use_motion_resending(mail_ui_compose::compose::send_again);
     mail_ui_kit::frame_selection::use_selections();
     WindowCore { keys }
 }

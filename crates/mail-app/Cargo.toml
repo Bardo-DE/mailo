@@ -109,6 +109,7 @@ mail-ui.workspace = true
 # tests name directly.
 mail-ui-kit.workspace = true
 mail-ui-reader.workspace = true
+mail-ui-compose.workspace = true
 # The settings files the window and the command line read.
 mail-ui-model.workspace = true
 # The launcher's count and the words the command line prints, which the window shares.

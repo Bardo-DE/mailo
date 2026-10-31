@@ -13,7 +13,6 @@ mod listed_tests;
 mod tests;
 
 use super::marked::{Piece, pieces};
-use crate::ui::compose::{cancel_scheduled, delete_stored_draft};
 use chordkit::Platform;
 use dioxus::prelude::*;
 use ds::base::command::holds_primary;
@@ -31,6 +30,7 @@ use ds::style::icon::render::Glyph;
 use listed::{Listed, Opens, RowModel};
 use mail_client::provider::Provider;
 use mail_domain::*;
+use mail_ui_compose::compose::{cancel_scheduled, delete_stored_draft};
 use mail_ui_kit::menus::FurtherMenus;
 use mail_ui_kit::motion::drawn_order;
 use mail_ui_kit::motion::{act_kind, drag, motion};

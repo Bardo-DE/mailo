@@ -7,7 +7,6 @@
 
 use super::note::left;
 use crate::ui::app::Frame;
-use crate::ui::compose::{self, SendPill};
 use crate::ui::style::STYLE;
 use crate::ui::window_core::{use_window_core, use_window_desk};
 use chordkit::StandardAction;
@@ -17,6 +16,7 @@ use ds::components::overlays::inline_banner::InlineBanner;
 use ds::prelude::*;
 use ds_settings::use_environment;
 use mail_domain::*;
+use mail_ui_compose::compose::{self, SendPill};
 use mail_ui_kit::actions::{self, Heard};
 use mail_ui_kit::intent::{Intent, Scope, intent, on_thread};
 use mail_ui_kit::space::Spaces;

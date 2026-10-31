@@ -1,4 +1,3 @@
-use super::compose::{self, SendPill};
 use super::frame;
 use super::list::ThreadList;
 use super::sidebar::Places;
@@ -15,6 +14,7 @@ use ds::style::kit::Styles;
 use ds_settings::Environment;
 use mail_client::profile::ProfileId;
 use mail_domain::*;
+use mail_ui_compose::compose::{self, SendPill};
 use mail_ui_kit::actions::{self, Heard};
 use mail_ui_kit::data::PAGE;
 use mail_ui_kit::intent::{Intent, Scope, intent, on_thread};
@@ -473,7 +473,7 @@ pub(super) fn App() -> Element {
                             .collect()
                     })
                     .unwrap_or_default();
-                super::compose::sending_in(&sending, &shell.read().scope)
+                mail_ui_compose::compose::sending_in(&sending, &shell.read().scope)
             }
             _ => Vec::new(),
         })
@@ -486,7 +486,7 @@ pub(super) fn App() -> Element {
             .unwrap_or_default();
         match shell.read().listing(PAGE) {
             Listing::Drafts => found,
-            Listing::Scheduled => super::compose::scheduled_in(found),
+            Listing::Scheduled => mail_ui_compose::compose::scheduled_in(found),
             _ => Vec::new(),
         }
     });
