@@ -11,11 +11,6 @@ repository = "https://github.com/PoHsuanLai/mailo"
 authors = ["Po Hsuan Lai <pohsuanlai0208@gmail.com>"]
 
 [features]
-# anyview's peek and card (github.com/PoHsuanLai/anyview) for the attachments mailo does not draw
-# itself: a picture in the reader's strip and a card in Peek, both over the stored bytes
-# (`ui/reading/anyview.rs`). Off, the strip shows a picture's or a PDF's thumbnail and Peek those,
-# the calendars, contacts and messages mailo reads itself, and "no preview" for the rest.
-anyview = ["dep:anyview-peek", "dep:anyview-core"]
 # What `mail-app`'s integration tests drive the window with (`testing`): off in the program.
 testing = ["dep:ds-harness"]
 
@@ -44,6 +39,8 @@ mail-os.workspace = true
 mail-ui-model.workspace = true
 # The window below its parts: its shell state, hooks, motion and shared controls.
 mail-ui-kit.workspace = true
+# The reader: a conversation drawn, and what is drawn from one, beside the window's other parts.
+mail-ui-reader.workspace = true
 # The OpenPGP and S/MIME halves are features of the library; this crate uses both.
 mail-mime.workspace = true
 mail-reader.workspace = true
@@ -78,12 +75,6 @@ ds-settings = { git = "https://github.com/PoHsuanLai/quire.git", rev = "e19728b7
 # The account sheets' views: `ds_shell::accounts`, the parts `sill` draws the same sheet with.
 # Only the accounts module is used; the shell's own surfaces (bar, dock, lock) are not drawn here.
 ds-shell = { git = "https://github.com/PoHsuanLai/quire.git", rev = "e19728b7ee9e369d360c646bf5e7ed559bc3d6f9" }  # e19728b7 (v0.3.58; forks blitz 841386a7, blitz-kit fd08b468)
-# anyview, the viewer's light tier, at the rev of its main that names the quire rev above (the same
-# spelling as quire, so one quire is built). `anyview-core` is the vocabulary (`Input`, `ReadAt`:
-# how the store's bytes go in); `anyview-peek` the peek worker and, with `pane`, the card that draws
-# what was peeked. Headless otherwise: no media player, no D-Bus.
-anyview-core = { git = "https://github.com/PoHsuanLai/anyview.git", rev = "3d5c3a453a866791fe691ed8fdc72a57fa62383d", optional = true }
-anyview-peek = { git = "https://github.com/PoHsuanLai/anyview.git", rev = "3d5c3a453a866791fe691ed8fdc72a57fa62383d", default-features = false, features = ["pane"], optional = true }
 # `mailo.toml`, and the `appearance.toml` written once on the first run after the move.
 toml = "1"
 # The test driver (`Harness`, `Driver`, `Query`, `snapshot`; `pdf` is `Harness::pdf` for the print
@@ -134,6 +125,7 @@ rfd = { version = "=0.17.2", default-features = false }
 mail-ui = { path = ".", features = ["testing"] }
 # The doubles the kit's hooks are driven with (a host that records its asks, a dialog that answers).
 mail-ui-kit = { workspace = true, features = ["testing"] }
+mail-ui-reader = { workspace = true, features = ["testing"] }
 # The values a test starts from (`mail_domain::testing`): the program never has them.
 mail-domain = { workspace = true, features = ["testing"] }
 # Seeding a store without writing SQL (`mail_store::testing`): the program never has it.

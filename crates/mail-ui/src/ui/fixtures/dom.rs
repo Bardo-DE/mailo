@@ -1,5 +1,5 @@
 use super::super::app::App;
-use super::super::reading::Reader;
+use mail_ui_reader::reading::Reader;
 use dioxus::prelude::*;
 use dioxus_core::{NoOpMutations, VirtualDom};
 use ds::prelude::*;

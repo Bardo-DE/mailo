@@ -2,7 +2,7 @@
 
 All the words the window shows live in crates/mail-ui-model/src/copy/, by kind. This finds the
 string literals that still say something to a person elsewhere under crates/mail-ui/src/ui,
-crates/mail-ui-kit/src and
+crates/mail-ui-kit/src, crates/mail-ui-reader/src and
 in the model's modules that word the window (not its settings files), so
 scripts/check-copy.sh can hold their number to a ratchet (scripts/copy-literals.txt).
 
@@ -40,11 +40,13 @@ ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
 UI = os.path.join("crates", "mail-ui", "src", "ui")
 # What every part of the window is drawn from (`mail-ui-kit`): walked as the window is.
 KIT = os.path.join("crates", "mail-ui-kit", "src")
+# The reader, the first feature crate beside the kit: walked as the window is.
+READER = os.path.join("crates", "mail-ui-reader", "src")
 MODEL = os.path.join("crates", "mail-ui-model", "src")
 COPY = os.path.join(MODEL, "copy")
 # What is walked: the window's code, and the model beside it. The model's settings files are
 # schema and file names, not the window's words, and its `damage` is the command line's too.
-ROOTS = [UI, KIT, MODEL]
+ROOTS = [UI, KIT, READER, MODEL]
 LEFT_OUT = [COPY, os.path.join(MODEL, "settings"), os.path.join(MODEL, "damage")]
 
 # Calls whose string arguments are not shown in the window.

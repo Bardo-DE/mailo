@@ -84,11 +84,11 @@ default = ["quire-desktop", "anyview"]
 quire-desktop = ["mail-ui-kit/quire-desktop"]
 # anyview's peek and card (github.com/PoHsuanLai/anyview) for the attachments mailo does not draw
 # itself: a picture in the reader's strip and a card in Peek, both over the stored bytes
-# (`ui/reading/anyview.rs` in `mail-ui`). On by default; off, the strip shows a picture's or a PDF's thumbnail
+# (`reading/anyview.rs` in `mail-ui-reader`). On by default; off, the strip shows a picture's or a PDF's thumbnail
 # and Peek those, the calendars, contacts and messages mailo reads itself, and "no preview" for the
 # rest. Only `mail-app` names it: `mail-core` and below never reach anyview
 # (`scripts/check-boundary.sh`).
-anyview = ["mail-ui/anyview"]
+anyview = ["mail-ui-reader/anyview"]
 
 [dependencies]
 porter-core.workspace = true
@@ -108,6 +108,7 @@ mail-ui.workspace = true
 # The window below its parts: its shell state, hooks and shared controls, which the program and its
 # tests name directly.
 mail-ui-kit.workspace = true
+mail-ui-reader.workspace = true
 # The settings files the window and the command line read.
 mail-ui-model.workspace = true
 # The launcher's count and the words the command line prints, which the window shares.

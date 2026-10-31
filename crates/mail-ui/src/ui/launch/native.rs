@@ -43,7 +43,7 @@ pub(super) fn run(opening: Opening) -> Result<(), ds_blitz::LaunchError> {
         found,
     } = opening;
     // What earlier runs' Open left in the temporary folder, cleared off the thread that draws.
-    std::thread::spawn(crate::ui::reading::sweep_left_open);
+    std::thread::spawn(mail_ui_reader::reading::sweep_left_open);
     // Where the settings are, for what the quit removes.
     let quit_root = dirs
         .as_ref()

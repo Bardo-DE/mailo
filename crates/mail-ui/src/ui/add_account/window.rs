@@ -239,7 +239,7 @@ fn AddAccountShell(wiring: Wiring, prefill: Option<String>, join: Join) -> Eleme
     let slug = step.as_ref().map_or("none", Step::slug);
     rsx! {
         Frame { spaces, sheet: Some(ds_shell::stylesheet()),
-            style { {STYLE} }
+            style { {*STYLE} }
             div {
                 class: "add-account-window",
                 "data-step": slug,

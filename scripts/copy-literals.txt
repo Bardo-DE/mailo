@@ -1,9 +1,4 @@
-# Visible string literals still written under crates/mail-ui/src/ui, crates/mail-ui-kit/src and in crates/mail-ui-model/src
-# outside its copy/, per file, as scripts/copy-literals.py counts them. A ratchet (scripts/check-copy.sh): it fails when a
-# count rises or an unlisted file gains one, and when a count falls until this file says so.
-# A new word goes in crates/mail-ui-model/src/copy/. Format: "<file> <count>".
 crates/mail-ui/src/ui/app.rs 3
-crates/mail-ui/src/ui/brand.rs 1
 crates/mail-ui/src/ui/keyboard.rs 5
 crates/mail-ui/src/ui/no_account.rs 3
 crates/mail-ui/src/ui/reauth.rs 4
@@ -43,22 +38,10 @@ crates/mail-ui/src/ui/compose/wire.rs 1
 crates/mail-ui/src/ui/emoji/mod.rs 9
 crates/mail-ui/src/ui/fetching/face.rs 3
 crates/mail-ui/src/ui/fetching/mod.rs 1
-crates/mail-ui/src/ui/invite/card.rs 25
-crates/mail-ui/src/ui/invite/draw.rs 24
-crates/mail-ui/src/ui/print/mod.rs 11
-crates/mail-ui/src/ui/print/paper.rs 1
-crates/mail-ui/src/ui/print/tool.rs 3
-crates/mail-ui/src/ui/reading/attachments.rs 2
-crates/mail-ui/src/ui/reading/blocks.rs 1
-crates/mail-ui/src/ui/reading/fetch.rs 15
-crates/mail-ui/src/ui/reading/mod.rs 1
-crates/mail-ui/src/ui/reading/tools.rs 7
 crates/mail-ui/src/ui/rules/editor.rs 21
 crates/mail-ui/src/ui/rules/list.rs 1
 crates/mail-ui/src/ui/rules/work.rs 18
 crates/mail-ui/src/ui/settings_window/account/mod.rs 2
-crates/mail-ui/src/ui/unsubscribe/head.rs 5
-crates/mail-ui/src/ui/unsubscribe/mod.rs 12
 crates/mail-ui/src/ui/window/note.rs 3
 crates/mail-ui-kit/src/bin.rs 11
 crates/mail-ui-kit/src/data.rs 1
@@ -87,6 +70,19 @@ crates/mail-ui-kit/src/pgp/look.rs 3
 crates/mail-ui-kit/src/pgp/mod.rs 4
 crates/mail-ui-kit/src/pgp/seal.rs 6
 crates/mail-ui-kit/src/pgp/unlock.rs 3
+crates/mail-ui-reader/src/brand.rs 1
+crates/mail-ui-reader/src/invite/card.rs 25
+crates/mail-ui-reader/src/invite/draw.rs 24
+crates/mail-ui-reader/src/print/mod.rs 11
+crates/mail-ui-reader/src/print/paper.rs 1
+crates/mail-ui-reader/src/print/tool.rs 3
+crates/mail-ui-reader/src/reading/attachments.rs 2
+crates/mail-ui-reader/src/reading/blocks.rs 1
+crates/mail-ui-reader/src/reading/fetch.rs 15
+crates/mail-ui-reader/src/reading/mod.rs 1
+crates/mail-ui-reader/src/reading/tools.rs 7
+crates/mail-ui-reader/src/unsubscribe/head.rs 5
+crates/mail-ui-reader/src/unsubscribe/mod.rs 12
 crates/mail-ui-model/src/add_account/host.rs 1
 crates/mail-ui-model/src/add_account/provider.rs 2
 crates/mail-ui-model/src/fetching/status.rs 20

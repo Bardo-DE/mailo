@@ -22,18 +22,18 @@ FORBIDDEN_CORE=(dioxus ds ds-settings ds-blitz blitz-dom dioxus-native-dom anyvi
 # handler, what an operation says): it does no drawing, so it may never reach the toolkit or the
 # renderer, nor `mail-ui`, which would pull both in. The window and the command line share it.
 OS=(mail-os)
-FORBIDDEN_OS=(dioxus ds ds-settings ds-blitz blitz-dom dioxus-native-dom anyview-core anyview-peek mail-ui mail-ui-kit)
+FORBIDDEN_OS=(dioxus ds ds-settings ds-blitz blitz-dom dioxus-native-dom anyview-core anyview-peek mail-ui mail-ui-kit mail-ui-reader)
 # `mail-ui-model` (the window's state, words and settings files, drawing nothing) and `mail-cli` (the
-# terminal) hold to the same rule, and neither may reach `mail-ui`, the window itself, or `mail-ui-kit`,
+# terminal) hold to the same rule, and neither may reach `mail-ui`, the window itself, or `mail-ui-kit` or the feature crates,
 # what it is drawn from. quire's
 # `ds-settings` (the settings-file library, built without its `dioxus` feature) is allowed: it is
 # what the settings files are read with.
 NODRAW=(mail-ui-model mail-cli)
-FORBIDDEN_NODRAW=(dioxus ds ds-shell ds-motion ds-blitz blitz-dom dioxus-native-dom anyview-core anyview-peek mail-ui mail-ui-kit)
+FORBIDDEN_NODRAW=(dioxus ds ds-shell ds-motion ds-blitz blitz-dom dioxus-native-dom anyview-core anyview-peek mail-ui mail-ui-kit mail-ui-reader)
 fail=0
 # The crates the window is made of, bottom to top but the shell: the kit, then the feature crates.
 # A feature crate is added to FEATURES when it is made.
-FEATURES=()
+FEATURES=(mail-ui-reader)
 WINDOW=(mail-ui-kit ${FEATURES[@]+"${FEATURES[@]}"} mail-ui)
 WINDOW_SRC=(crates/mail-ui-kit/src)
 for crate in ${FEATURES[@]+"${FEATURES[@]}"}; do WINDOW_SRC+=("crates/$crate/src"); done
@@ -106,7 +106,7 @@ fi
 fail=$((fail | nodraw_fail))
 
 # `mail-store` and `mail-runtime` sit between the pure crates and the core, and draw nothing either:
-# anyview, which peeks at a file and draws a card, is `mail-ui`'s alone (its `anyview` feature).
+# anyview, which peeks at a file and draws a card, is `mail-ui-reader`'s alone (its `anyview` feature).
 lower_fail=0
 for crate in mail-store mail-runtime; do
   for dep in anyview-core anyview-peek; do
@@ -122,13 +122,13 @@ if [ "$lower_fail" -eq 0 ]; then
 fi
 fail=$((fail | lower_fail))
 
-# Within the window (`mail-ui`), anyview is named by the reader's attachment code only
-# (`ui/reading`), behind the `anyview` feature: the strip's thumbnail, Peek's card, and the adapter
+# Within the window, anyview is named by the reader's attachment code only
+# (`mail-ui-reader`'s `reading`), behind the `anyview` feature: the strip's thumbnail, Peek's card, and the adapter
 # between them.
 if grep -rnE '\banyview_(core|peek)\b' crates --include='*.rs' \
-  | grep -vE '^crates/mail-ui/src/ui/reading/(anyview|thumb|peek/part)\.rs:|^crates/mail-app/tests/app/native_anyview\.rs:' \
+  | grep -vE '^crates/mail-ui-reader/src/reading/(anyview|thumb|peek/part)\.rs:|^crates/mail-app/tests/app/native_anyview\.rs:' \
   | grep -vE '^[^:]+:[0-9]+:[[:space:]]*//'; then
-  echo "anyview_core and anyview_peek belong to ui/reading's anyview.rs, thumb.rs and peek/part.rs: see scripts/check-boundary.sh"
+  echo "anyview_core and anyview_peek belong to mail-ui-reader's reading/anyview.rs, thumb.rs and peek/part.rs: see scripts/check-boundary.sh"
   fail=1
 fi
 
@@ -151,8 +151,9 @@ if dep_names mail-cli '^mail-(intents|app)[ .=]' || dep_names mail-intents '^mai
   || dep_names mail-edge '^mail-(cli|intents|ui|client|app)[ .=]' \
   || dep_names mail-ui '^mail-(cli|intents|edge|app)[ .=]' \
   || dep_names mail-ui-kit '^mail-(cli|intents|edge|app)[ .=]' \
+  || dep_names mail-ui-reader '^mail-(cli|intents|edge|app)[ .=]' \
   || dep_names mail-ui-model '^mail-(cli|intents|edge|app)[ .=]'; then
-  echo "mail-cli, mail-intents, mail-edge, mail-ui, mail-ui-kit and mail-ui-model must not depend on each other or on mail-app: mail-app is the process over them"
+  echo "mail-cli, mail-intents, mail-edge, mail-ui, mail-ui-kit, mail-ui-reader and mail-ui-model must not depend on each other or on mail-app: mail-app is the process over them"
   fail=1
 fi
 

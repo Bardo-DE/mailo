@@ -278,7 +278,7 @@ impl Window {
                     + chrono::TimeDelta::seconds(jumped.load(Ordering::Relaxed))
             }
         });
-        let printer = mail_ui::ui::native::Printer::with_dialog({
+        let printer = mail_ui_reader::print::Printer::with_dialog({
             let printed = Arc::clone(&printed);
             move |pdf, title| {
                 held(&printed).push((pdf.to_vec(), title.to_owned()));

@@ -229,7 +229,7 @@ impl Command for ReplyList {
 
     fn run(&self, acts: Acts) {
         on_open(acts.shell, |open| {
-            crate::ui::reading::compose_on(acts.shell, open, Composes::ReplyList);
+            mail_ui_reader::reading::compose_on(acts.shell, open, Composes::ReplyList);
         });
     }
 }
@@ -285,7 +285,7 @@ impl Command for EditAsNew {
 
     fn run(&self, acts: Acts) {
         on_open(acts.shell, |open| {
-            crate::ui::reading::compose_on(acts.shell, open, Composes::Again);
+            mail_ui_reader::reading::compose_on(acts.shell, open, Composes::Again);
         });
     }
 }
@@ -344,8 +344,8 @@ impl Command for Print {
 
     fn run(&self, acts: Acts) {
         let open = acts.shell.read().open;
-        if let Some(job) = crate::ui::print::job_for(open) {
-            crate::ui::print::print(job);
+        if let Some(job) = mail_ui_reader::print::job_for(open) {
+            mail_ui_reader::print::print(job);
         }
     }
 }

@@ -5139,6 +5139,7 @@ dependencies = [
  "mail-ui",
  "mail-ui-kit",
  "mail-ui-model",
+ "mail-ui-reader",
  "mailo-crypto",
  "mailo-domain",
  "mailo-mime",
@@ -5425,8 +5426,6 @@ dependencies = [
 name = "mail-ui"
 version = "0.1.0"
 dependencies = [
- "anyview-core",
- "anyview-peek",
  "base64 0.22.1",
  "blitz-dom",
  "chordkit",
@@ -5451,6 +5450,7 @@ dependencies = [
  "mail-ui",
  "mail-ui-kit",
  "mail-ui-model",
+ "mail-ui-reader",
  "mailo-archive",
  "mailo-crypto",
  "mailo-domain",
@@ -5550,6 +5550,41 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml",
+ "url",
+ "uuid",
+]
+
+[[package]]
+name = "mail-ui-reader"
+version = "0.1.0"
+dependencies = [
+ "anyview-core",
+ "anyview-peek",
+ "base64 0.22.1",
+ "blitz-dom",
+ "chordkit",
+ "chrono",
+ "dioxus",
+ "dioxus-native-dom",
+ "dioxus-ssr",
+ "ds",
+ "ds-blitz",
+ "image",
+ "log",
+ "mail-client",
+ "mail-core",
+ "mail-os",
+ "mail-ui-kit",
+ "mail-ui-model",
+ "mailo-crypto",
+ "mailo-domain",
+ "mailo-mime",
+ "mailo-pim",
+ "mailo-reader",
+ "porter-core",
+ "reqwest",
+ "tempfile",
+ "tokio",
  "url",
  "uuid",
 ]

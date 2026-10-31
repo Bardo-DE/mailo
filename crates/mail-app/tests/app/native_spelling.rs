@@ -126,7 +126,7 @@ fn contexts(
     configured: &Configured,
 ) -> RootContexts {
     // Every window here has a print dialog of its own: none may open the system's.
-    let printer = mail_ui::ui::native::Printer::with_dialog(|_, _| Ok(PrintOutcome::Cancelled));
+    let printer = mail_ui_reader::print::Printer::with_dialog(|_, _| Ok(PrintOutcome::Cancelled));
     mail_ui::ui::native::contexts(
         mail_client::Client::open(Arc::clone(store), mail_client::ClientConfig::default()),
         mail_ui_kit::view::Appearance::default(),

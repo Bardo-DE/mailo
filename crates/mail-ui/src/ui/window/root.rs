@@ -8,7 +8,7 @@
 use super::note::left;
 use crate::ui::app::Frame;
 use crate::ui::compose::{self, SendPill};
-use crate::ui::reading::{ReaderIn, reading_column};
+use mail_ui_reader::reading::{ReaderIn, reading_column};
 use crate::ui::style::STYLE;
 use crate::ui::window_core::{use_window_core, use_window_desk};
 use chordkit::StandardAction;
@@ -115,17 +115,17 @@ pub(in crate::ui) fn MessageShell(thread: ThreadId) -> Element {
     let on_key = move |event: Event<KeyboardData>| {
         let key = event.key().to_string();
         if shell.read().preview.is_some() {
-            crate::ui::reading::peek_key(shell, keys, &event);
+            mail_ui_reader::reading::peek_key(shell, keys, &event);
             return;
         }
         // Escape closes ⌘F's bar first, as in the first window.
         if key == "Escape" && shell.read().find.is_some() && shell.read().composing.is_none() {
-            crate::ui::reading::find::close(shell);
+            mail_ui_reader::reading::find::close(shell);
             return;
         }
         if shell.read().raw.is_some() {
             if key == "Escape" {
-                crate::ui::reading::close_raw(shell);
+                mail_ui_reader::reading::close_raw(shell);
             }
             return;
         }
@@ -142,28 +142,28 @@ pub(in crate::ui) fn MessageShell(thread: ThreadId) -> Element {
         }
         match intent {
             Some(Intent::Print) => {
-                if let Some(job) = crate::ui::print::job_for(Some(thread)) {
-                    crate::ui::print::print(job);
+                if let Some(job) = mail_ui_reader::print::job_for(Some(thread)) {
+                    mail_ui_reader::print::print(job);
                 }
                 return;
             }
             Some(Intent::Find) => {
-                let _ = crate::ui::reading::find::open(shell);
+                let _ = mail_ui_reader::reading::find::open(shell);
                 return;
             }
             Some(Intent::FindStep(step)) => {
-                crate::ui::reading::find::step(shell, step);
+                mail_ui_reader::reading::find::step(shell, step);
                 return;
             }
             _ => {}
         }
         match intent {
             Some(Intent::Zoom(step)) => {
-                crate::ui::reading::zoom(step);
+                mail_ui_reader::reading::zoom(step);
                 return;
             }
             Some(Intent::Raw(raw)) => {
-                crate::ui::reading::ask_raw(shell, thread, raw);
+                mail_ui_reader::reading::ask_raw(shell, thread, raw);
                 return;
             }
             _ => {}
@@ -197,16 +197,16 @@ pub(in crate::ui) fn MessageShell(thread: ThreadId) -> Element {
 
     rsx! {
         Frame { spaces,
-            style { {STYLE} }
+            style { {*STYLE} }
             div { class: "app message-window",
                 tabindex: "0",
                 onmounted: mail_ui_kit::host::Host::app_mounted,
                 onkeydown: on_key,
                 if shell.read().preview.is_some() {
-                    crate::ui::reading::PeekView { shell }
+                    mail_ui_reader::reading::PeekView { shell }
                 }
                 if shell.read().raw.is_some() {
-                    crate::ui::reading::RawSheet { shell }
+                    mail_ui_reader::reading::RawSheet { shell }
                 }
                 div { class: "card",
                     section { class: "reader",

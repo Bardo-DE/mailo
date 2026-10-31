@@ -12,8 +12,6 @@ pub mod tidy;
 
 mod add_account;
 mod app;
-mod brand;
-mod checks;
 mod command;
 mod compose;
 pub use compose::discarding_draft;
@@ -24,20 +22,17 @@ mod fetching;
 mod folder_open;
 mod follow_up;
 mod frame;
-mod invite;
 mod keyboard;
 mod launch;
 mod launcher_count;
 mod list;
 mod marked;
 mod no_account;
+mod original_frame;
 mod organise;
 mod page;
-mod print;
 mod provider_chip;
-pub mod reading;
 mod reauth;
-mod receipt;
 mod row;
 mod rules;
 mod server_search;
@@ -46,7 +41,6 @@ mod sidebar;
 mod space_menu;
 mod style;
 mod switch;
-mod unsubscribe;
 mod view_groups;
 mod views;
 mod window;
@@ -56,6 +50,8 @@ mod window_core;
 mod fixtures;
 #[cfg(test)]
 pub(in crate::ui) mod kit_tests;
+#[cfg(test)]
+pub(in crate::ui) mod reader_tests;
 #[cfg(test)]
 mod shell_tests;
 #[cfg(test)]
@@ -71,15 +67,13 @@ pub mod native {
         OpenAddAccount, Opened as AddAccountOpened, SignInDirectly, Wiring as AddAccountWiring,
         add_account_root,
     };
-    pub use super::brand::BrandCache;
     pub use super::compose::Dictionaries;
     pub use super::follow_up::Notices;
     pub use super::launch::DesktopSettings;
     pub use super::launch::gate::{Found, found as damaged_files};
     pub use super::launch::native::{contexts, contexts_passing, live_root, root};
-    pub use super::print::Printer;
     pub use super::provider_chip::read as read_icons;
-    pub use super::reading::OriginalFrame;
+    pub use super::original_frame::OriginalFrame;
     pub use super::server_search::{Search, ServerSearcher};
     pub use super::settings_window::settings_root;
     pub use super::window::{MessageOpen, message_root};

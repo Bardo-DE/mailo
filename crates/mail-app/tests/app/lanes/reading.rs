@@ -120,7 +120,7 @@ fn open(counts: &Arc<Counts>) -> Window {
         mail_runtime::bimi::remember(&cache, "brand.example", Some(&png), chrono::Utc::now())
             .expect("the logo is cached");
         contexts
-            .with(mail_ui::ui::native::BrandCache(cache))
+            .with(mail_ui_reader::brand::BrandCache(cache))
             .with(Launcher(counts as Arc<dyn Badge>))
     })
 }

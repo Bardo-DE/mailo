@@ -1,7 +1,7 @@
 use super::compose::{self, SendPill};
 use super::frame;
 use super::list::ThreadList;
-use super::reading::{ReaderIn, reading_column};
+use mail_ui_reader::reading::{ReaderIn, reading_column};
 use super::sidebar::Places;
 use super::style::STYLE;
 use super::window_core::{use_window_core, use_window_desk};
@@ -539,7 +539,7 @@ pub(super) fn App() -> Element {
         // Peek owns it while it is open: Esc closes it, the arrows move between attachments and
         // turn a PDF's pages, and nothing reaches the conversation behind it.
         if shell.read().preview.is_some() {
-            super::reading::peek_key(shell, keys, &event);
+            mail_ui_reader::reading::peek_key(shell, keys, &event);
             return;
         }
         // The Import and Export sheets likewise: their fields take letters, Esc closes them.
@@ -591,7 +591,7 @@ pub(super) fn App() -> Element {
         // rows behind it.
         if shell.read().raw.is_some() {
             if key == "Escape" {
-                super::reading::close_raw(shell);
+                mail_ui_reader::reading::close_raw(shell);
             }
             return;
         }
@@ -609,7 +609,7 @@ pub(super) fn App() -> Element {
         // Escape closes ⌘F's bar before it closes anything behind it (its field closes it
         // itself, and keeps the key).
         if key == "Escape" && shell.read().find.is_some() && shell.read().composing.is_none() {
-            super::reading::find::close(shell);
+            mail_ui_reader::reading::find::close(shell);
             return;
         }
         let typing_now = in_a_field() || shell.read().composing.is_some();
@@ -645,8 +645,8 @@ pub(super) fn App() -> Element {
             Some(Intent::Print) => {
                 // The open conversation, as one flow. Nothing open: nothing printed, nothing said.
                 let open = shell.read().open;
-                if let Some(job) = super::print::job_for(open) {
-                    super::print::print(job);
+                if let Some(job) = mail_ui_reader::print::job_for(open) {
+                    mail_ui_reader::print::print(job);
                 }
                 return;
             }
@@ -656,13 +656,13 @@ pub(super) fn App() -> Element {
             }
             Some(Intent::Find) => {
                 // With no conversation open there is nothing to find in: it is the search.
-                if !super::reading::find::open(shell) {
+                if !mail_ui_reader::reading::find::open(shell) {
                     super::command::summon(shell);
                 }
                 return;
             }
             Some(Intent::FindStep(step)) => {
-                super::reading::find::step(shell, step);
+                mail_ui_reader::reading::find::step(shell, step);
                 return;
             }
             Some(Intent::Settings) => {
@@ -670,13 +670,13 @@ pub(super) fn App() -> Element {
                 return;
             }
             Some(Intent::Zoom(step)) => {
-                super::reading::zoom(step);
+                mail_ui_reader::reading::zoom(step);
                 return;
             }
             Some(Intent::Raw(raw)) => {
                 let open = shell.read().open;
                 if let Some(open) = open {
-                    super::reading::ask_raw(shell, open, raw);
+                    mail_ui_reader::reading::ask_raw(shell, open, raw);
                 }
                 return;
             }
@@ -880,7 +880,7 @@ pub(super) fn App() -> Element {
     };
     rsx! {
         Frame { spaces,
-        AppStyle { css: STYLE }
+        AppStyle { css: *STYLE }
         div { class: frame_class,
             style: "--side-w: {SIDEBAR_WIDTH}px",
             tabindex: "0",
@@ -925,7 +925,7 @@ pub(super) fn App() -> Element {
                 super::views::ViewSheet { shell, pages }
             }
             if shell.read().preview.is_some() {
-                super::reading::PeekView { shell }
+                mail_ui_reader::reading::PeekView { shell }
             }
             if shell.read().destroying.is_some() {
                 mail_ui_kit::destroy::DestroyAlert { shell }
@@ -937,7 +937,7 @@ pub(super) fn App() -> Element {
                 super::tidy::TidySheet { shell }
             }
             if shell.read().raw.is_some() {
-                super::reading::RawSheet { shell }
+                mail_ui_reader::reading::RawSheet { shell }
             }
             if shell.read().no_account {
                 super::no_account::NoAccountAlert { shell }

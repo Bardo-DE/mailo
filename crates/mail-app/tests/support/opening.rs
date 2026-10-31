@@ -43,7 +43,7 @@ pub struct Open<'a> {
     /// Handed to the window besides the client: a recorder, say.
     pub with: Option<Box<dyn FnOnce(RootContexts) -> RootContexts + 'a>>,
     /// The window's print dialog; `None` is one that cancels, so no test opens the system's.
-    pub printer: Option<mail_ui::ui::native::Printer>,
+    pub printer: Option<mail_ui_reader::print::Printer>,
     pub wait: Wait,
 }
 
@@ -67,7 +67,7 @@ impl Default for Open<'_> {
 /// A window over `store`, as `how` says, its first frame drawn.
 pub fn open_window(store: &Arc<SqliteStore>, how: Open) -> Harness {
     let printer = how.printer.unwrap_or_else(|| {
-        mail_ui::ui::native::Printer::with_dialog(|_, _| Ok(PrintOutcome::Cancelled))
+        mail_ui_reader::print::Printer::with_dialog(|_, _| Ok(PrintOutcome::Cancelled))
     });
     let mut contexts = mail_ui::ui::native::contexts(
         mail_client::Client::open(Arc::clone(store), mail_client::ClientConfig::default()),

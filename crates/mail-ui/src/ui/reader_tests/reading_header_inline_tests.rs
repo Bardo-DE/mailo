@@ -1,0 +1,172 @@
+use mail_ui_reader::reading::header::{Detail, MessageHead, detail_at, recipients, to_line};
+use dioxus::prelude::*;
+use mail_domain::*;
+
+fn person(name: &str, email: &str) -> Address {
+    Address {
+        name: (!name.is_empty()).then(|| name.to_owned()),
+        email: email.to_owned(),
+    }
+}
+
+#[test]
+fn recipients_are_named_then_counted() {
+    let ada = person("Ada", "ada@example.test");
+    let bob = person("Bob", "bob@example.test");
+    let nameless = person("", "carol@example.test");
+    let dan = person("Dan", "dan@example.test");
+    let eve = person(" ", "eve@example.test");
+    let cases: &[(&str, Vec<Address>, Option<&str>)] = &[
+        ("nobody", vec![], None),
+        ("one", vec![ada.clone()], Some("Ada")),
+        ("two", vec![ada.clone(), bob.clone()], Some("Ada, Bob")),
+        (
+            "an address for a missing name",
+            vec![nameless.clone()],
+            Some("carol@example.test"),
+        ),
+        (
+            "the rest counted",
+            vec![ada.clone(), bob.clone(), nameless, dan, eve],
+            Some("Ada, Bob +3"),
+        ),
+    ];
+    for (name, people, want) in cases {
+        assert_eq!(recipients(people).as_deref(), *want, "{name}");
+    }
+}
+
+#[test]
+fn only_the_newest_message_says_everything() {
+    let cases: &[(usize, usize, Detail)] = &[
+        (0, 1, Detail::Full),
+        (0, 3, Detail::Compact),
+        (1, 3, Detail::Compact),
+        (2, 3, Detail::Full),
+    ];
+    for &(at, count, want) in cases {
+        assert_eq!(detail_at(at, count), want, "{at} of {count}");
+    }
+}
+
+fn message(to: Vec<Address>, cc: Vec<Address>) -> Message {
+    Message {
+        id: MessageId::generate(),
+        thread: ThreadId::generate(),
+        account: crate::ui::fixtures::acct_account(),
+        key: MessageKey::Rfc("m1@example.test".to_owned()),
+        date: chrono::Utc::now(),
+        from: person("Bob", "bob@example.test"),
+        reply_to: vec![],
+        to,
+        cc,
+        bcc: vec![],
+        subject: "hi".to_owned(),
+        in_reply_to: None,
+        references: vec![],
+        rfc_message_id: None,
+        read: ReadState::Read,
+        star: Star::Unstarred,
+        flag: mail_domain::Hue::Red,
+        mailbox: MailboxRole::Inbox,
+        labels: vec![],
+        body: Body::Absent,
+        attachments: vec![],
+    }
+}
+
+fn drawn(message: Message, detail: Detail) -> String {
+    #[component]
+    fn Head(message: Message, detail: Detail) -> Element {
+        rsx! {
+            ds::prelude::Ds {
+                appearance: ds::prelude::Appearance::default(),
+                material: ds::prelude::Material::Window,
+                MessageHead { message, detail, when: ("07:13".to_owned(), "2023-11-15 07:13".to_owned()) }
+            }
+        }
+    }
+    let mut dom = dioxus_core::VirtualDom::new_with_props(Head, HeadProps { message, detail });
+    dom.rebuild_in_place();
+    dioxus_ssr::render(&dom)
+}
+
+#[test]
+fn the_full_header_says_who_when_and_to_whom_once() {
+    let to = vec![
+        person("Ada", "ada@example.test"),
+        person("Grace", "grace@example.test"),
+        person("Alan", "alan@example.test"),
+        person("", "carol@example.test"),
+        person("Dan", "dan@example.test"),
+    ];
+    let page = drawn(
+        message(to, vec![person("Edsger", "edsger@example.test")]),
+        Detail::Full,
+    );
+    assert_eq!(page.matches("class=\"ds-avatar\"").count(), 1, "{page}");
+    assert_eq!(page.matches(">Bob<").count(), 1, "{page}");
+    // The address is the name's tooltip, not a word on the line.
+    assert!(!page.contains(">bob@example.test<"), "{page}");
+    assert!(page.contains("aria-label=\"2023-11-15 07:13\""), "{page}");
+    assert!(page.contains(">07:13<"), "{page}");
+    // The composer's rows: a label, then its value.
+    for (row, label, value) in [
+        ("from", "From", "Bob"),
+        ("to", "To", "Ada, Grace +3"),
+        ("cc", "Cc", "Edsger"),
+    ] {
+        let at = page
+            .find(&format!("data-row=\"{row}\""))
+            .unwrap_or_else(|| panic!("no {row} row: {page}"));
+        let rest = &page[at..];
+        let (label_at, value_at) = (
+            rest.find(&format!(">{label}<")),
+            rest.find(&format!(">{value}<")),
+        );
+        assert!(
+            matches!((label_at, value_at), (Some(l), Some(v)) if l < v),
+            "{row}: {page}"
+        );
+    }
+}
+
+#[test]
+fn a_message_to_only_you_has_no_to_line() {
+    let yours = vec!["me@example.test".to_owned()];
+    let me = person("Me", "Me@Example.test");
+    let ada = person("Ada", "ada@example.test");
+    type Case<'a> = (&'a str, Vec<Address>, Vec<Address>, Option<&'a str>);
+    let cases: &[Case] = &[
+        ("only you", vec![me.clone()], vec![], None),
+        (
+            "you and another",
+            vec![me.clone(), ada.clone()],
+            vec![],
+            Some("Me, Ada"),
+        ),
+        (
+            "you, copied to another",
+            vec![me.clone()],
+            vec![ada.clone()],
+            Some("Me"),
+        ),
+        ("someone else", vec![ada.clone()], vec![], Some("Ada")),
+    ];
+    for (name, to, cc, want) in cases {
+        let got = to_line(&message(to.clone(), cc.clone()), &yours);
+        assert_eq!(got.as_deref(), *want, "{name}");
+    }
+}
+
+#[test]
+fn a_compact_header_is_who_and_when() {
+    let page = drawn(
+        message(vec![person("Ada", "ada@example.test")], vec![]),
+        Detail::Compact,
+    );
+    assert_eq!(page.matches("class=\"ds-avatar\"").count(), 1, "{page}");
+    assert!(page.contains(">Bob<") && page.contains(">07:13<"), "{page}");
+    assert!(!page.contains("data-row=\""), "{page}");
+    assert!(!page.contains(">bob@example.test<"), "{page}");
+}

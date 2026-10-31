@@ -22,7 +22,7 @@ use mail_ui_kit::pgp::{Said, Seams, Tone, said};
 use crate::ui::fixtures::{
     Seen, acct_account, click, dispatching, rebuild_into, seeded, type_into,
 };
-use crate::ui::reading::Reader;
+use mail_ui_reader::reading::Reader;
 use mail_core::pgp::Protected;
 use mail_ui_kit::view::Shell;
 

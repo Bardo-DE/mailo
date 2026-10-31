@@ -84,7 +84,7 @@ pub fn config(store: &Arc<SqliteStore>, dir: &std::path::Path) -> HarnessConfig 
         config: dir.join("config"),
         state: dir.join("state"),
     };
-    let printer = mail_ui::ui::native::Printer::with_dialog(|_, _| Ok(PrintOutcome::Cancelled));
+    let printer = mail_ui_reader::print::Printer::with_dialog(|_, _| Ok(PrintOutcome::Cancelled));
     let contexts = mail_ui::ui::native::contexts(
         mail_client::Client::open(Arc::clone(store), mail_client::ClientConfig::default()),
         mail_ui_kit::view::Appearance::default(),

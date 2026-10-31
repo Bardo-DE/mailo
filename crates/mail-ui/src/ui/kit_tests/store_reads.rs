@@ -12,7 +12,7 @@ fn the_files_that_draw_ask_the_store_nothing() {
         ("menus/mod.rs", include_str!("../../../../mail-ui-kit/src/menus/mod.rs")),
         ("views.rs", include_str!("../views.rs")),
         ("organise.rs", include_str!("../organise.rs")),
-        ("reading/mod.rs", include_str!("../reading/mod.rs")),
+        ("reading/mod.rs", include_str!("../../../../mail-ui-reader/src/reading/mod.rs")),
     ];
     for (name, source) in files {
         let drawn = source.split("#[cfg(test)]").next().unwrap_or(source);

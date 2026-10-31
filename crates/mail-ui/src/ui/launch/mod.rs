@@ -117,7 +117,7 @@ pub(super) struct Opening {
     pub start: crate::ui::ask::Open,
     pub icons: Loaded,
     /// Where brand logos are cached, when there is a cache directory.
-    pub brand: Option<super::brand::BrandCache>,
+    pub brand: Option<mail_ui_reader::brand::BrandCache>,
     /// The settings files that are there and cannot be read, asked about before the window opens.
     pub found: gate::Found,
 }
@@ -139,7 +139,7 @@ pub fn run(
         .as_ref()
         .map(|dir| super::provider_chip::read(&dir.join("providers")))
         .unwrap_or_default();
-    let brand = cache.map(|dir| super::brand::BrandCache(dir.join("bimi")));
+    let brand = cache.map(|dir| mail_ui_reader::brand::BrandCache(dir.join("bimi")));
     let found = gate::Found(dirs.as_ref().map(gate::found).unwrap_or_default());
     let opening = Opening {
         program,

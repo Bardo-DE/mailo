@@ -136,7 +136,7 @@ fn SettingsShell() -> Element {
 
     rsx! {
         Frame { spaces,
-            style { {STYLE} }
+            style { {*STYLE} }
             div { class: "app",
                 tabindex: "0",
                 onmounted: mail_ui_kit::host::Host::app_mounted,
