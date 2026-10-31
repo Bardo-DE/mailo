@@ -33,8 +33,6 @@ use mail_ui_model::copy;
 use porter_core::AccountId;
 use std::collections::{BTreeMap, BTreeSet};
 
-/// The button that signs in.
-
 /// The button that puts the question off.
 const LATER: &str = "Later";
 
