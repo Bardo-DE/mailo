@@ -587,7 +587,7 @@ pub(super) fn Reader(
     let attached: Vec<_> = shown
         .iter()
         .map(|(message, ..)| {
-            super::pgp::attachments(&looks, message).unwrap_or_else(|| attachment_rows(message))
+            mail_ui_kit::pgp::attachments(&looks, message).unwrap_or_else(|| attachment_rows(message))
         })
         .collect();
 
@@ -697,7 +697,7 @@ pub(super) fn Reader(
                             ImagesHidden { shell, offer: offer.clone(), problem: route_problem }
                     }
                     if fold != fold::Fold::Folded {
-                        super::pgp::Seal {
+                        mail_ui_kit::pgp::Seal {
                             key: "{message.id}-{message.body.raw():?}",
                             message: message.id,
                             body: message.body.raw(),

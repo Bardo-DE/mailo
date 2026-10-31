@@ -18,3 +18,8 @@ mod vip_tests;
 mod move_to_tests;
 mod menus_tests;
 mod cache_tests;
+pub(in crate::ui) mod pgp_keys_tests;
+mod pgp_look_tests;
+pub(in crate::ui) mod pgp_certs_tests;
+mod pgp_smime_tests;
+pub(in crate::ui) mod pgp_tests;

@@ -19,7 +19,7 @@ fn keys(page: &Page, list: List) -> Vec<String> {
 fn book_order(store: &SqliteStore, text: &str) -> Vec<String> {
     use mail_core::Store;
     store
-        .contacts_matching(text, crate::ui::contacts::book::SUGGESTED)
+        .contacts_matching(text, mail_ui_kit::book::SUGGESTED)
         .unwrap_or_else(|why| panic!("the book: {why}"))
         .into_iter()
         .map(|contact| contact.address)

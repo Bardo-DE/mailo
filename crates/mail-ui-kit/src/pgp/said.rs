@@ -12,7 +12,7 @@ use mail_ui_model::copy::status::protection as words;
 /// How a line about a message's protection is drawn. A bad signature is the one that must be
 /// impossible to miss; a signature nobody can check must not look like a good one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::ui) enum Tone {
+pub enum Tone {
     /// A plain fact: not encrypted, not signed.
     Plain,
     /// Opened, or a signature that checks.
@@ -30,7 +30,7 @@ pub(in crate::ui) enum Tone {
 
 /// One line the reader says about a message's protection.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(in crate::ui) struct Said {
+pub struct Said {
     pub tone: Tone,
     pub text: String,
 }
@@ -50,7 +50,7 @@ fn partly(coverage: Option<Coverage>, out: &mut Vec<Said>) {
 }
 
 /// What the reader says about an OpenPGP message.
-pub(in crate::ui) fn said(protected: &mail_client::pgp::Protected) -> Vec<Said> {
+pub fn said(protected: &mail_client::pgp::Protected) -> Vec<Said> {
     let mut out = Vec::new();
     out.push(match &protected.encryption {
         Encryption::NotEncrypted => line(Tone::Plain, words::NOT_ENCRYPTED),
@@ -103,7 +103,7 @@ pub(in crate::ui) fn said(protected: &mail_client::pgp::Protected) -> Vec<Said> 
 }
 
 /// Who a certificate is for, as a person reads it: its first address, else its subject.
-pub(in crate::ui) fn whose(cert: &SmimeCert) -> String {
+pub fn whose(cert: &SmimeCert) -> String {
     cert.emails
         .first()
         .cloned()
@@ -111,7 +111,7 @@ pub(in crate::ui) fn whose(cert: &SmimeCert) -> String {
 }
 
 /// What the reader says about an S/MIME message.
-pub(in crate::ui) fn said_smime(protected: &mail_client::smime::Protected) -> Vec<Said> {
+pub fn said_smime(protected: &mail_client::smime::Protected) -> Vec<Said> {
     let mut out = Vec::new();
     out.push(match &protected.encryption {
         SmimeEncryption::NotEncrypted => line(Tone::Plain, words::NOT_ENCRYPTED),
@@ -180,7 +180,7 @@ fn certificate(cert: &SmimeCert) -> String {
 }
 
 /// One thing wrong with the certificate behind a signature that matches, and what it means.
-pub(in crate::ui) fn doubt(problem: &CertProblem) -> String {
+pub fn doubt(problem: &CertProblem) -> String {
     let day = |at: &chrono::DateTime<chrono::Utc>| at.format("%Y-%m-%d").to_string();
     match problem {
         CertProblem::Untrusted => words::UNTRUSTED.to_owned(),

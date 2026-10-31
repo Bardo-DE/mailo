@@ -13,8 +13,8 @@ use mail_core::testing::MapSigningStore;
 use mail_crypto::smime::{Cert, Identity, Sealing};
 use mail_domain::*;
 
-use super::tests::{ME, arrive, lines, reader, reader_looking, seals, shows, until};
-use super::{Said, Tone, doubt, said_smime};
+use super::pgp_tests::{ME, arrive, lines, reader, reader_looking, seals, shows, until};
+use mail_ui_kit::pgp::{Said, Tone, doubt, said_smime};
 use crate::ui::fixtures::seeded;
 use crate::ui::fixtures::smime_support::{Person, identity, pki, rng, stranger_pki};
 use mail_core::smime::Protected;
@@ -371,18 +371,18 @@ async fn a_good_smime_signature_says_who_signed_and_their_certificate() {
     let (mut dom, mut seen) = reader(store, secrets, message.thread);
     let page = until(&mut dom, &mut seen, |page| {
         // The signature's own row leaves once the seal is read, fading out before it is gone.
-        super::tests::mark(page).is_some()
+        super::pgp_tests::mark(page).is_some()
             && page.contains("map.bin")
-            && !super::tests::without_leaving(page).contains("smime.p7s")
+            && !super::pgp_tests::without_leaving(page).contains("smime.p7s")
     })
     .await;
     assert_eq!(
-        super::tests::mark(&page).as_deref(),
+        super::pgp_tests::mark(&page).as_deref(),
         Some("signed"),
         "{page}"
     );
     assert!(lines(&page).is_empty(), "nothing is wrong: {page}");
-    let said = super::tests::trust_lines(&mut dom, &seen);
+    let said = super::pgp_tests::trust_lines(&mut dom, &seen);
     assert_eq!(
         said[0],
         (
@@ -401,7 +401,7 @@ async fn a_good_smime_signature_says_who_signed_and_their_certificate() {
     // What was signed is listed; the signature itself is not an attachment.
     assert!(page.contains("map.bin"), "{page}");
     assert!(
-        !super::tests::without_leaving(&page).contains("smime.p7s"),
+        !super::pgp_tests::without_leaving(&page).contains("smime.p7s"),
         "{page}"
     );
 }
@@ -491,7 +491,7 @@ async fn a_signature_from_an_authority_nobody_trusts_is_amber_and_says_why() {
     let message = arrive(&store, sealed(&raw, Mode::Sign, &stranger, &[]));
     let (mut dom, mut seen) = reader(store, secrets, message.thread);
     let page = until(&mut dom, &mut seen, |page| {
-        shows(page, "seal-line warn") && super::tests::mark(page).is_some()
+        shows(page, "seal-line warn") && super::pgp_tests::mark(page).is_some()
     })
     .await;
     let said = lines(&page);
@@ -508,7 +508,7 @@ async fn a_signature_from_an_authority_nobody_trusts_is_amber_and_says_why() {
     // The certificate's details are the popover's, with what is not wrong.
     let drawn = seals(&page);
     assert!(!shows(&drawn, "seal-line detail"), "{drawn}");
-    let listed = super::tests::trust_lines(&mut dom, &seen);
+    let listed = super::pgp_tests::trust_lines(&mut dom, &seen);
     assert!(
         listed.iter().any(|(look, _)| look == "seal-line detail"),
         "{listed:?}"
@@ -531,15 +531,15 @@ async fn an_encrypted_smime_message_shows_its_body_and_lists_what_is_attached_in
     assert!(!message.body.text().unwrap_or_default().contains("zebra"));
     let (mut dom, mut seen, looks) = reader_looking(store, secrets, message.thread);
     let page = until(&mut dom, &mut seen, |page| {
-        page.contains("the zebra is under the mat") && super::tests::mark(page).is_some()
+        page.contains("the zebra is under the mat") && super::pgp_tests::mark(page).is_some()
     })
     .await;
     assert_eq!(
-        super::tests::mark(&page).as_deref(),
+        super::pgp_tests::mark(&page).as_deref(),
         Some("encrypted"),
         "{page}"
     );
-    let said = super::tests::trust_lines(&mut dom, &seen);
+    let said = super::pgp_tests::trust_lines(&mut dom, &seen);
     // Sealed as mailo seals, with CBC: decrypted, and said to be unauthenticated.
     assert_eq!(said[0].0, "seal-line unknown", "{said:?}");
     assert_eq!(said[1].0, "seal-line good", "{said:?}");
@@ -552,7 +552,7 @@ async fn an_encrypted_smime_message_shows_its_body_and_lists_what_is_attached_in
     assert!(!page.contains("smime.p7m"), "{page}");
 
     // Saved, it is the bytes that were attached.
-    let saved = super::save_attachment(
+    let saved = mail_ui_kit::pgp::save_attachment(
         &looks,
         message.id,
         message.body.raw(),
@@ -563,7 +563,7 @@ async fn an_encrypted_smime_message_shows_its_body_and_lists_what_is_attached_in
     assert_eq!(saved.file_name().unwrap(), "map.bin");
     assert_eq!(std::fs::read(saved).unwrap(), [0, 1, 2, 3, 4, 5, 6, 7]);
     assert!(
-        super::save_attachment(&looks, message.id, message.body.raw(), 1, dir.path()).is_err(),
+        mail_ui_kit::pgp::save_attachment(&looks, message.id, message.body.raw(), 1, dir.path()).is_err(),
         "there is one attachment"
     );
 }

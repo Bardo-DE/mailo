@@ -26,12 +26,12 @@ use mail_client::password::Password;
 /// another. `landed` is the reader's: moved when anything but a plain message is found, so the
 /// reader draws the body it opened to, and the head its glyph.
 #[component]
-pub(in crate::ui) fn Seal(
+pub fn Seal(
     message: MessageId,
     body: Option<BlobId>,
     landed: Signal<u64>,
 ) -> Element {
-    let looks = mail_ui_kit::cache::use_looks();
+    let looks = crate::cache::use_looks();
     let mut known = use_signal({
         let looks = looks.clone();
         move || cached(&looks, message, body)
@@ -40,7 +40,7 @@ pub(in crate::ui) fn Seal(
     let _look = use_resource({
         let looks = looks.clone();
         move || {
-            let client = mail_ui_kit::live::client();
+            let client = crate::live::client();
             let secrets = seams().secrets;
             let looks = looks.clone();
             async move {
@@ -148,7 +148,7 @@ fn open_with(
         return;
     }
     working.set(Busy::Working);
-    let client = mail_ui_kit::live::client();
+    let client = crate::live::client();
     let secrets = seams().secrets;
     // Spawned from a press, which is where a task is polled.
     spawn(async move {
@@ -169,7 +169,7 @@ fn open_with(
 /// One thing the reader says about a message's protection: a signature that does not check is a
 /// banner nobody can miss, one that is believed only in part a warning; the rest are a line in the
 /// status colour that fits.
-pub(super) fn said_line(at: usize, said: Said) -> Element {
+pub fn said_line(at: usize, said: Said) -> Element {
     match said.tone {
         Tone::Bad => {
             rsx! { InlineBanner { key: "{at}", severity: Severity::Danger, text: said.text } }

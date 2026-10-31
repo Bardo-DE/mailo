@@ -21,13 +21,13 @@ use dioxus::prelude::*;
 
 use super::{Busy, Tried};
 use mail_client::password::Password;
-use mail_ui_kit::press::{available, on_primary};
+use crate::press::{available, on_primary};
 
 /// The field and its button: `prompt` says what it is for, `act` is the button's words, `noun`
 /// what the secret is called ("Passphrase" when not given). `on_unlock` is handed what was typed
 /// and owns it from then on.
 #[component]
-pub(in crate::ui) fn Unlock(
+pub fn Unlock(
     prompt: String,
     tried: Tried,
     act: String,
@@ -65,13 +65,13 @@ pub(in crate::ui) fn Unlock(
 }
 
 /// What is said when the passphrase typed did not open the key.
-pub(in crate::ui) const WRONG: &str = "Wrong passphrase.";
+pub const WRONG: &str = "Wrong passphrase.";
 
 /// The field and its button, nothing else: for a place that says the prompt itself (the
 /// composer's banner, which says it as the banner's text). `prompt` names the field for
 /// assistive technology; `validity` is the field's own refusal of what was last typed.
 #[component]
-pub(in crate::ui) fn Passphrase(
+pub fn Passphrase(
     prompt: String,
     act: String,
     noun: Option<String>,

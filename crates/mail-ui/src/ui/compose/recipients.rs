@@ -6,8 +6,8 @@
 use ds::prelude::Icon;
 use mail_client::Client;
 
-use super::super::contacts::book::suggest;
-use super::super::contacts::groups::Offer;
+use mail_ui_kit::book::suggest;
+use mail_client::contacts::groups::Offer;
 use super::float::people_rows;
 use super::page::{Float, List, Misread, Page, person};
 use mail_editor::Person;

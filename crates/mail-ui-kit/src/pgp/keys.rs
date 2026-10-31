@@ -21,13 +21,13 @@ use std::path::{Path, PathBuf};
 use super::certs::CertJob;
 use super::{Seams, short, who};
 use mail_client::pgp::WithSecret;
-use mail_ui_kit::data::AccountRow;
+use crate::data::AccountRow;
 
-pub(in crate::ui) use super::keys_page::{KeysPage, Whose};
+pub use super::keys_page::{KeysPage, Whose};
 
 /// The keys in the order the page lists them: the user's own — those whose secret half the
 /// keyring holds — first, then everyone else's, each group as the client orders it.
-pub(in crate::ui) fn ordered(keys: Vec<PgpKey>) -> Vec<PgpKey> {
+pub fn ordered(keys: Vec<PgpKey>) -> Vec<PgpKey> {
     let (mut own, others): (Vec<PgpKey>, Vec<PgpKey>) = keys
         .into_iter()
         .partition(|key| key.secret == SecretHeld::Held);
@@ -37,7 +37,7 @@ pub(in crate::ui) fn ordered(keys: Vec<PgpKey>) -> Vec<PgpKey> {
 
 /// The addresses of the user's sending accounts that have no key of their own yet: what
 /// Generate is offered for.
-pub(in crate::ui) fn keyless(client: &Client, rows: &[AccountRow]) -> Vec<String> {
+pub(crate) fn keyless(client: &Client, rows: &[AccountRow]) -> Vec<String> {
     rows.iter()
         .filter(|row| !row.is_local())
         .map(|row| row.address.clone())
@@ -47,7 +47,7 @@ pub(in crate::ui) fn keyless(client: &Client, rows: &[AccountRow]) -> Vec<String
 
 /// Something the page does off the thread that draws.
 #[derive(Debug)]
-pub(in crate::ui) enum Job {
+pub enum Job {
     Generate(String),
     Import,
     SavePublic(PgpKey),
@@ -59,19 +59,19 @@ pub(in crate::ui) enum Job {
 
 /// What a job came to.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(in crate::ui) enum Done {
+pub enum Done {
     /// What the page says afterwards.
     Said(String),
     /// The file at this path is an identity that needs its password: the page asks for it.
     Password(PathBuf),
     /// A key or a certificate with no secret half was deleted: what the page says, with an Undo
     /// that puts it back.
-    Gone(String, Box<mail_ui_kit::motion::Restore>),
+    Gone(String, Box<crate::motion::Restore>),
 }
 
 /// Do `job`. Blocks — on the keyring, a file dialog, the disk — so the page runs it on a
 /// blocking thread.
-pub(in crate::ui) fn work(client: &Client, seams: &Seams, job: Job) -> Result<Done, String> {
+pub fn work(client: &Client, seams: &Seams, job: Job) -> Result<Done, String> {
     let secrets = seams.secrets.as_ref();
     let said = match job {
         Job::Cert(job) => return super::certs::work(client, seams, job),
@@ -118,7 +118,7 @@ pub(in crate::ui) fn work(client: &Client, seams: &Seams, job: Job) -> Result<Do
             if key.secret == SecretHeld::Absent {
                 return Ok(Done::Gone(
                     said,
-                    Box::new(mail_ui_kit::motion::Restore::Key(key)),
+                    Box::new(crate::motion::Restore::Key(key)),
                 ));
             }
             said

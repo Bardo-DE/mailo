@@ -16,7 +16,7 @@ use dioxus::prelude::*;
 use mail_client::Client;
 use mail_domain::{Draft, Fingerprint};
 
-use super::super::pgp::{Busy, Passphrase, Scheme, Tried, WRONG, seams, short};
+use mail_ui_kit::pgp::{Busy, Passphrase, Scheme, Tried, WRONG, seams, short};
 use mail_client::password::Password;
 use mail_client::pgp::PgpError;
 use mail_client::smime::SmimeError;
@@ -84,7 +84,7 @@ pub(in crate::ui) fn sealable(
 /// and what the lookups found in words.
 pub(in crate::ui) fn look_up(
     client: &Client,
-    lookup: &super::super::pgp::Lookup,
+    lookup: &mail_ui_kit::pgp::Lookup,
     draft: &Draft,
     addresses: &[String],
     now: DateTime<Utc>,

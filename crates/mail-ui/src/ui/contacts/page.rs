@@ -31,7 +31,7 @@ use mail_client::contacts::people::Details;
 use mail_client::contacts::{CardId, GroupHome, GroupId, PersonCard};
 use mail_pim::Postal;
 
-use super::book;
+use mail_ui_kit::book;
 use mail_ui_kit::motion::{Follow, tell};
 use mail_ui_kit::pick::{Ask, choose, file_name};
 use mail_ui_kit::press::on_primary;

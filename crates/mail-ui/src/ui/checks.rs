@@ -11,7 +11,7 @@
 //! shows nothing — fetching it to find out would be a POP3 `RETR`, which marks it read. What its
 //! OpenPGP or S/MIME says is the seal's to find; this reads what the seal kept.
 
-use crate::ui::pgp::{Look, Mark, Said, Tone};
+use mail_ui_kit::pgp::{Look, Mark, Said, Tone};
 use dioxus::prelude::*;
 use ds::base::geometry::placement::{Align, Side};
 use ds::components::content::label::{LabelRole, LabelStyle};
@@ -206,7 +206,7 @@ fn said_in_popover(at: usize, said: Said) -> Element {
 #[cfg(test)]
 mod tests {
     use super::{Trust, trust_of};
-    use crate::ui::pgp::{Look, Mark, Opened, Said, Scheme, Tone};
+    use mail_ui_kit::pgp::{Look, Mark, Opened, Said, Scheme, Tone};
     use mail_client::auth::Standing;
     use mail_mime::{AuthResults, Check, Verdict};
 
@@ -281,7 +281,7 @@ mod tests {
                 "locked",
                 Some(Look::Locked {
                     key: mail_domain::Fingerprint::V4([7; 20]),
-                    tried: crate::ui::pgp::Tried::Nothing,
+                    tried: mail_ui_kit::pgp::Tried::Nothing,
                 }),
                 None,
                 None,

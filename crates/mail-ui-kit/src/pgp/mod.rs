@@ -14,29 +14,29 @@
 //!
 //! A passphrase typed to unlock a key, or a PKCS#12 file's password, is a
 //! [`Password`](mail_client::password::Password): moved from the field into the one call that needs
-//! it, and dropped with it. It is never in a signal, the [`Shell`](mail_ui_kit::view::Shell), the
+//! it, and dropped with it. It is never in a signal, the [`Shell`](crate::view::Shell), the
 //! client, a file or a log.
 
 mod actions;
-mod certs;
-mod key_row;
-pub(in crate::ui) mod keys;
+pub mod certs;
+pub mod key_row;
+pub mod keys;
 mod keys_page;
 mod look;
-mod said;
-mod seal;
+pub mod said;
+pub mod seal;
 mod unlock;
 
-#[cfg(test)]
-pub(in crate::ui) use look::Opened;
-pub(in crate::ui) use look::{
+#[cfg(any(test, feature = "testing"))]
+pub use look::Opened;
+pub use look::{
     Look, Mark, attachments, cached, last, lookup, save_attachment, unlock,
 };
-#[cfg(test)]
-pub(in crate::ui) use said::doubt;
-pub(in crate::ui) use said::{Said, Tone, said, said_smime, whose};
-pub(in crate::ui) use seal::Seal;
-pub(in crate::ui) use unlock::{Passphrase, Unlock, WRONG};
+#[cfg(any(test, feature = "testing"))]
+pub use said::doubt;
+pub use said::{Said, Tone, said, said_smime, whose};
+pub use seal::Seal;
+pub use unlock::{Passphrase, Unlock, WRONG};
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -46,27 +46,33 @@ use mail_client::prelude::SigningStore;
 use mail_domain::*;
 
 /// Look a key up by its address's domain. Blocks on the network: run it off the thread that draws.
-pub(in crate::ui) type Lookup =
+pub type Lookup =
     dyn Fn(&Client, &str) -> Result<Option<PgpKey>, String> + Send + Sync;
 /// Ask for a file to read. Blocks until the dialog is answered.
-pub(in crate::ui) type PickFile = dyn Fn() -> Option<PathBuf> + Send + Sync;
+pub(crate) type PickFile = dyn Fn() -> Option<PathBuf> + Send + Sync;
 /// Ask where to write a file, suggesting a name. Blocks until the dialog is answered.
-pub(in crate::ui) type SaveFile = dyn Fn(&str) -> Option<PathBuf> + Send + Sync;
+pub(crate) type SaveFile = dyn Fn(&str) -> Option<PathBuf> + Send + Sync;
 
 /// The window's reach into the world for keys and certificates: the keyring, the Web Key
 /// Directory and the file dialogs, handed in as a context so tests reach none of them.
 #[derive(Clone)]
-pub(in crate::ui) struct Seams {
+pub struct Seams {
     pub secrets: Arc<dyn SigningStore>,
     pub lookup: Arc<Lookup>,
     pub pick: Arc<PickFile>,
     pub save: Arc<SaveFile>,
 }
 
+impl std::fmt::Debug for Seams {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Seams")
+    }
+}
+
 impl Seams {
     /// The system keyring, the network and the desktop's dialogs: the launched window's, handed
     /// as a root context there (`launch::native`) and nowhere else.
-    pub(in crate::ui) fn real(client: &mail_client::Client) -> Seams {
+    pub fn real(client: &mail_client::Client) -> Seams {
         Seams {
             secrets: client.net().signing(),
             lookup: Arc::new(|client, address| {
@@ -94,28 +100,28 @@ impl Seams {
 }
 
 /// The seams the window's root handed, else ones that reach nothing.
-pub(in crate::ui) fn seams() -> Seams {
+pub fn seams() -> Seams {
     dioxus::prelude::try_consume_context::<Seams>().unwrap_or_else(Seams::none)
 }
 
-pub(in crate::ui) use mail_client::message::Tried;
+pub use mail_client::message::Tried;
 
 /// Whether something started by a press is still running, so a second press starts nothing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::ui) enum Busy {
+pub enum Busy {
     Idle,
     Working,
 }
 
 /// Which protection a message carries, or a draft asks for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::ui) enum Scheme {
+pub enum Scheme {
     OpenPgp,
     Smime,
 }
 
 impl Scheme {
-    pub(in crate::ui) fn name(self) -> &'static str {
+    pub fn name(self) -> &'static str {
         match self {
             Scheme::OpenPgp => "OpenPGP",
             Scheme::Smime => "S/MIME",
@@ -124,16 +130,16 @@ impl Scheme {
 }
 
 /// A key's short name: its key id, in the groups of four people read fingerprints aloud in.
-pub(in crate::ui) fn short(fingerprint: Fingerprint) -> String {
+pub fn short(fingerprint: Fingerprint) -> String {
     grouped(&fingerprint.key_id().to_string())
 }
 
 /// A certificate's short name: the first eight bytes of its fingerprint, grouped the same way.
-pub(in crate::ui) fn cert_short(fingerprint: CertFingerprint) -> String {
+pub fn cert_short(fingerprint: CertFingerprint) -> String {
     grouped(&fingerprint.to_string()[..16])
 }
 
-fn grouped(hex: &str) -> String {
+pub fn grouped(hex: &str) -> String {
     hex.as_bytes()
         .chunks(4)
         .map(|c| String::from_utf8_lossy(c).into_owned())
@@ -142,7 +148,7 @@ fn grouped(hex: &str) -> String {
 }
 
 /// Who a key is for, as its first user id says, else its first address.
-pub(in crate::ui) fn who(key: &PgpKey) -> String {
+pub fn who(key: &PgpKey) -> String {
     key.user_ids
         .first()
         .or(key.emails.first())
@@ -150,13 +156,3 @@ pub(in crate::ui) fn who(key: &PgpKey) -> String {
         .unwrap_or_else(|| "a key with no name".to_owned())
 }
 
-#[cfg(test)]
-pub(in crate::ui) mod certs_tests;
-#[cfg(test)]
-pub(in crate::ui) mod keys_tests;
-#[cfg(test)]
-mod look_tests;
-#[cfg(test)]
-mod smime_tests;
-#[cfg(test)]
-pub(in crate::ui) mod tests;

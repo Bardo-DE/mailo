@@ -15,13 +15,13 @@ use super::certs::{IMPORT, cert_items, quiet_item};
 use super::key_row::{Asking, Confirm, KeyRow};
 use super::keys::{Done, Job, keyless, ordered, work};
 use super::{Busy, seams, who};
-use mail_ui_kit::common::{Told, add_mark};
-use mail_ui_kit::press::{available, on_primary};
+use crate::common::{Told, add_mark};
+use crate::press::{available, on_primary};
 use mail_ui_model::copy;
 
 /// Whose keys and certificates a [`KeysPage`] lists.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(in crate::ui) enum Whose {
+pub enum Whose {
     /// One account's own, by its address: what signs and decrypts its mail.
     Account(String),
     /// Every other: correspondents', authorities', and the user's own for an address no
@@ -32,7 +32,7 @@ pub(in crate::ui) enum Whose {
 impl Whose {
     /// Whether a key or certificate for `emails`, whose secret half is `secret`, is listed here,
     /// `accounts` being the addresses of the accounts here, lowercased.
-    pub(in crate::ui) fn lists(
+    pub fn lists(
         &self,
         emails: &[String],
         secret: SecretHeld,
@@ -48,14 +48,14 @@ impl Whose {
 
 /// The group: its rows, then what the last act came to under them.
 #[component]
-pub(in crate::ui) fn KeysPage(whose: Whose) -> Element {
+pub fn KeysPage(whose: Whose) -> Element {
     // Every change, and a toast's Undo that puts a deleted key back, moves the store.
-    let _ = mail_ui_kit::live::moved_for(mail_client::Topics::KEYS | mail_client::Topics::ACCOUNTS);
+    let _ = crate::live::moved_for(mail_client::Topics::KEYS | mail_client::Topics::ACCOUNTS);
     let mut said = use_signal(|| None::<Result<String, String>>);
     let mut busy = use_signal(|| Busy::Idle);
     let mut confirm = use_signal(|| Confirm::Nothing);
-    let client = mail_ui_kit::live::client();
-    let rows = mail_ui_kit::data::use_account_rows();
+    let client = crate::live::client();
+    let rows = crate::data::use_account_rows();
     let accounts: Vec<String> = rows
         .read()
         .iter()
@@ -66,7 +66,7 @@ pub(in crate::ui) fn KeysPage(whose: Whose) -> Element {
         Ok(keys) => (ordered(keys), None),
         Err(why) => (
             Vec::new(),
-            Some(mail_ui_kit::remedy::plainly(
+            Some(crate::remedy::plainly(
                 mail_ui_model::copy::errors::NOT_READ_HERE,
                 why,
             )),
@@ -76,7 +76,7 @@ pub(in crate::ui) fn KeysPage(whose: Whose) -> Element {
         Ok(certs) => (super::certs::ordered(certs), None),
         Err(why) => (
             Vec::new(),
-            Some(mail_ui_kit::remedy::plainly(
+            Some(crate::remedy::plainly(
                 mail_ui_model::copy::errors::NOT_READ_HERE,
                 why,
             )),
@@ -104,9 +104,9 @@ pub(in crate::ui) fn KeysPage(whose: Whose) -> Element {
         }
         busy.set(Busy::Working);
         said.set(None);
-        let client = mail_ui_kit::live::client();
+        let client = crate::live::client();
         let seams = seams();
-        let motion = mail_ui_kit::motion::motion();
+        let motion = crate::motion::motion();
         spawn(async move {
             let done = tokio::task::spawn_blocking(move || work(&client, &seams, job))
                 .await
@@ -116,7 +116,7 @@ pub(in crate::ui) fn KeysPage(whose: Whose) -> Element {
                 Ok(Done::Password(path)) => confirm.set(Confirm::Password(path)),
                 // Said in the toast with its Undo; on the page only with no window to toast in.
                 Ok(Done::Gone(text, restore)) => {
-                    if let Err(text) = mail_ui_kit::motion::offer_restore(motion, text, *restore) {
+                    if let Err(text) = crate::motion::offer_restore(motion, text, *restore) {
                         said.set(Some(Ok(text)));
                     }
                 }

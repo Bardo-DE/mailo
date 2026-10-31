@@ -475,7 +475,7 @@ async fn a_root_without_the_programs_sign_in_offers_no_redirect_and_reaches_noth
         assert!(offered.is_empty(), "{name}: offered {offered:?}");
         // The keys' seams too: no lookup and no keyring of the user's.
         let looked = dom.in_scope(ScopeId::APP, || {
-            let seams = crate::ui::pgp::seams();
+            let seams = mail_ui_kit::pgp::seams();
             (seams.lookup)(&mail_ui_kit::live::client(), "ada@example.test")
         });
         assert!(looked.is_err(), "{name}: a lookup was made");

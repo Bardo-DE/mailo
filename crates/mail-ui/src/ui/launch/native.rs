@@ -78,7 +78,7 @@ pub(super) fn run(opening: Opening) -> Result<(), ds_blitz::LaunchError> {
     // account page): no browser, no issuer, no keyring, no dialog.
     let sign_ins =
         crate::ui::add_account::DirectSignIns::real(client.clone(), client.net().oauth_clients());
-    let keys = crate::ui::pgp::Seams::real(&client);
+    let keys = mail_ui_kit::pgp::Seams::real(&client);
     let removals = crate::ui::settings_window::AccountSeams::real(&client);
     // The keys the person chose, as the windows open: quire lays them over the system's keymap
     // for every window, so they are the keymap's own chords. A change made in Settings reaches

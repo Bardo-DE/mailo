@@ -39,7 +39,7 @@ fn a_person_the_ranker_put_on_top_is_the_books_best_match() {
     let (store, _dir) = crate::ui::contacts::tests::the_book();
     let drawn = people_for(&store, "da");
     let book: Vec<String> =
-        crate::ui::contacts::book::suggest(&crate::ui::fixtures::client(&store), "da")
+        mail_ui_kit::book::suggest(&crate::ui::fixtures::client(&store), "da")
             .into_iter()
             .map(|person| person.address)
             .collect();

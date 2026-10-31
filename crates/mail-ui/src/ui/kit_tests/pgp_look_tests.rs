@@ -7,8 +7,8 @@ use mail_core::testing::MapSigningStore;
 use mail_crypto::openpgp::Cert;
 use mail_domain::*;
 
-use super::tests::{ME, arrive, own_key, reader_looking, sealed, someone_elses, until};
-use super::{Look, lookup, save_attachment};
+use super::pgp_tests::{ME, arrive, own_key, reader_looking, sealed, someone_elses, until};
+use mail_ui_kit::pgp::{Look, lookup, save_attachment};
 use crate::ui::fixtures::seeded;
 use mail_core::message::{Looks, Read};
 
@@ -46,7 +46,7 @@ async fn an_openpgp_message_opened_lists_what_is_attached_inside_and_saves_it_wh
     // What was attached inside is listed; the ciphertext it arrived in is not.
     assert!(page.contains("map.bin"), "{page}");
     assert!(
-        !super::tests::without_leaving(&page).contains("encrypted.asc"),
+        !super::pgp_tests::without_leaving(&page).contains("encrypted.asc"),
         "{page}"
     );
     let saved = save_attachment(

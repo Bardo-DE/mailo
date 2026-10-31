@@ -33,7 +33,6 @@ mod marked;
 mod no_account;
 mod organise;
 mod page;
-mod pgp;
 mod print;
 mod provider_chip;
 pub mod reading;

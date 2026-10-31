@@ -365,7 +365,7 @@ pub(in crate::ui) struct Page {
     pub people: Vec<Person>,
     /// The contact groups offered above [`Page::people`] for what is typed in To or Cc, each
     /// already expanded to its members.
-    pub groups: Vec<crate::ui::contacts::groups::Offer>,
+    pub groups: Vec<mail_client::contacts::groups::Offer>,
     pub misread: Option<Misread>,
     pub notice: Option<String>,
 }

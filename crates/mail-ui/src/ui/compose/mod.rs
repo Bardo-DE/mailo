@@ -416,7 +416,7 @@ fn send_page(
     passphrase: Option<Password>,
 ) {
     let client = mail_ui_kit::live::client();
-    let secrets = super::pgp::seams().secrets;
+    let secrets = mail_ui_kit::pgp::seams().secrets;
     let sent = life::send(
         &client,
         secrets.as_ref(),
@@ -485,7 +485,7 @@ fn seal_act(mut page: Signal<Page>, desk: Desk, folding: Folding, act: BarAct) {
         BarAct::LookUp(addresses) => {
             page.write().seal_bar = SealBar::Looking(addresses.clone());
             let client = mail_ui_kit::live::client();
-            let lookup = super::pgp::seams().lookup;
+            let lookup = mail_ui_kit::pgp::seams().lookup;
             let draft = page.peek().draft;
             spawn(async move {
                 let done = tokio::task::spawn_blocking(move || {

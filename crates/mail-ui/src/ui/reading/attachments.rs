@@ -570,7 +570,7 @@ fn write(
             .attach()
             .save(message, part.index, dir)
             .map_err(String::from),
-        Kept::Opened => super::super::pgp::save_attachment(looks, message, body, part.index, dir),
+        Kept::Opened => mail_ui_kit::pgp::save_attachment(looks, message, body, part.index, dir),
         Kept::OnServer => fetch::fetch_then_save(client, fetchers, message, part.index, dir),
     }
 }

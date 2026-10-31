@@ -18,7 +18,7 @@ use mail_crypto::openpgp::{self, Cert, SecretCert, Unlocking};
 use mail_domain::*;
 use rand::SeedableRng;
 
-use super::{Said, Seams, Tone, said};
+use mail_ui_kit::pgp::{Said, Seams, Tone, said};
 use crate::ui::fixtures::{
     Seen, acct_account, click, dispatching, rebuild_into, seeded, type_into,
 };
@@ -502,7 +502,7 @@ fn every_tone_draws_its_own_look() {
             rsx! {
                 div { class: "seal",
                     for (at, tone) in tones.into_iter().enumerate() {
-                        {super::seal::said_line(at, super::said::Said { tone, text: format!("line {at}") })}
+                        {mail_ui_kit::pgp::seal::said_line(at, mail_ui_kit::pgp::said::Said { tone, text: format!("line {at}") })}
                     }
                 }
             }
@@ -590,7 +590,7 @@ async fn a_signature_by_a_key_not_held_cannot_be_checked_and_does_not_look_good(
     assert_eq!(mark(&page).as_deref(), Some("unconfirmed"), "{page}");
     assert!(lines(&page).is_empty(), "nothing is wrong: {page}");
     let said = trust_lines(&mut dom, &seen);
-    let issuer = super::grouped(&bea.fingerprint().key_id().to_string());
+    let issuer = mail_ui_kit::pgp::grouped(&bea.fingerprint().key_id().to_string());
     assert_eq!(
         said[0],
         (
@@ -676,7 +676,7 @@ const ASKED: &str = "Passphrase for key";
 fn field(seen: &Seen, key: Fingerprint) -> dioxus_core::ElementId {
     seen.one(
         "aria-label",
-        &format!("Passphrase: Passphrase for key {}", super::short(key)),
+        &format!("Passphrase: Passphrase for key {}", mail_ui_kit::pgp::short(key)),
     )
 }
 

@@ -6,7 +6,7 @@
 
 use dioxus::prelude::*;
 
-use super::book;
+use mail_ui_kit::book;
 use mail_ui_kit::motion::{Follow, tell};
 use mail_ui_kit::pick::{Ask, choose, file_name};
 use mail_ui_model::copy;

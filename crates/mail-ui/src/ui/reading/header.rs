@@ -133,7 +133,7 @@ fn FullHead(
     let looks = mail_ui_kit::cache::use_looks();
     // Moved by the seal once it knows; what it found is kept in `looks`, and read here.
     let _ = landed();
-    let look = crate::ui::pgp::last(&looks, message.id, message.body.raw());
+    let look = mail_ui_kit::pgp::last(&looks, message.id, message.body.raw());
     let results = checks();
     let trust = trust_of(look.as_ref(), results.as_ref().and_then(Option::as_ref));
     let (short, full) = when;

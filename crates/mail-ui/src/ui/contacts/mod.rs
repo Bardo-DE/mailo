@@ -6,10 +6,8 @@
 //! ([`page`]) only draw and say what they answer. CardDAV sync stays on the command line: it
 //! needs a URL and a password.
 
-pub(in crate::ui) mod book;
 mod cards;
 mod editor;
-pub(in crate::ui) mod groups;
 pub(in crate::ui) mod page;
 
 pub(in crate::ui) use cards::{export_cards, import_cards};

@@ -28,14 +28,14 @@ use super::{Busy, Seams, cert_short, whose};
 use mail_client::password::Password;
 use mail_client::pgp::WithSecret;
 use mail_client::smime::SmimeError;
-use mail_ui_kit::common::tagged;
-use mail_ui_kit::common::{add_mark, tile};
-use mail_ui_kit::press::{available, on_primary};
+use crate::common::tagged;
+use crate::common::{add_mark, tile};
+use crate::press::{available, on_primary};
 use mail_ui_model::copy::menus;
 
 /// The certificates in the order the sheet lists them: the user's own — those whose private
 /// key the keyring holds — first, then everyone else's, each group as the client orders it.
-pub(in crate::ui) fn ordered(certs: Vec<SmimeCert>) -> Vec<SmimeCert> {
+pub fn ordered(certs: Vec<SmimeCert>) -> Vec<SmimeCert> {
     let (mut own, others): (Vec<SmimeCert>, Vec<SmimeCert>) = certs
         .into_iter()
         .partition(|cert| cert.secret == SecretHeld::Held);
@@ -45,7 +45,7 @@ pub(in crate::ui) fn ordered(certs: Vec<SmimeCert>) -> Vec<SmimeCert> {
 
 /// Something the certificates' half of the sheet does off the thread that draws.
 #[derive(Debug)]
-pub(in crate::ui) enum CertJob {
+pub enum CertJob {
     /// Pick a file and import it, asking its password if it turns out to need one.
     Import,
     /// Import the identity file at this path with the password typed for it.
@@ -56,7 +56,7 @@ pub(in crate::ui) enum CertJob {
 }
 
 /// Do `job`. Blocks — on the keyring, a file dialog, the disk.
-pub(in crate::ui) fn work(client: &Client, seams: &Seams, job: CertJob) -> Result<Done, String> {
+pub fn work(client: &Client, seams: &Seams, job: CertJob) -> Result<Done, String> {
     let secrets = seams.secrets.as_ref();
     let said = match job {
         CertJob::Import => {
@@ -102,7 +102,7 @@ pub(in crate::ui) fn work(client: &Client, seams: &Seams, job: CertJob) -> Resul
             if cert.secret == SecretHeld::Absent {
                 return Ok(Done::Gone(
                     said,
-                    Box::new(mail_ui_kit::motion::Restore::Cert(cert)),
+                    Box::new(crate::motion::Restore::Cert(cert)),
                 ));
             }
             said
@@ -152,7 +152,7 @@ fn source(cert: &SmimeCert) -> &'static str {
 }
 
 /// How long a certificate holds, in words.
-pub(in crate::ui) fn validity(cert: &SmimeCert, now: DateTime<Utc>) -> String {
+pub fn validity(cert: &SmimeCert, now: DateTime<Utc>) -> String {
     let day = |at: DateTime<Utc>| at.format("%Y-%m-%d").to_string();
     if cert.not_after < now {
         format!("expired {}", day(cert.not_after))
@@ -276,10 +276,10 @@ fn CertRow(cert: SmimeCert, confirm: Signal<Confirm>, run: Callback<Job>, busy: 
     let onpick = move |act: Act| match act {
         Act::Copy => {
             if let Ok(pem) = mail_client::smime::certs::export(&acted) {
-                mail_ui_kit::hover::copy(&pem);
-                mail_ui_kit::motion::tell(
+                crate::hover::copy(&pem);
+                crate::motion::tell(
                     "Certificate copied".to_owned(),
-                    mail_ui_kit::motion::Follow::Nothing,
+                    crate::motion::Follow::Nothing,
                 );
             }
         }

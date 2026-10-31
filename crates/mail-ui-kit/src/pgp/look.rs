@@ -16,12 +16,12 @@ use mail_mime::Parsed;
 
 use super::{Said, Scheme, Tried, said, said_smime};
 use mail_client::password::Password;
-use mail_ui_kit::text::{AttachmentRow, Kept as Where};
+use crate::text::{AttachmentRow, Kept as Where};
 
 /// What a protected message's glyph in the reader's head says at a glance: the best thing that
 /// can be said for it. What went wrong is a banner of its own (`seal::Seal`), not a glyph.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::ui) enum Mark {
+pub enum Mark {
     /// Encrypted, and opened for reading.
     Encrypted,
     /// Signed, and the signature checks.
@@ -42,7 +42,7 @@ fn mark_of(encrypted: bool, signed: bool) -> Mark {
 
 /// A message opened: what to say about it, and the body to show in place of the stored one.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(in crate::ui) struct Opened {
+pub struct Opened {
     /// Which protection it carries.
     pub scheme: Scheme,
     /// Its glyph in the head.
@@ -55,7 +55,7 @@ pub(in crate::ui) struct Opened {
 
 /// What opening a message found, as the reader keeps it.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(in crate::ui) enum Look {
+pub enum Look {
     /// It carries no OpenPGP or S/MIME, or only its headers are here.
     Plain,
     Opened(Box<Opened>),
@@ -118,7 +118,7 @@ fn scheme_of(scheme: mail_client::message::Scheme) -> Scheme {
 }
 
 /// What was found for `message` holding `body`, if it was opened under the keys held now.
-pub(in crate::ui) fn cached(
+pub fn cached(
     looks: &Looks,
     message: MessageId,
     body: Option<BlobId>,
@@ -130,14 +130,14 @@ pub(in crate::ui) fn cached(
 /// beside the body that opening showed, until the message is opened again. The head's glyph
 /// reads this, so a key added or removed elsewhere never leaves the glyph saying less than the
 /// body it sits over.
-pub(in crate::ui) fn last(looks: &Looks, message: MessageId, body: Option<BlobId>) -> Option<Look> {
+pub fn last(looks: &Looks, message: MessageId, body: Option<BlobId>) -> Option<Look> {
     looks.sealed_last(message, body).map(look_of)
 }
 
 /// [`cached`], else the message opened with no passphrase, remembered. This decrypts and may
 /// read the keyring: it runs on a blocking thread, for a message the reader has open, and
 /// nowhere else.
-pub(in crate::ui) fn lookup(
+pub fn lookup(
     looks: &Looks,
     client: &Client,
     secrets: &dyn SigningStore,
@@ -153,7 +153,7 @@ pub(in crate::ui) fn lookup(
 
 /// Open `message` again with the passphrase typed for it, and keep what that found. The
 /// passphrase is dropped when this returns. Runs on a blocking thread, and only from Unlock.
-pub(in crate::ui) fn unlock(
+pub fn unlock(
     looks: &Looks,
     client: &Client,
     secrets: &dyn SigningStore,
@@ -171,7 +171,7 @@ pub(in crate::ui) fn unlock(
 /// The attachments to list for `message` when it was opened to a body of its own: those inside
 /// it. Its stored parts are then its wrapping — the signature, the ciphertext — and not
 /// attachments anyone sent. `None` lists what is stored.
-pub(in crate::ui) fn attachments(looks: &Looks, message: &Message) -> Option<Vec<AttachmentRow>> {
+pub fn attachments(looks: &Looks, message: &Message) -> Option<Vec<AttachmentRow>> {
     let parsed = looks.opened_body(message)?;
     Some(
         parsed
@@ -190,7 +190,7 @@ pub(in crate::ui) fn attachments(looks: &Looks, message: &Message) -> Option<Vec
 
 /// Save attachment `index` of what `message` holding `body` was opened to into `dir`, numbered
 /// as [`attachments`] lists them. Writes a file: run it off the thread that draws.
-pub(in crate::ui) fn save_attachment(
+pub fn save_attachment(
     looks: &Looks,
     message: MessageId,
     body: Option<BlobId>,

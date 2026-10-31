@@ -58,13 +58,13 @@ fn asking(store: &SqliteStore, openpgp: Option<Mode>) -> Draft {
 
 /// The page for `draft`, with `secrets` as the window's keyring.
 fn window(store: Arc<SqliteStore>, draft: Draft, secrets: Arc<MapSigningStore>) -> (Window, Seen) {
-    window_with(store, draft, crate::ui::pgp::tests::seams_with(secrets))
+    window_with(store, draft, crate::ui::kit_tests::pgp_tests::seams_with(secrets))
 }
 
 fn window_with(
     store: Arc<SqliteStore>,
     draft: Draft,
-    seams: crate::ui::pgp::Seams,
+    seams: mail_ui_kit::pgp::Seams,
 ) -> (Window, Seen) {
     crate::ui::fixtures::dispatching();
     let mut dom = VirtualDom::new_with_props(PageHarness, PageHarnessProps { draft })
@@ -253,10 +253,10 @@ async fn a_key_found_by_looking_up_clears_the_bar_and_the_send_goes_encrypted() 
     let secrets = Arc::new(MapSigningStore::default());
     mail_core::pgp::keys::generate(&store, secrets.as_ref(), "me@example.test", Utc::now())
         .unwrap();
-    let dana = crate::ui::pgp::tests::someone_elses("dana@example.test", 91);
+    let dana = crate::ui::kit_tests::pgp_tests::someone_elses("dana@example.test", 91);
     let armored = dana.public().armored().unwrap();
     let asked = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
-    let mut seams = crate::ui::pgp::tests::seams_with(secrets);
+    let mut seams = crate::ui::kit_tests::pgp_tests::seams_with(secrets);
     seams.lookup = {
         let asked = asked.clone();
         // What a domain's Web Key Directory answering would leave in the store.
@@ -356,7 +356,7 @@ async fn a_locked_key_is_asked_for_in_the_bar_and_a_wrong_passphrase_said() {
     );
     let prompt = format!(
         "Passphrase for key {}",
-        crate::ui::pgp::short(key.fingerprint())
+        mail_ui_kit::pgp::short(key.fingerprint())
     );
     let markup = until(&mut window, &mut after, |page| page.contains(&prompt)).await;
     assert!(markup.contains(&prompt), "{markup}");
@@ -429,7 +429,7 @@ pub(in crate::ui) async fn drawn_states() -> String {
     window.dom.in_runtime(|| {
         page.write().seal_bar = SealBar::Locked {
             key: Fingerprint::V4([1; 20]),
-            tried: crate::ui::pgp::Tried::Wrong,
+            tried: mail_ui_kit::pgp::Tried::Wrong,
         };
     });
     markup += &window.render();

@@ -9,6 +9,7 @@
 pub mod actions;
 pub mod appearance;
 pub mod bin;
+pub mod book;
 pub mod cache;
 pub mod clock;
 pub mod common;
@@ -34,6 +35,7 @@ pub mod move_to;
 pub mod ops;
 pub mod original;
 pub mod pasted_image;
+pub mod pgp;
 pub mod pick;
 pub mod picks;
 pub mod prefs;

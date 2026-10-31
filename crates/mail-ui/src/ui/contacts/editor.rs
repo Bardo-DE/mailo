@@ -14,7 +14,7 @@ use ds::prelude::*;
 use ds::root::common::Common;
 use mail_client::Client;
 
-use super::book;
+use mail_ui_kit::book;
 use mail_ui_kit::menu::{MenuKey, anchor_at, menu_key};
 use mail_ui_kit::motion::{Follow, tell};
 use mail_ui_kit::press::on_primary;

@@ -16,9 +16,9 @@ use mail_core::{SqliteStore, Store};
 use mail_domain::signing::{SigningKeyId, SigningKeyRef};
 use mail_domain::*;
 
-use super::keys::{KeysPage, Whose, ordered};
-use super::short;
-use super::tests::{own_key, seams_with, someone_elses};
+use mail_ui_kit::pgp::keys::{KeysPage, Whose, ordered};
+use mail_ui_kit::pgp::short;
+use super::pgp_tests::{own_key, seams_with, someone_elses};
 use crate::ui::fixtures::{
     Seen, click, dispatching, drain_seen, later, rebuild_into, right_click, seeded,
 };
@@ -30,14 +30,14 @@ fn Page() -> Element {
     rsx! {
         ds::prelude::Ds { appearance: ds::prelude::Appearance::default(), material: ds::prelude::Material::Window,
             ds::prelude::Form {
-                KeysPage { whose: Whose::Account(super::tests::ME.to_owned()) }
+                KeysPage { whose: Whose::Account(super::pgp_tests::ME.to_owned()) }
                 KeysPage { whose: Whose::Others }
             }
         }
     }
 }
 
-pub(super) fn sheet(store: &Arc<SqliteStore>, seams: super::Seams) -> (VirtualDom, Seen) {
+pub(super) fn sheet(store: &Arc<SqliteStore>, seams: mail_ui_kit::pgp::Seams) -> (VirtualDom, Seen) {
     dispatching();
     let mut dom = VirtualDom::new(Page)
         .with_root_context(crate::ui::fixtures::client(store))

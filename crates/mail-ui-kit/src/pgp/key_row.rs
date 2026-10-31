@@ -24,14 +24,14 @@ use super::keys::Job;
 use super::{Busy, Passphrase, cert_short, short, who};
 use mail_client::password::Password;
 use mail_client::pgp::WithSecret;
-use mail_ui_kit::common::tagged;
-use mail_ui_kit::common::{in_card, tile};
-use mail_ui_kit::press::{available, on_primary};
+use crate::common::tagged;
+use crate::common::{in_card, tile};
+use crate::press::{available, on_primary};
 use mail_ui_model::copy::menus;
 
 /// A question the page is asking before it acts.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(in crate::ui) enum Confirm {
+pub enum Confirm {
     Nothing,
     /// Write this key's secret half to a file.
     ExportSecret(Fingerprint),
@@ -56,7 +56,7 @@ fn source(key: &PgpKey) -> &'static str {
 
 /// When a key was made and until when it holds, as far as that is recorded. A key whose dates
 /// were never read says nothing of either, rather than "does not expire".
-pub(in crate::ui) fn lifetime(key: &PgpKey, now: DateTime<Utc>) -> Vec<String> {
+pub fn lifetime(key: &PgpKey, now: DateTime<Utc>) -> Vec<String> {
     let day = |at: DateTime<Utc>| at.format("%Y-%m-%d").to_string();
     let mut out = Vec::new();
     if let Some(created) = key.created {
@@ -74,7 +74,7 @@ pub(in crate::ui) fn lifetime(key: &PgpKey, now: DateTime<Utc>) -> Vec<String> {
 /// One key: who it is for, what is known of it, and its actions. An act that cannot be undone
 /// sets `confirm`, and the page asks ([`Asking`]).
 #[component]
-pub(in crate::ui) fn KeyRow(
+pub fn KeyRow(
     pgp: PgpKey,
     confirm: Signal<Confirm>,
     run: Callback<Job>,
@@ -131,10 +131,10 @@ pub(in crate::ui) fn KeyRow(
     let onpick = move |act: Act| match act {
         Act::Copy => {
             if let Ok(armored) = mail_client::pgp::keys::export_public(&pgp) {
-                mail_ui_kit::hover::copy(&armored);
-                mail_ui_kit::motion::tell(
+                crate::hover::copy(&armored);
+                crate::motion::tell(
                     "Public key copied".to_owned(),
-                    mail_ui_kit::motion::Follow::Nothing,
+                    crate::motion::Follow::Nothing,
                 );
             }
         }
@@ -178,9 +178,9 @@ pub(in crate::ui) fn KeyRow(
 /// or a sheet for an identity file's password. The key or certificate is read again by its
 /// fingerprint, so a question about one that is gone asks nothing.
 #[component]
-pub(in crate::ui) fn Asking(confirm: Signal<Confirm>, run: Callback<Job>, busy: Busy) -> Element {
+pub fn Asking(confirm: Signal<Confirm>, run: Callback<Job>, busy: Busy) -> Element {
     let mut confirm = confirm;
-    let client = mail_ui_kit::live::client();
+    let client = crate::live::client();
     let cancel = move || {
         AlertButton::new(
             "Cancel",

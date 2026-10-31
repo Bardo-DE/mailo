@@ -56,7 +56,7 @@ fn window(store: Arc<SqliteStore>, draft: Draft, secrets: Arc<MapSigningStore>) 
     crate::ui::fixtures::dispatching();
     let mut dom = VirtualDom::new_with_props(PageHarness, PageHarnessProps { draft })
         .with_root_context(crate::ui::fixtures::client(&store))
-        .with_root_context(crate::ui::pgp::tests::seams_with(secrets))
+        .with_root_context(crate::ui::kit_tests::pgp_tests::seams_with(secrets))
         .with_root_context(crate::ui::settings_window::SettingsWindows(ASKED.with(
             |asked| {
                 let fresh = Arc::new(crate::ui::settings_window::tests::Asked::default());

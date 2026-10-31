@@ -63,7 +63,7 @@ pub(super) fn Accounts(shell: Signal<Shell>) -> Element {
         }
         AccountsPage::OtherKeys => rsx! {
             Form {
-                crate::ui::pgp::keys::KeysPage { whose: crate::ui::pgp::keys::Whose::Others }
+                mail_ui_kit::pgp::keys::KeysPage { whose: mail_ui_kit::pgp::keys::Whose::Others }
             }
         },
     });

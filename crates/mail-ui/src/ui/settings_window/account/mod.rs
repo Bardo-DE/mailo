@@ -26,7 +26,7 @@ mod sends_as;
 mod words;
 
 use crate::ui::fetching::{Need, Needing, use_needs};
-use crate::ui::pgp::keys::Whose;
+use mail_ui_kit::pgp::keys::Whose;
 use crate::ui::reauth::SIGN_IN;
 use dioxus::prelude::*;
 use ds::components::content::label::Label;
@@ -367,7 +367,7 @@ pub(super) fn AccountPage(shell: Signal<Shell>, account: AccountId) -> Element {
                 }
             }
             if !row.is_local() {
-                crate::ui::pgp::keys::KeysPage { whose: Whose::Account(row.address.clone()) }
+                mail_ui_kit::pgp::keys::KeysPage { whose: Whose::Account(row.address.clone()) }
             }
             // Removing is the page's last part, alone and outside any group, as System Settings
             // puts it: it cannot be undone, so it asks first.

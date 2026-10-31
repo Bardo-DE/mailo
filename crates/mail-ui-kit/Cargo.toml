@@ -33,6 +33,12 @@ mail-ui-model.workspace = true
 # What an import or an export says of itself (`files`), from the operating-system seams that draw nothing.
 mail-os.workspace = true
 mail-reader.workspace = true
+# The OpenPGP and S/MIME halves are features of the library; the window uses both (`pgp/`).
+mail-mime.workspace = true
+mail-crypto = { workspace = true, features = ["openpgp", "smime"] }
+# The OS random number generator for OpenPGP key generation and sealing (`pgp/`). rPGP's own
+# `rand` generation; already in the tree.
+rand = "0.8"
 mail-editor.workspace = true
 serde.workspace = true
 # What the window logs; the program installs the one logger it goes through.
@@ -63,6 +69,8 @@ toml = "1"
 ds-blitz = { git = "https://github.com/PoHsuanLai/quire.git", rev = "e19728b7ee9e369d360c646bf5e7ed559bc3d6f9", features = ["pdf", "print", "spell"] }  # e19728b7 (v0.3.58; forks blitz 841386a7, blitz-kit fd08b468)
 blitz-dom = { workspace = true }
 dioxus-native-dom = { workspace = true }
+# A contact photo as a `data:` address (`book.rs`).
+base64 = "0.22"
 # A picture on the clipboard, pasted into the composer's body (`pasted_image.rs`): quire's
 # clipboard reads text, HTML and files only. The arboard quire's window already reads the
 # clipboard with, its `image-data` read switched on (TIFF decoding on a Mac, PNG elsewhere).

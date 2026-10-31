@@ -5489,6 +5489,7 @@ name = "mail-ui-kit"
 version = "0.1.0"
 dependencies = [
  "arboard",
+ "base64 0.22.1",
  "blitz-dom",
  "chordkit",
  "chrono",
@@ -5505,11 +5506,14 @@ dependencies = [
  "mail-os",
  "mail-store",
  "mail-ui-model",
+ "mailo-crypto",
  "mailo-domain",
  "mailo-editor",
+ "mailo-mime",
  "mailo-reader",
  "porter-core",
  "porter-provider",
+ "rand 0.8.8",
  "rfd",
  "serde",
  "serde_json",

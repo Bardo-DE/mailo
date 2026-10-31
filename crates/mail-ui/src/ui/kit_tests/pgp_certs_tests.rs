@@ -14,13 +14,13 @@ use mail_core::{SqliteStore, Store};
 use mail_domain::signing::{SigningKeyId, SigningKeyRef};
 use mail_domain::*;
 
-use super::certs::ordered;
-use super::key_row::lifetime;
-use super::keys::{KeysPage, Whose};
-use super::keys_tests::{alert_button, pick, settle};
-use super::smime_tests::{PASSWORD, identity_file, trust_root, with_identity};
-use super::tests::{own_key, seams_with};
-use super::{Seams, cert_short, short};
+use mail_ui_kit::pgp::certs::ordered;
+use mail_ui_kit::pgp::key_row::lifetime;
+use mail_ui_kit::pgp::keys::{KeysPage, Whose};
+use super::pgp_keys_tests::{alert_button, pick, settle};
+use super::pgp_smime_tests::{PASSWORD, identity_file, trust_root, with_identity};
+use super::pgp_tests::{own_key, seams_with};
+use mail_ui_kit::pgp::{Seams, cert_short, short};
 use crate::ui::fixtures::smime_support::pki;
 use crate::ui::fixtures::{
     Seen, acct_account, click, dispatching, drain_seen, rebuild_into, seeded, type_into,
@@ -32,7 +32,7 @@ fn Page() -> Element {
     rsx! {
         ds::prelude::Ds { appearance: ds::prelude::Appearance::default(), material: ds::prelude::Material::Window,
             ds::prelude::Form {
-                KeysPage { whose: Whose::Account(super::tests::ME.to_owned()) }
+                KeysPage { whose: Whose::Account(super::pgp_tests::ME.to_owned()) }
                 KeysPage { whose: Whose::Others }
             }
         }

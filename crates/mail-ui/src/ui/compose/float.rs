@@ -136,7 +136,7 @@ pub(in crate::ui) fn suggest_mention(page: &mut Page, client: &Client) {
         return;
     }
     if let Some(typed) = query(page) {
-        page.people = super::super::contacts::book::suggest(client, &typed);
+        page.people = mail_ui_kit::book::suggest(client, &typed);
     }
 }
 

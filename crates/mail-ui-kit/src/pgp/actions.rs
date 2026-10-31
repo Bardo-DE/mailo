@@ -9,12 +9,12 @@ use ds::host::measure::{Anchor, MountedRef};
 use ds::prelude::*;
 use ds::root::common::Common;
 
-use mail_ui_kit::menu::anchor_at;
+use crate::menu::anchor_at;
 use mail_ui_model::copy;
 
 /// What a key's or certificate's menu can do.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::ui) enum Act {
+pub enum Act {
     Copy,
     Save,
     ExportSecret,
@@ -26,14 +26,14 @@ pub(in crate::ui) enum Act {
 
 /// Where a row's menu is open: under its ⋯, or at a right click.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(in crate::ui) enum Opened {
+pub enum Opened {
     Closed,
     Below,
     At(Point),
 }
 
 /// One row of a menu: `act`, called `name`, led by `icon`.
-pub(in crate::ui) fn line(act: Act, name: &str, icon: Option<Icon>) -> Line<Act> {
+pub fn line(act: Act, name: &str, icon: Option<Icon>) -> Line<Act> {
     let line = Line::new(act, name);
     match icon {
         Some(icon) => line.with_image(MenuImage::Icon(icon)),
@@ -45,7 +45,7 @@ pub(in crate::ui) fn line(act: Act, name: &str, icon: Option<Icon>) -> Line<Act>
 /// actions for a screen reader ("Actions for 1A2B 3C4D"); the row sets `opened` to
 /// [`Opened::At`] for a right click.
 #[component]
-pub(in crate::ui) fn RowActions(
+pub(crate) fn RowActions(
     label: String,
     items: Vec<Line<Act>>,
     opened: Signal<Opened>,

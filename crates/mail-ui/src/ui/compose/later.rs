@@ -265,7 +265,7 @@ pub(in crate::ui) fn cancel_scheduled(shell: Signal<Shell>, draft: DraftId) -> R
 /// Undo of Cancel Sending: the draft is queued again for its time, sealed again as it asks.
 /// `false`, and nothing changes, when it cannot be: its time has passed, or its key is locked.
 pub(in crate::ui) fn send_again(client: &Client, resend: Resend) -> bool {
-    let secrets = crate::ui::pgp::seams().secrets;
+    let secrets = mail_ui_kit::pgp::seams().secrets;
     super::life::queue_reminding(
         client,
         secrets.as_ref(),
