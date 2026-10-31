@@ -5,9 +5,10 @@
 
 use chrono::{DateTime, TimeZone, Utc};
 use mail_client::Client;
-use mail_client::compose::{Leaves, PictureSize};
+use mail_client::compose::Leaves;
 use mail_client::prelude::SigningStore;
 use mail_domain::*;
+use mail_logic::picture::PictureSize;
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
@@ -314,7 +315,7 @@ pub struct Going {
 pub struct Dated<'a, Tz> {
     pub now: DateTime<Utc>,
     pub zone: &'a Tz,
-    pub clock: mail_client::when::Clock,
+    pub clock: mail_logic::when::Clock,
 }
 
 impl<Tz> std::fmt::Debug for Dated<'_, Tz> {
@@ -442,7 +443,7 @@ pub fn queue(
 /// stayed locked is [`mail_client::compose::SendError::locked`]. For a draft to be sealed this reads
 /// the keyring, and the window calls it on a blocking thread.
 ///
-/// `remind` is held as the message's follow-up reminder until it has left (`mail_client::follow_up`);
+/// `remind` is held as the message's follow-up reminder until it has left (`mail_logic::follow_up`);
 /// with none, a reminder an earlier send of the draft held goes. Its pictures go at `going.pictures`,
 /// made smaller as the bytes are frozen unless that is [`PictureSize::Actual`].
 pub(crate) fn queue_reminding(

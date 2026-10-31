@@ -92,8 +92,8 @@ pub enum PgpError {
 
 impl PgpError {
     /// The step that mends this, when there is one: the front end words it.
-    pub fn remedy(&self) -> Option<crate::Remedy> {
-        use crate::Remedy;
+    pub fn remedy(&self) -> Option<mail_logic::remedy::Remedy> {
+        use mail_logic::remedy::Remedy;
         match self {
             PgpError::NoKeyFor(_) => Some(Remedy::FindPgpKey),
             PgpError::NoOwnKey(address) => Some(Remedy::MakePgpKey {
@@ -148,8 +148,11 @@ pub async fn lookup_address(
     address: &str,
     now: DateTime<Utc>,
 ) -> Result<Option<PgpKey>, PgpError> {
-    let http = mail_runtime::wkd::client()?;
-    let Some(cert) = mail_runtime::wkd::lookup(&http, address).await? else {
+    let http = mail_net::wkd::client().map_err(RuntimeError::from)?;
+    let Some(cert) = mail_net::wkd::lookup(&http, address)
+        .await
+        .map_err(RuntimeError::from)?
+    else {
         return Ok(None);
     };
     let kept = store.put_pgp_key(cert.record(KeySource::Wkd, now, &[address]))?;

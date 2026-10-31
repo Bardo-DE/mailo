@@ -188,9 +188,14 @@ Published libraries (each package is named `mailo-*`; its folder keeps the `crat
 | `mailo-pim` (`crates/mail-pim`) | vCard, iCalendar invitations and the WebDAV/CardDAV conversation, as text in and values out. |
 | `mailo-editor` (`crates/mail-editor`) | The composer's rich-text document as pure edits: operations, undo, markdown shortcuts, slash commands, and writers to HTML and `format=flowed`. |
 | `mailo-reader` (`crates/mail-reader`) | How a received message becomes what is read: HTML sanitised and lowered to blocks, plain text and quoted tails, the script a message is written in, and the printed page. |
+| `mailo-logic` (`crates/mail-logic`) | The decisions that need no I/O: how an instant is written for a reader, what an undo reverses, how a typed time and a typed search line are read, and what a filter means. A clock or a store is passed in, never reached for. |
 
-Not published, app-side: `mail-store` (SQLite, FTS5, the outbox), `mail-runtime` (tokio and
-sockets), `mail-core` (everything the application does, with no window or terminal),
+Not published, app-side: `mail-store` (SQLite, FTS5, the outbox), `mail-net` (sockets, TLS, DNS and
+the HTTP clients, with the lookups that are one fetch; no store), `mail-secrets` (the keyrings, the
+OAuth clients, sign-in and token renewal; no store), `mail-runtime` (the protocol drivers over
+them, and the BIMI and key lookups), `mail-engine` (the engines and the scheduler that run an
+account's passes and outbox over the drivers), `mail-agent` (the per-user watch's lock and door, and the
+desktop notifications that announce new mail), `mail-core` (everything the application does, with no window or terminal),
 `mail-client` (the one door to mail: values already read, kept read as the store changes, and the
 calls the window makes), `mail-ui` (the window, with no store in its dependencies), `mail-appkit`
 (macOS only: the one place that needs `unsafe`, for the AppKit delegate), `mail-edge` (the

@@ -10,7 +10,7 @@ use crate::environment::Environment;
 use crate::error::{CoreError, Logged};
 use mail_domain::id::new_account_id;
 use mail_domain::*;
-use mail_runtime::{AccountSecrets, ClientRegistry, SecretTrouble, clients, tokens};
+use mail_secrets::{AccountSecrets, ClientRegistry, SecretTrouble, clients, tokens};
 use mail_store::{NewAccount, SqliteStore};
 use porter_core::SecretText;
 use porter_core::{AccountId, Credential, SecretKey, SecretPurpose};
@@ -257,7 +257,7 @@ pub async fn add(
         }
         (manual, _) => (manual, env.password.clone()),
     };
-    let password = secret.map(crate::password::Password::new);
+    let password = secret.map(mail_logic::password::Password::new);
     add_receiving(
         store,
         Requested { manual, ..account },
@@ -277,7 +277,7 @@ pub async fn add(
 /// Where [`add_with_password`] gets a credential, and where it keeps one.
 pub struct Credentials<'a> {
     /// The password for a password account. `None`, or an empty one, is no password.
-    pub password: Option<&'a crate::password::Password>,
+    pub password: Option<&'a mail_logic::password::Password>,
     /// The OAuth clients earlier sign-ins recorded.
     pub saved: &'a ClientRegistry,
     /// Where the password or the sign-in's token is put.
@@ -788,7 +788,7 @@ async fn graph_token(
 }
 
 /// Record a client typed in the environment in mailo's own `oauth.json` (never porter's
-/// `clients.toml`: [`mail_runtime::clients`]), so the account can be renewed later. `None` in,
+/// `clients.toml`: [`mail_secrets::clients`]), so the account can be renewed later. `None` in,
 /// nothing recorded. Returns where it was written, or `None` when this machine has no config
 /// directory to write to, which is not a failure, just an installation that will need the
 /// variable again.
@@ -816,7 +816,7 @@ pub async fn authorize(
     on_url: &dyn Fn(&str),
     now: chrono::DateTime<chrono::Utc>,
 ) -> Result<Credential, CoreError> {
-    mail_runtime::authorize::sign_in(
+    mail_secrets::authorize::sign_in(
         client,
         scopes,
         on_url,
@@ -923,7 +923,7 @@ mod tests {
         graph: bool,
         receive: crate::account::Receive,
     ) -> Result<Added, CoreError> {
-        mail_runtime::block_on(super::add(
+        mail_secrets::block_on(super::add(
             store,
             Requested {
                 address,
@@ -953,7 +953,7 @@ mod tests {
     }
 
     fn list(store: &SqliteStore) -> Result<Vec<Listed>, CoreError> {
-        mail_runtime::block_on(super::list(
+        mail_secrets::block_on(super::list(
             store,
             &porter_secrets::MemorySecrets::default(),
         ))
@@ -1060,7 +1060,10 @@ mod tests {
         let err = add_address(&store, "someone@example.test").unwrap_err();
         assert!(err.to_string().contains("gmail.com"), "{err}");
         assert!(
-            matches!(err.remedy(), Some(crate::Remedy::NameServers { .. })),
+            matches!(
+                err.remedy(),
+                Some(mail_logic::remedy::Remedy::NameServers { .. })
+            ),
             "and the step is to name the servers: {err}"
         );
     }

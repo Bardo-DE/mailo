@@ -28,6 +28,7 @@ porter-client-inproc.workspace = true
 # `Secrets`, the seam porter's service is built over; no store feature, so no keyring and no zbus.
 porter-secrets.workspace = true
 mail-domain.workspace = true
+mail-logic.workspace = true
 # Everything the window knows of mail: values read, commands made, servers asked, all through the
 # one client. No `mail-core`, `mail-store` or `mail-runtime`: a store is not something the window
 # can name. `desktop` names the desktop's notification service, which the window speaks to itself.
@@ -138,6 +139,7 @@ mail-store = { workspace = true, features = ["testing"] }
 mail-client = { workspace = true, features = ["testing"] }
 # The doubles at the runtime's seams (`mail_core::testing`): the program never has them.
 mail-core = { workspace = true, features = ["testing"] }
+mail-agent = { workspace = true, features = ["desktop"] }
 porter-secrets = { workspace = true, features = ["testing"] }
 # Read back by the window's own tests (reader blocks, print, PGP/S-MIME composer); not used by the
 # window itself, which gets them from `mail-core` and quire.

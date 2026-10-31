@@ -17,8 +17,9 @@ authors = ["Po Hsuan Lai <pohsuanlai0208@gmail.com>"]
 # applied to the window itself, and the handoff delivers it.
 
 [dependencies]
-mail-core = { workspace = true, features = ["desktop", "pdf", "keyring"] }
+mail-core = { workspace = true, features = ["pdf", "keyring"] }
 mail-domain.workspace = true
+mail-logic.workspace = true
 mail-store.workspace = true
 mail-client.workspace = true
 mail-edge.workspace = true

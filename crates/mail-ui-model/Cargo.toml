@@ -18,6 +18,7 @@ authors = ["Po Hsuan Lai <pohsuanlai0208@gmail.com>"]
 [dependencies]
 mail-client.workspace = true
 mail-domain.workspace = true
+mail-logic.workspace = true
 ds-core = { git = "https://github.com/PoHsuanLai/quire.git", rev = "e19728b7ee9e369d360c646bf5e7ed559bc3d6f9" }  # e19728b7 (v0.3.58; forks blitz 841386a7, blitz-kit fd08b468)
 ds-settings = { git = "https://github.com/PoHsuanLai/quire.git", rev = "e19728b7ee9e369d360c646bf5e7ed559bc3d6f9" }  # e19728b7 (v0.3.58; forks blitz 841386a7, blitz-kit fd08b468)
 serde.workspace = true

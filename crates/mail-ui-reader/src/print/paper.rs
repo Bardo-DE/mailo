@@ -310,7 +310,7 @@ pub fn printed<Tz>(
     pictures: Option<&Pictures<'_>>,
     zone: &Tz,
     now: chrono::DateTime<chrono::Utc>,
-    clock: mail_client::when::Clock,
+    clock: mail_logic::when::Clock,
 ) -> Result<Printed, String>
 where
     Tz: chrono::TimeZone,
@@ -322,7 +322,7 @@ where
         labels: LABELS,
         style: &style,
         missing_note: Some(PICTURES_NOTE),
-        twelve_hour: clock == mail_client::when::Clock::H12,
+        twelve_hour: clock == mail_logic::when::Clock::H12,
     };
     client
         .print()

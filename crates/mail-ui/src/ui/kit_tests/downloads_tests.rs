@@ -2,8 +2,8 @@
 
 use chrono::{DateTime, Utc};
 use ds::prelude::Icon;
-use mail_core::when::Clock;
 use mail_domain::ThreadId;
+use mail_logic::when::Clock;
 use mail_ui_kit::downloads::Origin;
 use mail_ui_kit::downloads::log::Entry;
 use mail_ui_kit::downloads::panel::{detail, icon_of};
@@ -32,7 +32,7 @@ fn a_rows_second_line() {
         subject: "  Minutes of the board ".to_owned(),
     };
     let size = mail_core::attach::human_size(2048);
-    let when = mail_client::when::upcoming(at(0), at(1), &chrono::Local, Clock::H24);
+    let when = mail_logic::when::upcoming(at(0), at(1), &chrono::Local, Clock::H24);
     let cases = [
         (
             "from a message",

@@ -21,7 +21,7 @@ use dioxus::prelude::*;
 
 use super::{Busy, Tried};
 use crate::press::{available, on_primary};
-use mail_client::password::Password;
+use mail_logic::password::Password;
 
 /// The field and its button: `prompt` says what it is for, `act` is the button's words, `noun`
 /// what the secret is called ("Passphrase" when not given). `on_unlock` is handed what was typed

@@ -229,7 +229,7 @@ fn paper_document(store: &Arc<SqliteStore>, job: Job, sources: &Sources) -> Prin
         sources,
         &chrono::Utc,
         now(),
-        mail_core::when::Clock::H24,
+        mail_logic::when::Clock::H24,
     )
     .unwrap()
 }
@@ -591,7 +591,7 @@ fn the_markers_are_the_builders_and_a_subject_cannot_add_one() {
         },
         &chrono::Utc,
         now(),
-        mail_core::when::Clock::H24,
+        mail_logic::when::Clock::H24,
     )
     .unwrap()
     .html;
@@ -1123,7 +1123,7 @@ fn print_hands_the_pdf_to_the_dialog_and_says_what_became_of_it() {
             Dated {
                 zone: &chrono::Utc,
                 now: now(),
-                clock: mail_core::when::Clock::H24,
+                clock: mail_logic::when::Clock::H24,
             },
         );
         assert_eq!(got, words);
@@ -1148,7 +1148,7 @@ fn a_thread_that_is_gone_is_said_and_no_dialog_opens() {
         Dated {
             zone: &chrono::Utc,
             now: now(),
-            clock: mail_core::when::Clock::H24,
+            clock: mail_logic::when::Clock::H24,
         },
     );
     assert!(got.starts_with("Couldn’t print:"), "{got}");

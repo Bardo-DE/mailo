@@ -28,9 +28,9 @@ use super::{Busy, Seams, cert_short, whose};
 use crate::common::tagged;
 use crate::common::{add_mark, tile};
 use crate::press::{available, on_primary};
-use mail_client::password::Password;
 use mail_client::pgp::WithSecret;
 use mail_client::smime::SmimeError;
+use mail_logic::password::Password;
 use mail_ui_model::copy::menus;
 
 /// The certificates in the order the sheet lists them: the user's own — those whose private

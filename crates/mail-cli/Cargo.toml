@@ -16,8 +16,10 @@ authors = ["Po Hsuan Lai <pohsuanlai0208@gmail.com>"]
 # `mail-intents` either: `mailo intents` is dispatched by `mail-app`.
 
 [dependencies]
-mail-core = { workspace = true, features = ["desktop", "pdf", "keyring"] }
+mail-core = { workspace = true, features = ["pdf", "keyring"] }
+mail-agent = { workspace = true, features = ["desktop"] }
 mail-domain.workspace = true
+mail-logic.workspace = true
 mail-store.workspace = true
 mail-client.workspace = true
 mail-edge.workspace = true
@@ -53,6 +55,8 @@ mail-store = { workspace = true, features = ["testing"] }
 mail-core = { workspace = true, features = ["testing"] }
 mail-crypto = { workspace = true, features = ["testing"] }
 mail-runtime.workspace = true
+mail-engine.workspace = true
+mail-secrets.workspace = true
 porter-secrets = { workspace = true, features = ["testing"] }
 image = { version = "0.25", default-features = false, features = ["ico", "png", "jpeg", "gif", "webp"] }
 rand = "0.8"
