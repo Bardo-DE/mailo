@@ -183,7 +183,7 @@ pub(super) fn ListRow(
             onmounted: move |event: MountedEvent| row_box.set(Some(MountedRef(event.data()))),
             oncontextmenu: move |event: MouseEvent| {
                 event.prevent_default();
-                row_menu.set(Some(point_rect(event.client_coordinates())));
+                row_menu.set(Some(mail_ui_kit::menu::point_rect(event.client_coordinates())));
             },
             // Shift+Enter on a focused conversation opens it in a window of its own. Stopped
             // here, so the window's own Shift+Enter does not open the open conversation as well.
@@ -316,20 +316,6 @@ fn Tags(summary: ThreadSummary, chips: Vec<String>, shown: bool) -> Element {
                 Glyph { icon: Icon::Paperclip, size: IconSize::Compact }
             }
         }
-    }
-}
-
-/// A point in the window as the rect a context menu is placed against.
-pub(in crate::ui) fn point_rect(at: dioxus::html::geometry::ClientPoint) -> Rect {
-    Rect {
-        origin: Point {
-            x: Px(at.x as f32),
-            y: Px(at.y as f32),
-        },
-        size: Size {
-            width: Px(0.0),
-            height: Px(0.0),
-        },
     }
 }
 

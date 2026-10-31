@@ -15,7 +15,6 @@ mod folder;
 mod host;
 mod live;
 mod marks;
-mod need;
 mod pass;
 mod scope;
 
@@ -38,7 +37,7 @@ pub(in crate::ui) use face::{HasRows, ListFace, list_face};
 pub(in crate::ui) use folder::opened;
 use mail_ui_model::fetching::status::{StatusLine, status_line};
 pub(in crate::ui) use marks::sync_availability;
-pub(in crate::ui) use need::{Need, Needing, needs_you, use_needs};
+use mail_ui_kit::need::{self, Need, needs_you};
 pub(in crate::ui) use pass::Passer;
 
 /// The window's mail fetching. Copy, so a handler can take it.

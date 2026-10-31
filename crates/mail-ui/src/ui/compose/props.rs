@@ -11,7 +11,7 @@
 use ds::components::content::avatar::{
     AvatarFace, AvatarShape, AvatarSize, AvatarTone, person_hue,
 };
-use ds::components::content::label::{LabelRole, LabelStyle};
+
 use ds::components::controls::button_marks::Leading;
 use ds::components::controls::button_model::Bezel;
 use ds::components::controls::chip::{Chip, ChipVariant};
@@ -28,7 +28,9 @@ use dioxus::prelude::*;
 
 use mail_ui_kit::menus::snooze_help;
 use super::later::{PICK_KEY, PICK_LABEL};
-use super::page::{Float, Guard, List, Page, PageKind, When};
+use super::page::{Float, Guard, Page, PageKind, When};
+use mail_ui_kit::lines::{Line, list_label};
+use mail_ui_kit::lines::List;
 use super::protection::ProtectionRow;
 use super::receipt::ReceiptRow;
 use super::recipients::{commit_typed, people_items, pick_person, pop_last, remove, typed};
@@ -95,15 +97,6 @@ pub(in crate::ui) fn Props(page: Signal<Page>, shell: Signal<Shell>) -> Element 
     }
 }
 
-/// What a recipient list's row and field are called.
-pub(in crate::ui) fn list_label(list: List) -> &'static str {
-    match list {
-        List::To => "To",
-        List::Cc => "Cc",
-        List::Bcc => "Bcc",
-    }
-}
-
 /// The key that adds `list`'s row, when it has one.
 pub(in crate::ui) fn reveal_key(list: List) -> Option<Own> {
     match list {
@@ -144,28 +137,6 @@ fn Reveal(page: Signal<Page>, list: List) -> Element {
                 aria_label: Some(format!("Add {name}")),
                 ..Common::default()
             },
-        }
-    }
-}
-
-/// One header line: its name, small and secondary, on the label column's leading edge, then its
-/// value or control from the value column's edge, which every line shares. Its `data-row` is what
-/// the page's tests and its layout find it by.
-#[component]
-pub(in crate::ui) fn Line(
-    #[props(into)] label: String,
-    row: &'static str,
-    children: Element,
-) -> Element {
-    rsx! {
-        div { class: "c-line", role: "group", aria_label: "{label}", "data-row": row,
-            Label {
-                text: label.clone(),
-                role: LabelRole::Secondary,
-                style: LabelStyle::Footnote,
-                common: mail_ui_kit::common::classed("c-line-k"),
-            }
-            div { class: "c-line-v", {children} }
         }
     }
 }

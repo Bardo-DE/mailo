@@ -181,7 +181,7 @@ pub(in crate::ui) fn SenderName(shown: String, in_mail: String, address: String)
             oncontextmenu: move |event: MouseEvent| {
                 event.prevent_default();
                 event.stop_propagation();
-                asked.set(Asked::Menu(crate::ui::row::point_rect(event.client_coordinates())));
+                asked.set(Asked::Menu(mail_ui_kit::menu::point_rect(event.client_coordinates())));
             },
             onmounted: move |event: MountedEvent| at.set(Some(MountedRef(event.data()))),
             Label { text: shown, style: LabelStyle::Headline, common: mail_ui_kit::common::classed("truncate") }

@@ -287,3 +287,17 @@ pub fn narrowed(items: &[MenuItem], query: &str) -> Vec<MenuItem> {
 
 #[cfg(test)]
 mod tests;
+
+/// A point in the window as the rect a context menu is placed against.
+pub fn point_rect(at: dioxus::html::geometry::ClientPoint) -> Rect {
+    Rect {
+        origin: Point {
+            x: Px(at.x as f32),
+            y: Px(at.y as f32),
+        },
+        size: Size {
+            width: Px(0.0),
+            height: Px(0.0),
+        },
+    }
+}

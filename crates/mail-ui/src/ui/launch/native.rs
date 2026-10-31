@@ -122,7 +122,7 @@ pub(super) fn run(opening: Opening) -> Result<(), ds_blitz::LaunchError> {
         // And the page the Settings window shows next, which ⌘K and the composer turn it to.
         .with_context(crate::ui::settings_window::SettingsAsked::default())
         // And who needs to sign in again, which only the first window knows and Settings shows.
-        .with_context(crate::ui::fetching::Needing::default());
+        .with_context(mail_ui_kit::need::Needing::default());
     let config = match chosen {
         Some(chosen) => config.with_keymap_overrides(chosen),
         None => config,

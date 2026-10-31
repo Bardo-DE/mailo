@@ -9,7 +9,7 @@
 //! (`ui::checks`), with one line under the head when the sender may not be who they say.
 
 use super::super::checks::{TrustMark, trust_of, use_checks};
-use super::super::compose::{Line, List, list_label};
+use mail_ui_kit::lines::{Line, List, list_label};
 use super::sender_face;
 use dioxus::prelude::*;
 use ds::components::content::avatar::{AvatarFace, AvatarSize};

@@ -57,7 +57,6 @@ use mail_domain::{Change, ChangeId, Draft, DraftId, Patch, SendState};
 use attach::Attach;
 use foot::{MoreButton, SendButton};
 use life::{Anyway, Sent};
-pub(in crate::ui) use page::List;
 use page::{Fold, Guard, Phase, Saved};
 use props::{Attached, Props};
 use seal::{BarAct, SealBar, SealWarn, Sealed, seal_and_queue};
@@ -72,7 +71,6 @@ pub(in crate::ui) use page::Page;
 pub(in crate::ui) use page::PageKind;
 pub(in crate::ui) use page::When;
 pub(in crate::ui) use pill::SendPill;
-pub(in crate::ui) use props::{Line, list_label};
 pub use spell::Dictionaries;
 pub(in crate::ui) use spell::use_test_dictionaries;
 pub(in crate::ui) use templates::{every as every_template, template_rows};
@@ -308,11 +306,11 @@ fn PageView(initial: Page, shell: Signal<Shell>) -> Element {
                 } else if heard == Some(Heard::Own(Own::AddCc)) {
                     event.prevent_default();
                     event.stop_propagation();
-                    props::reveal(page, List::Cc);
+                    props::reveal(page, mail_ui_kit::lines::List::Cc);
                 } else if heard == Some(Heard::Own(Own::AddBcc)) {
                     event.prevent_default();
                     event.stop_propagation();
-                    props::reveal(page, List::Bcc);
+                    props::reveal(page, mail_ui_kit::lines::List::Bcc);
                 } else if key == "Escape" {
                     event.prevent_default();
                     event.stop_propagation();

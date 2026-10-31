@@ -6,7 +6,8 @@
 use mail_core::Store;
 
 use super::super::foot::{More, more_items, pick_more, pick_send, send_items};
-use super::super::page::{Float, List};
+use super::super::page::{Float};
+use mail_ui_kit::lines::List;
 use super::super::props::sends_items;
 use super::super::protection::{self, Protection};
 use super::super::receipt;
@@ -173,7 +174,7 @@ async fn cc_and_bcc_are_drawn_once_added_or_while_someone_is_on_them() {
         window.dom.in_runtime(|| page.write().reveal(list));
         let markup = window.render();
         assert!(markup.contains(&row(name)), "{name} once added:\n{markup}");
-        let word = super::super::props::list_label(list);
+        let word = mail_ui_kit::lines::list_label(list);
         assert!(
             !markup.contains(&format!("aria-label=\"Add {word}\"")),
             "Add {word} is still offered:\n{markup}"

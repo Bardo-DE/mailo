@@ -39,7 +39,7 @@ use mail_domain::{BlobId, MessageId, Retry};
 
 use super::fetch::{self, Again};
 use super::thumb::Thumb;
-use crate::ui::reauth::{Reauth, SIGN_IN};
+use mail_ui_kit::reauth::{SIGN_IN, SignAgain};
 use mail_ui_kit::common::classed;
 use mail_ui_kit::pick::{Ask, choose};
 use mail_ui_kit::text::{AttachmentRow, Kept};
@@ -107,7 +107,7 @@ pub(super) fn Attachments(
     let downloads: Downloads = use_signal(HashMap::new);
     let toasts = use_hook(try_consume_context::<ds::stack::toast_hub::ToastHub>);
     let looks = mail_ui_kit::cache::use_looks();
-    let reauth = try_consume_context::<Reauth>();
+    let reauth = try_consume_context::<SignAgain>();
     let mut menu = use_signal(|| None::<Held>);
     let mut picked = use_signal(|| None::<(Pick, Part)>);
     let parts: Vec<Part> = rows
@@ -223,7 +223,7 @@ pub(super) fn Attachments(
                                 common: Common { aria_label: Some(format!("{SIGN_IN} to {sign_in_account}")), ..Common::default() },
                                 onclick: mail_ui_kit::press::on_primary({
                                     let sign_in_account = sign_in_account.clone();
-                                    move || reauth.sign_in(&sign_in_account, need)
+                                    move || reauth.ask(&sign_in_account, need)
                                 }),
                             }
                         }),

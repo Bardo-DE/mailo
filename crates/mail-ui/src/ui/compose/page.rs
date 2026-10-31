@@ -1,6 +1,7 @@
 //! What the composer page holds: the draft's properties, the editor session, and the state of
 //! the page around them. Pure: nothing here reads the client or a clock.
 
+use mail_ui_kit::lines::List;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -110,14 +111,6 @@ impl When {
             .earliest()
             .map(|at| at.with_timezone(&Utc))
     }
-}
-
-/// Which recipient list a chip or a typed address belongs to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::ui) enum List {
-    To,
-    Cc,
-    Bcc,
 }
 
 /// Whether the Cc or the Bcc row is drawn. Hidden until it is asked for (its key, or its word

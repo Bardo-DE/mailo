@@ -25,9 +25,9 @@ mod edit;
 mod sends_as;
 mod words;
 
-use crate::ui::fetching::{Need, Needing, use_needs};
+use mail_ui_kit::need::{Need, Needing, use_needs};
 use mail_ui_kit::pgp::keys::Whose;
-use crate::ui::reauth::SIGN_IN;
+use mail_ui_kit::reauth::SIGN_IN;
 use dioxus::prelude::*;
 use ds::components::content::label::Label;
 use ds::components::controls::button_model::ButtonRole;

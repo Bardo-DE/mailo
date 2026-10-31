@@ -255,7 +255,7 @@ async fn the_page_says_how_much_storage_the_server_counts_once_it_has_said() {
 /// sign-in again.
 #[tokio::test]
 async fn an_account_waiting_to_sign_in_is_not_asked_for_its_storage() {
-    use crate::ui::fetching::{Need, Needing};
+    use mail_ui_kit::need::{Need, Needing};
     let built = work();
     let asked: Arc<Mutex<Vec<AccountId>>> = Arc::default();
     let seams = Seams {

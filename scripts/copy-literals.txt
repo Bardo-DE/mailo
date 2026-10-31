@@ -6,7 +6,7 @@ crates/mail-ui/src/ui/app.rs 3
 crates/mail-ui/src/ui/brand.rs 1
 crates/mail-ui/src/ui/keyboard.rs 5
 crates/mail-ui/src/ui/no_account.rs 3
-crates/mail-ui/src/ui/reauth.rs 5
+crates/mail-ui/src/ui/reauth.rs 4
 crates/mail-ui/src/ui/row.rs 2
 crates/mail-ui/src/ui/server_search.rs 10
 crates/mail-ui/src/ui/space_menu.rs 1
@@ -30,7 +30,7 @@ crates/mail-ui/src/ui/compose/life.rs 1
 crates/mail-ui/src/ui/compose/mod.rs 7
 crates/mail-ui/src/ui/compose/page.rs 3
 crates/mail-ui/src/ui/compose/pill.rs 10
-crates/mail-ui/src/ui/compose/props.rs 10
+crates/mail-ui/src/ui/compose/props.rs 7
 crates/mail-ui/src/ui/compose/protection.rs 22
 crates/mail-ui/src/ui/compose/receipt.rs 5
 crates/mail-ui/src/ui/compose/recipients.rs 3
@@ -64,7 +64,9 @@ crates/mail-ui-kit/src/bin.rs 11
 crates/mail-ui-kit/src/data.rs 1
 crates/mail-ui-kit/src/destroy.rs 1
 crates/mail-ui-kit/src/keymap.rs 17
+crates/mail-ui-kit/src/lines.rs 3
 crates/mail-ui-kit/src/ops.rs 2
+crates/mail-ui-kit/src/reauth.rs 1
 crates/mail-ui-kit/src/remedy.rs 16
 crates/mail-ui-kit/src/saved.rs 14
 crates/mail-ui-kit/src/text.rs 1

@@ -4,8 +4,8 @@
 //! reach what leaves. The bar over it names the time and offers Cancel Sending, which makes it a
 //! draft again; the page then opens it in the composer, where it can be changed and sent anew.
 
-use super::List;
-use super::props::{Line, list_label};
+use mail_ui_kit::lines::List;
+use mail_ui_kit::lines::{Line, list_label};
 use mail_ui_kit::menus::when_words;
 use chrono::{DateTime, Local, Utc};
 use dioxus::prelude::*;

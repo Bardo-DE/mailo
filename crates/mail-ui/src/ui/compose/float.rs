@@ -10,7 +10,8 @@ use crate::ui::emoji::Emoji;
 pub(in crate::ui) use super::items::{
     emoji_items, mention_items, object_items, people_rows, slash_items, turn_items,
 };
-use super::page::{Float, List, Page};
+use super::page::{Float, Page};
+use mail_ui_kit::lines::List;
 use mail_editor::{
     Action, Caret, ImageRef, InputEvent, Node, Object, Op, ParaKind, Pos, Range, Table, apply_all,
     catalog, joins_cc, node_len, runs_text, settled, turn_into,

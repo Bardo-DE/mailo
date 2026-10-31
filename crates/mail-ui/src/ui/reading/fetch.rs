@@ -16,8 +16,8 @@ use porter_core::AccountId;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use crate::ui::fetching::Need;
-use crate::ui::reauth::{Reauth, SIGN_IN};
+use mail_ui_kit::need::Need;
+use mail_ui_kit::reauth::{SIGN_IN, SignAgain};
 use mail_ui_kit::press::on_primary;
 
 type BodyFetch = dyn Fn(Client, MessageId) -> Result<(), (Retry, String)> + Send + Sync;
@@ -285,7 +285,7 @@ pub(super) fn BodyPane(message: MessageId, account: AccountId, mut landed: Signa
             begin();
         }
     };
-    let reauth = try_consume_context::<Reauth>();
+    let reauth = try_consume_context::<SignAgain>();
     match body_face(&state(), op(), &address) {
         BodyFace::Prompt => rsx! {
             div { class: "body-pane",
@@ -316,7 +316,7 @@ pub(super) fn BodyPane(message: MessageId, account: AccountId, mut landed: Signa
                                 common: Common { aria_label: Some(format!("{SIGN_IN} to {address}")), ..Common::default() },
                                 onclick: on_primary({
                                     let address = address.clone();
-                                    move || reauth.sign_in(&address, need)
+                                    move || reauth.ask(&address, need)
                                 }),
                             }
                         }),

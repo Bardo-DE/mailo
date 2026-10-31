@@ -2,7 +2,7 @@
 //!
 //! One account that needs the person is told once, in a dialog when the window opens, instead of
 //! by a mark on every surface that happens to list it. The dialog asks about every account the
-//! links say is waiting ([`crate::ui::fetching::needs_you`]), once they have all said how they
+//! links say is waiting ([`mail_ui_kit::need::needs_you`]), once they have all said how they
 //! stand. Sign In goes to the browser or the Add Account window. Later puts the dialog off for
 //! the rest of the session: it comes back for an account only when that account recovers and
 //! needs the person again, or when the sidebar foot's sync mark is pressed. A lone account is
@@ -13,7 +13,9 @@
 //! Graph, which signs it in again for Graph in the browser. Everything else a connection can
 //! suffer it retries by itself, and the sidebar foot's mark says while it does.
 
-use crate::ui::fetching::{Fetching, Need, Needing};
+use crate::ui::fetching::Fetching;
+use mail_ui_kit::need::{Need, Needing};
+use mail_ui_kit::reauth::{SIGN_IN, SignAgain};
 use dioxus::prelude::*;
 use ds::components::content::label::{Label, LabelStyle};
 use ds::components::lists::row::row::Outline;
@@ -32,7 +34,6 @@ use porter_core::AccountId;
 use std::collections::{BTreeMap, BTreeSet};
 
 /// The button that signs in.
-pub(in crate::ui) const SIGN_IN: &str = "Sign In";
 
 /// The button that puts the question off.
 const LATER: &str = "Later";
@@ -110,6 +111,9 @@ pub(in crate::ui) fn use_reauth() -> Reauth {
         settled,
         answered,
     });
+    // What the parts that offer a sign-in ask through, without naming this window's state.
+    let again = use_callback(move |(address, need): (String, Need)| reauth.sign_in(&address, need));
+    use_context_provider(|| SignAgain(again));
     // The first moment nobody is still at the beginning: from then on it can be said who waits.
     use_effect(move || {
         let Some(fetching) = fetching else { return };
@@ -124,7 +128,7 @@ pub(in crate::ui) fn use_reauth() -> Reauth {
         let Some(fetching) = fetching else { return };
         let links = fetching.all_links();
         if let Some(needing) = &said_to {
-            needing.say(crate::ui::fetching::needs_you(&links));
+            needing.say(mail_ui_kit::need::needs_you(&links));
         }
         let mut put_off = put_off;
         let kept = still_put_off(&put_off.peek(), &links);

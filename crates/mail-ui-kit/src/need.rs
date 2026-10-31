@@ -80,7 +80,7 @@ impl std::fmt::Debug for Needing {
 
 impl Needing {
     /// Say who is waiting now. Heard only when it is not what was said before.
-    pub(in crate::ui) fn say(&self, waiting: Vec<(AccountId, Need)>) {
+    pub fn say(&self, waiting: Vec<(AccountId, Need)>) {
         self.waiting.send_if_modified(|held| {
             let changed = *held != waiting;
             if changed {
@@ -91,29 +91,29 @@ impl Needing {
     }
 
     /// Who is waiting, as last said.
-    pub(in crate::ui) fn waiting(&self) -> Vec<(AccountId, Need)> {
+    pub fn waiting(&self) -> Vec<(AccountId, Need)> {
         self.waiting.borrow().clone()
     }
 
     /// What a window hears each change of who is waiting through.
-    pub(in crate::ui) fn heard(&self) -> watch::Receiver<Vec<(AccountId, Need)>> {
+    pub fn heard(&self) -> watch::Receiver<Vec<(AccountId, Need)>> {
         self.waiting.subscribe()
     }
 
     /// A sign-in of `account` is starting in another window.
-    pub(in crate::ui) fn signing_in(&self, account: AccountId) {
+    pub fn signing_in(&self, account: AccountId) {
         self.signing.send_replace(Some(account));
     }
 
     /// What the first window hears each sign-in started elsewhere through.
-    pub(in crate::ui) fn signing(&self) -> watch::Receiver<Option<AccountId>> {
+    pub fn signing(&self) -> watch::Receiver<Option<AccountId>> {
         self.signing.subscribe()
     }
 }
 
 /// Who is waiting, for a window that has no links of its own (Settings): the shared
 /// [`Needing`], followed as it changes. Nobody, without one.
-pub(in crate::ui) fn use_needs() -> Signal<Vec<(AccountId, Need)>> {
+pub fn use_needs() -> Signal<Vec<(AccountId, Need)>> {
     let needing = try_consume_context::<Needing>();
     let mut needs = use_signal(|| needing.as_ref().map(Needing::waiting).unwrap_or_default());
     use_future(move || {

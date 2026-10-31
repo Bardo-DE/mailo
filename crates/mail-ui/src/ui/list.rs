@@ -10,8 +10,9 @@ use super::row::listed::Listed;
 use super::row::{AccountMark, ListRow};
 use super::server_search::{Asked, ServerSearch, found_threads};
 use super::view_groups::group_list;
-use crate::ui::fetching::{Fetching, HasRows, ListFace, Need, list_face};
-use crate::ui::reauth::{Reauth, SIGN_IN};
+use crate::ui::fetching::{Fetching, HasRows, ListFace, list_face};
+use mail_ui_kit::need::Need;
+use mail_ui_kit::reauth::{SIGN_IN, SignAgain};
 use dioxus::prelude::*;
 use ds::components::app::thread_height::{ThreadLines, thread_card_gap, thread_card_height};
 use ds::components::chrome::toolbar::view::Toolbar;
@@ -463,14 +464,14 @@ pub(super) fn ThreadList(
         | ListFace::NoAccount => Phase::Ready,
     };
     // Beside Retry in the failure `Loadable` draws, or instead of it, where Retry cannot help.
-    let reauth = try_consume_context::<Reauth>();
+    let reauth = try_consume_context::<SignAgain>();
     let sign_in_action: Option<Element> = sign_in.clone().and_then(|(name, need)| {
         let reauth = reauth?;
         Some(rsx! {
             Button {
                 label: SIGN_IN,
                 common: mail_ui_kit::common::tagged("sign-in", "mailbox"),
-                onclick: on_primary(move || reauth.sign_in(&name, need)),
+                onclick: on_primary(move || reauth.ask(&name, need)),
             }
         })
     });

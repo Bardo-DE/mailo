@@ -12,8 +12,9 @@ use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
-use super::page::List;
+
 use super::page::{Guard, Page, Phase, Saved, When, Wire};
+use mail_ui_kit::lines::List;
 use super::protection::Protection;
 use super::recipients::commit_typed;
 use super::seal::SealBar;

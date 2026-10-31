@@ -2,7 +2,8 @@
 //! out whoever is already on the message, and it never offers the user their own address or a
 //! no-reply sender — and the ⌘K menu names the same people for the same text.
 
-use super::super::page::{Float, List};
+use super::super::page::{Float};
+use mail_ui_kit::lines::List;
 use super::super::recipients::{people_items, pick_person, typed};
 use super::*;
 use crate::ui::contacts::tests::{ADDED, HEARD, ME, NO_REPLY, WRITTEN, the_book};
