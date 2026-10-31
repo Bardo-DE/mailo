@@ -1,13 +1,12 @@
 //! Unsubscribe… in the reader's ⋯: whether the open thread offers a way out, and the alert
 //! that says what it will do before it does it.
 
-use super::super::compose::{Desk, show_queued};
+use mail_ui_kit::queued::ShowQueued;
 use super::{Ask, Bodies, Offer, ask, cached, http, leave, lookup, said};
 use dioxus::prelude::*;
 use ds::components::overlays::alert_model::{AlertButton, AlertRole, AlertStyle};
 use ds::prelude::*;
 use ds::root::common::Common;
-use mail_client::Client;
 use mail_client::unsubscribe::Outcome;
 use mail_domain::ThreadId;
 use mail_ui_kit::hover::copy;
@@ -122,7 +121,7 @@ fn take(offer: Offer, mut phase: Signal<Phase>) {
     }
     phase.set(Phase::Working);
     let client = mail_ui_kit::live::client();
-    let desk = try_consume_context::<Desk>();
+    let queued = try_consume_context::<ShowQueued>();
     // Spawned from a click, which is where a task is polled: a future started from a
     // component body is the one thing that may never run.
     spawn(async move {
@@ -134,7 +133,7 @@ fn take(offer: Offer, mut phase: Signal<Phase>) {
         match done {
             Ok(Ok(outcome)) => {
                 phase.set(Phase::Closed);
-                landed(&client, &offer, &outcome, desk);
+                landed(&offer, &outcome, queued);
             }
             Ok(Err(why)) => phase.set(Phase::Failed(why)),
             Err(error) => phase.set(Phase::Failed(format!(
@@ -145,7 +144,7 @@ fn take(offer: Offer, mut phase: Signal<Phase>) {
 }
 
 /// The toast, and for a queued message the outbox pill, like any send.
-fn landed(client: &Client, offer: &Offer, outcome: &Outcome, desk: Option<Desk>) {
+fn landed(offer: &Offer, outcome: &Outcome, queued: Option<ShowQueued>) {
     let text = said(outcome, &offer.list);
     match outcome {
         Outcome::Unsubscribed { .. } => tell(text, {
@@ -158,8 +157,8 @@ fn landed(client: &Client, offer: &Offer, outcome: &Outcome, desk: Option<Desk>)
             ))
         }),
         Outcome::Queued { draft } => {
-            if let Some(desk) = desk {
-                show_queued(desk, client, *draft, chrono::Utc::now());
+            if let Some(queued) = queued {
+                queued.show(*draft);
             }
             tell(text, Follow::Nothing);
         }

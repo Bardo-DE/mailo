@@ -3,7 +3,8 @@
 //! writes `settings.toml`, and every page draws in the window. An account's page in the Accounts
 //! pane is `account`'s (`account/tests.rs`).
 
-use super::{OpenSettings, SettingsAt, SettingsWindows, settings_root};
+use super::settings_root;
+use mail_ui_kit::settings_at::{OpenSettings, SettingsAt, SettingsWindows};
 use crate::ui::app::App;
 use crate::ui::fixtures::{
     INSIDE_THE_SHELL, Seen, Work, chord, click, dispatching, drain_seen, rebuild_into, work,
@@ -572,7 +573,7 @@ async fn every_add_row_stands_in_a_list_of_its_own_led_by_the_plain_plus() {
 #[tokio::test]
 async fn an_open_window_turns_to_the_page_asked_for() {
     let built = work();
-    let asked = super::SettingsAsked::default();
+    let asked = mail_ui_kit::settings_at::SettingsAsked::default();
     asked.ask(SettingsAt::Page(PageId::RULES));
     dispatching();
     let mut dom = VirtualDom::new(settings_root)
@@ -764,7 +765,7 @@ async fn the_vips_page_offers_the_pinned_people_and_removes_a_vip() {
 #[tokio::test]
 async fn turning_to_another_page_leaves_a_pushed_page_behind() {
     let built = work();
-    let asked = super::SettingsAsked::default();
+    let asked = mail_ui_kit::settings_at::SettingsAsked::default();
     asked.ask(SettingsAt::Page(PageId::PRIVACY));
     dispatching();
     let mut dom = VirtualDom::new(settings_root)

@@ -63,7 +63,7 @@ use seal::{BarAct, SealBar, SealWarn, Sealed, seal_and_queue};
 
 /// The body, on its own: Settings writes a signature in it.
 pub(in crate::ui) use body::Body;
-pub(in crate::ui) use desk::{Desk, park_current, reopen, show_queued, use_desk};
+pub(in crate::ui) use desk::{Desk, park_current, reopen, use_desk};
 pub(in crate::ui) use later::{cancel_scheduled, scheduled, scheduled_in, send_again, sending_in};
 /// Discarding a draft, for every caller in this process: the window's and the intents'.
 pub use life::discarding as discarding_draft;
@@ -99,6 +99,16 @@ impl Folding {
 pub(in crate::ui) fn composing(shell: &Shell) -> Option<(DraftId, PageKind)> {
     let open = shell.composing.as_ref()?;
     Some((open.draft, kind_of(open.draft)))
+}
+
+/// The composer's page for the reader's column to set: drawn here, and whether it answers the open
+/// conversation, or `None` when nothing is being composed.
+pub(in crate::ui) fn beside(shell: Signal<Shell>) -> Option<mail_ui_kit::composing::Composing> {
+    let (draft, kind) = composing(&shell.read())?;
+    Some(mail_ui_kit::composing::Composing {
+        reply: kind == PageKind::Reply,
+        page: rsx! { ComposerPage { key: "{draft}", draft, shell } },
+    })
 }
 
 /// Whether `draft` answers a message (a reply, under its thread) or stands alone.
@@ -476,8 +486,8 @@ fn seal_act(mut page: Signal<Page>, desk: Desk, folding: Folding, act: BarAct) {
         BarAct::OpenKeys => {
             let client = mail_ui_kit::live::client();
             match client.stored().draft(page.peek().draft) {
-                Ok(stored) => super::settings_window::open_account(stored.account),
-                Err(_) => super::settings_window::open_at(mail_ui_kit::view::PageId::ACCOUNTS),
+                Ok(stored) => mail_ui_kit::settings_at::open_account(stored.account),
+                Err(_) => mail_ui_kit::settings_at::open_at(mail_ui_kit::view::PageId::ACCOUNTS),
             }
         }
         BarAct::LookUp(addresses) => {

@@ -108,7 +108,7 @@ fn picked(pick: Pick, mut shell: Signal<Shell>, handle: Handle, account: Option<
                 shell.write().account = None;
             }
         }
-        (Pick::Settings, Some(id)) => crate::ui::settings_window::open_account(id),
+        (Pick::Settings, Some(id)) => mail_ui_kit::settings_at::open_account(id),
         (_, None) => {}
     }
 }

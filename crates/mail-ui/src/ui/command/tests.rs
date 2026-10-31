@@ -318,7 +318,7 @@ fn Runs(command: &'static dyn Command) -> Element {
 /// Settings… is the one row for Settings: it opens the window, which keeps its own pages.
 #[tokio::test]
 async fn settings_opens_the_settings_window() {
-    use crate::ui::settings_window::SettingsWindows;
+    use mail_ui_kit::settings_at::SettingsWindows;
     use crate::ui::settings_window::tests::Asked;
     let command: &'static dyn Command = &Settings;
     crate::ui::fixtures::dispatching();

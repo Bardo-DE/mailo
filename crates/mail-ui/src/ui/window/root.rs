@@ -213,7 +213,7 @@ pub(in crate::ui) fn MessageShell(thread: ThreadId) -> Element {
                         if let Some(note) = note {
                             InlineBanner { severity: Severity::Info, text: note }
                         }
-                        {reading_column(Some(thread), shell, ReaderIn::Window)}
+                        {reading_column(Some(thread), shell, ReaderIn::Window, compose::beside(shell))}
                         mail_ui_kit::hover::LinkPill {}
                     }
                     SendPill { shell }

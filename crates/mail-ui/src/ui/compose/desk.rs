@@ -57,7 +57,7 @@ pub(in crate::ui) fn use_desk(
 ) -> Desk {
     let settings = mail_ui_kit::prefs::use_settings();
     let spelling = use_memo(move || settings.read().compose.spelling);
-    use_context_provider(|| Desk {
+    let desk = use_context_provider(|| Desk {
         spelling,
         emoji: Signal::new(
             dirs.as_ref()
@@ -70,7 +70,13 @@ pub(in crate::ui) fn use_desk(
         today,
         spaces,
         dirs: Signal::new(dirs),
-    })
+    });
+    // What a send queued from elsewhere asks through, to be shown on the pill.
+    let queued = use_callback(move |draft| {
+        show_queued(desk, &mail_ui_kit::live::client(), draft, chrono::Utc::now());
+    });
+    use_context_provider(|| mail_ui_kit::queued::ShowQueued(queued));
+    desk
 }
 
 fn save_today(desk: Desk) {

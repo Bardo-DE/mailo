@@ -575,7 +575,7 @@ impl Command for OpenContacts {
     }
 
     fn run(&self, _acts: Acts) {
-        crate::ui::settings_window::open_at(mail_ui_kit::view::PageId::CONTACTS);
+        mail_ui_kit::settings_at::open_at(mail_ui_kit::view::PageId::CONTACTS);
     }
 }
 
@@ -664,6 +664,6 @@ impl Command for Settings {
     }
 
     fn run(&self, _acts: Acts) {
-        crate::ui::settings_window::open();
+        mail_ui_kit::settings_at::open();
     }
 }

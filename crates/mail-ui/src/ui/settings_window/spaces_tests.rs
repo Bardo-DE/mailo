@@ -210,8 +210,8 @@ fn a_new_space_can_be_deleted_after_asking() {
 fn the_window_opens_on_the_space_s_page_it_is_asked_for() {
     let built = work();
     let first = on_disk(&built).current().id;
-    let asked = crate::ui::settings_window::SettingsAsked::default();
-    asked.ask(crate::ui::settings_window::SettingsAt::Space(first));
+    let asked = mail_ui_kit::settings_at::SettingsAsked::default();
+    asked.ask(mail_ui_kit::settings_at::SettingsAt::Space(first));
     crate::ui::fixtures::dispatching();
     let mut dom = VirtualDom::new(crate::ui::settings_window::settings_root)
         .with_root_context(crate::ui::fixtures::client(&built.store))

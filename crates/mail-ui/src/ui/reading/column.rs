@@ -9,7 +9,7 @@
 //! short, so the column is drawn in the caller's scope.
 
 use super::{Reader, ReaderIn};
-use crate::ui::compose::{self, ComposerPage, PageKind};
+use mail_ui_kit::composing::Composing;
 use dioxus::prelude::*;
 use ds::components::overlays::empty_state::{EmptyForm, EmptyState};
 use mail_domain::ThreadId;
@@ -21,8 +21,8 @@ pub(in crate::ui) fn reading_column(
     open: Option<ThreadId>,
     shell: Signal<Shell>,
     place: ReaderIn,
+    composing: Option<Composing>,
 ) -> Element {
-    let composing = compose::composing(&shell.read());
     // The one message opened from a list of single messages, in the window's reader only: a
     // conversation's own window shows it whole.
     let only = match place {
@@ -30,12 +30,10 @@ pub(in crate::ui) fn reading_column(
         ReaderIn::Window => None,
     };
     match (composing, open) {
-        (Some((draft, PageKind::Reply)), Some(thread)) => rsx! {
-            Reader { thread, shell, tools: true, place, only,
-                ComposerPage { key: "{draft}", draft, shell }
-            }
+        (Some(Composing { reply: true, page }), Some(thread)) => rsx! {
+            Reader { thread, shell, tools: true, place, only, {page} }
         },
-        (Some((draft, _)), _) => rsx! { ComposerPage { key: "{draft}", draft, shell } },
+        (Some(Composing { page, .. }), _) => page,
         (None, Some(thread)) => rsx! { Reader { thread, shell, tools: true, place, only } },
         (None, None) => rsx! {
             EmptyState { form: EmptyForm::Empty, title: mail_ui_model::copy::empty::NO_MESSAGE_SELECTED }

@@ -120,7 +120,7 @@ pub(super) fn run(opening: Opening) -> Result<(), ds_blitz::LaunchError> {
         // The count of the configuration files a window writes (key bindings, Spaces).
         .with_context(mail_ui_kit::configured::Configured::default())
         // And the page the Settings window shows next, which ⌘K and the composer turn it to.
-        .with_context(crate::ui::settings_window::SettingsAsked::default())
+        .with_context(mail_ui_kit::settings_at::SettingsAsked::default())
         // And who needs to sign in again, which only the first window knows and Settings shows.
         .with_context(mail_ui_kit::need::Needing::default());
     let config = match chosen {

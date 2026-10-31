@@ -117,7 +117,7 @@ pub(in crate::ui) fn MailSpaceMenu(handle: Handle, mut today: Signal<Today>) -> 
                 AccountPick::Add(pick) => picked(pick, Join::Into(space)),
             },
             kept: "Your mail".to_owned(),
-            on_edit: move |space: SpaceId| crate::ui::settings_window::open_space(space),
+            on_edit: move |space: SpaceId| mail_ui_kit::settings_at::open_space(space),
             on_deleted: move |space: SpaceId| {
                 today.write().drop_space(space);
                 if let Some(dirs) = try_consume_context::<WindowDirs>() {

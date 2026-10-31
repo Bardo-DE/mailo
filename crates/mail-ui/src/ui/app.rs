@@ -666,7 +666,7 @@ pub(super) fn App() -> Element {
                 return;
             }
             Some(Intent::Settings) => {
-                super::settings_window::open();
+                mail_ui_kit::settings_at::open();
                 return;
             }
             Some(Intent::Zoom(step)) => {
@@ -830,7 +830,7 @@ pub(super) fn App() -> Element {
     let frame_class = if side_hidden() { "app no-side" } else { "app" };
     // The open thread or the composer: a column of the card, or, floating, quire's `Peek` over it.
     let reading = rsx! {
-        {reading_column(shell.read().open, shell, ReaderIn::Pane)}
+        {reading_column(shell.read().open, shell, ReaderIn::Pane, compose::beside(shell))}
     };
     let floating = shell.read().open.is_some() || compose::composing(&shell.read()).is_some();
     let pinned = if side_hidden() {

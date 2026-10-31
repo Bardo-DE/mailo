@@ -132,7 +132,7 @@ fn show_card(address: &str, in_mail: &str) {
             if let Some(said) = said {
                 tell(said, Follow::Nothing);
             }
-            crate::ui::settings_window::open_card(card);
+            mail_ui_kit::settings_at::open_card(card);
         }
         Err(why) => tell(why, Follow::Nothing),
     }

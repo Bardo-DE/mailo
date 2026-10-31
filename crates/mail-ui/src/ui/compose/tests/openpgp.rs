@@ -70,7 +70,7 @@ fn window_with(
     let mut dom = VirtualDom::new_with_props(PageHarness, PageHarnessProps { draft })
         .with_root_context(crate::ui::fixtures::client(&store))
         .with_root_context(seams)
-        .with_root_context(crate::ui::settings_window::SettingsWindows(ASKED.with(
+        .with_root_context(mail_ui_kit::settings_at::SettingsWindows(ASKED.with(
             |asked| {
                 let fresh = Arc::new(crate::ui::settings_window::tests::Asked::default());
                 *asked.borrow_mut() = fresh.clone();
@@ -321,7 +321,7 @@ async fn no_key_of_ones_own_offers_to_make_one() {
     // Making a key or importing a certificate is the sending account's page's.
     assert_eq!(
         ASKED.with(|asked| asked.borrow().asks()),
-        [Some(crate::ui::settings_window::SettingsAt::Account(
+        [Some(mail_ui_kit::settings_at::SettingsAt::Account(
             acct_account()
         ))]
     );

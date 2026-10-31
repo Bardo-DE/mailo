@@ -4,10 +4,11 @@
 //! for itself is made here again: its `Shell` (which page is shown, which sheet is open) and its
 //! toast host. An account added or removed the other windows hear from the client; a setting or a
 //! key binding it tells them (`ui::configured`). It opens where the main
-//! window asked for last ([`super::SettingsAsked`]), a page or an account's page, and turns to
+//! window asked for last ([`mail_ui_kit::settings_at::SettingsAsked`]), a page or an account's page, and turns to
 //! each place asked for while it is open.
 
-use super::{SettingsAsked, SettingsView};
+use super::SettingsView;
+use mail_ui_kit::settings_at::SettingsAsked;
 use crate::ui::app::Frame;
 use crate::ui::style::STYLE;
 use dioxus::prelude::*;

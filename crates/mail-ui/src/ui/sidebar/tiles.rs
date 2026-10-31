@@ -244,8 +244,8 @@ pub(super) fn AccountTiles(
                     .is_some_and(|reauth| reauth.ask_again(&needing));
                 if !reasked {
                     match account {
-                        Some(id) => crate::ui::settings_window::open_account(id),
-                        None => crate::ui::settings_window::open(),
+                        Some(id) => mail_ui_kit::settings_at::open_account(id),
+                        None => mail_ui_kit::settings_at::open(),
                     }
                 }
             },
