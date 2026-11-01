@@ -2,7 +2,6 @@
 //! reports where it is, and ends; the link in between is what the list reads. The passes here
 //! are the test's own, held shut until it lets them go, so that "running" can be looked at.
 
-use mail_ui_kit::fetching::{Fetching, Passer};
 use crate::ui::app::App;
 use crate::ui::fixtures::settle_quiet;
 use crate::ui::fixtures::{Seen, click, dispatching, empty, rebuild_into};
@@ -15,6 +14,7 @@ use mail_client::testing::core::sync::report::{AccountReport, Counts, PassEnd, P
 use mail_client::testing::{SqliteStore, Store};
 use mail_domain::id::account_id_from_uuid;
 use mail_domain::*;
+use mail_ui_kit::fetching::{Fetching, Passer};
 use porter_core::AccountId;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, mpsc};

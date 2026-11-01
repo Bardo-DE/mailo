@@ -19,6 +19,7 @@ mod marks;
 pub mod pass;
 mod scope;
 
+use crate::view::Shell;
 use chrono::{DateTime, Utc};
 use dioxus::prelude::*;
 use ds::motion::detail::operation::Operation;
@@ -28,15 +29,14 @@ use mail_client::schedule::Timing;
 use mail_client::sync::fresh::Pace;
 use mail_client::sync::report::Offer;
 use mail_client::{Client, Snapshot};
-use crate::view::Shell;
 use porter_core::AccountId;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
+use crate::need::{self, Need, needs_you};
 pub use delegate::Delegate;
 pub use face::{HasRows, ListFace, list_face};
 pub use folder::opened;
-use crate::need::{self, Need, needs_you};
 use mail_ui_model::fetching::status::{StatusLine, status_line};
 pub use marks::sync_availability;
 pub use pass::Passer;
@@ -183,11 +183,7 @@ impl Fetching {
 
     /// `account`'s own status line, what its tile's mark says: `None` for an account with
     /// nothing to fetch (local folders).
-    pub fn account_line(
-        &self,
-        account: &AccountId,
-        now: DateTime<Utc>,
-    ) -> Option<StatusLine> {
+    pub fn account_line(&self, account: &AccountId, now: DateTime<Utc>) -> Option<StatusLine> {
         let link = self.links.read().get(account).cloned()?;
         Some(status_line(
             &[(&link, self.pace(account))],
@@ -221,10 +217,7 @@ pub fn sync_now(shell: &Shell) {
         return;
     };
     if fetching.busy_in(shell) {
-        crate::motion::tell(
-            ALREADY_SYNCING.to_owned(),
-            crate::motion::Follow::Nothing,
-        );
+        crate::motion::tell(ALREADY_SYNCING.to_owned(), crate::motion::Follow::Nothing);
         return;
     }
     fetching.forget_folders();
@@ -241,10 +234,7 @@ pub fn sync_account(account: AccountId) {
         .link(account.clone())
         .is_some_and(|link| link.is_busy())
     {
-        crate::motion::tell(
-            ALREADY_SYNCING.to_owned(),
-            crate::motion::Follow::Nothing,
-        );
+        crate::motion::tell(ALREADY_SYNCING.to_owned(), crate::motion::Follow::Nothing);
         return;
     }
     fetching.forget_folders();
@@ -313,8 +303,7 @@ fn seams(client: &Client, speaking: Arc<std::sync::Mutex<Speaking>>) -> Seams {
         daemon: listener.daemon,
         schedule: delegate.0,
         folder: folder.0,
-        config: try_consume_context::<crate::appearance::WindowDirs>()
-            .map(|dirs| dirs.config),
+        config: try_consume_context::<crate::appearance::WindowDirs>().map(|dirs| dirs.config),
         announce: try_consume_context::<crate::notices::Notices>().map(|notices| Announce {
             notifier: notices.0,
             speaking,
@@ -436,4 +425,3 @@ fn follow(fetching: Fetching, now: &Fetched) {
         folders.set(now.folders.clone());
     }
 }
-

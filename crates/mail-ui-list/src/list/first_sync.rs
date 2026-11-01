@@ -9,7 +9,7 @@ use ds::prelude::*;
 const ROWS: usize = 8;
 
 #[component]
-pub(super) fn FirstSyncRows() -> Element {
+pub fn FirstSyncRows() -> Element {
     rsx! {
         div { class: "first-sync",
             for n in 0..ROWS {

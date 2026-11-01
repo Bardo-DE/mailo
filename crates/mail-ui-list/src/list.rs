@@ -4,12 +4,11 @@
 //! ask for another page. Split from [`super::app`]. The queries stay in
 //! `App`; this reads the memos it is handed rather than cloning their answers in the parent.
 
-use super::page::ListMore;
-use super::row::listed::Listed;
-use super::row::{AccountMark, ListRow};
-use super::server_search::{Asked, ServerSearch, found_threads};
-use super::view_groups::group_list;
-use mail_ui_kit::fetching::{Fetching, HasRows, ListFace, list_face};
+use crate::page::ListMore;
+use crate::row::listed::Listed;
+use crate::row::{AccountMark, ListRow};
+use crate::server_search::{Asked, ServerSearch, found_threads};
+use crate::view_groups::group_list;
 use dioxus::prelude::*;
 use ds::components::app::thread_height::{ThreadLines, thread_card_gap, thread_card_height};
 use ds::components::chrome::toolbar::view::Toolbar;
@@ -24,6 +23,7 @@ use mail_client::provider::provider;
 use mail_domain::*;
 use mail_ui_kit::common::classed;
 use mail_ui_kit::data::{AccountRow, syncs_nothing};
+use mail_ui_kit::fetching::{Fetching, HasRows, ListFace, list_face};
 use mail_ui_kit::list_search::{Marking, RowHit, Scope, row_hit};
 use mail_ui_kit::motion::{Ghost, Toast};
 use mail_ui_kit::need::Need;
@@ -37,7 +37,7 @@ use porter_core::AccountId;
 use std::collections::BTreeMap;
 
 mod first_sync;
-pub(in crate::ui) mod quick;
+pub mod quick;
 mod status;
 
 use self::first_sync::FirstSyncRows;
@@ -65,9 +65,9 @@ fn pitch(lines: Option<ThreadLines>) -> f32 {
 /// The rows the list mounts beyond the viewport, on each side. The `VirtualDom` fixtures
 /// have no layout, so a viewport there is never measured and would show the overscan alone: they
 /// mount every row, and the windowing itself is tested on Blitz.
-#[cfg(not(test))]
+#[cfg(not(any(test, feature = "testing")))]
 const OVERSCAN: usize = 4;
-#[cfg(test)]
+#[cfg(any(test, feature = "testing"))]
 const OVERSCAN: usize = usize::MAX / 2;
 
 /// What a list item is, by identity: the same key on every render, so quire's `VirtualList` keeps a
@@ -120,7 +120,7 @@ fn rows_of(threads: Vec<ThreadSummary>, messages: &[MessageId]) -> Vec<Row> {
 
 /// The conversations and drafts for wherever the shell is looking.
 #[component]
-pub(super) fn ThreadList(
+pub fn ThreadList(
     shell: Signal<Shell>,
     pages: Signal<u32>,
     threads: Memo<Vec<ThreadSummary>>,
@@ -237,8 +237,8 @@ pub(super) fn ThreadList(
     let head = if picking {
         Head::Picking
     } else {
-        match super::command::affordance(&shell.read().search, &shell.read().bar) {
-            super::command::Affordance::Searching(_) => {
+        match crate::bar::affordance(&shell.read().search, &shell.read().bar) {
+            crate::bar::Affordance::Searching(_) => {
                 let listed = shell.read().listed_scope();
                 let looked: Vec<String> = accounts
                     .iter()
@@ -252,7 +252,7 @@ pub(super) fn ThreadList(
                     accounts.len(),
                 ))
             }
-            super::command::Affordance::Idle => Head::Idle,
+            crate::bar::Affordance::Idle => Head::Idle,
         }
     };
     let head_class = head.class();
@@ -485,7 +485,7 @@ pub(super) fn ThreadList(
         Nothing::NoAccount => Some(rsx! {
             Button {
                 label: copy::controls::ADD_ACCOUNT,
-                onclick: on_primary(super::add_account::open),
+                onclick: on_primary(mail_ui_kit::add_account::open),
             }
         }),
         Nothing::Filtered => Some(rsx! {
@@ -524,7 +524,7 @@ pub(super) fn ThreadList(
                         match head {
                             Head::Picking => rsx! { PickBar { shell, threads } },
                             Head::Searching(Said { text, bad }) => rsx! {
-                                super::command::SearchHead { shell, pages, scope: text, bad }
+                                crate::bar::SearchHead { shell, pages, scope: text, bad }
                             },
                             Head::Idle => rsx! { PlaceTools { shell, place: place.clone(), pages, syncs: !quiet, side_hidden } },
                         }
@@ -679,7 +679,7 @@ fn PlaceTools(
                     title: Some(copy::tooltips::SAVE_AS_VIEW.to_owned()),
                     onclick: on_primary(move || {
                         let search = shell.peek().search.clone();
-                        super::views::open_new(shell, &search);
+                        crate::views::open_new(shell, &search);
                     }),
                 }
             } else if let Some(view) = shell.read().saved_view().cloned() {
@@ -690,7 +690,7 @@ fn PlaceTools(
                     label: copy::aria::EDIT_VIEW,
                     icon: Some(IconSource::Glyph(Icon::Settings)),
                     title: Some(copy::tooltips::EDIT_VIEW.to_owned()),
-                    onclick: on_primary(move || super::views::open_edit(shell, &view)),
+                    onclick: on_primary(move || crate::views::open_edit(shell, &view)),
                 }
             }
             Button {
@@ -713,7 +713,7 @@ fn PlaceTools(
         // The search, at the toolbar's trailing end where the Mac keeps it: a magnifier that
         // brings up the search panel. The ⋯ closes the row: Sort By, Group, Row Properties and
         // Sync Now.
-        super::command::SearchBox { shell }
+        crate::bar::SearchBox { shell }
         ListMore { shell, syncs, side_hidden }
     }
 }

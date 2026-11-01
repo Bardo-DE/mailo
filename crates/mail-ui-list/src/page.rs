@@ -9,7 +9,6 @@
 use ds::prelude::*;
 use std::collections::BTreeMap;
 
-use mail_ui_kit::fetching::use_status;
 use chrono::{DateTime, TimeZone, Utc};
 use dioxus::prelude::*;
 use ds::components::controls::button_model::{Bezel, ImagePosition};
@@ -17,6 +16,7 @@ use ds::host::measure::MountedRef;
 use ds::root::common::Common;
 use ds::style::tokens::control_size::ControlSize;
 use mail_domain::{Property, Sort, SortDir, ThreadSummary, Threading};
+use mail_ui_kit::fetching::use_status;
 use mail_ui_kit::menu::anchor_at;
 use mail_ui_kit::press::on_primary;
 use mail_ui_kit::view::{PageGroup, PageMenu, PageParts, RowPart, Shell, SortKept};
@@ -25,13 +25,14 @@ use std::borrow::Borrow;
 
 /// One band of the loaded page: its rows, each a conversation's summary or something that holds
 /// one (a message to a row holds its own, beside which message it is).
-pub(super) struct Band<T = ThreadSummary> {
+#[derive(Debug)]
+pub struct Band<T = ThreadSummary> {
     pub title: Option<String>,
     pub threads: Vec<T>,
 }
 
 /// Group `threads` the way the page menu says. The input order is the list order.
-pub(super) fn group_page<T: Borrow<ThreadSummary>, Tz: TimeZone>(
+pub fn group_page<T: Borrow<ThreadSummary>, Tz: TimeZone>(
     threads: Vec<T>,
     by: PageGroup,
     now: DateTime<Utc>,
@@ -49,7 +50,7 @@ where
     }
 }
 
-pub(super) fn by_key<T: Borrow<ThreadSummary>>(
+pub fn by_key<T: Borrow<ThreadSummary>>(
     threads: Vec<T>,
     key: impl Fn(&ThreadSummary) -> String,
 ) -> Vec<Band<T>> {
@@ -71,7 +72,7 @@ pub(super) fn by_key<T: Borrow<ThreadSummary>>(
         .collect()
 }
 
-pub(super) fn date_bands<T: Borrow<ThreadSummary>, Tz: TimeZone>(
+pub fn date_bands<T: Borrow<ThreadSummary>, Tz: TimeZone>(
     threads: Vec<T>,
     now: DateTime<Utc>,
     zone: &Tz,
@@ -106,7 +107,7 @@ where
     ])
 }
 
-pub(super) fn titled<T, const N: usize>(bands: [(&str, Vec<T>); N]) -> Vec<Band<T>> {
+pub fn titled<T, const N: usize>(bands: [(&str, Vec<T>); N]) -> Vec<Band<T>> {
     bands
         .into_iter()
         .filter(|(_, threads)| !threads.is_empty())
@@ -119,7 +120,7 @@ pub(super) fn titled<T, const N: usize>(bands: [(&str, Vec<T>); N]) -> Vec<Band<
 
 /// The keys Sort By offers, in its order, and the saved-view sheet's Sort by with it. Sender is
 /// [`Property::From`], the one a saved view already says.
-pub(in crate::ui) const SORT_KEYS: [Property; 6] = [
+pub const SORT_KEYS: [Property; 6] = [
     Property::Date,
     Property::From,
     Property::Subject,
@@ -130,7 +131,7 @@ pub(in crate::ui) const SORT_KEYS: [Property; 6] = [
 
 /// What a row of the list's ⋯ asks for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum More {
+pub enum More {
     /// Sort by this key, the way it first runs ([`Property::natural`]).
     SortBy(Property),
     /// Run the key sorted by this way.
@@ -151,7 +152,7 @@ fn check(on: bool) -> Check {
 
 /// Whether a list sorted by `property` is sorted by the offered `key`: Sender stands for both
 /// of the sender's properties.
-pub(in crate::ui) fn sorts_by(key: Property, property: Property) -> bool {
+pub fn sorts_by(key: Property, property: Property) -> bool {
     key == property || (key == Property::From && property == Property::Sender)
 }
 
@@ -181,7 +182,7 @@ fn sort_items(sort: Sort) -> Vec<MenuItem<More>> {
 /// snippets' and the labels' Show or Hide (a pick switches it and leaves the menu up, so both can
 /// be), then Sync Now with what the sync mark says under it. `sync` is `None` while the sidebar,
 /// which holds the mark, is shown, and with only local folders in view.
-pub(super) fn more_items(
+pub fn more_items(
     group: PageGroup,
     sort: Option<Sort>,
     organise: Option<Threading>,
@@ -252,7 +253,7 @@ fn kept(edit: impl FnOnce(&mut mail_ui_model::settings::WindowSettings)) {
 /// `settings.toml`, beside the window's other choices. The list shows the new order at once; the
 /// write runs off the drawing thread, and a choice that cannot be kept puts the list back in the
 /// order it had and says why.
-pub(super) fn sort_list(mut shell: Signal<Shell>, sort: Sort) {
+pub fn sort_list(mut shell: Signal<Shell>, sort: Sort) {
     let previous = shell.peek().sort();
     let Some(kept) = shell.write().sort_by(sort) else {
         return;
@@ -287,7 +288,7 @@ pub(super) fn sort_list(mut shell: Signal<Shell>, sort: Sort) {
 /// opens with them. Sync Now is the sidebar's sync mark's press, so it is here only while the
 /// sidebar is hidden; `syncs` is false with only local folders in view.
 #[component]
-pub(super) fn ListMore(shell: Signal<Shell>, syncs: bool, side_hidden: Signal<bool>) -> Element {
+pub fn ListMore(shell: Signal<Shell>, syncs: bool, side_hidden: Signal<bool>) -> Element {
     let open = shell.read().page_menu == PageMenu::More;
     let mut tool = use_signal(|| None::<MountedRef>);
     let line = use_status(shell);
@@ -358,7 +359,7 @@ pub(super) fn ListMore(shell: Signal<Shell>, syncs: bool, side_hidden: Signal<bo
                     }
                     More::Conversations => {
                         shell.write().page_menu = PageMenu::Closed;
-                        super::organise::turn(shell);
+                        crate::organise::turn(shell);
                     }
                     // The menu stays up for the next toggle (`AfterPick::KeepOpen`).
                     More::Part(key) => {

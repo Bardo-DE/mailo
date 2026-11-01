@@ -5550,6 +5550,7 @@ dependencies = [
  "mail-ui",
  "mail-ui-compose",
  "mail-ui-kit",
+ "mail-ui-list",
  "mail-ui-model",
  "mail-ui-reader",
  "mailo-archive",
@@ -5651,6 +5652,28 @@ dependencies = [
  "url",
  "uuid",
  "webbrowser",
+]
+
+[[package]]
+name = "mail-ui-list"
+version = "0.1.0"
+dependencies = [
+ "chordkit",
+ "chrono",
+ "dioxus",
+ "dioxus-ssr",
+ "ds",
+ "log",
+ "mail-client",
+ "mail-ui-kit",
+ "mail-ui-model",
+ "mailo-domain",
+ "mailo-logic",
+ "mailo-proto",
+ "porter-core",
+ "regex",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]

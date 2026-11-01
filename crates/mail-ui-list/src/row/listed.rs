@@ -21,7 +21,7 @@ use mail_ui_model::selection::Click;
 
 /// One row of the list.
 #[derive(Debug, Clone, PartialEq)]
-pub(in crate::ui) enum Listed {
+pub enum Listed {
     Thread(ThreadSummary),
     /// One message, in a place listed a message to a row: the message as a conversation of one
     /// (`mail_core::single::alone`), under its conversation's id, and which message it is. Its
@@ -32,7 +32,7 @@ pub(in crate::ui) enum Listed {
 
 /// What a row draws.
 #[derive(Debug, Clone, PartialEq)]
-pub(in crate::ui) struct RowModel {
+pub struct RowModel {
     pub name: String,
     pub subject: TextLine,
     pub snippet: Option<TextLine>,
@@ -46,7 +46,7 @@ pub(in crate::ui) struct RowModel {
 
 /// What a click on a row opens.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::ui) enum Opens {
+pub enum Opens {
     /// The conversation, as the click asks: opened, or picked with the others.
     Thread(ThreadId, Click),
     /// One message of the conversation, opened alone: a plain click on a message's own row.
@@ -60,7 +60,7 @@ pub(in crate::ui) enum Opens {
 
 impl Listed {
     /// The row's key in the list.
-    pub(in crate::ui) fn key(&self) -> String {
+    pub fn key(&self) -> String {
         match self {
             Listed::Thread(summary) => summary.id.to_string(),
             Listed::Message(_, message) => message.to_string(),
@@ -69,7 +69,7 @@ impl Listed {
     }
 
     /// The subject, or what stands for one.
-    pub(in crate::ui) fn subject(&self) -> String {
+    pub fn subject(&self) -> String {
         let subject = match self {
             Listed::Thread(summary) | Listed::Message(summary, _) => &summary.subject,
             Listed::Draft(draft) => &draft.subject,
@@ -78,7 +78,7 @@ impl Listed {
     }
 
     /// When a draft is held to leave; `None` for any other row.
-    pub(in crate::ui) fn held(&self) -> Option<DateTime<Utc>> {
+    pub fn held(&self) -> Option<DateTime<Utc>> {
         match self {
             Listed::Draft(Draft {
                 state: SendState::Scheduled { at },
@@ -90,7 +90,7 @@ impl Listed {
 
     /// The row as drawn at `now` in `zone`, its hours by `clock`: with a search's marks (`hit`), and a line of
     /// snippet when `snippets` are shown.
-    pub(in crate::ui) fn row<Tz: TimeZone>(
+    pub fn row<Tz: TimeZone>(
         &self,
         hit: Option<&RowHit>,
         snippets: bool,
@@ -157,7 +157,7 @@ impl Listed {
 
     /// The row's right-click menu at `now`: a conversation's actions, as its state offers them;
     /// a draft's Delete Draft, or a held one's Cancel Sending.
-    pub(in crate::ui) fn menu(&self, now: DateTime<Utc>) -> Vec<MenuItem<Pick>> {
+    pub fn menu(&self, now: DateTime<Utc>) -> Vec<MenuItem<Pick>> {
         match self {
             Listed::Thread(summary) | Listed::Message(summary, _) => {
                 menu::rows(&menu::groups(summary), summary, now)
@@ -169,7 +169,7 @@ impl Listed {
     /// What `click` on the row opens. A draft is not picked with others: any click opens it. A
     /// message's plain click opens it alone; Ctrl picks its conversation, which is what every
     /// action on the selection reaches, and Shift picks the rows to it.
-    pub(in crate::ui) fn open(&self, click: Click) -> Opens {
+    pub fn open(&self, click: Click) -> Opens {
         match self {
             Listed::Thread(summary) => Opens::Thread(summary.id, click),
             Listed::Message(summary, message) => match click {

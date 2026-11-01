@@ -27,14 +27,12 @@ use ds::style::tokens::control_size::ControlSize;
 use mail_ui_kit::actions::{self, Heard, Own};
 use mail_ui_kit::menu::anchor_at;
 use mail_ui_kit::space::Spaces;
+use mail_ui_kit::summon::FIELD;
 use mail_ui_kit::view::{Bar, BarListing, BarOpen, Shell};
 use mail_ui_model::copy;
 
 /// What the panel's field is called, to a screen reader and to a test.
 pub(in crate::ui) const LABEL: &str = "Search mail and commands";
-
-/// The panel's field, for the host to put the keyboard in.
-pub(in crate::ui) const FIELD: &str = ".ds-search-card input";
 
 /// The panel, while it is up; and, always, the line across the top of the window it hangs from.
 #[component]
@@ -313,14 +311,4 @@ fn leave(mut shell: Signal<Shell>) {
         shell.write().bar = Bar::Closed;
     }
     mail_ui_kit::host::Host::focus_app();
-}
-
-/// ⌘K, or a press on the toolbar's search: the panel up over the search there is, and the
-/// keyboard in its field with the text selected, so the first key typed replaces it.
-pub(in crate::ui) fn summon(mut shell: Signal<Shell>) {
-    if shell.peek().bar == Bar::Closed {
-        let search = shell.peek().search.clone();
-        shell.write().bar = Bar::Open(BarOpen::over(search));
-    }
-    mail_ui_kit::host::Host::focus_all(FIELD);
 }

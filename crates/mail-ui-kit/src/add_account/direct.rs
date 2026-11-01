@@ -34,12 +34,12 @@ use porter_provider::{Issuer, ProviderSpec};
 use tokio::sync::watch;
 
 use super::{Ask, Join};
-use mail_ui_kit::motion::{Deed, Follow};
-use mail_ui_kit::space::Spaces;
+use crate::motion::{Deed, Follow};
+use crate::space::Spaces;
 
 /// Where an add-account entry goes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::ui) enum Entry {
+pub enum Entry {
     /// Straight to the issuer's page in the browser.
     Redirect(Issuer),
     /// The add-account window, for a provider that needs a form (a password, an app password,
@@ -50,7 +50,7 @@ pub(in crate::ui) enum Entry {
 /// Where `spec`'s accounts are added: in the browser when they sign in with an OAuth redirect,
 /// Mail can add them from the sign-in alone and `has_client` says the issuer's client is at hand;
 /// in the window otherwise, whose list explains a missing client.
-pub(in crate::ui) fn entry(spec: &ProviderSpec, has_client: &dyn Fn(Issuer) -> bool) -> Entry {
+pub fn entry(spec: &ProviderSpec, has_client: &dyn Fn(Issuer) -> bool) -> Entry {
     match (&spec.auth.kind, spec.auth.issuer) {
         (AuthKind::OAuthPkce, Some(issuer)) => redirect_if(issuer, has_client),
         _ => Entry::Window,
@@ -59,7 +59,7 @@ pub(in crate::ui) fn entry(spec: &ProviderSpec, has_client: &dyn Fn(Issuer) -> b
 
 /// Where an account already here goes to sign in again: by the same rule, through the plan it
 /// was added with.
-pub(in crate::ui) fn entry_for_plan(auth: &AuthPlan, has_client: &dyn Fn(Issuer) -> bool) -> Entry {
+pub fn entry_for_plan(auth: &AuthPlan, has_client: &dyn Fn(Issuer) -> bool) -> Entry {
     match auth {
         AuthPlan::OAuth { issuer, .. } => redirect_if(*issuer, has_client),
         AuthPlan::Password { .. } => Entry::Window,
@@ -75,7 +75,7 @@ fn redirect_if(issuer: Issuer, has_client: &dyn Fn(Issuer) -> bool) -> Entry {
 }
 
 /// The providers mailo offers that go straight to the browser, by name, in the list's order.
-pub(in crate::ui) fn redirects(
+pub fn redirects(
     specs: &[ProviderSpec],
     has_client: &dyn Fn(Issuer) -> bool,
 ) -> Vec<(Issuer, String)> {
@@ -90,7 +90,7 @@ pub(in crate::ui) fn redirects(
 
 /// What a row of the add menu asks for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::ui) enum AddPick {
+pub enum AddPick {
     /// Sign in with this issuer in the browser.
     Redirect(Issuer),
     /// The add-account window.
@@ -98,7 +98,7 @@ pub(in crate::ui) enum AddPick {
 }
 
 /// The add menu's rows: each provider that goes straight to the browser, then Other Account….
-pub(in crate::ui) fn add_menu(redirects: &[(Issuer, String)]) -> Vec<MenuItem<AddPick>> {
+pub fn add_menu(redirects: &[(Issuer, String)]) -> Vec<MenuItem<AddPick>> {
     let mut rows: Vec<MenuItem<AddPick>> = redirects
         .iter()
         .map(|(issuer, label)| MenuItem::new(AddPick::Redirect(*issuer), label.clone()))
@@ -120,7 +120,7 @@ pub struct DirectSignIns(pub Arc<dyn SignInDirectly>);
 impl DirectSignIns {
     /// The program's: `clients`, the system browser, the keyring and `client`. For the launched
     /// window's root alone.
-    pub(in crate::ui) fn real(client: Client) -> DirectSignIns {
+    pub fn real(client: Client) -> DirectSignIns {
         DirectSignIns(Arc::new(Real { client }))
     }
 }
@@ -199,7 +199,7 @@ fn runner() -> Option<DirectSignIns> {
 
 /// The providers the add menu lists by name now. Empty when no direct sign-in can start here,
 /// and then "+" opens the window as it always did.
-pub(in crate::ui) fn offered_redirects() -> Vec<(Issuer, String)> {
+pub fn offered_redirects() -> Vec<(Issuer, String)> {
     match runner() {
         Some(runner) => redirects(
             &mail_ui_model::add_account::provider::offered_specs(),
@@ -211,7 +211,7 @@ pub(in crate::ui) fn offered_redirects() -> Vec<(Issuer, String)> {
 
 /// What a direct sign-in is doing, for every window.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub(in crate::ui) enum Phase {
+pub enum Phase {
     #[default]
     Idle,
     /// The browser is open, and the main window waits for it.
@@ -251,7 +251,7 @@ fn phase_now() -> Phase {
 /// One at a time: a pick while one waits replaces it, quietly (its page may never come back), and
 /// opens the page again. With no client for the issuer, or nothing here to run a direct sign-in,
 /// the window opens instead, and says why.
-pub(in crate::ui) fn start(issuer: Issuer, mode: Mode, join: Join) {
+pub fn start(issuer: Issuer, mode: Mode, join: Join) {
     let ready = runner().is_some_and(|runner| runner.0.has_client(issuer))
         && WATCHED.with(|watched| *watched.borrow() > 0);
     if !ready {
@@ -321,7 +321,7 @@ fn window_ask(mode: &Mode, join: Join) -> Ask {
 
 /// What a toast's button does after a sign-in that did not work.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(in crate::ui) enum Retry {
+pub enum Retry {
     /// The same direct sign-in again.
     Direct {
         issuer: Issuer,
@@ -334,7 +334,7 @@ pub(in crate::ui) enum Retry {
 
 impl Retry {
     /// The button's words.
-    pub(in crate::ui) fn label(&self) -> &'static str {
+    pub fn label(&self) -> &'static str {
         match self {
             Retry::Direct { .. } => mail_ui_model::copy::controls::TRY_AGAIN,
             Retry::Window(_) => "Use Add Account\u{2026}",
@@ -343,7 +343,7 @@ impl Retry {
 }
 
 /// Do what a toast's button offered. Call it from an event handler.
-pub(in crate::ui) fn retry(retry: Retry) {
+pub fn retry(retry: Retry) {
     match retry {
         Retry::Direct { issuer, mode, join } => start(issuer, mode, join),
         Retry::Window(ask) => super::request(ask),
@@ -352,7 +352,7 @@ pub(in crate::ui) fn retry(retry: Retry) {
 
 /// What the toast says when a sign-in ends, and what its button offers; nothing for one that was
 /// replaced by another or ran out of time, which nothing on screen was waiting for.
-pub(in crate::ui) fn told(
+pub fn told(
     issuer: Issuer,
     mode: &Mode,
     join: Join,
@@ -384,7 +384,7 @@ pub(in crate::ui) fn told(
 }
 
 /// The direct sign-in's phase, as a signal of this window's.
-pub(in crate::ui) fn use_phase() -> Signal<Phase> {
+pub fn use_phase() -> Signal<Phase> {
     let mut phase = use_signal(phase_now);
     use_future(move || async move {
         let mut heard = PHASE.with(|phase| phase.subscribe());
@@ -405,7 +405,7 @@ pub(in crate::ui) fn use_phase() -> Signal<Phase> {
 /// it ended. Mounted once, at the main window's root, for as long as the window is open; draws
 /// nothing.
 #[component]
-pub(in crate::ui) fn DirectSignInWatch(spaces: Signal<Spaces>) -> Element {
+pub fn DirectSignInWatch(spaces: Signal<Spaces>) -> Element {
     use_hook(|| WATCHED.with(|watched| *watched.borrow_mut() += 1));
     use_drop(|| WATCHED.with(|watched| *watched.borrow_mut() -= 1));
     let phase = use_phase();
@@ -484,22 +484,22 @@ fn settle(
 ) {
     if let Ok(address) = outcome
         && *mode == Mode::Add
-        && let Some(account) = super::window::account_at(address)
+        && let Some(account) = super::account_at(address)
     {
-        super::window::into_scope(&mut spaces, account, join);
+        super::into_scope(&mut spaces, account, join);
     }
     if let Some((text, offer)) = told(issuer, mode, join, outcome) {
         let follow = offer.map_or(Follow::Nothing, |again| {
             Follow::Do(Deed::new(again.label(), move |_, _| retry(again.clone())))
         });
-        mail_ui_kit::motion::tell(text, follow);
+        crate::motion::tell(text, follow);
     }
 }
 
 /// The add menu, hung from `anchor`: each provider that goes straight to the browser, then Other
 /// Account…, and a pick does what it says; an account added joins the Space `join` names.
 #[component]
-pub(in crate::ui) fn AddMenu(
+pub fn AddMenu(
     anchor: Option<MountedRef>,
     redirects: Vec<(Issuer, String)>,
     join: Join,
@@ -508,7 +508,7 @@ pub(in crate::ui) fn AddMenu(
     rsx! {
         Menu::<AddPick> {
             placement: MenuPlacement::default(),
-            anchor: mail_ui_kit::menu::anchor_for(anchor, None),
+            anchor: crate::menu::anchor_for(anchor, None),
             items: add_menu(&redirects),
             onpick: move |pick: AddPick| {
                 picked(pick, join);
@@ -521,7 +521,7 @@ pub(in crate::ui) fn AddMenu(
 
 /// Do what a row of the add menu says, the account added joining the Space `join` names. Call
 /// it from an event handler.
-pub(in crate::ui) fn picked(pick: AddPick, join: Join) {
+pub fn picked(pick: AddPick, join: Join) {
     match pick {
         AddPick::Redirect(issuer) => start(issuer, Mode::Add, join),
         AddPick::Other => super::request(window_ask(&Mode::Add, join)),
@@ -531,7 +531,7 @@ pub(in crate::ui) fn picked(pick: AddPick, join: Join) {
 /// The add menu's way in, for a control that adds an account: the menu when some provider goes
 /// straight to the browser (`open_menu` is told them), else the window. An account added joins
 /// the Space `join` names.
-pub(in crate::ui) fn add_from(join: Join, mut open_menu: impl FnMut(Vec<(Issuer, String)>)) {
+pub fn add_from(join: Join, mut open_menu: impl FnMut(Vec<(Issuer, String)>)) {
     let offered = offered_redirects();
     if offered.is_empty() {
         super::request(window_ask(&Mode::Add, join));
@@ -543,9 +543,9 @@ pub(in crate::ui) fn add_from(join: Join, mut open_menu: impl FnMut(Vec<(Issuer,
 /// Sign `address`'s account in again: straight in the browser when its plan signs in with a
 /// redirect whose client is at hand, else in the window with the address typed. Call it from an
 /// event handler.
-pub(in crate::ui) fn again(address: String) {
-    let client = mail_ui_kit::live::client();
-    let plan = mail_ui_kit::data::account_rows(&client)
+pub fn again(address: String) {
+    let client = crate::live::client();
+    let plan = crate::data::account_rows(&client)
         .into_iter()
         .find(|row| row.address == address)
         .map(|row| row.plan.auth);

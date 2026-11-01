@@ -1,11 +1,6 @@
 //! Adding an account straight in the browser: which entry goes where, the add menu, what the toast
 //! says, and the Space menu's Add Account end to end with a sign-in of the test's.
 
-use super::direct::{
-    AddPick, DirectSignIns, Entry, Retry, SignInDirectly, Signing, add_menu, entry, entry_for_plan,
-    offered_redirects, picked, redirects, told,
-};
-use super::{AddAccountWindows, Ask, Join, OpenAddAccount};
 use crate::ui::fixtures::settle_quiet_seen;
 use crate::ui::fixtures::{dispatching, empty, rebuild_into};
 use dioxus::prelude::*;
@@ -14,6 +9,11 @@ use ds::prelude::MenuItem;
 use mail_client::testing::core::account::{Mode, SignInError};
 use mail_client::testing::core::{ClientRegistry, Environment};
 use mail_domain::AuthPlan;
+use mail_ui_kit::add_account::direct::{
+    AddPick, DirectSignIns, Entry, Retry, SignInDirectly, Signing, add_menu, entry, entry_for_plan,
+    offered_redirects, picked, redirects, told,
+};
+use mail_ui_kit::add_account::{AddAccountWindows, Ask, Join, OpenAddAccount};
 use mail_ui_model::add_account::provider::offered_specs;
 use porter_provider::Issuer;
 use std::sync::{Arc, Mutex};
@@ -316,7 +316,7 @@ async fn google_from_the_space_menu_signs_in_in_the_browser_with_no_window() {
     // A second pick while it waits (the first page never came back) starts it afresh, and the
     // one it replaced ends without a word.
     dom.in_scope(ScopeId::APP, || {
-        super::direct::start(Issuer::Google, Mode::Add, Join::OnScreen)
+        mail_ui_kit::add_account::direct::start(Issuer::Google, Mode::Add, Join::OnScreen)
     });
     settle_quiet_seen(&mut dom).await;
     assert_eq!(
@@ -363,7 +363,7 @@ async fn added_joining(join: Join) -> String {
     let _ = rebuild_into(&mut dom);
     settle_quiet_seen(&mut dom).await;
     dom.in_scope(ScopeId::APP, || {
-        super::direct::start(Issuer::Google, Mode::Add, join)
+        mail_ui_kit::add_account::direct::start(Issuer::Google, Mode::Add, join)
     });
     settle_quiet_seen(&mut dom).await;
     keep_account(&store, "you@example.test").await;
@@ -416,7 +416,7 @@ async fn other_account_and_a_provider_without_a_client_open_the_window() {
 
     // Microsoft has no client here: no page, the window instead, which says why.
     dom.in_scope(ScopeId::APP, || {
-        super::direct::start(Issuer::Microsoft, Mode::Add, Join::OnScreen);
+        mail_ui_kit::add_account::direct::start(Issuer::Microsoft, Mode::Add, Join::OnScreen);
     });
     settle_quiet_seen(&mut dom).await;
     assert!(fake.asked.lock().unwrap().is_empty(), "a page was opened");
@@ -494,7 +494,7 @@ async fn a_root_without_the_programs_sign_in_offers_no_redirect_and_reaches_noth
         pick_add(&dom, "Other Account\u{2026}");
         settle_quiet_seen(&mut dom).await;
         dom.in_scope(ScopeId::APP, || {
-            super::direct::start(Issuer::Google, Mode::Add, Join::OnScreen);
+            mail_ui_kit::add_account::direct::start(Issuer::Google, Mode::Add, Join::OnScreen);
         });
         settle_quiet_seen(&mut dom).await;
         assert_eq!(

@@ -1,16 +1,12 @@
 //! The live watch in the running window, with a watch of the test's own and passes held shut
 //! until it lets them go, as `fetching/tests.rs` does for the passes alone.
 
-use mail_client::schedule::Daemon;
-use mail_ui_kit::fetching::live::Listener;
-use std::sync::Arc;
-use std::time::Duration;
-use mail_ui_kit::fetching::{Fetching, Passer};
 use crate::ui::fixtures::settle_quiet;
 use crate::ui::fixtures::{dispatching, empty};
 use chrono::Utc;
 use dioxus::prelude::*;
 use dioxus_core::VirtualDom;
+use mail_client::schedule::Daemon;
 use mail_client::testing::SqliteStore;
 use mail_client::testing::Store as _;
 use mail_client::testing::core::fetch::{Link, Live, Pause, Trigger};
@@ -18,10 +14,14 @@ use mail_client::testing::core::schedule::{Heard, Lost, Stop};
 use mail_client::testing::core::sync::report::{AccountReport, Counts, PassEnd};
 use mail_domain::id::account_id_from_uuid;
 use mail_domain::*;
+use mail_ui_kit::fetching::live::Listener;
+use mail_ui_kit::fetching::{Fetching, Passer};
 use porter_core::AccountId;
 use std::collections::VecDeque;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Mutex, mpsc};
+use std::time::Duration;
 
 fn acct_account() -> AccountId {
     account_id_from_uuid(uuid::uuid!("00000000-0000-4000-8000-0000000000e9"))

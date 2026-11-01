@@ -20,94 +20,25 @@
 //! The window is the host on every platform: mailo keeps its own accounts and credentials. Signing
 //! in through the desktop's accountd (a "Continue as" offer) is planned, not here yet.
 
-mod direct;
 mod map;
 mod size;
 mod window;
 
-pub(in crate::ui) use direct::{
+pub(in crate::ui) use mail_ui_kit::add_account::direct::{
     AddMenu, AddPick, DirectSignInWatch, add_from, add_menu, again, offered_redirects, picked,
 };
-pub use direct::{DirectSignIns, SignInDirectly};
+pub use mail_ui_kit::add_account::direct::{DirectSignIns, SignInDirectly};
+pub use mail_ui_kit::add_account::{AddAccountWindows, Ask, Join, OpenAddAccount};
+pub(in crate::ui) use mail_ui_kit::add_account::{allow_again, open};
 pub use window::{Browse, Opened, Wiring, add_account_root};
 
 use std::cell::RefCell;
-use std::sync::Arc;
 
 use dioxus::prelude::*;
 use ds_blitz::{WindowHandle, WindowSpec};
 
-use mail_ui_kit::space::SpaceId;
-
 /// What the window and its command are called.
 pub(in crate::ui) const TITLE: &str = "Add Account";
-
-/// What the window opens with: the address of an account being signed in again, already typed,
-/// and which Space an account added there joins.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct Ask {
-    pub address: Option<String>,
-    pub join: Join,
-}
-
-/// Which Space an account added joins. Accounts and Spaces are apart: an account is in a Space
-/// only because someone put it there, so one added from a Space (its menu, its sidebar, the
-/// window with nothing in it) joins that Space, and one added from Settings › Accounts, or signed
-/// in again, joins none.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Join {
-    /// The Space on screen when the account is added.
-    #[default]
-    OnScreen,
-    /// This Space, whose menu it was added from.
-    Into(SpaceId),
-    /// No Space.
-    Nowhere,
-}
-
-/// Whatever opens the add-account window: quire's event loop in the launched window, a recorder
-/// in a test.
-pub trait OpenAddAccount: Send + Sync + 'static {
-    /// Open the window for `ask`, or raise it when it is open.
-    fn open(&self, ask: Ask);
-}
-
-/// Where "Add account…" goes, as a root context. Without one it is quire's `open_window_with`.
-#[derive(Clone)]
-pub struct AddAccountWindows(pub Arc<dyn OpenAddAccount>);
-
-impl std::fmt::Debug for AddAccountWindows {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("AddAccountWindows")
-    }
-}
-
-/// Open the add-account window, or raise it. Call it from an event handler.
-pub(in crate::ui) fn open() {
-    request(Ask::default());
-}
-
-/// Open the window with `address` already typed: signing an account in again. Call it from an
-/// event handler.
-pub(in crate::ui) fn open_for(address: String) {
-    request(Ask {
-        address: Some(address),
-        join: Join::Nowhere,
-    });
-}
-
-/// What a failure that asks to allow Mail again opens: Add Account, the one way an account comes
-/// back. Call it from an event handler.
-pub(in crate::ui) fn allow_again() {
-    request(Ask::default());
-}
-
-fn request(ask: Ask) {
-    match try_consume_context::<AddAccountWindows>() {
-        Some(windows) => windows.0.open(ask),
-        None => quire(ask),
-    }
-}
 
 thread_local! {
     /// The window this app has open, kept so that opening it again raises it. Windows share the
@@ -116,7 +47,7 @@ thread_local! {
 }
 
 /// Ask quire's event loop for the window, or raise the one already open.
-fn quire(ask: Ask) {
+pub(super) fn quire(ask: Ask) {
     let existing = OPEN.with(|open| open.borrow().clone());
     if let Some(handle) = existing.filter(|handle| crate::ui::window::raise(Some(handle.life()))) {
         handle.focus();
@@ -145,8 +76,6 @@ fn quire(ask: Ask) {
     }
 }
 
-#[cfg(test)]
-mod direct_tests;
 #[cfg(test)]
 mod map_tests;
 #[cfg(test)]

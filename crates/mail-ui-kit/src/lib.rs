@@ -7,6 +7,7 @@
 //! here. Like `mail-ui` it names no `mail-core`, `mail-store` or `mail-runtime`.
 
 pub mod actions;
+pub mod add_account;
 pub mod appearance;
 pub mod avatar;
 pub mod bin;
@@ -22,6 +23,7 @@ pub mod destroy;
 pub mod downloads;
 pub mod fetching;
 pub mod files;
+pub mod frame;
 pub mod frame_selection;
 pub mod history;
 pub mod host;
@@ -58,6 +60,7 @@ pub mod saved;
 pub mod sensitive_copy;
 pub mod settings_at;
 pub mod space;
+pub mod summon;
 pub mod text;
 pub mod today;
 pub mod toolbar;

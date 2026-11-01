@@ -2,6 +2,7 @@
 //! window's fixtures (`ui::fixtures`), which the kit cannot have, as it cannot name `mail-app`'s
 //! shell or a store.
 
+mod add_account_direct_tests;
 mod cache_tests;
 mod data;
 mod downloads_tests;

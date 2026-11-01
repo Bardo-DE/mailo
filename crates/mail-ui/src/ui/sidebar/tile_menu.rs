@@ -3,13 +3,13 @@
 //! tile's menu is Sync Now, for every account the Space shows. What the rows are is data
 //! ([`items`]); [`TileMenu`] draws them at the press and does the pick.
 
-use mail_ui_kit::fetching::Fetching;
 use crate::ui::reauth::Reauth;
 use dioxus::prelude::*;
 use ds::components::menus::item::item::MenuItem;
 use ds::host::measure::Anchor;
 use ds::prelude::*;
 use ds::root::common::Common;
+use mail_ui_kit::fetching::Fetching;
 use mail_ui_kit::space::{Handle, Member, with_member};
 use mail_ui_kit::view::Shell;
 use mail_ui_model::copy;

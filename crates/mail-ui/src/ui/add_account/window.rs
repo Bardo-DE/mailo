@@ -25,8 +25,6 @@ use ds_shell::prelude::{
     BrowserWait, ProviderList, ReviewServices, ShowCode, SignInFailed, SignInForm, SignInWorking,
 };
 use mail_client::Client;
-use mail_client::profile::ProfileId;
-use porter_core::AccountId;
 
 use super::Join;
 use super::map::{self, Action, Out, Sheet, Step};
@@ -223,9 +221,11 @@ fn AddAccountShell(wiring: Wiring, prefill: Option<String>, join: Join) -> Eleme
         // Nothing is left to draw (and nothing typed is kept) while the window goes.
         sheet.set(Sheet::default());
         if ended == Ended::Added
-            && let Some(account) = added_to.take().and_then(|address| account_at(&address))
+            && let Some(account) = added_to
+                .take()
+                .and_then(|address| mail_ui_kit::add_account::account_at(&address))
         {
-            into_scope(&mut spaces, account, join);
+            mail_ui_kit::add_account::into_scope(&mut spaces, account, join);
         }
         if let Some(handle) = &handle {
             handle.close();
@@ -388,45 +388,6 @@ fn body(step: Step, send: Callback<Action>, marks: Marks) -> Element {
                 p { class: "add-account-detail", role: "alert", "{detail}" }
             }
         },
-    }
-}
-
-/// The account mailo's client has for `address`, which the add has just written.
-pub(super) fn account_at(address: &str) -> Option<AccountId> {
-    let client = mail_ui_kit::live::client();
-    mail_ui_kit::data::account_rows(&client)
-        .into_iter()
-        .find(|row| row.address == address)
-        .map(|row| row.id)
-}
-
-/// A new account joins the Space it was added from, as `join` names it; or none.
-pub(super) fn into_scope(spaces: &mut Signal<Spaces>, account: AccountId, join: Join) {
-    if join == Join::Nowhere {
-        return;
-    }
-    // The Spaces as they are on disk: this window's copy may be older than a Space another
-    // window added or switched to meanwhile, and keeping it would undo that.
-    if let Some(dirs) = try_consume_context::<mail_ui_kit::appearance::WindowDirs>()
-        && let Some(stored) = space::stored(&dirs)
-        && *spaces.peek() != stored
-    {
-        spaces.set(stored);
-    }
-    let widened = {
-        let mut all = spaces.write();
-        let into = match join {
-            Join::Into(space) => space,
-            Join::OnScreen | Join::Nowhere => all.current().id,
-        };
-        let mut widened = false;
-        all.edit(into, |space| {
-            widened = space.payload.widen(&ProfileId::default(), account)
-        });
-        widened
-    };
-    if widened {
-        crate::ui::frame::keep(&spaces.read());
     }
 }
 

@@ -1,10 +1,10 @@
 //! Opening a folder, as data: the filter its place lists, and when opening it fetches. The window
 //! around it is in `sidebar/folder_place_tests.rs`.
 
+use crate::view::{Shell, folder_of, places_with};
 use chrono::{DateTime, TimeZone, Utc};
 use mail_domain::id::account_id_from_uuid;
 use mail_domain::*;
-use crate::view::{Shell, folder_of, places_with};
 use porter_core::AccountId;
 
 fn acct_one() -> AccountId {

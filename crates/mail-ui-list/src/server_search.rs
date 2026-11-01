@@ -38,7 +38,7 @@ impl std::fmt::Debug for ServerSearcher {
 
 impl ServerSearcher {
     /// The server, through [`mail_client::server_search::search`].
-    #[cfg(not(test))]
+    #[cfg(not(any(test, feature = "testing")))]
     fn server() -> Self {
         Self(Arc::new(|client, account, input, _now| {
             client
@@ -48,9 +48,9 @@ impl ServerSearcher {
         }))
     }
 
-    /// Not in a test build: the real search reads the keyring and opens a socket, and a test
-    /// that forgot to provide its own must fail in words rather than reach either.
-    #[cfg(test)]
+    /// Not in a test: the real search reads the keyring and opens a socket, and a test that
+    /// forgot to provide its own must fail in words rather than reach either.
+    #[cfg(any(test, feature = "testing"))]
     fn server() -> Self {
         Self(Arc::new(|_, _, input, _| {
             Err(format!(
@@ -62,14 +62,14 @@ impl ServerSearcher {
 
 /// One account's server asked for one line, and how that went.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct Asked {
+pub struct Asked {
     pub input: String,
     pub account: AccountId,
     pub answer: Answer,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) enum Answer {
+pub enum Answer {
     Running,
     /// The conversations the server named, newest first; how many of their messages this search
     /// brought; how many more the server matched.
@@ -84,11 +84,7 @@ pub(super) enum Answer {
 }
 
 /// The answer for `input` on `account`, if it was asked.
-pub(super) fn answer_for<'a>(
-    asked: &'a [Asked],
-    input: &str,
-    account: AccountId,
-) -> Option<&'a Answer> {
+pub fn answer_for<'a>(asked: &'a [Asked], input: &str, account: AccountId) -> Option<&'a Answer> {
     asked
         .iter()
         .find(|a| a.input == input && a.account == account)
@@ -96,7 +92,7 @@ pub(super) fn answer_for<'a>(
 }
 
 /// Every conversation the servers named for `input`, newest first, less those in `listed`.
-pub(super) fn found_threads(asked: &[Asked], input: &str, listed: &[ThreadId]) -> Vec<ThreadId> {
+pub fn found_threads(asked: &[Asked], input: &str, listed: &[ThreadId]) -> Vec<ThreadId> {
     let mut out: Vec<ThreadId> = Vec::new();
     for a in asked.iter().filter(|a| a.input == input) {
         if let Answer::Found { threads, .. } = &a.answer {
@@ -111,7 +107,7 @@ pub(super) fn found_threads(asked: &[Asked], input: &str, listed: &[ThreadId]) -
 }
 
 /// What the line under an account's search says once it has an answer.
-pub(super) fn said(address: &str, answer: &Answer) -> Option<String> {
+pub fn said(address: &str, answer: &Answer) -> Option<String> {
     Some(match answer {
         Answer::Running => format!("Searching {address} on the server…"),
         Answer::Found { threads, .. } if threads.is_empty() => {
@@ -141,7 +137,7 @@ pub(super) fn said(address: &str, answer: &Answer) -> Option<String> {
 /// Ask `account`'s server for `input`, off the drawing thread, and put its answer in `asked`.
 ///
 /// From a click, or from [`ServerSearch`]'s effect: never from a render.
-pub(super) fn start(mut asked: Signal<Vec<Asked>>, input: String, account: AccountId) {
+pub fn start(mut asked: Signal<Vec<Asked>>, input: String, account: AccountId) {
     if matches!(
         answer_for(&asked.peek(), &input, account.clone()),
         Some(Answer::Running)
@@ -203,7 +199,7 @@ pub(super) fn start(mut asked: Signal<Vec<Asked>>, input: String, account: Accou
 
 /// The end of a search's list: per account in view with a server, its button or its answer.
 #[component]
-pub(super) fn ServerSearch(
+pub fn ServerSearch(
     /// The settled search line.
     input: String,
     /// The accounts in view that have a server, with their addresses.

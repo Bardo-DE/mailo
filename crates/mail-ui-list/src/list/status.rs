@@ -5,15 +5,15 @@
 //! no words about syncing. A count is the one thing drawn here as well, because it is the list
 //! it is filling. A component of its own, so a tick of the clock draws the bar and not the list.
 
-use mail_ui_kit::fetching::use_status;
 use dioxus::prelude::*;
 use ds::prelude::*;
 use ds::root::common::Common;
+use mail_ui_kit::fetching::use_status;
 use mail_ui_kit::view::Shell;
 use mail_ui_model::fetching::status::thousandths;
 
 #[component]
-pub(super) fn ListProgress(shell: Signal<Shell>) -> Element {
+pub fn ListProgress(shell: Signal<Shell>) -> Element {
     let Some(line) = use_status(shell) else {
         return rsx! {};
     };

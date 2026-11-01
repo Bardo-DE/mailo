@@ -239,7 +239,10 @@ async fn sync_while_a_pass_runs_says_it_is_already_checking() {
     settle_quiet(&mut dom).await;
     assert!(link(&dom).is_busy(), "no pass running: {:?}", link(&dom));
     let page = dioxus_ssr::render(&dom);
-    assert!(!page.contains(mail_ui_kit::fetching::ALREADY_SYNCING), "said unasked");
+    assert!(
+        !page.contains(mail_ui_kit::fetching::ALREADY_SYNCING),
+        "said unasked"
+    );
 
     dom.in_scope(ScopeId::APP, || {
         mail_ui_kit::fetching::sync_now(&mail_ui_kit::view::Shell::default());

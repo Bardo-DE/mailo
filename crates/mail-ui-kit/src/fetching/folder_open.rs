@@ -16,17 +16,8 @@ pub struct Fetcher(pub Fetch);
 
 impl Fetcher {
     /// The server, through [`mail_client::SyncOps::folder_now`].
-    ///
-    /// Not in a test: `folder_now` reads the keyring and opens a socket, and a test that forgot
-    /// to provide its own fetcher must fail in words rather than reach either.
+    #[cfg(not(any(test, feature = "testing")))]
     pub fn server(client: &Client) -> Self {
-        if cfg!(any(test, feature = "testing")) {
-            return Self(Arc::new(|_, _, path, _| {
-                Err(format!(
-                    "a test opened {path} without providing a Fetcher; the real one reaches the server"
-                ))
-            }));
-        }
         // The client keeps this closure (it is one of its seams), so it holds the client weakly:
         // a strong clone here would keep the client's threads running for good.
         let client = client.downgrade();
@@ -38,6 +29,17 @@ impl Fetcher {
                 .net()
                 .folder_now(account, path)
                 .map_err(crate::remedy::told)
+        }))
+    }
+
+    /// Not in a test: `folder_now` reads the keyring and opens a socket, and a test that forgot
+    /// to provide its own fetcher must fail in words rather than reach either.
+    #[cfg(any(test, feature = "testing"))]
+    pub fn server(_: &Client) -> Self {
+        Self(Arc::new(|_, _, path, _| {
+            Err(format!(
+                "a test opened {path} without providing a Fetcher; the real one reaches the server"
+            ))
         }))
     }
 }

@@ -9,6 +9,7 @@ use mail_client::Client;
 use mail_client::fetch::RETRY_NOW;
 use mail_client::fetch::{Listen, Pushers};
 use mail_client::schedule::Daemon;
+#[cfg(any(test, feature = "testing"))]
 use mail_client::schedule::Lost;
 use std::sync::Arc;
 use std::time::Duration;
@@ -30,26 +31,8 @@ pub struct Listener {
 
 impl Listener {
     /// The servers, through [`mail_client::SyncOps::listen`]; the daemon, through its lock.
-    ///
-    /// Not in a test: a watch opens sockets, and a test that forgot to provide its own must not
-    /// reach one. No account is pushed to, so none is watched.
+    #[cfg(not(any(test, feature = "testing")))]
     pub fn server(client: &Client) -> Self {
-        if cfg!(any(test, feature = "testing")) {
-            return Self {
-                listen: Arc::new(|_, _, _, _, _| {
-                    Err(Lost {
-                        retry: mail_domain::Retry::Fatal(
-                            "a test watched without providing a Listener".to_owned(),
-                        ),
-                        why: "a test watched without providing a Listener".to_owned(),
-                    })
-                }),
-                pushers: Arc::new(|_| Vec::new()),
-                daemon: Arc::new(|| Daemon::Absent),
-                first: Duration::ZERO,
-                retry: RETRY_NOW,
-            };
-        }
         Self {
             listen: client.net().listen(),
             pushers: mail_client::fetch::pushers(),
@@ -70,6 +53,26 @@ impl Listener {
                 }
             }),
             first: Duration::from_secs(4),
+            retry: RETRY_NOW,
+        }
+    }
+
+    /// Not in a test: a watch opens sockets, and a test that forgot to provide its own must not
+    /// reach one. No account is pushed to, so none is watched.
+    #[cfg(any(test, feature = "testing"))]
+    pub fn server(_: &Client) -> Self {
+        Self {
+            listen: Arc::new(|_, _, _, _, _| {
+                Err(Lost {
+                    retry: mail_domain::Retry::Fatal(
+                        "a test watched without providing a Listener".to_owned(),
+                    ),
+                    why: "a test watched without providing a Listener".to_owned(),
+                })
+            }),
+            pushers: Arc::new(|_| Vec::new()),
+            daemon: Arc::new(|| Daemon::Absent),
+            first: Duration::ZERO,
             retry: RETRY_NOW,
         }
     }

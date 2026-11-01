@@ -1,7 +1,10 @@
 //! What mailo puts on a quire component's own element.
 
 use dioxus::prelude::*;
+use ds::components::fields::text_field_model::Invalid;
 use ds::components::overlays::alert_model::{AlertButton, AlertRole, AlertStyle};
+use ds::motion::detail::stamp::EventStamp;
+use ds::prelude::Validity;
 use ds::prelude::{Alert, Icon, IconSize, RowLeading, TextLine, TileFace};
 use ds::root::common::Common;
 use ds::root::pass_through::{DataAttr, DataName, ExtraClass};
@@ -110,4 +113,15 @@ pub fn tagged(name: &'static str, value: impl Into<String>) -> Common {
 /// the first swatch rather than failing.
 pub fn hex_colour(text: &str) -> Colour {
     Colour::Solid(Hex::parse(text).unwrap_or_else(|| PersonSwatch::nth(0).hex()))
+}
+
+/// A refusal quire's field draws under itself: the words, and one stamp for each phrasing.
+pub fn refusal(why: Option<&str>) -> Validity {
+    match why {
+        None => Validity::Valid,
+        Some(why) => Validity::Invalid(Invalid {
+            message: why.to_owned().into(),
+            stamp: EventStamp(u32::try_from(why.len()).unwrap_or(0)),
+        }),
+    }
 }

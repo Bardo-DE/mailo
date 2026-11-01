@@ -19,11 +19,8 @@ mod exceptions;
 /// The sheet, in the cascade's order: the window's own rules, then the reader's and the composer's (each crate
 /// brings its files as one), then the rest. Joined once, on first use, and kept for the run.
 pub(super) static STYLE: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| {
-    let before = concat!(
-        include_str!("shell.css"),
-        include_str!("list.css"),
-        include_str!("menus.css"),
-    );
+    let shell = include_str!("shell.css");
+    let menus = include_str!("menus.css");
     let after = concat!(
         include_str!("contacts.css"),
         include_str!("files.css"),
@@ -35,7 +32,8 @@ pub(super) static STYLE: std::sync::LazyLock<&'static str> = std::sync::LazyLock
     );
     Box::leak(
         format!(
-            "{before}{}{}{after}",
+            "{shell}{}{menus}{}{}{after}",
+            mail_ui_list::STYLE,
             mail_ui_reader::STYLE,
             mail_ui_compose::STYLE
         )

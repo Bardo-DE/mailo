@@ -13,19 +13,21 @@ pub struct Passer(pub Pass);
 
 impl Passer {
     /// The servers, through [`mail_client::SyncOps::run_due`].
-    ///
+    #[cfg(not(any(test, feature = "testing")))]
+    pub fn server(client: &Client) -> Self {
+        Self(client.net().pass())
+    }
+
     /// Not in a test: a pass reads the keyring and opens sockets, and a test that forgot to
     /// provide its own must fail in words rather than reach either.
-    pub fn server(client: &Client) -> Self {
-        if cfg!(any(test, feature = "testing")) {
-            return Self(Arc::new(|_, _, _, _| {
-                Err(
-                    "a test ran a pass without providing a Passer; the real one reaches the servers"
-                        .to_owned(),
-                )
-            }));
-        }
-        Self(client.net().pass())
+    #[cfg(any(test, feature = "testing"))]
+    pub fn server(_: &Client) -> Self {
+        Self(Arc::new(|_, _, _, _| {
+            Err(
+                "a test ran a pass without providing a Passer; the real one reaches the servers"
+                    .to_owned(),
+            )
+        }))
     }
 
     /// A pass that ends at once having fetched nothing: a window that must reach no server.

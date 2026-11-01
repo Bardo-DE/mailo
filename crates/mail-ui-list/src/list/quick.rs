@@ -13,7 +13,7 @@ use mail_ui_kit::view::Shell;
 use mail_ui_model::copy;
 
 /// Turn `toggle` on or off, from the first page of what it leaves.
-pub(in crate::ui) fn toggle(mut shell: Signal<Shell>, mut pages: Signal<u32>, toggle: Toggle) {
+pub fn toggle(mut shell: Signal<Shell>, mut pages: Signal<u32>, toggle: Toggle) {
     if !shell.peek().filterable() {
         return;
     }
@@ -23,7 +23,7 @@ pub(in crate::ui) fn toggle(mut shell: Signal<Shell>, mut pages: Signal<u32>, to
 }
 
 /// Every toggle off: the whole list again, from its first page.
-pub(in crate::ui) fn clear(mut shell: Signal<Shell>, mut pages: Signal<u32>) {
+pub fn clear(mut shell: Signal<Shell>, mut pages: Signal<u32>) {
     let next = shell.peek().quick.cleared();
     shell.write().quick = next;
     pages.set(1);
@@ -32,7 +32,7 @@ pub(in crate::ui) fn clear(mut shell: Signal<Shell>, mut pages: Signal<u32>) {
 /// The toolbar's Filter button: shows the row of toggles, or hides it and turns them off. Pressed
 /// in while a toggle narrows the list. Not drawn where the list holds no conversations.
 #[component]
-pub(in crate::ui) fn FilterButton(shell: Signal<Shell>, mut pages: Signal<u32>) -> Element {
+pub fn FilterButton(shell: Signal<Shell>, mut pages: Signal<u32>) -> Element {
     if !shell.read().filterable() {
         return rsx! {};
     }
@@ -62,7 +62,7 @@ pub(in crate::ui) fn FilterButton(shell: Signal<Shell>, mut pages: Signal<u32>) 
 /// The row of toggles under the toolbar while the Filter button shows it: Unread, Starred and
 /// Has Attachments, each pressed in while on, and Clear Filter while any is.
 #[component]
-pub(super) fn QuickRow(shell: Signal<Shell>, pages: Signal<u32>) -> Element {
+pub fn QuickRow(shell: Signal<Shell>, pages: Signal<u32>) -> Element {
     let quick = shell.read().quick.clone();
     if quick.row == Row::Hidden || !shell.read().filterable() {
         return rsx! {};

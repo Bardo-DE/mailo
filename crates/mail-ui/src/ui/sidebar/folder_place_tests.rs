@@ -3,7 +3,6 @@
 //! the folders its messages are in.
 
 use super::super::app::App;
-use mail_ui_kit::fetching::folder_open::Fetcher;
 use super::folder_tests::{acct_imap, folder};
 use crate::ui::fixtures::settle_quiet;
 use crate::ui::fixtures::{Seen, click, dispatching, empty, rebuild_into};
@@ -14,6 +13,7 @@ use mail_client::testing::core::fetch::FolderFetch;
 use mail_client::testing::core::sync::report::{AccountReport, Counts, PassEnd};
 use mail_client::testing::{SqliteStore, Store};
 use mail_domain::*;
+use mail_ui_kit::fetching::folder_open::Fetcher;
 use mail_ui_kit::motion::belongs;
 use mail_ui_kit::view::{Shell, folder_of, places_with};
 use porter_core::AccountId;

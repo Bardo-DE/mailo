@@ -4,7 +4,7 @@
 //! can (starred, a label's yes and no, where a conversation is), so it has its own here, built
 //! from the same pieces. Like the menu's, the bands are over the rows loaded, in list order.
 
-use super::page::{Band, by_key, date_bands, group_page, titled};
+use crate::page::{Band, by_key, date_bands, group_page, titled};
 use chrono::{DateTime, TimeZone, Utc};
 use mail_domain::{
     Attachments, GroupKey, LabelId, MailboxRole, Pin, Property, ReadState, Star, ThreadSummary,
@@ -14,7 +14,7 @@ use std::borrow::Borrow;
 use std::collections::BTreeMap;
 
 /// Group `threads` the way the list is grouped now ([`mail_ui_kit::view::Shell::grouping`]).
-pub(super) fn group_list<T: Borrow<ThreadSummary>, Tz: TimeZone>(
+pub fn group_list<T: Borrow<ThreadSummary>, Tz: TimeZone>(
     threads: Vec<T>,
     by: &Grouping,
     names: &BTreeMap<LabelId, String>,

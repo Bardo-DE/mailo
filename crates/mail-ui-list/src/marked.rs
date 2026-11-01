@@ -9,13 +9,13 @@ use std::ops::Range;
 
 /// A run of text, marked or not.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) enum Piece<'a> {
+pub enum Piece<'a> {
     Plain(&'a str),
     Marked(&'a str),
 }
 
 /// `text` cut at `marks`. Every piece is a slice of `text`.
-pub(super) fn pieces<'a>(text: &'a str, marks: &[Range<usize>]) -> Vec<Piece<'a>> {
+pub fn pieces<'a>(text: &'a str, marks: &[Range<usize>]) -> Vec<Piece<'a>> {
     let mut out = Vec::new();
     let mut at = 0;
     for range in marks {

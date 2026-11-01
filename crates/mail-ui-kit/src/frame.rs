@@ -2,17 +2,23 @@
 //!
 //! How a Space is painted is `paint.rs`.
 
+use crate::appearance::WindowDirs;
+use crate::space::{self, Spaces};
+use crate::today::{self, Today};
 use dioxus::prelude::*;
-use mail_ui_kit::appearance::WindowDirs;
-use mail_ui_kit::space::{self, Spaces};
-use mail_ui_kit::today::{self, Today};
 
 /// What the first render needs, and nothing it has to ask the disk for again.
 #[derive(Clone)]
-pub(super) struct Boot {
+pub struct Boot {
     pub spaces: Spaces,
     pub today: Today,
     pub dirs: Option<WindowDirs>,
+}
+
+impl std::fmt::Debug for Boot {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Boot")
+    }
 }
 
 /// Load Spaces and Today.
@@ -20,15 +26,15 @@ pub(super) struct Boot {
 /// Called from the component, where the contexts are. A missing file is a first run: one Space
 /// per account, saved when there is a config directory to save it in (`space::boot`). A window
 /// handed no directories takes the Spaces it was handed, if any (a test's), else a first run.
-pub(super) fn load_boot() -> Boot {
+pub fn load_boot() -> Boot {
     let dirs = try_consume_dirs();
-    let client = mail_ui_kit::live::client();
-    let ids = mail_ui_kit::data::accounts(&client);
+    let client = crate::live::client();
+    let ids = crate::data::accounts(&client);
     // What mailo wrote before quire, read only: the window-wide theme a Space without one of its
     // own starts from.
     let legacy = dirs
         .as_ref()
-        .map(|dirs| mail_ui_kit::appearance::legacy(&dirs.config))
+        .map(|dirs| crate::appearance::legacy(&dirs.config))
         .unwrap_or_default();
     let spaces = match (&dirs, dioxus::prelude::try_consume_context::<Spaces>()) {
         (None, Some(handed)) => handed,
@@ -54,12 +60,12 @@ fn try_consume_dirs() -> Option<WindowDirs> {
 ///
 /// Atomic, through `space::save`. A window launched with nowhere to write keeps its Spaces
 /// for the session, and a file that cannot be written changes nothing on screen.
-pub(super) fn keep(spaces: &Spaces) {
+pub fn keep(spaces: &Spaces) {
     if let Some(dirs) = try_consume_dirs()
         && space::save(Some(&dirs), spaces).is_ok()
     {
         // The other windows wear the Space too, and read the file again.
-        mail_ui_kit::configured::told_configuration();
+        crate::configured::told_configuration();
     }
 }
 
@@ -70,10 +76,10 @@ pub(super) fn keep(spaces: &Spaces) {
 /// only wear them. A keymap that differs from the one the window's `keys` hold, whether this
 /// window's Keyboard page changed it or another's did, is handed to `keys` at once, so a
 /// rebinding or a reset applies without reopening anything.
-pub(super) fn use_followed_configuration(
-    mut shell: Signal<mail_ui_kit::view::Shell>,
+pub fn use_followed_configuration(
+    mut shell: Signal<crate::view::Shell>,
     mut spaces: Signal<Spaces>,
-    handle: Option<mail_ui_kit::space::Handle>,
+    handle: Option<crate::space::Handle>,
     keys: ds::prelude::Keys,
 ) {
     let mut applied = use_hook(|| CopyValue::new(shell.peek().keymap.overrides()));
@@ -85,14 +91,14 @@ pub(super) fn use_followed_configuration(
         }
     });
     let configured = use_signal(|| 0u64);
-    mail_ui_kit::configured::use_shared_configuration(configured);
+    crate::configured::use_shared_configuration(configured);
     use_effect(move || {
         let _ = configured();
-        mail_ui_kit::prefs::reread();
+        crate::prefs::reread();
         let Some(dirs) = try_consume_dirs() else {
             return;
         };
-        let keymap = mail_ui_kit::keymap::load(&dirs.config);
+        let keymap = crate::keymap::load(&dirs.config);
         if shell.peek().keymap != keymap {
             shell.write().keymap = keymap;
         }

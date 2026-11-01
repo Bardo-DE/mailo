@@ -1,6 +1,6 @@
 use super::*;
-use mail_domain::id::account_id_from_uuid;
 use crate::space::Scope;
+use mail_domain::id::account_id_from_uuid;
 
 fn acct_a() -> AccountId {
     account_id_from_uuid(uuid::uuid!("00000000-0000-4000-8000-0000000000d1"))

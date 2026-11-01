@@ -6,19 +6,17 @@
 //! people already know. What it writes is [`mail_ui_kit::saved`]'s to decide; this only draws the draft and hands it
 //! to the client.
 
-use super::page::{SORT_KEYS, sorts_by};
+use crate::page::{SORT_KEYS, sorts_by};
 use dioxus::prelude::*;
 use ds::components::content::label::{Label, LabelStyle};
 use ds::components::controls::button_model::Answers;
 use ds::components::fields::field_row::{FieldGroup, FieldRow, RowLayout};
-use ds::components::fields::text_field_model::Invalid;
 use ds::components::overlays::sheet_attach::Attach;
 use ds::host::measure::MountedRef;
-use ds::motion::detail::stamp::EventStamp;
 use ds::prelude::*;
 use ds::root::common::Common;
 use mail_domain::{Property, SortDir, View};
-use mail_ui_kit::common::{Seg, in_card};
+use mail_ui_kit::common::{Seg, in_card, refusal};
 use mail_ui_kit::menu::{Floating, MenuItem, Right, Tile};
 use mail_ui_kit::press::{SheetClose, on_primary};
 use mail_ui_kit::saved::{self, ViewDraft, group_choices, group_name};
@@ -26,18 +24,18 @@ use mail_ui_kit::view::Shell;
 use mail_ui_model::copy;
 
 /// Open the sheet on a new view of what `search` finds.
-pub(in crate::ui) fn open_new(mut shell: Signal<Shell>, search: &str) {
+pub fn open_new(mut shell: Signal<Shell>, search: &str) {
     shell.write().view_editor = Some(ViewDraft::from_search(search));
 }
 
 /// Open the sheet on `view`.
-pub(in crate::ui) fn open_edit(mut shell: Signal<Shell>, view: &View) {
+pub fn open_edit(mut shell: Signal<Shell>, view: &View) {
     let draft = ViewDraft::of(view, &shell.peek().known(), &chrono::Local);
     shell.write().view_editor = Some(draft);
 }
 
 /// Close the sheet and give the keyboard back to the window. Nothing typed is kept.
-pub(in crate::ui) fn close(mut shell: Signal<Shell>) {
+pub fn close(mut shell: Signal<Shell>) {
     shell.write().view_editor = None;
     mail_ui_kit::host::Host::focus_app();
 }
@@ -129,7 +127,7 @@ fn sort_word(property: Property) -> String {
 
 /// The sheet. Mounted while `shell.view_editor` is `Some`.
 #[component]
-pub(in crate::ui) fn ViewSheet(shell: Signal<Shell>, pages: Signal<u32>) -> Element {
+pub fn ViewSheet(shell: Signal<Shell>, pages: Signal<u32>) -> Element {
     let mut grouping = use_signal(|| false);
     let mut group_at = use_signal(|| None::<MountedRef>);
     let mut sorting = use_signal(|| false);
@@ -310,16 +308,5 @@ pub(in crate::ui) fn ViewSheet(shell: Signal<Shell>, pages: Signal<u32>) -> Elem
                 }
             }
         }
-    }
-}
-
-/// A refusal quire's field draws under itself: the words, and one stamp for each phrasing.
-pub(in crate::ui) fn refusal(why: Option<&str>) -> Validity {
-    match why {
-        None => Validity::Valid,
-        Some(why) => Validity::Invalid(Invalid {
-            message: why.to_owned().into(),
-            stamp: EventStamp(u32::try_from(why.len()).unwrap_or(0)),
-        }),
     }
 }

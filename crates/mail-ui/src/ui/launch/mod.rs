@@ -89,7 +89,6 @@ impl Resident {
     }
 }
 
-
 /// What the window is opened with.
 pub(super) struct Opening {
     pub program: Program,
@@ -114,6 +113,7 @@ pub fn run(
     dirs: Option<WindowDirs>,
     start: crate::ui::ask::Open,
 ) -> Result<(), ds_blitz::LaunchError> {
+    mail_ui_kit::add_account::record_opener(super::add_account::quire);
     mail_ui_kit::program::record(program.profile.clone(), program.resident.watching_here);
     let cache = mail_client::config::cache_dir();
     let icons = cache

@@ -19,12 +19,8 @@ impl Delegate {
     /// Asks the watch's lock for this Profile ([`mail_client::ipc::watching::running`]), every
     /// time it is asked: a watch may start or stop while the window is open. mailo.app's own
     /// watch, in this process, is asked first (`Program::resident`).
-    ///
-    /// Not in a test: the person's real watch, if there is one, must not change what a test sees.
+    #[cfg(not(any(test, feature = "testing")))]
     pub fn server() -> Self {
-        if cfg!(any(test, feature = "testing")) {
-            return Self(Arc::new(|| Schedule::Window));
-        }
         Self(Arc::new(|| {
             if crate::program::watching_here()
                 || mail_client::ipc::watching::running(&crate::program::profile())
@@ -34,6 +30,12 @@ impl Delegate {
                 Schedule::Window
             }
         }))
+    }
+
+    /// Not in a test: the person's real watch, if there is one, must not change what a test sees.
+    #[cfg(any(test, feature = "testing"))]
+    pub fn server() -> Self {
+        Self(Arc::new(|| Schedule::Window))
     }
 }
 

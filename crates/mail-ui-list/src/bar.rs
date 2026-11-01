@@ -4,7 +4,6 @@
 //! gone. A press on either brings up the panel ([`super::spotlight`]), as ⌘K does; nothing is
 //! typed here.
 
-use super::spotlight::summon;
 use chrono::Utc;
 use dioxus::prelude::*;
 use ds::components::controls::button_model::{Bezel, ImagePosition};
@@ -14,18 +13,19 @@ use ds::style::icon::render::IconPx;
 use ds::style::tokens::control_size::ControlSize;
 use mail_client::search;
 use mail_ui_kit::press::on_primary;
+use mail_ui_kit::summon::summon;
 use mail_ui_kit::view::{Bar, Shell};
 use mail_ui_model::copy;
 
 /// What the toolbar's search is called, to a screen reader and to a test.
-pub(in crate::ui) const BOX_LABEL: &str = "Search";
+pub const BOX_LABEL: &str = "Search";
 
 /// What the button that clears the search is called.
-pub(in crate::ui) const CLEAR_LABEL: &str = copy::aria::CLEAR_SEARCH;
+pub const CLEAR_LABEL: &str = copy::aria::CLEAR_SEARCH;
 
 /// What the toolbar shows for the search: the magnifier alone, or the search being shown.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(in crate::ui) enum Affordance {
+pub enum Affordance {
     /// Nothing searched: the magnifier.
     Idle,
     /// The list is narrowed by this search, and the panel is not up.
@@ -34,7 +34,7 @@ pub(in crate::ui) enum Affordance {
 
 /// The affordance for the window's search and whether the panel is up. While the panel is up,
 /// the panel shows what is typed; the toolbar keeps its magnifier.
-pub(in crate::ui) fn affordance(search: &str, bar: &Bar) -> Affordance {
+pub fn affordance(search: &str, bar: &Bar) -> Affordance {
     match bar {
         Bar::Closed if !search.trim().is_empty() => Affordance::Searching(search.to_owned()),
         Bar::Closed | Bar::Open(_) => Affordance::Idle,
@@ -44,7 +44,7 @@ pub(in crate::ui) fn affordance(search: &str, bar: &Bar) -> Affordance {
 /// A search as the header shows it: its operators as the panel's chips, in the order typed, and
 /// the rest of the line as words.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(in crate::ui) struct Terms {
+pub struct Terms {
     pub chips: Vec<String>,
     pub words: String,
 }
@@ -54,7 +54,7 @@ pub(in crate::ui) struct Terms {
 /// place the parser read it from, token by token, so a word that merely contains an operator's
 /// text (`xfrom:ada` before `from:ada`) stays a word; what is left keeps its order, its spaces
 /// closed up.
-pub(in crate::ui) fn terms(query: &str) -> Terms {
+pub fn terms(query: &str) -> Terms {
     let chips = search::parse(query, &Utc, &mail_logic::query::unnamed).operator_tokens;
     let spans = token_spans(query);
     let mut taken = vec![false; spans.len()];
@@ -146,7 +146,7 @@ fn token_spans(query: &str) -> Vec<(usize, usize)> {
 
 /// The toolbar's magnifier: a press brings up the panel.
 #[component]
-pub(in crate::ui) fn SearchBox(shell: Signal<Shell>) -> Element {
+pub fn SearchBox(shell: Signal<Shell>) -> Element {
     let keys = mail_ui_kit::actions::tip_own(mail_ui_kit::actions::Own::Search);
     rsx! {
         div { class: "bar",
@@ -169,7 +169,7 @@ pub(in crate::ui) fn SearchBox(shell: Signal<Shell>) -> Element {
 /// danger ink when the search cannot be run); then Save as View and the × that clears it. A
 /// press on the search brings the panel back over it.
 #[component]
-pub(in crate::ui) fn SearchHead(
+pub fn SearchHead(
     shell: Signal<Shell>,
     pages: Signal<u32>,
     /// Where the search looks, or why it cannot be run.
@@ -207,7 +207,7 @@ pub(in crate::ui) fn SearchHead(
             span { class: if bad { "search-scope bad" } else { "search-scope" }, "{scope}" }
         }
         // A search is filtered as a place is, and the row it shows is the same.
-        crate::ui::list::quick::FilterButton { shell, pages }
+        crate::list::quick::FilterButton { shell, pages }
         Button {
             bezel: Bezel::Toolbar,
             size: ControlSize::Large,
@@ -217,7 +217,7 @@ pub(in crate::ui) fn SearchHead(
             title: Some(copy::tooltips::SAVE_AS_VIEW.to_owned()),
             onclick: on_primary(move || {
                 let search = shell.peek().search.clone();
-                crate::ui::views::open_new(shell, &search);
+                crate::views::open_new(shell, &search);
             }),
         }
         Button {
@@ -233,7 +233,7 @@ pub(in crate::ui) fn SearchHead(
 }
 
 /// The search emptied, from the header's × or Esc in the list: the whole place listed again.
-pub(in crate::ui) fn clear(mut shell: Signal<Shell>, mut pages: Signal<u32>) {
+pub fn clear(mut shell: Signal<Shell>, mut pages: Signal<u32>) {
     shell.write().search = String::new();
     pages.set(1);
 }

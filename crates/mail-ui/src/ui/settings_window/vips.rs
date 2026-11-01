@@ -161,7 +161,7 @@ pub(super) fn VipsPage() -> Element {
                             label: copy::fields::VIP_ADDRESS.to_owned(),
                             value: typed(),
                             placeholder: copy::fields::VIP_ADDRESS_EXAMPLE.to_owned(),
-                            validity: crate::ui::views::refusal(refused.read().as_deref()),
+                            validity: mail_ui_kit::common::refusal(refused.read().as_deref()),
                             oninput: move |value: String| {
                                 refused.set(None);
                                 typed.set(value);

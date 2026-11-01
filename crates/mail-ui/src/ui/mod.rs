@@ -16,27 +16,22 @@ mod contacts;
 pub mod default_mail;
 mod erase;
 mod follow_up;
-mod frame;
+pub(in crate::ui) use mail_ui_kit::frame;
+#[cfg(test)]
+pub(in crate::ui) use mail_ui_list::row;
+pub(in crate::ui) use mail_ui_list::{list, organise, views};
 mod keyboard;
 mod launch;
 mod launcher_count;
-mod list;
-mod marked;
 mod no_account;
-mod organise;
 mod original_frame;
-mod page;
 mod reauth;
-mod row;
 mod rules;
-mod server_search;
 mod settings_window;
 mod sidebar;
 mod space_menu;
 mod style;
 mod switch;
-mod view_groups;
-mod views;
 mod window;
 mod window_core;
 
@@ -46,6 +41,8 @@ pub(in crate::ui) mod compose_tests;
 mod fixtures;
 #[cfg(test)]
 pub(in crate::ui) mod kit_tests;
+#[cfg(test)]
+mod list_tests;
 #[cfg(test)]
 pub(in crate::ui) mod reader_tests;
 #[cfg(test)]
@@ -68,10 +65,10 @@ pub mod native {
     pub use super::launch::gate::{Found, found as damaged_files};
     pub use super::launch::native::{contexts, contexts_passing, live_root, root};
     pub use super::original_frame::OriginalFrame;
-    pub use super::server_search::{Search, ServerSearcher};
     pub use super::settings_window::settings_root;
     pub use super::window::{MessageOpen, message_root};
     pub use crate::handoff::{ActivationToken, Requests};
     pub use mail_ui_compose::compose::Dictionaries;
     pub use mail_ui_kit::provider_chip::read as read_icons;
+    pub use mail_ui_list::server_search::{Search, ServerSearcher};
 }

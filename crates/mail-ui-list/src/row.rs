@@ -6,13 +6,13 @@
 //! opens or picks it, and it draws no buttons: its actions are in its menu ([`menu`]), opened by
 //! a right click. Split from [`super::app`].
 
-pub(in crate::ui) mod listed;
+pub mod listed;
 #[cfg(test)]
 mod listed_tests;
 #[cfg(test)]
 mod tests;
 
-use super::marked::{Piece, pieces};
+use crate::marked::{Piece, pieces};
 use chordkit::Platform;
 use dioxus::prelude::*;
 use ds::base::command::holds_primary;
@@ -30,12 +30,12 @@ use ds::style::icon::render::Glyph;
 use listed::{Listed, Opens, RowModel};
 use mail_client::provider::Provider;
 use mail_domain::*;
-use mail_ui_compose::compose::{cancel_scheduled, delete_stored_draft};
 use mail_ui_kit::menus::FurtherMenus;
 use mail_ui_kit::motion::drawn_order;
 use mail_ui_kit::motion::{act_kind, drag, motion};
 use mail_ui_kit::ops::{Writes, open_composer};
 use mail_ui_kit::provider_chip::ProvChip;
+use mail_ui_kit::queued::DraftActs;
 use mail_ui_kit::row_act::{self as act, press};
 use mail_ui_kit::row_menu::{Pick, RowMenu};
 use mail_ui_kit::view::Marks;
@@ -62,7 +62,7 @@ fn runs(text: &str, marks: &[Range<usize>]) -> TextLine {
 
 /// A row of the list, drawn as `model` says, and whichever menu it has open.
 #[component]
-pub(super) fn ListRow(
+pub fn ListRow(
     listed: Listed,
     model: RowModel,
     shell: Signal<Shell>,
@@ -85,6 +85,7 @@ pub(super) fn ListRow(
         Listed::Thread(summary) | Listed::Message(summary, _) => Some(summary.clone()),
         Listed::Draft(_) => None,
     };
+    let draft_acts = try_consume_context::<DraftActs>();
     let draft = match &listed {
         Listed::Draft(draft) => Some(draft.id),
         Listed::Thread(_) | Listed::Message(..) => None,
@@ -256,7 +257,11 @@ pub(super) fn ListRow(
                                 }
                                 press(shell, id, pressed, Opened::Row);
                             }
-                            (Pick::DeleteDraft, _, Some(draft)) => delete_stored_draft(shell, draft),
+                            (Pick::DeleteDraft, _, Some(draft)) => {
+                                if let Some(acts) = draft_acts {
+                                    acts.delete(shell, draft);
+                                }
+                            }
                             (Pick::Vip, Some(_), _) => {
                                 if let Some((email, name)) = &sender {
                                     let mark = mail_client::vip::toggled(&shell.peek().vips, email);
@@ -266,7 +271,7 @@ pub(super) fn ListRow(
                             }
                             // A refusal is said in the toast; the message stays as it was.
                             (Pick::CancelSending, _, Some(draft))
-                                if cancel_scheduled(shell, draft).is_ok() =>
+                                if draft_acts.is_some_and(|acts| acts.cancel_sending(shell, draft)) =>
                             {
                             }
                             // Not offered here: the reader's ⋯ holds them.
@@ -339,7 +344,7 @@ fn click_of(press: Press, platform: Platform) -> Option<Click> {
 
 /// Which account a conversation is on: its provider's mark, and the account's name in its tip.
 #[derive(Debug, Clone, PartialEq)]
-pub(super) struct AccountMark {
+pub struct AccountMark {
     pub provider: Provider,
     /// The account as the window names it: its address, or the name it was given.
     pub name: String,
