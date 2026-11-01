@@ -193,8 +193,12 @@ pub(super) fn see(client: &Client, message: MessageId, index: usize) -> Seen {
     let Some(attachment) = message.attachments.get(index) else {
         return Seen::Failed(mail_ui_model::copy::status::no_attachment(index));
     };
-    let Some(blob) = attachment.blob() else {
+    if !attachment.is_here() {
         return Seen::NotHere;
+    }
+    let blob = match client.stored().attachment_blob(&message, index) {
+        Ok(blob) => blob,
+        Err(why) => return unreadable(why),
     };
     let blobs = client.blobs();
     let head = match blobs.head(blob, HEAD) {

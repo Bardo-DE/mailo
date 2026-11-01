@@ -44,6 +44,17 @@ impl Client {
 }
 
 impl Stored<'_> {
+    /// The blob holding attachment `index` of `message` decoded, made from the message's own
+    /// bytes when it is not kept apart (`mail_core::attach::blob_of`). May decode a whole
+    /// message, so it is called where a read is, not where a frame is drawn.
+    pub fn attachment_blob(
+        &self,
+        message: &Message,
+        index: usize,
+    ) -> Result<mail_domain::BlobId, CallError> {
+        mail_core::attach::blob_of(self.0.store(), message, index).map_err(CallError::from)
+    }
+
     pub fn identities(&self, account: AccountId) -> Result<Vec<mail_domain::Identity>, CallError> {
         self.0.store().identities(account).map_err(CallError::from)
     }

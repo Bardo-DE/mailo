@@ -1,10 +1,13 @@
-//! What storing each attachment next to the raw message costs, measured.
+//! What keeping each attachment next to the raw message cost, measured, and that it no longer does.
 //!
-//! The raw message is a blob and every held attachment is a second blob of its decoded bytes, so
-//! an attachment is on disk twice: once inside the raw message as base64 (about 1.37 times its
-//! size with the line breaks) and once decoded. This ingests a synthetic mailbox into a
-//! throwaway store and reports how much of the blob bytes the second copy is. Run with
-//! `--no-capture` to see the table.
+//! The raw message is a blob and every attachment used to be a second blob of its decoded bytes,
+//! so an attachment was on disk twice: once inside the raw message as base64 (about 1.37 times its
+//! size with the line breaks) and once decoded. Measured with that, on this synthetic mailbox, the
+//! second copies were 42.2% of the blob bytes of attachment-heavy mail (24 messages, 50 KB to 5 MB
+//! attachments) and 40.1% of a mailbox of 300 text messages and 30 with attachments; text-only
+//! mail had none. Now a message's parts are kept as places in its raw bytes
+//! (`PartContent::Inside`) and the second copies are none. Run with `--no-capture` to see the
+//! table.
 
 use crate::fixture::{acct_account, now, store};
 use base64::Engine;
@@ -82,27 +85,11 @@ fn ingest(store: &SqliteStore, raws: Vec<Vec<u8>>) {
     .unwrap();
 }
 
-/// Bytes of the blobs the messages' raw bodies are, and of everything else.
-fn blob_bytes(store: &SqliteStore) -> (i64, i64) {
-    let c = store.raw_connection();
-    let total: i64 = c
-        .query_row("SELECT coalesce(sum(size),0) FROM blobs", [], |r| r.get(0))
-        .unwrap();
-    let raw: i64 = c
-        .query_row(
-            "SELECT coalesce(sum(size),0) FROM blobs WHERE id IN (SELECT body_raw FROM messages)",
-            [],
-            |r| r.get(0),
-        )
-        .unwrap_or(-1);
-    (total, raw)
-}
-
 fn report(name: &str, raws: Vec<Vec<u8>>) -> f64 {
     let (store, _dir) = store();
     let wire: usize = raws.iter().map(Vec::len).sum();
     ingest(&store, raws);
-    let (total, raw) = blob_bytes(&store);
+    let (total, raw) = mail_store::testing::blob_bytes(&store);
     let extra = total - raw;
     let share = extra as f64 / total as f64 * 100.0;
     println!(
@@ -129,6 +116,10 @@ fn the_second_copy_of_attachments_is_measured() {
     let b = report("html", html);
     let c = report("attachment-heavy", heavy);
     let d = report("mixed mailbox", mixed);
-    assert!(a < 5.0 && b < 5.0, "text-only mail has no second copies");
-    assert!(c > 0.0 && d > 0.0);
+    for share in [a, b, c, d] {
+        assert_eq!(
+            share, 0.0,
+            "a part is kept inside its message, not stored again"
+        );
+    }
 }

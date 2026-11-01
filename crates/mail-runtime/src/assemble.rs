@@ -131,6 +131,7 @@ fn assemble_as(
                 blob,
                 key,
                 role,
+                whole: matches!(provenance, Provenance::Wire),
             },
         ));
     }
@@ -172,6 +173,10 @@ struct Built {
     blob: BlobId,
     key: MessageKey,
     role: MailboxRole,
+    /// Whether `blob` is the message as it came, so that its parts are inside it to be decoded
+    /// when wanted and are not stored apart. A message rebuilt from sections is not: its parts
+    /// were fetched one by one and the bytes held are not all of them.
+    whole: bool,
 }
 
 /// Turn parsed messages into domain [`Message`]s: threaded together and onto what is stored,
@@ -207,6 +212,7 @@ fn build(
             blob,
             key,
             role,
+            whole,
             ..
         } = b;
         let from = fields.from.clone().unwrap_or_else(|| Address {
@@ -218,7 +224,8 @@ fn build(
         let attachments = fields
             .attachments
             .iter()
-            .map(|part| {
+            .enumerate()
+            .map(|(place, part)| {
                 // Left on the server: nothing to store, and its size is the server's figure.
                 let (content, size) = match &part.remote {
                     Some(remote) => (
@@ -226,6 +233,14 @@ fn build(
                             section: remote.section.clone(),
                         },
                         remote.octets,
+                    ),
+                    // Inside the message's own bytes already: stored again it would take the
+                    // room it takes once more, and it is decoded from there when it is wanted.
+                    None if whole => (
+                        PartContent::Inside {
+                            index: u32::try_from(place).unwrap_or(u32::MAX),
+                        },
+                        part.bytes.len() as u64,
                     ),
                     None => (
                         PartContent::Held(
@@ -389,6 +404,7 @@ fn prepare(
             blob,
             key,
             role: item.placement.role,
+            whole: true,
         });
         placements.push(item.placement);
     }
