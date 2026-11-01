@@ -115,7 +115,13 @@ fn rules_over(
         fired.push(rule.name.clone());
         for action in &rule.actions {
             if action.speaks() {
-                ran.left.push((message.id, action.clone()));
+                // A message a rule asked to hear of is said once (`speak::carry_out` did that
+                // when it was handed the lot; the fold hands over each once).
+                let again = *action == RuleAction::Notify
+                    && ran.left.contains(&(message.id, RuleAction::Notify));
+                if !again {
+                    ran.left.push((message.id, action.clone()));
+                }
                 continue;
             }
             let op = match action {
