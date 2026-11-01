@@ -218,6 +218,7 @@ impl MemoryStore {
     /// What `account`'s junk filter knows of `words`, as `SqliteStore::junk_counts` answers.
     pub fn junk_counts(&self, account: AccountId, words: &[String]) -> mail_domain::JunkCounts {
         let inner = self.inner.borrow();
+        // An account the filter has learned nothing for has no counts.
         let (spam, ham) = inner.junk_totals.get(&account).copied().unwrap_or_default();
         let mut seen = Vec::new();
         for word in words {

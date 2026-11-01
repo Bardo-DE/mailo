@@ -544,6 +544,8 @@ pub fn downgrade_to_before_reparse(db_path: &std::path::Path) {
              ALTER TABLE drafts DROP COLUMN openpgp;
              DROP TABLE smime_certs;
              ALTER TABLE drafts DROP COLUMN smime;
+             DROP INDEX outbox_forward;
+             ALTER TABLE outbox DROP COLUMN forward_id;
              ALTER TABLE outbox DROP COLUMN messages;
              DROP TRIGGER unplaced_found_ins;
              DROP TRIGGER unplaced_found_upd;

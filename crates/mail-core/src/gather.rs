@@ -74,6 +74,7 @@ fn read_one(
 pub fn acting_accounts(store: &SqliteStore) -> Accounts {
     accounts(store, &Settings::default())
         .or_log("the accounts could not be read to act on mail")
+        // Accounts that cannot be read are said above; with none known an act is made here alone.
         .unwrap_or_default()
 }
 

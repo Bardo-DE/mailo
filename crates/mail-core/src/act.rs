@@ -44,6 +44,7 @@ pub fn take_back_with(store: &SqliteStore, accounts: &Accounts, entry: &Undo) ->
             let waiting: Vec<Waiting> = store
                 .outbox_due(entry.account.clone(), queue_horizon())
                 .or_log("the outbox could not be read to take an operation back")
+                // An outbox that cannot be read (said above) counts as nothing waiting.
                 .unwrap_or_default()
                 .into_iter()
                 .map(|queued| Waiting {

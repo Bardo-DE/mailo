@@ -25,6 +25,7 @@ impl SqliteStore {
             }
             Err(error) => {
                 db.execute_batch("ROLLBACK TO act_commit; RELEASE act_commit")
+                    // The commit failed and that is the error returned; undoing it further is best effort.
                     .ok();
                 Err(error)
             }

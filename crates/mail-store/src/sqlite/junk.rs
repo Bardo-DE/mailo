@@ -93,7 +93,7 @@ impl SqliteStore {
                     Judged::Spam => Judged::Ham,
                     Judged::Ham => Judged::Spam,
                 };
-                take_back(&tx, &account, &split(&taught), other)?;
+                take_back(tx, &account, &split(&taught), other)?;
                 Learned::Turned
             }
             None => Learned::New,
@@ -158,7 +158,7 @@ impl SqliteStore {
         let Some(taught) = learned else {
             return Ok(false);
         };
-        take_back(&tx, &account.to_string(), &split(&taught), judged)?;
+        take_back(tx, &account.to_string(), &split(&taught), judged)?;
         tx.execute(
             "DELETE FROM junk_learned WHERE message = ?1",
             params![message.to_string()],
