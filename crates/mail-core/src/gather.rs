@@ -3,7 +3,8 @@
 
 use crate::error::{CoreError, Logged};
 use mail_logic::accounts::{Account, Accounts, Prefs, Settings};
-use mail_store::SqliteStore;
+use mail_logic::act::ThreadView;
+use mail_store::{SqliteStore, Store};
 use std::path::Path;
 
 /// The settings the accounts are read with: the choices in `offline.json` under `config` (every
@@ -65,4 +66,48 @@ fn read_one(
         caps,
         paused,
     })
+}
+
+/// Every account as what an act is decided over: whether it has a server, and what that server was
+/// last seen to support. What an act never reads (how often an account is synced, whether the
+/// person paused it) is left as the defaults.
+pub fn acting_accounts(store: &SqliteStore) -> Accounts {
+    accounts(store, &Settings::default())
+        .or_log("the accounts could not be read to act on mail")
+        .unwrap_or_default()
+}
+
+/// The conversation `thread` and every message of it, for an act to be decided over. A message
+/// that cannot be read is left out, and said: the operation then acts on the rest, as it would on a
+/// conversation the message had left. `None` when the conversation cannot be read.
+pub fn thread_view(store: &SqliteStore, thread: mail_domain::ThreadId) -> Option<ThreadView> {
+    let loaded = store
+        .thread(thread)
+        .or_log("the conversation to act on could not be read")?;
+    let messages = loaded
+        .messages
+        .iter()
+        .filter_map(|id| {
+            store
+                .message(*id)
+                .or_log("a message of the conversation could not be read")
+        })
+        .collect();
+    Some(ThreadView {
+        thread: loaded,
+        messages,
+    })
+}
+
+/// The label that marks junk on `account`, if it has one.
+pub fn junk_label(
+    store: &SqliteStore,
+    account: &porter_core::AccountId,
+) -> Option<mail_domain::LabelId> {
+    store
+        .labels(account.clone())
+        .or_log("the labels could not be read to see whether one marks junk")?
+        .into_iter()
+        .find(|l| l.name.eq_ignore_ascii_case(mail_logic::junk::JUNK_LABEL))
+        .map(|l| l.id)
 }

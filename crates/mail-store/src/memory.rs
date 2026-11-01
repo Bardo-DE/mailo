@@ -2133,6 +2133,7 @@ impl Inner {
                 account: row.account.clone(),
                 op,
                 undo: row.undo.clone(),
+                forward: row.forward,
                 attempts: row.attempts,
                 next_attempt: row.next_attempt,
             });

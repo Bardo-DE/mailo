@@ -226,7 +226,16 @@ pub fn held(store: &dyn Store, threads: &[Vec<MessageId>; 2]) -> Held {
     }
     Held {
         threads: out,
-        queue: store.outbox_due(acct_account(), horizon()).unwrap(),
+        // Without the name of the act that queued it, which only a commit gives.
+        queue: store
+            .outbox_due(acct_account(), horizon())
+            .unwrap()
+            .into_iter()
+            .map(|entry| OutboxEntry {
+                forward: None,
+                ..entry
+            })
+            .collect(),
     }
 }
 

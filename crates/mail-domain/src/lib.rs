@@ -77,7 +77,7 @@ pub use jmap_id::{
 pub use junk::{Judged, JunkCounts};
 pub use keyword::{THUNDERBIRD_TAGS, keyword_label, label_keyword};
 pub use message::{Message, MessageKey, SortFacts, Thread, ThreadSummary};
-pub use op::{Action, Applied, Change, Op, OpKind, Patch, RemoteIntent, Target};
+pub use op::{Action, Applied, Change, Op, OpKind, OpPreview, Patch, RemoteIntent, Target};
 pub use parts::PartTree;
 pub use pgp::{
     Coverage, Encryption, Fingerprint, KeyId, KeySource, KeyTrust, PgpKey, SecretHeld, Verification,

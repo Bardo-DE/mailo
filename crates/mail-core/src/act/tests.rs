@@ -1,12 +1,39 @@
 use super::*;
 use crate::support_tests::{account, at, caps, message};
-use mail_store::testing::{clear_outbox, in_memory, seed_account, seed_caps};
+use mail_store::testing::{clear_outbox, in_memory, seed_caps};
+
+/// An account that has a server, as the accounts an act is decided over need it to be.
+fn seed_imap_account(store: &SqliteStore) {
+    let plan = AccountPlan {
+        address: "me@example.test".to_owned(),
+        incoming: Incoming::Imap {
+            host: "imap.example.test".to_owned(),
+            port: 993,
+            tls: Tls::Implicit,
+        },
+        outgoing: Outgoing::Nowhere,
+        auth: AuthPlan::Password {
+            username: Username::SameAsAddress,
+            sasl: vec![SaslMech::Plain],
+        },
+        identities: Vec::new(),
+    };
+    mail_store::testing::seed_account_plan(store, account(), "me@example.test", &plan, None);
+}
+
+/// The messages of a loaded conversation.
+fn messages_of(store: &SqliteStore, held: &Thread) -> Vec<Message> {
+    held.messages
+        .iter()
+        .map(|id| store.message(*id).unwrap())
+        .collect()
+}
 
 /// A store whose server files into named folders, holding one message in the inbox, and a label
 /// the folder `Projects` is.
 fn store_with_a_copy_target() -> (SqliteStore, ThreadId, LabelId) {
     let store = in_memory();
-    seed_account(&store, account(), "me@example.test");
+    seed_imap_account(&store);
     let caps = AccountCaps {
         archive: ArchiveMeans::MoveToFolder("Archive".to_owned()),
         ..caps()

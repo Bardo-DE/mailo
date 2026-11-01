@@ -83,6 +83,9 @@ pub struct OutboxEntry {
     /// Applied if this entry ends in [`Retry::Fatal`], so an optimistic local change does not
     /// outlive an operation the server refused.
     pub undo: Patch,
+    /// The act that queued it, named by the id of the patch it applied. `None` for work no act
+    /// queued, and for work queued before acts were named.
+    pub forward: Option<mail_domain::UndoId>,
     pub attempts: u32,
     pub next_attempt: DateTime<Utc>,
 }

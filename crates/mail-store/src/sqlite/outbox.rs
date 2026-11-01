@@ -308,7 +308,7 @@ impl SqliteStore {
         // server in the order the user performed them, or the result is whichever won the race.
         let db = self.reader();
         let mut stmt = db.prepare_cached(
-            "SELECT id, op, undo, attempts, next_attempt, messages FROM outbox
+            "SELECT id, op, undo, attempts, next_attempt, messages, forward_id FROM outbox
              WHERE account = ?1 AND next_attempt <= ?2 ORDER BY id",
         )?;
         let rows = stmt
@@ -320,13 +320,14 @@ impl SqliteStore {
                     r.get::<_, i64>(3)?,
                     r.get::<_, String>(4)?,
                     r.get::<_, Option<String>>(5)?,
+                    r.get::<_, Option<String>>(6)?,
                 ))
             })?
             .collect::<Result<Vec<_>, _>>()?;
         drop(stmt);
         let lookup = |m: MessageId| self.addresses_now(account.clone(), m);
         let mut out = Vec::new();
-        for (id, op, undo, attempts, next, messages) in rows {
+        for (id, op, undo, attempts, next, messages, forward) in rows {
             let queued: ProtoOp = json("ProtoOp", &op)?;
             // Where it would go now. One that would wait is listed as it was queued.
             let op = match crate::dispatch::own(queued.clone(), &messages_from(messages)?, &lookup)?
@@ -339,6 +340,11 @@ impl SqliteStore {
                 account: account.clone(),
                 op,
                 undo: json("Patch", &undo)?,
+                forward: forward
+                    .map(|text| {
+                        super::row::uuid("forward_id", &text).map(mail_domain::UndoId::from_uuid)
+                    })
+                    .transpose()?,
                 attempts: attempts as u32,
                 next_attempt: super::row::time("next_attempt", &next)?,
             });

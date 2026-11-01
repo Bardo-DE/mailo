@@ -8,7 +8,10 @@
 //! same undo.
 
 use crate::error::Logged;
+use chrono::Utc;
 use mail_domain::*;
+use mail_logic::accounts::Accounts;
+use mail_logic::act::{Act, ActSnapshot, TakeBackSnapshot, Waiting};
 use mail_logic::undo::Undo;
 use mail_store::{SqliteStore, Store};
 use porter_core::AccountId;
@@ -19,186 +22,52 @@ use porter_core::AccountId;
 /// `false` when it could not be taken back, and then nothing changed: a reverse the server
 /// cannot be told is not taken back here either, or the two would disagree until the next sync
 /// put the operation back without a word.
-pub fn take_back(store: &SqliteStore, entry: &Undo) -> bool {
-    // A send to queue again is the window's to undo (`Undo::resend`).
-    if entry.resend.is_some() {
-        return false;
-    }
-    // A copy the server has made stays made (`undo::reverse_intent`): taking the copy out of its
-    // folder here would put it back at the next sync, so once it has left the outbox there is
-    // nothing to take back.
-    if matches!(entry.remote, Some(RemoteIntent::Copy { .. }))
-        && has_server(store, entry.account.clone())
-        && queued_filing(store, entry).is_none()
-    {
-        return false;
-    }
-    let reverse = entry
-        .remote
-        .as_ref()
-        .filter(|_| has_server(store, entry.account.clone()))
-        .and_then(|remote| mail_logic::undo::reverse_intent(remote, &entry.inverse));
-    if store
-        .apply(entry.account.clone(), &entry.inverse)
-        .or_log("an undo could not be applied")
-        .is_none()
-    {
-        return false;
-    }
-    withdraw_filing(store, entry);
-    if let Some(reverse) = reverse
-        && store
-            .enqueue(
-                entry.account.clone(),
-                reverse,
-                &entry.forward,
-                chrono::Utc::now(),
-            )
-            .or_log("an undo's reverse could not be queued for the server")
-            .is_none()
-    {
-        // Put the operation back as it was. Should that fail too, the store is left taken back
-        // here and not there, and the next sync restores the server's state.
-        store
-            .apply(entry.account.clone(), &entry.forward)
-            .or_log("an undo could not be put back after its reverse failed to queue");
-        return false;
-    }
-    unteach(store, entry);
-    true
-}
-
-/// What a gesture taught the junk filter, from the patch it applied: Spam taught that the
-/// messages it moved into Spam are junk, and Not Spam, or taking the Junk label off, that the
-/// messages it moved out of Spam or off that label are not.
-fn taught_by(store: &SqliteStore, entry: &Undo) -> Vec<(mail_store::junk::Judged, MessageId)> {
-    use mail_store::junk::Judged;
-    let was_spam: Vec<MessageId> = entry
-        .inverse
-        .changes
-        .iter()
-        .filter_map(|change| match change {
-            Change::MessageMailbox(m, MailboxRole::Spam) => Some(*m),
-            _ => None,
-        })
-        .collect();
-    let junk_label = store
-        .labels(entry.account.clone())
-        .or_log("the labels could not be read to take back what a gesture taught")
-        .and_then(|labels| {
-            labels
-                .into_iter()
-                .find(|l| l.name.eq_ignore_ascii_case(mail_logic::junk::JUNK_LABEL))
-                .map(|l| l.id)
-        });
-    entry
-        .forward
-        .changes
-        .iter()
-        .filter_map(|change| match change {
-            Change::MessageMailbox(m, MailboxRole::Spam) => Some((Judged::Spam, *m)),
-            Change::MessageMailbox(m, _) if was_spam.contains(m) => Some((Judged::Ham, *m)),
-            Change::MessageLabel(m, label, Membership::Out) if Some(*label) == junk_label => {
-                Some((Judged::Ham, *m))
-            }
-            _ => None,
-        })
-        .collect()
-}
-
-/// Take back from the junk filter what the operation `entry` undoes taught it, so an undone
-/// Spam or Not Spam leaves its counts as they were.
-fn unteach(store: &SqliteStore, entry: &Undo) {
-    for (judged, message) in taught_by(store, entry) {
-        store
-            .junk_forget(entry.account.clone(), message, judged)
-            .or_log("the junk filter could not forget what an undone gesture taught");
-    }
-}
-
-/// The queued move or copy `entry` made, while the server has not been tried with it. `None` once
-/// it has been sent, has been tried and is waiting to retry, or was settled; and when the outbox
-/// cannot be read, which then counts as sent.
-fn queued_filing(store: &SqliteStore, entry: &Undo) -> Option<mail_store::OutboxEntry> {
-    let queued_as: fn(&ProtoOp) -> bool = match &entry.remote {
-        Some(RemoteIntent::File { .. }) => |op| matches!(op, ProtoOp::File { .. }),
-        Some(RemoteIntent::Copy { .. }) => |op| matches!(op, ProtoOp::Copy { .. }),
-        _ => return None,
-    };
-    // The whole queue, not only what is due: a later operation waiting out a retry or a
-    // credential is later all the same.
-    store
-        .outbox_due(entry.account.clone(), queue_horizon())
-        .or_log("the outbox could not be read to find a taken-back move")?
-        .into_iter()
-        .find(|waiting| {
-            queued_as(&waiting.op) && waiting.attempts == 0 && waiting.undo == entry.inverse
-        })
-}
-
-/// A move or a copy to a folder taken back before the server heard of it is taken out of the
-/// outbox too.
 ///
-/// A filing has no reverse the server can be sent (`undo::reverse_intent`), so once it has gone
-/// the server keeps it filed. Until it has been tried, though, it is only a queued intention, and
-/// leaving it queued would move the message on the next sync after the user said not to — and
-/// hold its row out of the folder it is back in meanwhile, because a queued move is a message
-/// leaving. Settled as refused, which drops the entry and puts back the same values the undo
-/// just wrote.
+/// Decided over what is waiting in the outbox ([`mail_logic::act::take_back`]) and written whole:
+/// the inverse, the reverse, and a move or copy not yet sent taken out of the outbox by the name
+/// of the act that queued it.
 ///
-/// Not when anything queued after it acts on the same messages. Settling it refused writes its
-/// undo, the state from before it, and drops its pending changes, and a later operation on those
-/// messages was made on top of it: that operation's own undo and pending changes assume the move
-/// is there. Rather than work out which of them survive it, the move is left queued and the
-/// server keeps it filed, which is what happened before this existed.
-///
-/// Nothing marks an entry as taken by a pass that is running, so there is a window this does
-/// not close: a sync already sending the move, the window's own or `mailo watch`'s, still
+/// Nothing marks an entry as taken by a pass that is running, so there is a window this does not
+/// close for a move a sync is already sending, the window's own or `mailo watch`'s: it still
 /// reaches the server, and its confirmation then settles an entry that is no longer here. The
 /// message is back here and filed there, and the next sync shows it filed.
-fn withdraw_filing(store: &SqliteStore, entry: &Undo) {
-    let (messages, queued_as): (_, fn(&ProtoOp) -> bool) = match &entry.remote {
-        Some(RemoteIntent::File { messages, .. }) => {
-            (messages, |op| matches!(op, ProtoOp::File { .. }))
-        }
-        // Left queued, a copy would put the message back in the folder at the next sync.
-        Some(RemoteIntent::Copy { messages, .. }) => {
-            (messages, |op| matches!(op, ProtoOp::Copy { .. }))
-        }
-        _ => return,
-    };
-    // The whole queue, not only what is due: a later operation waiting out a retry or a
-    // credential is later all the same.
-    let Some(queued) = store
-        .outbox_due(entry.account.clone(), queue_horizon())
-        .or_log("the outbox could not be read to withdraw a taken-back move")
-    else {
-        return;
-    };
-    let Some(filing) = queued.iter().find(|waiting| {
-        queued_as(&waiting.op) && waiting.attempts == 0 && waiting.undo == entry.inverse
-    }) else {
-        return;
-    };
-    let mut ours = messages.clone();
-    ours.extend(messages_in(&filing.undo));
-    if queued
-        .iter()
-        .filter(|later| later.id > filing.id)
-        .any(|later| touches(later, &ours, &filing.op))
-    {
-        return;
-    }
+pub fn take_back(store: &SqliteStore, entry: &Undo) -> bool {
+    take_back_with(store, &crate::gather::acting_accounts(store), entry)
+}
+
+/// [`take_back`], over accounts already read.
+pub fn take_back_with(store: &SqliteStore, accounts: &Accounts, entry: &Undo) -> bool {
     store
-        .outbox_settle(
-            filing.id,
-            mail_store::Settle::Failed {
-                reason: "taken back before it was sent".to_owned(),
-                retry: Retry::Fatal("taken back".to_owned()),
-            },
-            chrono::Utc::now(),
-        )
-        .or_log("a taken-back move could not be withdrawn from the outbox");
+        .within(|| {
+            // The whole queue, not only what is due: a later operation waiting out a retry or a
+            // credential is later all the same. One that cannot be read counts as none waiting.
+            let waiting: Vec<Waiting> = store
+                .outbox_due(entry.account.clone(), queue_horizon())
+                .or_log("the outbox could not be read to take an operation back")
+                .unwrap_or_default()
+                .into_iter()
+                .map(|queued| Waiting {
+                    id: queued.id,
+                    op: queued.op,
+                    undo: queued.undo,
+                    forward: queued.forward,
+                    attempts: queued.attempts,
+                })
+                .collect();
+            let snapshot = TakeBackSnapshot {
+                accounts,
+                waiting: &waiting,
+                junk_label: crate::gather::junk_label(store, &entry.account),
+            };
+            let commit = mail_logic::act::take_back(&snapshot, entry, Utc::now())?;
+            store
+                .commit(&commit)
+                .or_log("an undo could not be applied")
+                .map(|_| ())
+        })
+        .or_log("an undo could not be applied")
+        .flatten()
+        .is_some()
 }
 
 /// A moment after every queued entry's next attempt, so that `outbox_due` lists the whole queue.
@@ -209,63 +78,6 @@ fn queue_horizon() -> chrono::DateTime<chrono::Utc> {
     chrono::DateTime::from_timestamp(253_402_300_799, 0).unwrap_or_else(chrono::Utc::now)
 }
 
-/// The messages a patch writes to.
-fn messages_in(patch: &Patch) -> Vec<MessageId> {
-    patch
-        .changes
-        .iter()
-        .filter_map(|change| match change {
-            Change::MessageRead(m, _)
-            | Change::MessageStar(m, _)
-            | Change::MessageMailbox(m, _)
-            | Change::MessageLabel(m, _, _)
-            | Change::MessageDelete(m) => Some(*m),
-            Change::MessageUpsert(message) => Some(message.id),
-            _ => None,
-        })
-        .collect()
-}
-
-/// Whether a queued entry acts on any of `messages`, or on any server message `filing` names.
-///
-/// Its undo names the messages it changed here, and its operation the ones it will change there;
-/// either is enough. An operation this cannot read counts as touching them, because guessing
-/// wrong that way costs only a move the server is still sent.
-fn touches(later: &mail_store::OutboxEntry, messages: &[MessageId], filing: &ProtoOp) -> bool {
-    if messages_in(&later.undo)
-        .iter()
-        .any(|m| messages.contains(m))
-    {
-        return true;
-    }
-    let (ProtoOp::File { remotes: ours, .. } | ProtoOp::Copy { remotes: ours, .. }) = filing else {
-        return true;
-    };
-    match &later.op {
-        ProtoOp::SetFlags { remotes, .. }
-        | ProtoOp::SetMailbox { remotes, .. }
-        | ProtoOp::SetLabels { remotes, .. }
-        | ProtoOp::File { remotes, .. }
-        | ProtoOp::Copy { remotes, .. }
-        | ProtoOp::AddKeyword { remotes, .. }
-        | ProtoOp::Expunge { remotes }
-        | ProtoOp::Destroy { remotes } => remotes.iter().any(|r| ours.contains(r)),
-        // A new message, a sent one, a mailbox or a draft's copy on the server: none of them is
-        // a message already held.
-        ProtoOp::Append { .. }
-        | ProtoOp::Submit { .. }
-        | ProtoOp::Folder(_)
-        | ProtoOp::KeepDraft { .. }
-        | ProtoOp::DropDraft { .. } => false,
-        _ => true,
-    }
-}
-
-/// Whether `account` has a server to tell: every account but local folders.
-fn has_server(store: &SqliteStore, account: AccountId) -> bool {
-    !crate::sync::local_accounts(store).contains(&account)
-}
-
 /// What the server was last seen to support, or, before the first sync, nothing: a change is
 /// then made here alone and the server hears nothing, rather than hearing a guess.
 pub fn caps_here(
@@ -273,22 +85,7 @@ pub fn caps_here(
     account: AccountId,
     now: chrono::DateTime<chrono::Utc>,
 ) -> AccountCaps {
-    crate::sync::caps_of(store, account).unwrap_or(AccountCaps {
-        labels: ServerLabels::LocalOnly,
-        threads: ServerThreads::Jwz,
-        watch: WatchMode::Poll {
-            every: std::time::Duration::from_secs(300),
-        },
-        archive: ArchiveMeans::LocalOnly,
-        folders: FolderRoles::default(),
-        condstore: Condstore::Absent,
-        move_ext: MoveExt::Absent,
-        expunge: ExpungeMeans::Forbidden,
-        top: Supported::Absent,
-        pipelining: Supported::Absent,
-        connections: ConnectionBudget::default(),
-        observed_at: now,
-    })
+    crate::sync::caps_of(store, account).unwrap_or_else(|| mail_logic::act::local_caps(now))
 }
 
 /// Apply one resolved operation: locally, and to the server when it has a server half.
@@ -301,106 +98,68 @@ pub fn perform(store: &SqliteStore, thread: ThreadId, op: Op) -> Option<Undo> {
 /// [`perform`], on `target` within `thread`: the conversation whole, or some of its messages,
 /// as opening one message of a list of single messages reads that message and not the rest.
 pub fn perform_on(store: &SqliteStore, thread: ThreadId, target: Target, op: Op) -> Option<Undo> {
-    let loaded = store
-        .thread(thread)
-        .or_log("the conversation to act on could not be read")?;
-    let messages = messages_of(store, &loaded);
-    let account = messages.first().map(|m| m.account.clone())?;
-    // What the server actually supports, which is the only thing that decides whether an
-    // operation gets a `RemoteIntent` at all — `Op::remote_intent` is the sole consumer of
-    // `caps`, and under `ArchiveMeans::LocalOnly` it returns `None` for Archive and Trash.
-    // Defaults in place of the stored capabilities would change nothing on the server, and the
-    // conversation would come back on the next full sync.
-    let caps = caps_here(store, account.clone(), chrono::Utc::now());
-    let applied = op.apply(&target, &loaded, &messages, &caps, chrono::Utc::now());
-    store
-        .apply(account.clone(), &applied.forward)
-        .or_log("an operation could not be applied")?;
-    // And the server's half. `Applied.remote` was computed and dropped on the floor, so every
-    // operation the window performed was local and stayed local: a conversation archived here
-    // was still in the inbox on the phone, and mail read here was still bold everywhere else.
-    // The undo goes with it, because a submission that fails has to put back what it changed.
-    //
-    // An operation the server cannot be told is not done here either: queued work that failed
-    // to be queued is in no outbox, so nothing would ever retry it or say so, and the next sync
-    // would quietly undo it. It is taken back and refused, as a folder that cannot be queued is
-    // not made (`folder::apply`).
-    //
-    // Local folders have no server half: their outbox is never drained, so nothing is put in it.
-    if let Some(intent) = applied
-        .remote
-        .clone()
-        .filter(|_| has_server(store, account.clone()))
-        && store
-            .enqueue(
-                account.clone(),
-                intent,
-                &applied.inverse,
-                chrono::Utc::now(),
-            )
-            .or_log("an operation's server half could not be queued")
-            .is_none()
-    {
-        store
-            .apply(account, &applied.inverse)
-            .or_log("an operation could not be undone after its server half failed to queue");
-        return None;
-    }
-    // Spam and Not Spam teach the junk filter, as Mail's Junk and Not Junk do: the messages as
-    // they were, since what is learned is what they said and not where they went.
-    let taught = match op {
-        Op::Spam => Some((mail_store::junk::Judged::Spam, messages.clone())),
-        Op::Restore => {
-            let from_spam: Vec<_> = messages
-                .iter()
-                .filter(|m| m.mailbox == MailboxRole::Spam)
-                .cloned()
-                .collect();
-            (!from_spam.is_empty()).then_some((mail_store::junk::Judged::Ham, from_spam))
-        }
-        // Taking the Junk label off is the way to say Not Spam for mail that was marked and not
-        // moved ([`crate::junk::Treat::Mark`]).
-        Op::Label(label, Membership::Out) if is_junk_label(store, account.clone(), label) => {
-            let marked: Vec<_> = messages
-                .iter()
-                .filter(|m| m.labels.contains(&label))
-                .cloned()
-                .collect();
-            (!marked.is_empty()).then_some((mail_store::junk::Judged::Ham, marked))
-        }
-        _ => None,
-    };
-    if let Some((judged, taught)) = taught {
-        crate::junk::learn(store, &taught, judged).or_log("the junk filter could not learn");
-    }
-    Some(Undo {
-        thread: Some(thread),
-        account,
-        forward: applied.forward,
-        inverse: applied.inverse,
-        remote: applied.remote,
-        resend: None,
-    })
+    perform_with(
+        store,
+        &crate::gather::acting_accounts(store),
+        thread,
+        target,
+        op,
+    )
 }
 
-/// Whether `label` is the one a marked junk message carries.
-fn is_junk_label(store: &SqliteStore, account: AccountId, label: LabelId) -> bool {
+/// [`perform_on`], over accounts already read: for many operations in a row.
+///
+/// The conversation is read, the operation decided ([`mail_logic::act::act`]) and written in one
+/// go, so a message that arrives meanwhile is not missed. The server's half is queued with it:
+/// an operation the server cannot be told is not done here either, and nothing is left half
+/// written, as a folder that cannot be queued is not made (`folder::apply`).
+pub fn perform_with(
+    store: &SqliteStore,
+    accounts: &Accounts,
+    thread: ThreadId,
+    target: Target,
+    op: Op,
+) -> Option<Undo> {
     store
-        .labels(account)
-        .or_log("the labels could not be read to see whether one marks junk")
-        .is_some_and(|labels| {
-            labels
-                .iter()
-                .any(|l| l.id == label && l.name.eq_ignore_ascii_case(mail_logic::junk::JUNK_LABEL))
+        .within(|| {
+            let acted = decide(store, accounts, thread, target, op)?;
+            store
+                .commit(&acted.commit)
+                .or_log("an operation could not be applied")?;
+            Some(acted.undo)
         })
+        .or_log("an operation could not be applied")
+        .flatten()
+}
+
+/// One operation on `thread`, decided over the store as it is now.
+fn decide(
+    store: &SqliteStore,
+    accounts: &Accounts,
+    thread: ThreadId,
+    target: Target,
+    op: Op,
+) -> Option<mail_logic::act::Acted> {
+    let view = crate::gather::thread_view(store, thread)?;
+    let account = view.messages.first().map(|m| m.account.clone())?;
+    let junk_labels: Vec<_> = crate::gather::junk_label(store, &account)
+        .map(|label| (account, label))
+        .into_iter()
+        .collect();
+    let views = [view];
+    let snapshot = ActSnapshot {
+        threads: &views,
+        accounts,
+        junk_labels: &junk_labels,
+    };
+    mail_logic::act::act(&snapshot, &[Act { thread, target, op }], Utc::now()).pop()
 }
 
 /// Delete forever what `thread` holds in Trash or Spam, here and on the server. Returns the
 /// messages it removed; `None` when there were none.
 ///
-/// Not [`perform`]: that applies the patch first and queues after, and removing a message takes
-/// its server addresses with it. The deletion is queued first, while the store still knows where
-/// each message is (`Store::enqueue`), and nothing is returned to undo it.
+/// The deletion is queued while the store still knows where each message is, and the messages
+/// removed in the same commit (`Resolve::BeforeForward`); nothing is returned to undo it.
 pub fn destroy(store: &SqliteStore, thread: ThreadId) -> Option<Vec<MessageId>> {
     destroy_target(store, thread, Target::Threads(vec![thread]))
 }
@@ -418,61 +177,32 @@ pub fn destroy_messages(
 
 /// [`destroy`] and [`destroy_messages`]: Delete forever on `target` within `thread`.
 fn destroy_target(store: &SqliteStore, thread: ThreadId, target: Target) -> Option<Vec<MessageId>> {
-    let loaded = store
-        .thread(thread)
-        .or_log("the conversation to delete could not be read")?;
-    let messages = messages_of(store, &loaded);
-    let account = messages.first().map(|m| m.account.clone())?;
-    let now = chrono::Utc::now();
-    let applied = Op::Destroy.apply(
-        &target,
-        &loaded,
-        &messages,
-        &caps_here(store, account.clone(), now),
-        now,
-    );
-    let gone: Vec<MessageId> = applied
-        .forward
-        .changes
-        .iter()
-        .filter_map(|change| match change {
-            Change::MessageDelete(m) => Some(*m),
-            _ => None,
-        })
-        .collect();
-    if gone.is_empty() {
-        return None;
-    }
-    if let Some(intent) = applied
-        .remote
-        .filter(|_| has_server(store, account.clone()))
-        && store
-            .enqueue(account.clone(), intent, &applied.inverse, now)
-            .or_log("a deletion could not be queued for the server")
-            .is_none()
-    {
-        // Not removed here either: a message gone here and left there comes back with the next
-        // sync, and meanwhile says it was deleted.
-        return None;
-    }
+    let accounts = crate::gather::acting_accounts(store);
     store
-        .apply(account, &applied.forward)
-        .or_log("a deletion could not be applied")?;
-    Some(gone)
-}
-
-/// The messages of a loaded conversation. One that cannot be read is left out, and said: the
-/// operation then acts on the rest, as it would on a conversation the message had left.
-fn messages_of(store: &SqliteStore, loaded: &Thread) -> Vec<Message> {
-    loaded
-        .messages
-        .iter()
-        .filter_map(|id| {
+        .within(|| {
+            let acted = decide(store, &accounts, thread, target, Op::Destroy)?;
+            let gone: Vec<MessageId> = acted
+                .commit
+                .forward
+                .changes
+                .iter()
+                .filter_map(|change| match change {
+                    Change::MessageDelete(m) => Some(*m),
+                    _ => None,
+                })
+                .collect();
+            if gone.is_empty() {
+                return None;
+            }
+            // Not removed here either when the server cannot be told: a message gone here and
+            // left there comes back with the next sync, and meanwhile says it was deleted.
             store
-                .message(*id)
-                .or_log("a message of the conversation could not be read")
+                .commit(&acted.commit)
+                .or_log("a deletion could not be applied")?;
+            Some(gone)
         })
-        .collect()
+        .or_log("a deletion could not be applied")
+        .flatten()
 }
 
 #[cfg(test)]
