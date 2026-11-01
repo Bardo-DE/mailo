@@ -117,6 +117,12 @@ impl Net<'_> {
         mail
     }
 
+    /// Every account as a value, read now with the person's syncing choices as the program told
+    /// the client where to find them.
+    pub fn roster(&self) -> Result<mail_logic::accounts::Accounts, CallError> {
+        self.mail().roster().map_err(CallError::from)
+    }
+
     /// Where signing keys are kept, as the program told the client.
     pub fn signing(&self) -> SigningKeys {
         SigningKeys::new(self.mail().signing())
@@ -406,9 +412,10 @@ impl Net<'_> {
     pub fn check_sign_in(&self, address: &str, now: DateTime<Utc>) -> Result<(), CallError> {
         let mail = self.mail();
         let secrets = mail.secrets();
+        let accounts = mail.roster().map_err(CallError::from)?;
         Self::wait(
             &mail,
-            mail_core::sync::check_sign_in(&self.0.store_arc(), address, secrets, now),
+            mail_core::sync::check_sign_in(&self.0.store_arc(), &accounts, address, secrets, now),
         )
         .map_err(CallError::from)
     }

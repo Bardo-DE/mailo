@@ -13,16 +13,9 @@ use mail_domain::presets::PasswordWarning;
 use mail_domain::{AccountPlan, Incoming, LeaveOnServer, SaslMech};
 use porter_provider::Issuer;
 use std::fmt::Write as _;
-use std::path::Path;
 
-/// Remove the account at `address`, or say what removing it would take. `config` is where the
-/// offline setting is kept, when there is a config directory.
-pub(super) fn remove(
-    mail: &Mail,
-    config: Option<&Path>,
-    address: &str,
-    consent: Consent,
-) -> Result<String, String> {
+/// Remove the account at `address`, or say what removing it would take.
+pub(super) fn remove(mail: &Mail, address: &str, consent: Consent) -> Result<String, String> {
     let store: &SqliteStore = mail.store();
     let id = account_named(store, address)?;
     match consent {
@@ -34,10 +27,6 @@ pub(super) fn remove(
         Consent::Given => {
             let removed = mail_edge::block_on(mail.accounts().remove(id.clone()))
                 .map_err(|e| e.to_string())?;
-            if let Some(config) = config {
-                // The account is gone either way; a setting left behind is never asked about.
-                let _ = mail_core::offline::change(config, |kept| kept.without(id));
-            }
             Ok(format!(
                 "removed {} and {} of stored mail\n",
                 removed.address,
@@ -345,16 +334,16 @@ mod tests {
         let mail =
             mail_edge::mail(&store).with_secrets(std::sync::Arc::new(MemorySecrets::default()));
 
-        let asked = remove(&mail, None, ADDRESS, Consent::Ask).unwrap_err();
+        let asked = remove(&mail, ADDRESS, Consent::Ask).unwrap_err();
         assert!(asked.contains("Nothing was removed"), "{asked}");
         assert!(asked.contains("its 0 messages"), "{asked}");
         assert_eq!(accounts(&store), 1);
 
-        let said = remove(&mail, None, ADDRESS, Consent::Given).unwrap();
+        let said = remove(&mail, ADDRESS, Consent::Given).unwrap();
         assert!(said.starts_with("removed me@nowhere.example"), "{said}");
         assert_eq!(accounts(&store), 0);
 
-        let again = remove(&mail, None, ADDRESS, Consent::Given).unwrap_err();
+        let again = remove(&mail, ADDRESS, Consent::Given).unwrap_err();
         assert!(again.contains("no account for"), "{again}");
     }
 

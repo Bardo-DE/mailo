@@ -650,7 +650,7 @@ mod polling {
             },
         );
         assert_eq!(
-            sync::poll_interval(&store),
+            sync::poll_interval(&crate::support::accounts(&store)),
             std::time::Duration::from_secs(90)
         );
     }
@@ -662,7 +662,7 @@ mod polling {
         let store = configured(1, caps());
         with_watch(&store, WatchMode::Idle);
         assert_eq!(
-            sync::poll_interval(&store),
+            sync::poll_interval(&crate::support::accounts(&store)),
             std::time::Duration::from_secs(300),
             "an IDLE account fell through to no polling at all"
         );
@@ -674,7 +674,7 @@ mod polling {
         // an error it has to handle.
         let store = Arc::new(mail_store::testing::in_memory());
         assert_eq!(
-            sync::poll_interval(&store),
+            sync::poll_interval(&crate::support::accounts(&store)),
             std::time::Duration::from_secs(300)
         );
     }
@@ -1003,7 +1003,7 @@ mod an_account_with_nothing_stored {
         use mail_logic::remedy::{Remedy, SignInWith};
         let remedy = |auth: AuthPlan| {
             let store = configured_with(1, caps(), auth);
-            sync::sign_in_remedy(&store, "ada@example.test")
+            sync::sign_in_remedy(&crate::support::accounts(&store), "ada@example.test")
         };
         let signs_in = |with| Remedy::SignIn {
             address: "ada@example.test".to_owned(),
@@ -1027,7 +1027,7 @@ mod an_account_with_nothing_stored {
         }
         let store = configured(1, caps());
         assert_eq!(
-            sync::sign_in_remedy(&store, "nobody@example.test"),
+            sync::sign_in_remedy(&crate::support::accounts(&store), "nobody@example.test"),
             Remedy::SignIn {
                 address: "nobody@example.test".to_owned(),
                 with: SignInWith::Unknown
@@ -1050,7 +1050,12 @@ mod an_account_with_nothing_stored {
                 scopes: vec!["https://mail.google.com/".to_owned()],
             },
         );
-        let listed = crate::blocking::block_on(account::list(&oauth, &secrets)).unwrap();
+        let listed = crate::blocking::block_on(account::list(
+            &oauth,
+            &crate::support::accounts(&oauth),
+            &secrets,
+        ))
+        .unwrap();
         assert_eq!(
             listed.iter().map(|l| l.state).collect::<Vec<_>>(),
             [account::Readiness::NotSignedIn],
@@ -1066,7 +1071,12 @@ mod an_account_with_nothing_stored {
                 sasl: vec![SaslMech::Plain],
             },
         );
-        let listed = crate::blocking::block_on(account::list(&password, &secrets)).unwrap();
+        let listed = crate::blocking::block_on(account::list(
+            &password,
+            &crate::support::accounts(&password),
+            &secrets,
+        ))
+        .unwrap();
         assert_eq!(
             listed.iter().map(|l| l.state).collect::<Vec<_>>(),
             [account::Readiness::NoCredential],

@@ -199,12 +199,21 @@ impl crate::mail::AccountOps<'_> {
 
     /// Every account, with what each one still needs. See [`list`].
     pub async fn list(&self) -> Result<Vec<Listed>, CoreError> {
-        list(self.0.store(), self.0.secrets().as_ref()).await
+        list(self.0.store(), &self.0.roster()?, self.0.secrets().as_ref()).await
     }
 
     /// Remove `account` and everything kept of it here. See [`remove`].
+    ///
+    /// What the person chose for how it is synced (`offline.json`) goes with it, when the handle
+    /// knows where that is kept ([`crate::Mail::with_config`]): a setting left behind is never
+    /// asked about, but it is not worth keeping either.
     pub async fn remove(&self, account: AccountId) -> Result<Removed, RemoveError> {
-        remove(self.0.store(), self.0.secrets().as_ref(), account).await
+        let removed = remove(self.0.store(), self.0.secrets().as_ref(), account.clone()).await?;
+        if let Some(config) = self.0.config_dir() {
+            crate::offline::change(config, |kept| kept.without(account))
+                .or_log("the removed account's syncing choices could not be dropped");
+        }
+        Ok(removed)
     }
 
     /// The local-only account, created the first time something is kept in it.
@@ -832,21 +841,20 @@ pub async fn authorize(
 /// Accounts, with what each one still needs.
 pub async fn list(
     store: &SqliteStore,
+    accounts: &mail_logic::accounts::Accounts,
     secrets: &dyn AccountSecrets,
 ) -> Result<Vec<Listed>, CoreError> {
-    let accounts = store.list_accounts()?;
+    let stored_accounts = store.list_accounts()?;
 
     // Which folders each account fetches, so a listing can answer "why is my Sent folder
     // empty" without the user having to guess. A store that cannot answer is not an error here:
     // this command's job is to list accounts.
-    let folders = crate::sync::mailboxes_by_account(store)
+    let folders = crate::sync::mailboxes_by_account(store, accounts)
         .or_log_default("account list: the folders each account fetches could not be read");
-    let plans = crate::sync::auth_by_account(store)
-        .or_log_default("account list: how each account signs in could not be read");
-    let local = crate::sync::local_accounts(store);
+    let local = accounts.local();
 
     let mut out = Vec::new();
-    for stored in accounts {
+    for stored in stored_accounts {
         let (account, address) = (stored.id, stored.address);
         // Asked of the keyring for no reason otherwise: there is no credential to have.
         if local.contains(&account) {
@@ -859,7 +867,7 @@ pub async fn list(
         }
         let read = secrets
             .get(&SecretKey {
-                account,
+                account: account.clone(),
                 purpose: SecretPurpose::IncomingPassword,
             })
             .await
@@ -872,7 +880,7 @@ pub async fn list(
         let state = match read {
             Ok(()) => Readiness::Ready,
             Err(SecretTrouble::Unreachable(why)) => Readiness::KeyringUnreachable { why },
-            Err(SecretTrouble::Absent) => match plans.get(&address) {
+            Err(SecretTrouble::Absent) => match accounts.auth_of(&account) {
                 Some(AuthPlan::OAuth { .. }) => Readiness::NotSignedIn,
                 _ => Readiness::NoCredential,
             },
@@ -956,8 +964,10 @@ mod tests {
     }
 
     fn list(store: &SqliteStore) -> Result<Vec<Listed>, CoreError> {
+        let accounts = crate::gather::accounts(store, &Default::default())?;
         mail_secrets::block_on(super::list(
             store,
+            &accounts,
             &porter_secrets::MemorySecrets::default(),
         ))
     }

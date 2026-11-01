@@ -93,6 +93,7 @@ pub fn signing() -> Arc<dyn SigningStore> {
 /// Profile's signing keys and the application's runtime.
 pub fn mail(store: &Arc<SqliteStore>) -> Mail {
     Mail::new(store.clone(), runtime().handle().clone())
+        .with_config(mail_core::config::config_dir())
         .with_environment(environment())
         .with_oauth_clients(clients())
         .with_signing(signing())

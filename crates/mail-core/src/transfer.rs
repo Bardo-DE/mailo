@@ -166,6 +166,7 @@ pub fn upload_folders(store: &SqliteStore) -> Vec<Upload> {
 /// Nothing leaves here; sending the uploads is a sync's.
 pub fn import_into(
     store: &SqliteStore,
+    accounts: &mail_logic::accounts::Accounts,
     source: &Source,
     into: &Destination,
     now: DateTime<Utc>,
@@ -175,7 +176,7 @@ pub fn import_into(
         Destination::Local => Ok((import::into_local(store, source, now, progress)?, None)),
         Destination::Mailbox { account, folder } => {
             let (queued, total) =
-                import::queue_uploads(store, account, folder, source, now, progress)?;
+                import::queue_uploads(store, accounts, account, folder, source, now, progress)?;
             Ok((total, Some(queued)))
         }
     }

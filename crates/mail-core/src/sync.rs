@@ -25,6 +25,7 @@ use crate::error::{CoreError, Logged};
 use access::{Pass, access};
 use mail_domain::*;
 use mail_engine::AccountEngine;
+use mail_logic::accounts::Accounts;
 use mail_proto::backend::{Authenticate, ImapBackend, Pop3Backend};
 use mail_proto::{ImapAuth, ImapCommand, ImapSession, Pop3Command, Pop3Session};
 use mail_runtime::SyncReport;
@@ -39,7 +40,8 @@ pub use search::search_server_with;
 use std::sync::Arc;
 use tokio::sync::watch;
 
-/// Everything stored about one account.
+/// An account as a pass runs it: its plan, what its server supports and how the person syncs it.
+/// Only an account something has connected for is one ([`Configured::of`]).
 #[derive(Debug)]
 pub struct Configured {
     pub id: AccountId,
@@ -47,14 +49,9 @@ pub struct Configured {
     pub plan: AccountPlan,
     pub caps: AccountCaps,
     /// Whether a pass fetches the attachments a sync leaves on the server too. The window's
-    /// setting, not the store's ([`crate::offline`]): [`Keep::Bodies`] until something reads it.
-    ///
-    /// [`Keep::Bodies`]: crate::offline::Keep::Bodies
+    /// setting, not the store's ([`crate::offline`]).
     pub keep: crate::offline::Keep,
-    /// How often a timed pass checks it, from the same setting: [`Every::Automatic`] until
-    /// something reads it.
-    ///
-    /// [`Every::Automatic`]: crate::offline::Every::Automatic
+    /// How often a timed pass checks it, from the same setting.
     pub every: crate::offline::Every,
     /// How far back a pass downloads its bodies, from the same setting.
     pub window: crate::offline::Window,
@@ -77,62 +74,34 @@ pub fn caps_of(store: &SqliteStore, account: AccountId) -> Option<AccountCaps> {
         .flatten()
 }
 
-/// Whether the person paused `account`'s syncing in Settings. A paused account is in every list
-/// of accounts but none of the lists of what to sync: no timed pass, no pass asked for, no
-/// connection held open for it. One whose preferences cannot be read syncs, as it did before
-/// there were any.
-pub fn paused(store: &SqliteStore, account: AccountId) -> bool {
-    store
-        .account_prefs(account)
-        .or_log("the account's preferences could not be read")
-        .is_some_and(|prefs| prefs.syncing == mail_store::Syncing::Paused)
-}
-
-/// Read the accounts back out of the store.
-///
-/// An account whose plan or capabilities cannot be read is left out and logged, so that one bad
-/// row does not take every other account's syncing with it.
-pub(crate) fn configured(store: &SqliteStore) -> Result<Vec<Configured>, CoreError> {
-    let mut out = Vec::new();
-    for stored in store.list_accounts()? {
-        match read_one(stored) {
-            Ok(account) => out.push(account),
-            // An account nothing has connected for yet is an ordinary state, and this is asked
-            // often; only a stored value that will not read is worth a line each time.
-            Err(CoreError::NoCaps { .. }) => {}
-            Err(error) => log::warn!("an account is left out: {error}"),
-        }
+impl Configured {
+    /// `account` as a pass runs it; `None` while nothing has connected for it, which is an
+    /// ordinary state and no reason to log.
+    pub fn of(account: &mail_logic::accounts::Account) -> Option<Configured> {
+        let prefs = account.prefs;
+        Some(Configured {
+            id: account.id.clone(),
+            address: account.address.clone(),
+            plan: account.plan.clone(),
+            caps: account.caps.clone()?,
+            keep: prefs.keep,
+            every: prefs.every,
+            window: prefs.window,
+            remove: prefs.remove,
+            junk: prefs.junk,
+        })
     }
-    Ok(out)
 }
 
-/// One stored account as configured, or why it cannot be.
-fn read_one(stored: mail_store::StoredAccount) -> Result<Configured, CoreError> {
-    let address = stored.address;
-    let plan: AccountPlan = stored.plan.map_err(|e| CoreError::PlanUnreadable {
-        address: address.clone(),
-        why: why(&e),
-    })?;
-    let caps: AccountCaps = match stored.caps {
-        Some(caps) => caps.map_err(|e| CoreError::CapsUnreadable {
-            address: address.clone(),
-            why: why(&e),
-        })?,
-        // No capabilities yet means nothing has connected. The expected ones from the
-        // preset are a starting point, not a claim about the server.
-        None => return Err(CoreError::NoCaps { address }),
-    };
-    Ok(Configured {
-        id: stored.id,
-        address,
-        plan,
-        caps,
-        keep: crate::offline::Keep::default(),
-        every: crate::offline::Every::default(),
-        window: crate::offline::Window::default(),
-        remove: crate::offline::Remove::default(),
-        junk: mail_logic::junk::Policy::default(),
-    })
+/// The accounts a pass can be run for, in the order they were added: those something has
+/// connected for.
+pub(crate) fn connected(accounts: &Accounts) -> Vec<Configured> {
+    accounts.iter().filter_map(Configured::of).collect()
+}
+
+/// The account `id`, as a pass runs it.
+pub(crate) fn connected_one(accounts: &Accounts, id: &AccountId) -> Option<Configured> {
+    accounts.get(id).and_then(Configured::of)
 }
 
 /// A pass's classified failure as the error of a call that has no use for the classification.
@@ -151,36 +120,23 @@ pub(crate) fn why(error: &mail_store::StoreError) -> String {
     }
 }
 
-/// How each configured account signs in, by address.
+/// How often a background sync should run, from the accounts' own capabilities.
 ///
-/// Beside `mailboxes_by_account` and for the same reason: `account list` should be able to say
-/// what an account is waiting for without deciding it for itself. Two surfaces answering that
-/// question separately is how `sync` came to tell a Google account to find a password.
-pub fn auth_by_account(
-    store: &SqliteStore,
-) -> Result<std::collections::HashMap<String, AuthPlan>, CoreError> {
-    Ok(configured(store)?
-        .into_iter()
-        .map(|account| (account.address, account.plan.auth))
-        .collect())
-}
-
-/// Every configured account's id and address, in the order they were added.
-pub fn addresses(store: &SqliteStore) -> Vec<(AccountId, String)> {
-    configured(store)
-        .or_log_default("the accounts could not be read")
-        .into_iter()
-        .map(|account| (account.id, account.address))
-        .collect()
+/// The shortest interval any account asks for, so an account that wants IDLE-like freshness is
+/// not held to another's hourly poll. Five minutes when nothing says otherwise, which is what
+/// every preset in the table already carries.
+pub fn poll_interval(accounts: &Accounts) -> std::time::Duration {
+    accounts
+        .poll_interval()
+        .unwrap_or(std::time::Duration::from_secs(300))
 }
 
 /// The remedy for an account that must sign in, again or for the first time: a pass that ended in
 /// [`Retry::NeedsReauth`] says so, and this says how that account signs in. An address the store
 /// does not know, or a plan it cannot read, is asked to sign in without saying how.
-pub fn sign_in_remedy(store: &SqliteStore, address: &str) -> mail_logic::remedy::Remedy {
-    let with = configured(store)
-        .or_log("the accounts could not be read to say how to sign in")
-        .and_then(|all| all.into_iter().find(|account| account.address == address))
+pub fn sign_in_remedy(accounts: &Accounts, address: &str) -> mail_logic::remedy::Remedy {
+    let with = accounts
+        .by_address(address)
         .map_or(mail_logic::remedy::SignInWith::Unknown, |account| {
             mail_logic::remedy::SignInWith::of(&account.plan.auth)
         });
@@ -190,32 +146,22 @@ pub fn sign_in_remedy(store: &SqliteStore, address: &str) -> mail_logic::remedy:
     }
 }
 
-/// The accounts that keep their mail on this computer ([`Incoming::Local`]).
+/// The accounts that keep their mail on this computer ([`Incoming::Local`]), read from the store
+/// alone. For the actions and the composer, which decide one account at a time and are given no
+/// [`Accounts`] yet; the one action path takes them from its snapshot.
 pub fn local_accounts(store: &SqliteStore) -> Vec<AccountId> {
-    configured(store)
+    store
+        .list_accounts()
         .or_log_default("the accounts could not be read")
         .into_iter()
-        .filter(|account| !account.plan.incoming.caps().has_server)
-        .map(|account| account.id)
+        .filter(|stored| {
+            stored
+                .plan
+                .as_ref()
+                .is_ok_and(|plan| !plan.incoming.caps().has_server)
+        })
+        .map(|stored| stored.id)
         .collect()
-}
-
-/// How often a background sync should run, from the accounts' own capabilities.
-///
-/// The shortest interval any account asks for, so an account that wants IDLE-like freshness is
-/// not held to another's hourly poll. Five minutes when nothing says otherwise, which is what
-/// every preset in the table already carries.
-pub fn poll_interval(store: &SqliteStore) -> std::time::Duration {
-    let default = std::time::Duration::from_secs(300);
-    configured(store)
-        .or_log_default("the accounts could not be read")
-        .into_iter()
-        // IDLE is a long-lived connection this loop does not hold. Until it does, an account that
-        // supports it is polled like any other, at `due::IDLE`.
-        .filter(|account| !paused(store, account.id.clone()))
-        .map(|a| due::every(&a.caps.watch))
-        .min()
-        .unwrap_or(default)
 }
 
 impl crate::mail::SyncOps<'_> {
@@ -231,17 +177,15 @@ impl crate::mail::SyncOps<'_> {
         // configuration, and an edit halfway through a run producing two different client ids is
         // not a behaviour worth having.
         let registry = mail.clients()?;
+        let accounts = mail.roster()?;
         run_all(
             mail.store().clone(),
             mail.secrets(),
             &registry,
             mail.now(),
             Mode::Once,
-            &Scope {
-                due: &|_| true,
-                kept: &crate::offline::load_default(),
-                junk: mail.junk(),
-            },
+            &accounts,
+            &|_| true,
             hooks,
         )
         .await
@@ -255,10 +199,12 @@ impl crate::mail::SyncOps<'_> {
     ) -> Result<(), CoreError> {
         let mail = self.0;
         let registry = mail.clients()?;
+        let accounts = mail.roster()?;
         fetch_part_with(
             mail.store(),
             mail.secrets(),
             &registry,
+            &accounts,
             message,
             section,
             mail.now(),
@@ -273,7 +219,16 @@ impl crate::mail::SyncOps<'_> {
     pub async fn drain(&self, account: AccountId) -> Result<SyncReport, CoreError> {
         let mail = self.0;
         let registry = mail.clients()?;
-        drain_with(mail.store(), mail.secrets(), &registry, account, mail.now()).await
+        let accounts = mail.roster()?;
+        drain_with(
+            mail.store(),
+            mail.secrets(),
+            &registry,
+            &accounts,
+            account,
+            mail.now(),
+        )
+        .await
     }
 
     /// Fetch one folder now.
@@ -291,10 +246,12 @@ impl crate::mail::SyncOps<'_> {
     pub async fn folder_now(&self, account: AccountId, path: &str) -> Result<PassEnd, CoreError> {
         let mail = self.0;
         let registry = mail.clients()?;
+        let accounts = mail.roster()?;
         folder_now_with(
             mail.store().clone(),
             mail.secrets(),
             &registry,
+            &accounts,
             account,
             path,
             mail.now(),
@@ -317,6 +274,7 @@ pub async fn run_with(
     store: Arc<SqliteStore>,
     secrets: Arc<dyn AccountSecrets>,
     registry: &ClientRegistry,
+    accounts: &Accounts,
     now: chrono::DateTime<chrono::Utc>,
     hooks: Hooks<'_>,
 ) -> Result<Vec<PassEnd>, CoreError> {
@@ -326,66 +284,39 @@ pub async fn run_with(
         registry,
         now,
         Mode::Once,
-        &Scope {
-            due: &|_| true,
-            kept: &crate::offline::Kept::default(),
-            junk: mail_logic::junk::Policy::default(),
-        },
+        accounts,
+        &|_| true,
         hooks,
     )
     .await
 }
 
-/// Which accounts a run syncs, and how much of each it keeps.
-struct Scope<'a> {
-    /// Whether an account is due a pass ([`due`]).
-    due: &'a dyn Fn(AccountId) -> bool,
-    /// How each account is synced ([`crate::offline`]).
-    kept: &'a crate::offline::Kept,
-    /// How the junk filter judges new mail ([`crate::junk`]).
-    junk: mail_logic::junk::Policy,
-}
-
-/// A run over the accounts in `scope`, told whether to stop after one pass.
+/// A run over the accounts that are `due`, told whether to stop after one pass.
+#[allow(clippy::too_many_arguments)]
 async fn run_all(
     store: Arc<SqliteStore>,
     secrets: Arc<dyn AccountSecrets>,
     registry: &ClientRegistry,
     now: chrono::DateTime<chrono::Utc>,
     mode: Mode,
-    scope: &Scope<'_>,
+    accounts: &Accounts,
+    due: &dyn Fn(AccountId) -> bool,
     hooks: Hooks<'_>,
 ) -> Result<Vec<PassEnd>, CoreError> {
-    let accounts = pick(&store, scope)?;
+    let accounts = pick(accounts, due);
     pass_over(&store, secrets, registry, now, mode, accounts, hooks).await
 }
 
-/// The accounts a run is to sync.
-fn pick(store: &SqliteStore, scope: &Scope<'_>) -> Result<Vec<Configured>, CoreError> {
+/// The accounts a run is to sync, each as the person syncs it.
+fn pick(accounts: &Accounts, due: &dyn Fn(AccountId) -> bool) -> Vec<Configured> {
     // An account that keeps its mail here has no server: nothing to fetch, nothing to drain,
     // and no credential to ask the keyring for. Left out rather than reported, because a line
     // saying so on every pass would be noise about something that is working as intended.
-    Ok(configured(store)?
-        .into_iter()
-        .filter(|account| account.plan.incoming.caps().has_server)
-        .filter(|account| !paused(store, account.id.clone()))
-        .filter(|a| (scope.due)(a.id.clone()))
-        .map(|a| Configured {
-            junk: scope.junk,
-            ..kept_as(a, scope.kept)
-        })
-        .collect())
-}
-
-/// `account`, synced as `kept` says.
-pub(crate) fn kept_as(account: Configured, kept: &crate::offline::Kept) -> Configured {
-    Configured {
-        keep: kept.of(account.id.clone()),
-        every: kept.every_of(&account.id),
-        window: kept.window_of(&account.id),
-        remove: kept.remove_of(&account.id),
-        ..account
-    }
+    accounts
+        .syncing()
+        .filter(|account| due(account.id.clone()))
+        .filter_map(Configured::of)
+        .collect()
 }
 
 /// One pass over `accounts`, concurrently, each ended as a [`PassEnd`].
@@ -811,14 +742,15 @@ async fn sending_token(
 /// What it learns of the server (its capabilities and folders) is kept, as a first sync would.
 pub async fn check_sign_in(
     store: &Arc<SqliteStore>,
+    accounts: &Accounts,
     address: &str,
     secrets: Arc<dyn AccountSecrets>,
     now: chrono::DateTime<chrono::Utc>,
 ) -> Result<(), CoreError> {
     let address = address.to_lowercase();
-    let account = configured(store)?
-        .into_iter()
-        .find(|account| account.address == address)
+    let account = accounts
+        .by_address(&address)
+        .and_then(Configured::of)
         .ok_or_else(|| CoreError::UnknownAccount(address.clone()))?;
     if account.plan.incoming.host().is_none()
         || !matches!(account.plan.auth, AuthPlan::Password { .. })
@@ -973,16 +905,14 @@ pub async fn fetch_part_with(
     store: &Arc<SqliteStore>,
     secrets: Arc<dyn AccountSecrets>,
     registry: &ClientRegistry,
+    accounts: &Accounts,
     message: mail_domain::MessageId,
     section: &mail_domain::Section,
     now: chrono::DateTime<chrono::Utc>,
 ) -> Result<(), CoreError> {
     use mail_store::Store as _;
     let owner = store.message(message)?.account;
-    let account = configured(store)?
-        .into_iter()
-        .find(|a| a.id == owner)
-        .ok_or(CoreError::MessageAccountGone)?;
+    let account = connected_one(accounts, &owner).ok_or(CoreError::MessageAccountGone)?;
     if !account.plan.incoming.caps().writes_mailboxes {
         return Err(CoreError::OnlyImapLeavesAttachments);
     }
@@ -1009,13 +939,11 @@ pub async fn drain_with(
     store: &Arc<SqliteStore>,
     secrets: Arc<dyn AccountSecrets>,
     registry: &ClientRegistry,
+    accounts: &Accounts,
     account: AccountId,
     now: chrono::DateTime<chrono::Utc>,
 ) -> Result<SyncReport, CoreError> {
-    let account = configured(store)?
-        .into_iter()
-        .find(|a| a.id == account)
-        .ok_or(CoreError::AccountGone)?;
+    let account = connected_one(accounts, &account).ok_or(CoreError::AccountGone)?;
     if !account.plan.incoming.caps().writes_mailboxes {
         return Err(CoreError::OnlyImapUploads);
     }
@@ -1361,14 +1289,12 @@ pub async fn folder_now_with(
     store: Arc<SqliteStore>,
     secrets: Arc<dyn AccountSecrets>,
     registry: &ClientRegistry,
+    accounts: &Accounts,
     account: AccountId,
     path: &str,
     now: chrono::DateTime<chrono::Utc>,
 ) -> Result<PassEnd, CoreError> {
-    let account = configured(&store)?
-        .into_iter()
-        .find(|a| a.id == account)
-        .ok_or(CoreError::NoSuchAccount)?;
+    let account = connected_one(accounts, &account).ok_or(CoreError::NoSuchAccount)?;
     let access = access(&account.plan.incoming);
     let run = Run {
         store: &store,
@@ -1421,9 +1347,12 @@ async fn fetch_folder<B: mail_proto::Backend>(
 /// Reported by `mailo account list`, because "why is my Sent folder empty" is a question a user
 /// asks and the answer is a fact this client knows: only these folders are fetched. Exposed
 /// rather than duplicated so a test can ask the code rather than restate its rules.
-pub fn mailboxes_by_account(store: &SqliteStore) -> Result<Vec<(String, Vec<String>)>, CoreError> {
+pub fn mailboxes_by_account(
+    store: &SqliteStore,
+    accounts: &Accounts,
+) -> Result<Vec<(String, Vec<String>)>, CoreError> {
     use mail_store::Store as _;
-    configured(store)?
+    connected(accounts)
         .into_iter()
         .map(|account| {
             let folders = store.folders(account.id.clone())?;
@@ -1587,7 +1516,7 @@ mod tests {
     fn configured_account() -> Configured {
         let store = mail_store::testing::in_memory();
         seed_readable(&store, crate::support_tests::account(), "ada@example.test");
-        configured(&store).unwrap().remove(0)
+        connected(&crate::gather::accounts(&store, &Default::default()).unwrap()).remove(0)
     }
 
     /// An account whose plan and capabilities both read.
@@ -1625,7 +1554,7 @@ mod tests {
         // A plan that is not one, between two that are.
         mail_store::testing::seed_account(&store, good(2), "broken@example.test");
         seed_readable(&store, good(3), "three@example.test");
-        let read = configured(&store).unwrap();
+        let read = crate::gather::accounts(&store, &Default::default()).unwrap();
         let addresses: Vec<_> = read
             .iter()
             .map(|account| account.address.as_str())

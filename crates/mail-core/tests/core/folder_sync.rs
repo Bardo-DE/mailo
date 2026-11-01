@@ -582,7 +582,10 @@ fn an_account_whose_folders_are_labels_is_not_fetched_by_folder() {
     .unwrap_err()
     .to_string();
     assert!(refused.contains("labels"), "{refused}");
-    let paths = sync::mailboxes_by_account(&store).unwrap().remove(0).1;
+    let paths = sync::mailboxes_by_account(&store, &crate::support::accounts(&store))
+        .unwrap()
+        .remove(0)
+        .1;
     assert_eq!(
         paths,
         vec!["INBOX".to_owned()],
@@ -668,7 +671,10 @@ fn which_mailboxes_a_pass_fetches() {
         let mut caps = caps(ServerLabels::LocalOnly);
         caps.folders = FolderRoles(roles);
         let (store, _secrets) = configured(1, caps, listing);
-        let paths = sync::mailboxes_by_account(&store).unwrap().remove(0).1;
+        let paths = sync::mailboxes_by_account(&store, &crate::support::accounts(&store))
+            .unwrap()
+            .remove(0)
+            .1;
         assert!(paths.len() >= first.len(), "{row}: {paths:?}");
         assert_eq!(&paths[..first.len()], first, "{row}: first, in order");
         let mut tail = paths[first.len()..].to_vec();

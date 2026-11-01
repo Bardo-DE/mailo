@@ -21,6 +21,11 @@ pub fn store() -> SqliteStore {
     store
 }
 
+/// Every account in `store`, with the person's choices at the defaults.
+pub fn accounts(store: &SqliteStore) -> mail_logic::accounts::Accounts {
+    mail_core::gather::accounts(store, &Default::default()).expect("the accounts read")
+}
+
 /// A plain IMAP server's capabilities: no labels, threads, extensions or pipelining, one
 /// connection, polled every five minutes. Read at [`now`], so a pass at [`now`] finds them fresh
 /// and does not ask the server again.

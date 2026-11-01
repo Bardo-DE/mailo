@@ -118,18 +118,30 @@ fn added_on(
 async fn a_login_the_server_takes_passes() {
     let port = serve().await;
     let (store, secrets) = added(port, Username::Literal("ada".to_owned()), "right");
-    check_sign_in(&store, "ada@example.test", secrets, now())
-        .await
-        .expect("the server takes this login");
+    check_sign_in(
+        &store,
+        &crate::support::accounts(&store),
+        "ada@example.test",
+        secrets,
+        now(),
+    )
+    .await
+    .expect("the server takes this login");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_wrong_password_is_refused_in_the_servers_words() {
     let port = serve().await;
     let (store, secrets) = added(port, Username::Literal("ada".to_owned()), "wrong");
-    let refused = check_sign_in(&store, "ada@example.test", secrets, now())
-        .await
-        .expect_err("the server refuses this password");
+    let refused = check_sign_in(
+        &store,
+        &crate::support::accounts(&store),
+        "ada@example.test",
+        secrets,
+        now(),
+    )
+    .await
+    .expect_err("the server refuses this password");
     let said = refused.to_string();
     assert!(matches!(refused, CoreError::SignInRefused { .. }), "{said}");
     assert!(said.contains("127.0.0.1"), "names the server: {said}");
@@ -151,9 +163,15 @@ async fn a_wrong_password_is_refused_in_the_servers_words() {
 async fn a_full_address_as_user_name_is_told_to_try_without_the_domain() {
     let port = serve().await;
     let (store, secrets) = added(port, Username::SameAsAddress, "right");
-    let refused = check_sign_in(&store, "ada@example.test", secrets, now())
-        .await
-        .expect_err("this server wants `ada`, not the address");
+    let refused = check_sign_in(
+        &store,
+        &crate::support::accounts(&store),
+        "ada@example.test",
+        secrets,
+        now(),
+    )
+    .await
+    .expect_err("this server wants `ada`, not the address");
     let said = refused.to_string();
     assert!(said.contains("as ada@example.test:"), "{said}");
     assert!(
@@ -170,9 +188,15 @@ async fn a_server_nobody_listens_on_is_unreachable_not_refused() {
         listener.local_addr().unwrap().port()
     };
     let (store, secrets) = added(port, Username::Literal("ada".to_owned()), "right");
-    let failed = check_sign_in(&store, "ada@example.test", secrets, now())
-        .await
-        .expect_err("nothing answers");
+    let failed = check_sign_in(
+        &store,
+        &crate::support::accounts(&store),
+        "ada@example.test",
+        secrets,
+        now(),
+    )
+    .await
+    .expect_err("nothing answers");
     assert!(
         matches!(failed, CoreError::ServerUnreachable { .. }),
         "an unreachable server is not a refused login: {failed}"
@@ -243,9 +267,15 @@ async fn a_server_that_will_not_start_tls_never_hears_the_password() {
             }
         };
         let (store, secrets) = added_on(incoming, Username::Literal("ada".to_owned()), "right");
-        check_sign_in(&store, "ada@example.test", secrets, now())
-            .await
-            .expect_err("the server will not secure the connection");
+        check_sign_in(
+            &store,
+            &crate::support::accounts(&store),
+            "ada@example.test",
+            secrets,
+            now(),
+        )
+        .await
+        .expect_err("the server will not secure the connection");
         let heard = heard.lock().unwrap().clone();
         assert!(
             heard.iter().all(|line| !line.contains("right")),
