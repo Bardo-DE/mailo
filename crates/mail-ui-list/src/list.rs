@@ -60,15 +60,26 @@ fn pitch(lines: Option<ThreadLines>) -> f32 {
     }
 }
 
-/// How many lines a row draws: its snippet is the third, when the list shows snippets and it has
-/// one.
 /// The rows the list mounts beyond the viewport, on each side. The `VirtualDom` fixtures
 /// have no layout, so a viewport there is never measured and would show the overscan alone: they
-/// mount every row, and the windowing itself is tested on Blitz.
-#[cfg(not(any(test, feature = "testing")))]
+/// ask for every row to be mounted ([`mount_every_row`]), and the windowing itself is tested on
+/// Blitz.
 const OVERSCAN: usize = 4;
-#[cfg(any(test, feature = "testing"))]
-const OVERSCAN: usize = usize::MAX / 2;
+
+static EVERY_ROW: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(cfg!(test));
+
+/// Mount every row of every list in this process: for fixtures that render without a layout.
+pub fn mount_every_row() {
+    EVERY_ROW.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn overscan() -> usize {
+    if EVERY_ROW.load(std::sync::atomic::Ordering::Relaxed) {
+        usize::MAX / 2
+    } else {
+        OVERSCAN
+    }
+}
 
 /// What a list item is, by identity: the same key on every render, so quire's `VirtualList` keeps a
 /// row where it is, plays an exit for one that stops being listed and an entrance for a new one.
@@ -555,7 +566,7 @@ pub fn ThreadList(
                         keys,
                         row,
                         height,
-                        overscan: OVERSCAN,
+                        overscan: overscan(),
                         cursor,
                         onselect: open_slot,
                         // The next page is asked for as the end of the list comes near.

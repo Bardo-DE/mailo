@@ -47,6 +47,9 @@ fn arrived_at(mut first: Spaces) -> Spaces {
 
 #[component]
 pub(super) fn App() -> Element {
+    // The fixtures draw this with no layout, so every row is mounted (the program windows them).
+    #[cfg(test)]
+    mail_ui_list::list::mount_every_row();
     // The places, labels and badges are values the client keeps read (`use_live`), never a read
     // on the thread that draws.
     // The launched look, when `main` provided one. A test that builds `App` with only the
