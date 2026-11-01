@@ -10,9 +10,9 @@
 
 use chrono::{DateTime, Utc};
 use mail_client::Client;
-use mail_client::prelude::Pushed;
 use mail_client::rules::server::AwayServer;
 use mail_domain::AccountPlan;
+use mail_proto::sieve::Pushed;
 use std::sync::Arc;
 
 use mail_client::sync::Configured;

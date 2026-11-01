@@ -12,42 +12,8 @@
 //! What was held already is not fetched again, and a message new to this computer is marked
 //! ([`mail_store::Store::mark_found`]) so the list can say where it came from.
 
-use mail_domain::MessageId;
-pub use mail_proto::search::Unsaid;
+pub use mail_proto::search::{Searched, ServerHits, Unsaid};
 
 /// Most messages one search of the server brings here: the newest it found. The rest are
 /// counted in [`ServerHits::more`], not fetched.
 pub const SERVER_HITS: usize = 50;
-
-/// What a search of the server found, now held here.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct ServerHits {
-    /// Every message the server named that is held here now, newest first by the server's
-    /// order, each once: those already held, and those this search brought.
-    pub messages: Vec<MessageId>,
-    /// How many of them this search brought: headers fetched, messages new to this computer.
-    pub fetched: usize,
-    /// How many more the server matched than were taken, at least. Graph says only whether
-    /// there is another page, which counts as one.
-    pub more: u64,
-}
-
-impl ServerHits {
-    /// Add `held` in order, each message once.
-    pub fn hold(&mut self, held: impl IntoIterator<Item = MessageId>) {
-        for id in held {
-            if !self.messages.contains(&id) {
-                self.messages.push(id);
-            }
-        }
-    }
-}
-
-/// What asking the server came to.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Searched {
-    /// The server was asked, or nothing needed asking.
-    Found(ServerHits),
-    /// Nothing was sent: these parts of the query cannot be asked of this server faithfully.
-    Unsaid(Unsaid),
-}
