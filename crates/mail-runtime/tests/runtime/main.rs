@@ -10,6 +10,7 @@ mod fixture;
 mod jmap_fake;
 
 mod assemble;
+mod attachment_footprint;
 mod bimi;
 mod carddav;
 mod cjk_search;
