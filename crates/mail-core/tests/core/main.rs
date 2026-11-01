@@ -6,6 +6,7 @@
 
 mod support;
 
+mod accounts_read;
 mod attachments;
 mod blocking;
 mod direct_sign_in;
