@@ -62,7 +62,7 @@ pub struct Configured {
     pub remove: crate::offline::Remove,
     /// How the junk filter judges what a pass brings ([`crate::junk`]): the window's setting,
     /// as `keep` is.
-    pub junk: crate::junk::Policy,
+    pub junk: mail_logic::junk::Policy,
 }
 
 /// What the server was last observed to support, for one account.
@@ -131,7 +131,7 @@ fn read_one(stored: mail_store::StoredAccount) -> Result<Configured, CoreError> 
         every: crate::offline::Every::default(),
         window: crate::offline::Window::default(),
         remove: crate::offline::Remove::default(),
-        junk: crate::junk::Policy::default(),
+        junk: mail_logic::junk::Policy::default(),
     })
 }
 
@@ -329,7 +329,7 @@ pub async fn run_with(
         &Scope {
             due: &|_| true,
             kept: &crate::offline::Kept::default(),
-            junk: crate::junk::Policy::default(),
+            junk: mail_logic::junk::Policy::default(),
         },
         hooks,
     )
@@ -343,7 +343,7 @@ struct Scope<'a> {
     /// How each account is synced ([`crate::offline`]).
     kept: &'a crate::offline::Kept,
     /// How the junk filter judges new mail ([`crate::junk`]).
-    junk: crate::junk::Policy,
+    junk: mail_logic::junk::Policy,
 }
 
 /// A run over the accounts in `scope`, told whether to stop after one pass.
@@ -1143,7 +1143,7 @@ async fn pass_on<B: mail_proto::Backend>(
     // them for every message the pass had room to fetch. The junk filter before them or after,
     // as the person chose: whichever goes second sees only what the first left in the inbox.
     let junk = account.junk;
-    if junk.order == crate::junk::Order::BeforeRules {
+    if junk.order == mail_logic::junk::Order::BeforeRules {
         sift(engine, account.id.clone(), &junk, &mut done, now);
     }
     match engine.run_rules(&done.counts.arrived, now) {
@@ -1160,7 +1160,7 @@ async fn pass_on<B: mail_proto::Backend>(
         }
         Err(e) => done.trouble(None, e.retry(), format!("rules: {e}")),
     }
-    if junk.order == crate::junk::Order::AfterRules {
+    if junk.order == mail_logic::junk::Order::AfterRules {
         sift(engine, account.id.clone(), &junk, &mut done, now);
     }
 
@@ -1201,7 +1201,7 @@ async fn pass_on<B: mail_proto::Backend>(
 fn sift<B: mail_proto::Backend>(
     engine: &AccountEngine<B>,
     account: AccountId,
-    policy: &crate::junk::Policy,
+    policy: &mail_logic::junk::Policy,
     done: &mut Done,
     now: chrono::DateTime<chrono::Utc>,
 ) {

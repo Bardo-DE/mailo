@@ -218,7 +218,7 @@ pub mod wanted {
 }
 pub use mail_core::Storage;
 pub mod junk {
-    pub use mail_core::junk::{Filtering, Heed, Order, Policy, Treat};
+    pub use mail_logic::junk::{Filtering, Heed, Order, Policy, Treat};
 }
 pub use mail_core::Logged;
 pub use mail_core::RelayRefused;

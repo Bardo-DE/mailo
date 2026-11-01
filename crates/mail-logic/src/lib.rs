@@ -10,6 +10,7 @@
 
 pub mod discover;
 pub mod follow_up;
+pub mod junk;
 pub mod mailbox_filter;
 pub mod otp;
 pub mod password;

@@ -88,7 +88,7 @@ fn taught_by(store: &SqliteStore, entry: &Undo) -> Vec<(mail_store::junk::Judged
         .and_then(|labels| {
             labels
                 .into_iter()
-                .find(|l| l.name.eq_ignore_ascii_case(crate::junk::JUNK_LABEL))
+                .find(|l| l.name.eq_ignore_ascii_case(mail_logic::junk::JUNK_LABEL))
                 .map(|l| l.id)
         });
     entry
@@ -391,7 +391,7 @@ fn is_junk_label(store: &SqliteStore, account: AccountId, label: LabelId) -> boo
         .is_some_and(|labels| {
             labels
                 .iter()
-                .any(|l| l.id == label && l.name.eq_ignore_ascii_case(crate::junk::JUNK_LABEL))
+                .any(|l| l.id == label && l.name.eq_ignore_ascii_case(mail_logic::junk::JUNK_LABEL))
         })
 }
 

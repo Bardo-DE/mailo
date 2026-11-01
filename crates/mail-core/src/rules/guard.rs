@@ -107,7 +107,7 @@ pub fn headers_allow(
     let Some(raw) = raw else {
         return Err(Refusal::NotHere);
     };
-    if crate::junk::server_says_spam(raw) {
+    if mail_logic::junk::server_says_spam(raw) {
         return Err(Refusal::Spam);
     }
     let header = |name: &str| mail_archive::header(raw, name);

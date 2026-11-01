@@ -11,7 +11,6 @@ use super::report::{Hooks, PassEnd, Progress, Watched, outcome};
 use super::{Announce, configured, live};
 use crate::error::CoreError;
 use crate::fetch::{Event, Trigger};
-use crate::junk::Policy;
 use crate::mail::{Mail, SyncOps};
 use crate::notify::{Notifier, Whom};
 use chrono::{DateTime, Utc};
@@ -19,6 +18,7 @@ use mail_engine::schedule::{
     Change, Daemon, End, Host, ListenCall, Local, Lost, Note, PassCall, Passed, Schedule,
     Scheduler, Stored,
 };
+use mail_logic::junk::Policy;
 use mail_store::SqliteStore;
 use porter_core::AccountId;
 use std::cell::RefCell;
@@ -390,7 +390,7 @@ mod tests {
     /// A watch that runs for days follows the junk filter's setting from its next pass.
     #[test]
     fn each_pass_runs_over_the_junk_policy_as_it_is_set_then() {
-        use crate::junk::Filtering;
+        use mail_logic::junk::Filtering;
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()

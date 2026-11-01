@@ -5795,6 +5795,7 @@ version = "0.1.0"
 dependencies = [
  "aho-corasick",
  "chrono",
+ "mailo-archive",
  "mailo-domain",
  "nucleo-matcher",
  "porter-core",

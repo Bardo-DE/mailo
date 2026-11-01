@@ -20,6 +20,7 @@ pub mod incoming;
 pub mod ingest;
 pub mod invite;
 pub mod jmap_id;
+pub mod junk;
 pub mod keyword;
 pub mod message;
 pub mod op;
@@ -70,6 +71,7 @@ pub use invite::{Attendance, InviteAnswer};
 pub use jmap_id::{
     JmapAccountId, JmapBlobId, JmapEmailId, JmapIdentityId, JmapMailboxId, JmapThreadId,
 };
+pub use junk::JunkCounts;
 pub use keyword::{THUNDERBIRD_TAGS, keyword_label, label_keyword};
 pub use message::{Message, MessageKey, SortFacts, Thread, ThreadSummary};
 pub use op::{Action, Applied, Change, Op, OpKind, Patch, RemoteIntent, Target};

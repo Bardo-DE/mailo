@@ -104,3 +104,35 @@ pub fn listed(
         ..summary()
     }
 }
+
+/// Message number `n` in the Inbox of [`account`], from `from`, unread, with a stored body of
+/// `text`; its ids come from `n`, so two numbers are two messages and one number is one.
+pub fn message(n: u128, from: &str, subject: &str, text: &str) -> crate::Message {
+    use crate::{BlobId, Body, MailboxRole, Message, MessageId, MessageKey};
+    Message {
+        id: MessageId::from_uuid(Uuid::from_u128(0x9000 + n)),
+        thread: ThreadId::from_uuid(Uuid::from_u128(0x7000 + n)),
+        account: account(),
+        key: MessageKey::Rfc(format!("m{n}@example.test")),
+        date: at(n as i64),
+        from: Address::new(from),
+        reply_to: vec![],
+        to: vec![Address::named("Ada Lovelace", "ada@example.test")],
+        cc: vec![],
+        bcc: vec![],
+        subject: subject.to_owned(),
+        in_reply_to: None,
+        references: vec![],
+        rfc_message_id: None,
+        read: ReadState::Unread,
+        star: Star::Unstarred,
+        flag: crate::Hue::Red,
+        mailbox: MailboxRole::Inbox,
+        labels: vec![],
+        body: Body::Present {
+            text: Some(text.to_owned()),
+            raw: BlobId::from_uuid(Uuid::from_u128(0xB000 + n)),
+        },
+        attachments: vec![],
+    }
+}
