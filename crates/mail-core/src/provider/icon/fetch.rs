@@ -1,7 +1,7 @@
 //! The fixed address table and the one HTTP request it allows.
 
 use super::{IconError, MAX_BYTES};
-use crate::provider::Provider;
+use mail_logic::provider::Provider;
 use mail_net::http::BodyError;
 use std::time::Duration;
 

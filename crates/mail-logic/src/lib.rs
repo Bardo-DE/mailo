@@ -14,6 +14,7 @@ pub mod mailbox_filter;
 pub mod otp;
 pub mod password;
 pub mod picture;
+pub mod provider;
 pub mod query;
 pub mod recent;
 pub mod remedy;

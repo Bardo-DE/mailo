@@ -159,7 +159,7 @@ impl Net<'_> {
     pub fn missing_provider_icons(
         &self,
         dir: &std::path::Path,
-    ) -> Vec<mail_core::provider::Provider> {
+    ) -> Vec<mail_logic::provider::Provider> {
         mail_core::provider::icon::missing(dir, self.mail().environment().program)
     }
 

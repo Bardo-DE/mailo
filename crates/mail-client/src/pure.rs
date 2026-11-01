@@ -138,7 +138,7 @@ pub mod profile {
     pub use mail_core::profile::{Profile, ProfileId};
 }
 pub mod provider {
-    pub use mail_core::provider::{Provider, provider, service_name};
+    pub use mail_logic::provider::{Provider, provider, service_name};
     pub mod icon {
         pub use mail_core::provider::icon::{Loaded, missing, refresh};
     }

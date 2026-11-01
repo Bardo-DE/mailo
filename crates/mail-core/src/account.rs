@@ -620,8 +620,11 @@ pub async fn add_receiving(
             },
         },
     };
-    crate::provider::icon::fetch_if_missing(crate::provider::provider(&plan), environment.program)
-        .await;
+    crate::provider::icon::fetch_if_missing(
+        mail_logic::provider::provider(&plan),
+        environment.program,
+    )
+    .await;
     Ok(Added {
         address,
         account,
