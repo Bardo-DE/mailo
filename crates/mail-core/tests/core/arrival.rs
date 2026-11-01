@@ -17,15 +17,15 @@ use mail_store::SqliteStore;
 use mail_store::Store;
 use porter_core::AccountId;
 
-fn other() -> AccountId {
+pub(crate) fn other() -> AccountId {
     account_id_from_uuid(uuid::uuid!("00000000-0000-4000-8000-0000000000a2"))
 }
 
-fn at(n: i64) -> DateTime<Utc> {
+pub(crate) fn at(n: i64) -> DateTime<Utc> {
     Utc.timestamp_opt(1_700_000_000 + n, 0).unwrap()
 }
 
-fn caps(labels: ServerLabels, archive: ArchiveMeans) -> AccountCaps {
+pub(crate) fn caps(labels: ServerLabels, archive: ArchiveMeans) -> AccountCaps {
     AccountCaps {
         labels,
         threads: ServerThreads::ProviderId,
@@ -42,18 +42,18 @@ fn caps(labels: ServerLabels, archive: ArchiveMeans) -> AccountCaps {
     }
 }
 
-fn gmail() -> AccountCaps {
+pub(crate) fn gmail() -> AccountCaps {
     caps(ServerLabels::Supported, ArchiveMeans::DropInbox)
 }
 
-fn folders() -> AccountCaps {
+pub(crate) fn folders() -> AccountCaps {
     caps(
         ServerLabels::LocalOnly,
         ArchiveMeans::MoveToFolder("Archive".to_owned()),
     )
 }
 
-fn rule(position: u32, name: &str, filter: Filter, actions: Vec<RuleAction>) -> Rule {
+pub(crate) fn rule(position: u32, name: &str, filter: Filter, actions: Vec<RuleAction>) -> Rule {
     Rule {
         made: Default::default(),
         reply_days: 4,
@@ -68,12 +68,12 @@ fn rule(position: u32, name: &str, filter: Filter, actions: Vec<RuleAction>) -> 
     }
 }
 
-fn from(s: &str) -> Filter {
+pub(crate) fn from(s: &str) -> Filter {
     Filter::From(TextMatch::Contains(s.to_owned()))
 }
 
 /// One message from `sender`, in its own thread, as the server would hand it over.
-fn arriving(n: u32, sender: &str, mailbox: MailboxRole, raw: BlobId) -> Fetched {
+pub(crate) fn arriving(n: u32, sender: &str, mailbox: MailboxRole, raw: BlobId) -> Fetched {
     let key = format!("m{n}@example.test");
     let message = Message {
         id: MessageId::generate(),
@@ -110,7 +110,7 @@ fn arriving(n: u32, sender: &str, mailbox: MailboxRole, raw: BlobId) -> Fetched 
     }
 }
 
-fn ingest(messages: Vec<Fetched>) -> Ingest {
+pub(crate) fn ingest(messages: Vec<Fetched>) -> Ingest {
     Ingest {
         mailbox: MailboxRef {
             account: account(),
@@ -129,7 +129,7 @@ fn ingest(messages: Vec<Fetched>) -> Ingest {
 }
 
 /// What a sync pass reports as arrived: the messages the ingest stored for the first time.
-fn arrived(patch: &Patch) -> Vec<MessageId> {
+pub(crate) fn arrived(patch: &Patch) -> Vec<MessageId> {
     patch
         .changes
         .iter()
@@ -140,7 +140,7 @@ fn arrived(patch: &Patch) -> Vec<MessageId> {
         .collect()
 }
 
-fn outbox(store: &SqliteStore) -> Vec<ProtoOp> {
+pub(crate) fn outbox(store: &SqliteStore) -> Vec<ProtoOp> {
     store
         .outbox_due(account(), at(1_000_000))
         .unwrap()
@@ -150,7 +150,7 @@ fn outbox(store: &SqliteStore) -> Vec<ProtoOp> {
 }
 
 /// A store holding both accounts, with a blob for the messages' raw bytes.
-fn fixture() -> (SqliteStore, BlobId) {
+pub(crate) fn fixture() -> (SqliteStore, BlobId) {
     let store = store();
     mail_store::testing::seed_account(&store, other(), "also@example.test");
     let raw = store.blobs().put(b"raw").unwrap();
@@ -171,9 +171,9 @@ struct Seen {
 }
 
 /// Where a message is, whether read, whether starred, and its labels by name.
-type State = (MailboxRole, ReadState, Star, Vec<String>);
+pub(crate) type State = (MailboxRole, ReadState, Star, Vec<String>);
 
-fn state(store: &SqliteStore, id: MessageId) -> State {
+pub(crate) fn state(store: &SqliteStore, id: MessageId) -> State {
     let m = store.message(id).unwrap();
     let labels = store.labels(account()).unwrap();
     let mut named: Vec<String> = m
@@ -579,7 +579,7 @@ fn a_rule_that_files_a_message_takes_it_out_of_its_folder_for_the_rules_after() 
 // ---------------------------------------------------------------------------------------
 
 /// A message from `sender`, as a reply in the conversation `into`.
-fn reply_in(into: &Fetched, n: u32, sender: &str, raw: BlobId) -> Fetched {
+pub(crate) fn reply_in(into: &Fetched, n: u32, sender: &str, raw: BlobId) -> Fetched {
     let mut reply = arriving(n, sender, MailboxRole::Inbox, raw);
     reply.message.thread = into.message.thread;
     reply.message.in_reply_to = into.message.rfc_message_id.clone();
@@ -588,7 +588,7 @@ fn reply_in(into: &Fetched, n: u32, sender: &str, raw: BlobId) -> Fetched {
 }
 
 /// Mute or unmute `thread` as the window does, through `Op::apply`, returning its undo.
-fn set_mute(store: &SqliteStore, thread: ThreadId, mute: Mute) -> Patch {
+pub(crate) fn set_mute(store: &SqliteStore, thread: ThreadId, mute: Mute) -> Patch {
     let loaded = store.thread(thread).unwrap();
     let messages: Vec<Message> = loaded
         .messages

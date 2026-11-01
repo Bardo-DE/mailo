@@ -8,6 +8,7 @@ mod support;
 
 mod accounts_read;
 mod arrival;
+mod arrival_fold;
 mod attachments;
 mod blocking;
 mod direct_sign_in;

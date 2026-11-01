@@ -605,3 +605,395 @@ impl<'a> Fold<'a> {
         counts
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::act::local_caps;
+    use mail_domain::testing::{account, at, message};
+    use mail_domain::{Address, FollowUp, Pin, Snooze, ThreadSummary};
+
+    /// Ids counted up from one, so a test can say what was made.
+    #[derive(Default)]
+    struct Counted(u128);
+
+    impl Fresh for Counted {
+        fn label(&mut self) -> LabelId {
+            self.0 += 1;
+            LabelId::from_uuid(uuid::Uuid::from_u128(0xA000 + self.0))
+        }
+        fn change(&mut self) -> ChangeId {
+            self.0 += 1;
+            ChangeId::from_uuid(uuid::Uuid::from_u128(0xC000 + self.0))
+        }
+    }
+
+    fn view(messages: Vec<Message>, mute: Mute) -> ThreadView {
+        let id = messages[0].thread;
+        ThreadView {
+            thread: mail_domain::Thread {
+                summary: ThreadSummary::derive(
+                    id,
+                    &messages,
+                    Snooze::Inactive,
+                    Pin::Unpinned,
+                    mute,
+                    FollowUp::Inactive,
+                ),
+                messages: messages.iter().map(|m| m.id).collect(),
+            },
+            messages,
+        }
+    }
+
+    fn rule(
+        name: &str,
+        position: u32,
+        filter: mail_domain::Filter,
+        actions: Vec<RuleAction>,
+    ) -> Rule {
+        Rule {
+            id: RuleId::from_uuid(uuid::Uuid::from_u128(0x5000 + u128::from(position))),
+            account: account(),
+            name: name.to_owned(),
+            position,
+            state: mail_domain::RuleState::Enabled,
+            filter,
+            actions,
+            after: AfterMatch::Continue,
+            made: at(0),
+            reply_days: 4,
+        }
+    }
+
+    fn from(who: &str) -> mail_domain::Filter {
+        mail_domain::Filter::From(mail_domain::TextMatch::Contains(who.to_owned()))
+    }
+
+    struct World {
+        account: AccountId,
+        caps: AccountCaps,
+        rules: Vec<Rule>,
+        labels: Vec<Label>,
+        threads: Vec<ThreadView>,
+        policy: Policy,
+    }
+
+    impl World {
+        fn new(threads: Vec<ThreadView>, rules: Vec<Rule>) -> World {
+            World {
+                account: account(),
+                caps: AccountCaps {
+                    archive: mail_domain::ArchiveMeans::DropInbox,
+                    labels: mail_domain::ServerLabels::Supported,
+                    ..local_caps(at(0))
+                },
+                rules,
+                labels: Vec::new(),
+                threads,
+                policy: Policy::default(),
+            }
+        }
+
+        fn arrive(&self, arrived: &[MessageId]) -> Arrival {
+            let snapshot = ArrivalSnapshot {
+                account: &self.account,
+                has_server: true,
+                caps: &self.caps,
+                rules: &self.rules,
+                labels: &self.labels,
+                vips: &[],
+                names: &[],
+                policy: self.policy,
+                threads: &self.threads,
+                evidence: &[],
+            };
+            on_arrival(&snapshot, arrived, at(10), &mut Counted::default())
+        }
+    }
+
+    fn arriving(n: u128, sender: &str) -> Message {
+        let mut m = message(n, sender, "Hello", "body");
+        m.from = Address::new(sender);
+        m
+    }
+
+    #[test]
+    fn a_rule_that_names_a_label_that_is_not_there_makes_it_first_and_once() {
+        let m = arriving(1, "ada@example.test");
+        let id = m.id;
+        let world = World::new(
+            vec![view(vec![m], Mute::Unmuted)],
+            vec![rule(
+                "Bills",
+                1,
+                from("ada"),
+                vec![
+                    RuleAction::Label("Bills".to_owned()),
+                    RuleAction::Label("bills".to_owned()),
+                    RuleAction::Archive,
+                ],
+            )],
+        );
+        let arrival = world.arrive(&[id]);
+        let changes = &arrival.commit.forward.changes;
+        assert!(matches!(&changes[0], Change::LabelUpsert(l) if l.name == "Bills"));
+        assert_eq!(
+            changes
+                .iter()
+                .filter(|c| matches!(c, Change::LabelUpsert(_)))
+                .count(),
+            1,
+            "{changes:?}"
+        );
+        assert_eq!(arrival.acted, vec![(id, vec!["Bills".to_owned()])]);
+        // The label, then the archive: two pieces of work for the server.
+        assert_eq!(arrival.commit.queue.len(), 2);
+    }
+
+    #[test]
+    fn a_later_rule_sees_what_an_earlier_one_did() {
+        let m = arriving(1, "ada@example.test");
+        let id = m.id;
+        let world = World::new(
+            vec![view(vec![m], Mute::Unmuted)],
+            vec![
+                rule("read", 1, from("ada"), vec![RuleAction::MarkRead]),
+                rule(
+                    "star the read",
+                    2,
+                    mail_domain::Filter::Read(ReadState::Read),
+                    vec![RuleAction::Star],
+                ),
+            ],
+        );
+        let arrival = world.arrive(&[id]);
+        assert_eq!(
+            arrival.acted,
+            vec![(id, vec!["read".to_owned(), "star the read".to_owned()])]
+        );
+    }
+
+    #[test]
+    fn a_reply_in_a_muted_conversation_is_read_and_archived_unless_a_rule_filed_it() {
+        let first = arriving(1, "ada@example.test");
+        let reply = {
+            let mut m = arriving(2, "ada@example.test");
+            m.thread = first.thread;
+            m
+        };
+        let junked = {
+            let mut m = arriving(3, "news@junk.example");
+            m.thread = first.thread;
+            m
+        };
+        let (reply_id, junked_id) = (reply.id, junked.id);
+        let world = World::new(
+            vec![view(vec![first, reply, junked], Mute::Muted)],
+            vec![rule(
+                "junk",
+                1,
+                from("junk.example"),
+                vec![RuleAction::Spam],
+            )],
+        );
+        let arrival = world.arrive(&[reply_id, junked_id]);
+        assert_eq!(arrival.muted, vec![reply_id, junked_id]);
+        let mailboxes: Vec<(MessageId, MailboxRole)> = arrival
+            .commit
+            .forward
+            .changes
+            .iter()
+            .filter_map(|c| match c {
+                Change::MessageMailbox(m, role) => Some((*m, *role)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            mailboxes,
+            vec![
+                (reply_id, MailboxRole::Archive),
+                (junked_id, MailboxRole::Spam)
+            ],
+            "the filed one is not archived over"
+        );
+    }
+
+    #[test]
+    fn what_a_rule_says_or_sends_comes_back_in_order_and_a_notice_once() {
+        let m = arriving(1, "boss@example.test");
+        let id = m.id;
+        let world = World::new(
+            vec![view(vec![m], Mute::Unmuted)],
+            vec![
+                rule(
+                    "one",
+                    1,
+                    from("boss"),
+                    vec![
+                        RuleAction::Notify,
+                        RuleAction::Forward("me@elsewhere.example".to_owned()),
+                    ],
+                ),
+                rule("two", 2, from("boss"), vec![RuleAction::Notify]),
+            ],
+        );
+        let arrival = world.arrive(&[id]);
+        let effects: Vec<String> = arrival
+            .effects
+            .iter()
+            .map(|e| match e {
+                ArrivalEffect::Notice(m) => format!("notice {}", m == &id),
+                ArrivalEffect::RuleSend(r) => format!("send {:?}", r.action),
+            })
+            .collect();
+        assert_eq!(
+            effects,
+            ["notice true", "send Forward(\"me@elsewhere.example\")"]
+        );
+    }
+
+    #[test]
+    fn rules_asked_for_over_old_mail_say_and_send_nothing() {
+        let m = arriving(1, "boss@example.test");
+        let id = m.id;
+        let world = World::new(
+            vec![view(vec![m], Mute::Unmuted)],
+            vec![rule(
+                "one",
+                1,
+                from("boss"),
+                vec![RuleAction::Notify, RuleAction::Star],
+            )],
+        );
+        let snapshot = ArrivalSnapshot {
+            account: &world.account,
+            has_server: true,
+            caps: &world.caps,
+            rules: &world.rules,
+            labels: &[],
+            vips: &[],
+            names: &[],
+            policy: Policy::default(),
+            threads: &world.threads,
+            evidence: &[],
+        };
+        let quiet = apply_rules(
+            &snapshot,
+            &[id],
+            Speaking::No,
+            at(10),
+            &mut Counted::default(),
+        );
+        assert!(quiet.effects.is_empty());
+        assert_eq!(quiet.acted.len(), 1, "but it still acts");
+        let loud = apply_rules(
+            &snapshot,
+            &[id],
+            Speaking::Yes,
+            at(10),
+            &mut Counted::default(),
+        );
+        assert_eq!(loud.effects, vec![ArrivalEffect::Notice(id)]);
+    }
+
+    #[test]
+    fn an_account_without_a_server_tells_no_one() {
+        let m = arriving(1, "ada@example.test");
+        let id = m.id;
+        let mut world = World::new(
+            vec![view(vec![m], Mute::Unmuted)],
+            vec![rule("a", 1, from("ada"), vec![RuleAction::Archive])],
+        );
+        let snapshot = |world: &World, has_server| {
+            let snapshot = ArrivalSnapshot {
+                account: &world.account,
+                has_server,
+                caps: &world.caps,
+                rules: &world.rules,
+                labels: &[],
+                vips: &[],
+                names: &[],
+                policy: Policy::default(),
+                threads: &world.threads,
+                evidence: &[],
+            };
+            on_arrival(&snapshot, &[id], at(10), &mut Counted::default())
+        };
+        assert_eq!(snapshot(&world, true).commit.queue.len(), 1);
+        let local = snapshot(&world, false);
+        assert!(local.commit.queue.is_empty());
+        assert!(
+            !local.commit.forward.changes.is_empty(),
+            "but it is done here"
+        );
+        world.rules.clear();
+        assert!(
+            !snapshot(&world, true).writes(),
+            "no rules, nothing to write"
+        );
+    }
+
+    #[test]
+    fn junk_is_judged_before_or_after_the_rules_as_the_policy_says() {
+        use crate::junk::{ENOUGH, Filtering, Order};
+        let m = {
+            let mut m = arriving(1, "promo@prizes.example");
+            m.subject = "You won".to_owned();
+            m
+        };
+        let id = m.id;
+        let mut world = World::new(
+            vec![view(vec![m.clone()], Mute::Unmuted)],
+            vec![rule(
+                "star",
+                1,
+                mail_domain::Filter::All,
+                vec![RuleAction::Star],
+            )],
+        );
+        world.policy = Policy {
+            filtering: Filtering::On,
+            ..Policy::default()
+        };
+        // A filter that is sure: every word of it is spam's.
+        let words = junk::words(&m);
+        let counts = JunkCounts {
+            spam: ENOUGH,
+            ham: ENOUGH,
+            words: words.iter().map(|w| (w.clone(), ENOUGH - 1, 0)).collect(),
+        };
+        let evidence = [Evidence {
+            message: id,
+            standing: Standing {
+                counts,
+                ..Standing::default()
+            },
+            places: Placing::default(),
+        }];
+        let run = |order| {
+            let snapshot = ArrivalSnapshot {
+                account: &world.account,
+                has_server: true,
+                caps: &world.caps,
+                rules: &world.rules,
+                labels: &[],
+                vips: &[],
+                names: &[],
+                policy: Policy {
+                    order,
+                    ..world.policy
+                },
+                threads: &world.threads,
+                evidence: &evidence,
+            };
+            on_arrival(&snapshot, &[id], at(10), &mut Counted::default())
+        };
+        let before = run(Order::BeforeRules);
+        assert_eq!(before.junk, vec![id]);
+        assert!(before.acted.is_empty(), "the rule never saw it");
+        let after = run(Order::AfterRules);
+        assert_eq!(after.junk, vec![id]);
+        assert_eq!(after.acted.len(), 1, "the rule saw it first");
+    }
+}
