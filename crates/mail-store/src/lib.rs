@@ -31,7 +31,6 @@ mod pending;
 mod pgp;
 mod prefix;
 mod remote_row;
-pub mod rules;
 mod smime;
 mod sql;
 mod sqlite;
@@ -547,6 +546,12 @@ pub trait Store {
     /// the account's last reported roles, and whether a move of it into another folder is still
     /// queued. [`StoreError::NoMessage`] for a message not held.
     fn placed(&self, message: MessageId) -> Result<Vec<mail_domain::Placed>, StoreError>;
+
+    /// What [`Store::placed`] weighs, unweighed: `message`'s server addresses, the folders the
+    /// moves and copies still queued for it are taking it to, and whether it is waiting to be
+    /// found. For a decision made away from the store that must say where a message is listed
+    /// after work it queues itself. [`StoreError::NoMessage`] for a message not held.
+    fn placing(&self, message: MessageId) -> Result<mail_domain::Placing, StoreError>;
 
     /// The attachment of `message` left on the server as `section` has arrived: it is `blob`,
     /// `size` bytes decoded.
