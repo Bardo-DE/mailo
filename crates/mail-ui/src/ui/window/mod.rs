@@ -18,7 +18,7 @@ mod root;
 pub use root::{MessageOpen, message_root};
 
 use dioxus::prelude::*;
-use ds_blitz::{WindowHandle, WindowLife, WindowSpec};
+use ds_blitz::{WindowHandle, WindowSpec};
 use mail_domain::ThreadId;
 use mail_ui_kit::window::{Ask, OpenWindow, Windows};
 use std::cell::RefCell;
@@ -60,11 +60,7 @@ impl OpenWindow for Quire {
 /// The size a conversation's window opens at, in logical pixels.
 const SIZE: (u32, u32) = (760, 720);
 
-/// Whether a window opened earlier is one to raise rather than open again. The Settings and
-/// Add Account windows ask the same question.
-pub(in crate::ui) fn raise(life: Option<WindowLife>) -> bool {
-    matches!(life, Some(WindowLife::Opening | WindowLife::Open))
-}
+pub(in crate::ui) use mail_ui_kit::window::raise;
 
 /// Ask quire's event loop for the window, or raise the one already open for it.
 fn quire(ask: Ask) {
@@ -98,6 +94,7 @@ fn quire(ask: Ask) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ds_blitz::WindowLife;
 
     #[test]
     fn a_window_still_there_is_raised_and_a_closed_one_opened_again() {

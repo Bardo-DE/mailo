@@ -3,7 +3,7 @@
 //! no-reply sender — and the ⌘K menu names the same people for the same text.
 
 use super::*;
-use crate::ui::contacts::tests::{ADDED, HEARD, ME, NO_REPLY, WRITTEN, the_book};
+use crate::ui::settings_tests::contacts::{ADDED, HEARD, ME, NO_REPLY, WRITTEN, the_book};
 use mail_client::testing::SqliteStore;
 use mail_ui_compose::compose::page::Float;
 use mail_ui_compose::compose::recipients::{people_items, pick_person, typed};

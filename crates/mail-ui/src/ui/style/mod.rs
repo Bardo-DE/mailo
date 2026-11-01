@@ -21,21 +21,16 @@ mod exceptions;
 pub(super) static STYLE: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| {
     let shell = include_str!("shell.css");
     let menus = include_str!("menus.css");
-    let after = concat!(
-        include_str!("contacts.css"),
-        include_str!("files.css"),
-        include_str!("accounts.css"),
-        include_str!("settings.css"),
-        include_str!("rules.css"),
-        include_str!("pgp.css"),
-        include_str!("controls.css"),
-    );
+    let files_accounts = concat!(include_str!("files.css"), include_str!("accounts.css"));
+    let pgp_controls = concat!(include_str!("pgp.css"), include_str!("controls.css"));
     Box::leak(
         format!(
-            "{shell}{}{menus}{}{}{after}",
+            "{shell}{}{menus}{}{}{}{files_accounts}{}{pgp_controls}",
             mail_ui_list::STYLE,
             mail_ui_reader::STYLE,
-            mail_ui_compose::STYLE
+            mail_ui_compose::STYLE,
+            mail_ui_settings::CONTACTS_STYLE,
+            mail_ui_settings::STYLE
         )
         .into_boxed_str(),
     )
@@ -154,7 +149,6 @@ pub(in crate::ui) mod tests {
             compose_tests,
             kit_tests::{files_sheet_tests, pgp_certs_tests, pgp_keys_tests},
             reader_tests::invite_card_tests,
-            rules,
         };
         let surfaces = [
             ("the frame", frame_markup().await),
@@ -169,7 +163,10 @@ pub(in crate::ui) mod tests {
                 compose_tests::openpgp::drawn_states().await,
             ),
             ("the invitation card", invite_card_tests::drawn_states()),
-            ("the rules page", rules::page_tests::drawn_states().await),
+            (
+                "the rules page",
+                crate::ui::settings_tests::rules_page::drawn_states().await,
+            ),
             (
                 "the mail file sheets",
                 files_sheet_tests::drawn_states().await,

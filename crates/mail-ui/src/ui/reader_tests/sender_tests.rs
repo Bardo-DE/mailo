@@ -8,10 +8,10 @@ use dioxus_core::VirtualDom;
 use ds::prelude::*;
 use mail_client::testing::{SqliteStore, Store};
 
-use crate::ui::contacts::tests::{ADDED, HEARD, the_book};
 use crate::ui::fixtures::{
     Seen, click, dispatching, drain_seen, pick_named, rebuild_into, right_click, type_into,
 };
+use crate::ui::settings_tests::contacts::{ADDED, HEARD, the_book};
 use mail_ui_model::copy;
 use mail_ui_reader::sender::{SenderName, starting_name};
 

@@ -9,7 +9,7 @@ use super::app::App;
 use dioxus::prelude::*;
 use ds::base::spawner::Spawner;
 use ds::style::kit::{StyleHomes, Styles, UserStyle};
-use ds_settings::{AppName, ConfigRoot, Store, SystemPrefsSource, use_environment};
+use ds_settings::use_environment;
 use mail_client::Client;
 use mail_client::profile::ProfileId;
 use mail_client::provider::icon::Loaded;
@@ -135,36 +135,7 @@ pub fn run(
     native::run(opening)
 }
 
-/// Where the launched window reads the desktop's appearance from: the person's own
-/// (`ConfigRoot::Xdg`, the settings portal), or, in a test, a scratch directory and fixed
-/// preferences. A root context; a window without one reads the person's.
-#[derive(Debug, Clone)]
-pub struct DesktopSettings {
-    pub root: ConfigRoot,
-    pub prefs: SystemPrefsSource,
-}
-
-impl Default for DesktopSettings {
-    fn default() -> Self {
-        DesktopSettings {
-            root: ConfigRoot::Xdg,
-            prefs: SystemPrefsSource::Portal,
-        }
-    }
-}
-
-impl DesktopSettings {
-    /// The settings in force for this window: its context, else the person's.
-    pub(in crate::ui) fn current() -> Self {
-        try_consume_context::<DesktopSettings>().unwrap_or_default()
-    }
-
-    /// The desktop's one store, `quire/` in the config root, which the shell and detent read
-    /// and write too. mailo keeps no appearance file of its own.
-    pub(in crate::ui) fn store(&self) -> Store {
-        Store::new(self.root.clone(), AppName::QUIRE)
-    }
-}
+pub use mail_ui_kit::program::DesktopSettings;
 
 /// The launched window's root: the window's settings, then [`Shell`].
 ///

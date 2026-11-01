@@ -15,18 +15,13 @@ use ds::components::menus::item::item::{AfterPick, MenuItem};
 use ds::prelude::{Availability, Check, Icon, MenuImage};
 use mail_client::profile::ProfileId;
 use mail_ui_kit::appearance::WindowDirs;
-use mail_ui_kit::data::{AccountRow, use_account_rows};
-use mail_ui_kit::space::{Handle, Mail, Member, Recall, SpaceId, with_member};
+pub(in crate::ui) use mail_ui_kit::data::account_names as accounts;
+use mail_ui_kit::data::use_account_rows;
+pub(in crate::ui) use mail_ui_kit::space::toggled;
+use mail_ui_kit::space::{Handle, Mail, Recall, SpaceId};
 use mail_ui_kit::today::Today;
 use mail_ui_model::copy;
 use porter_core::AccountId;
-
-/// Every account there is, in order, and how the window names it.
-pub(in crate::ui) fn accounts(rows: &[AccountRow]) -> Vec<(AccountId, String)> {
-    rows.iter()
-        .map(|row| (row.id.clone(), row.shown()))
-        .collect()
-}
 
 /// A pick in Accounts ▸: an account put in or taken out, or a way to add one.
 #[derive(Debug, Clone, PartialEq)]
@@ -76,16 +71,6 @@ pub(in crate::ui) fn accounts_menu(
         availability: Availability::Enabled,
         children: rows,
     }]
-}
-
-/// `accounts` with `account` switched: out when the Space shows it, in when it does not.
-pub(in crate::ui) fn toggled(accounts: &[AccountId], account: AccountId) -> Vec<AccountId> {
-    let member = if accounts.contains(&account) {
-        Member::Out
-    } else {
-        Member::In
-    };
-    with_member(accounts, account, member)
 }
 
 /// The Space's menu, wherever it was opened.

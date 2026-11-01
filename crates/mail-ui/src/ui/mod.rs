@@ -12,23 +12,22 @@ mod add_account;
 mod app;
 mod command;
 pub use mail_ui_compose::compose::discarding_draft;
-mod contacts;
-pub mod default_mail;
+pub use mail_ui_settings::default_mail;
 mod erase;
 mod follow_up;
 pub(in crate::ui) use mail_ui_kit::frame;
 #[cfg(test)]
 pub(in crate::ui) use mail_ui_list::row;
 pub(in crate::ui) use mail_ui_list::{list, organise, views};
-mod keyboard;
+pub(in crate::ui) use mail_ui_settings::{contacts, rules};
 mod launch;
 mod launcher_count;
 mod no_account;
 mod original_frame;
 mod reauth;
-mod rules;
-mod settings_window;
+mod settings;
 mod sidebar;
+mod signatures;
 mod space_menu;
 mod style;
 mod switch;
@@ -46,7 +45,11 @@ mod list_tests;
 #[cfg(test)]
 pub(in crate::ui) mod reader_tests;
 #[cfg(test)]
+mod settings_tests;
+#[cfg(test)]
 mod shell_tests;
+#[cfg(test)]
+mod signatures_tests;
 #[cfg(test)]
 mod tips_tests;
 
@@ -65,7 +68,7 @@ pub mod native {
     pub use super::launch::gate::{Found, found as damaged_files};
     pub use super::launch::native::{contexts, contexts_passing, live_root, root};
     pub use super::original_frame::OriginalFrame;
-    pub use super::settings_window::settings_root;
+    pub use super::settings::settings_root;
     pub use super::window::{MessageOpen, message_root};
     pub use crate::handoff::{ActivationToken, Requests};
     pub use mail_ui_compose::compose::Dictionaries;

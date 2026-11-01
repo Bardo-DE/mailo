@@ -2,14 +2,14 @@
 
 All the words the window shows live in crates/mail-ui-model/src/copy/, by kind. This finds the
 string literals that still say something to a person elsewhere under crates/mail-ui/src/ui,
-crates/mail-ui-kit/src, crates/mail-ui-reader/src, crates/mail-ui-compose/src, crates/mail-ui-list/src and
+crates/mail-ui-kit/src, crates/mail-ui-reader/src, crates/mail-ui-compose/src, crates/mail-ui-list/src, crates/mail-ui-settings/src and
 in the model's modules that word the window (not its settings files), so
 scripts/check-copy.sh can hold their number to a ratchet (scripts/copy-literals.txt).
 
 What is a visible literal is a heuristic, kept simple and deterministic:
 
 - Not counted at all: comments, byte strings, the copy/ directory itself, test code (files named tests.rs or
-  *_tests.rs, anything under a tests/, fixtures/, kit_tests/, compose_tests/ or list_tests/ directory, a file a `#[cfg(test)] mod x;`
+  *_tests.rs, anything under a tests/, fixtures/, kit_tests/, compose_tests/, list_tests/ or settings_tests/ directory, a file a `#[cfg(test)] mod x;`
   declares, and the item that follows any `#[cfg(test)]` or `#[cfg(any(test, feature = "testing"))]`).
 - Not visible by where it stands: inside an `impl Debug for` block, inside an attribute
   (`#[path = "..."]`), inside a log, panic or
@@ -46,11 +46,13 @@ READER = os.path.join("crates", "mail-ui-reader", "src")
 COMPOSE = os.path.join("crates", "mail-ui-compose", "src")
 # The list, the third: walked as the window is.
 LIST = os.path.join("crates", "mail-ui-list", "src")
+# Settings, the fourth: walked as the window is.
+SETTINGS = os.path.join("crates", "mail-ui-settings", "src")
 MODEL = os.path.join("crates", "mail-ui-model", "src")
 COPY = os.path.join(MODEL, "copy")
 # What is walked: the window's code, and the model beside it. The model's settings files are
 # schema and file names, not the window's words, and its `damage` is the command line's too.
-ROOTS = [UI, KIT, READER, COMPOSE, LIST, MODEL]
+ROOTS = [UI, KIT, READER, COMPOSE, LIST, SETTINGS, MODEL]
 LEFT_OUT = [COPY, os.path.join(MODEL, "settings"), os.path.join(MODEL, "damage")]
 
 # Calls whose string arguments are not shown in the window.
@@ -295,7 +297,7 @@ def rust_files_under(root, include_tests):
         rel = os.path.relpath(base, ROOT)
         dirs[:] = sorted(
             d for d in dirs
-            if include_tests or d not in ("tests", "fixtures", "kit_tests", "compose_tests", "list_tests")
+            if include_tests or d not in ("tests", "fixtures", "kit_tests", "compose_tests", "list_tests", "settings_tests")
         )
         if any(rel == gone or rel.startswith(gone + os.sep) for gone in LEFT_OUT):
             continue

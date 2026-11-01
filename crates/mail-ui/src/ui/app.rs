@@ -1,4 +1,4 @@
-use super::frame;
+use super::frame::{self, Frame};
 use super::list::ThreadList;
 use super::sidebar::Places;
 use super::style::STYLE;
@@ -10,8 +10,6 @@ use ds::components::app::spaces::{Showing, SwitchChord, Switched, use_spaces};
 use ds::components::chrome::split_view::model::{Collapsing, PaneSize, PaneSpec, SplitPane};
 use ds::components::chrome::split_view::view::SplitView;
 use ds::prelude::*;
-use ds::style::kit::Styles;
-use ds_settings::Environment;
 use mail_client::profile::ProfileId;
 use mail_domain::*;
 use mail_ui_compose::compose::{self, SendPill};
@@ -80,7 +78,7 @@ pub(super) fn App() -> Element {
     let keys = core.keys;
     // The conversations opened in windows of their own, to raise one asked for again.
     super::window::use_opened();
-    super::settings_window::use_settings_opened();
+    super::settings::use_settings_opened(super::settings::settings_window);
     let boot = use_hook(frame::load_boot);
     // quire's Spaces: the list, switching, the look and the menu. Where a Space was left is the
     // shell's place and open thread; arriving shows where the Space was left.
@@ -970,65 +968,6 @@ const LIST: PaneSpec = PaneSpec {
     max: PaneSize::Fixed(Px(640.0)),
     collapsing: Collapsing::Never,
 };
-
-/// What the window resolves its look from: the live settings and desktop preferences `launch`
-/// provides, else a fixed value a test provides, else the first run.
-///
-/// A test never reaches `ds_settings::use_environment`, so it never reads or watches the real
-/// config directory.
-fn environment() -> Environment {
-    if let Some(live) = try_consume_context::<ReadSignal<Environment>>() {
-        return live();
-    }
-    try_consume_context::<Environment>().unwrap_or_default()
-}
-
-/// The person's own stylesheets, live when `launch` watches the config directory, else none.
-fn styles() -> ReadSignal<Styles> {
-    match try_consume_context::<ReadSignal<Styles>>() {
-        Some(live) => live,
-        None => ReadSignal::new(use_signal(Styles::default)),
-    }
-}
-
-/// The quire root the window draws inside, wearing the current Space.
-///
-/// Its own component so a Space change re-renders only the root's attributes and frame
-/// layers, not `App`: the children are `App`'s, unchanged. The Space's look is the frame (the
-/// sidebar sits on its colour, the card on paper); its motion is the root's motion level, since
-/// quire's `SpaceLook` has none (reported to quire); the rest of the appearance, the type
-/// included, is `appearance.toml`'s. A switch or an edit only writes the Spaces, and `Ds`
-/// cross-fades the frame's layers itself. `sheet` is the design system's stylesheet when a window
-/// needs more than `ds::stylesheet()`: the add-account window's parts are `ds-shell`'s.
-#[component]
-pub(super) fn Frame(
-    spaces: Signal<Spaces>,
-    #[props(default)] sheet: Option<&'static str>,
-    children: Element,
-) -> Element {
-    let environment = environment();
-    let look = spaces.read().current().look.clone();
-    let appearance = window_appearance(&environment);
-    rsx! {
-        Ds {
-            appearance,
-            system: environment.system,
-            look,
-            material: Material::Window,
-            styles: styles(),
-            custom_styles: environment.settings.appearance.custom_styles,
-            surface: Some("window"),
-            sheet,
-            {children}
-        }
-    }
-}
-
-/// `appearance.toml`'s appearance. How much the window moves is the person's motion setting and
-/// the desktop's reduced-motion preference (`Ds { system }`), never a Space's.
-pub(super) fn window_appearance(environment: &Environment) -> ds::prelude::Appearance {
-    environment.settings.appearance.appearance()
-}
 
 /// The ids of `spaces`, in order.
 fn space_ids(spaces: &mail_ui_kit::space::Spaces) -> Vec<mail_ui_kit::space::SpaceId> {

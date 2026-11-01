@@ -22,18 +22,18 @@ FORBIDDEN_CORE=(dioxus ds ds-settings ds-blitz blitz-dom dioxus-native-dom anyvi
 # handler, what an operation says): it does no drawing, so it may never reach the toolkit or the
 # renderer, nor `mail-ui`, which would pull both in. The window and the command line share it.
 OS=(mail-os)
-FORBIDDEN_OS=(dioxus ds ds-settings ds-blitz blitz-dom dioxus-native-dom anyview-core anyview-peek mail-ui mail-ui-kit mail-ui-reader mail-ui-compose mail-ui-list)
+FORBIDDEN_OS=(dioxus ds ds-settings ds-blitz blitz-dom dioxus-native-dom anyview-core anyview-peek mail-ui mail-ui-kit mail-ui-reader mail-ui-compose mail-ui-list mail-ui-settings)
 # `mail-ui-model` (the window's state, words and settings files, drawing nothing) and `mail-cli` (the
 # terminal) hold to the same rule, and neither may reach `mail-ui`, the window itself, or `mail-ui-kit` or the feature crates,
 # what it is drawn from. quire's
 # `ds-settings` (the settings-file library, built without its `dioxus` feature) is allowed: it is
 # what the settings files are read with.
 NODRAW=(mail-ui-model mail-cli)
-FORBIDDEN_NODRAW=(dioxus ds ds-shell ds-motion ds-blitz blitz-dom dioxus-native-dom anyview-core anyview-peek mail-ui mail-ui-kit mail-ui-reader mail-ui-compose mail-ui-list)
+FORBIDDEN_NODRAW=(dioxus ds ds-shell ds-motion ds-blitz blitz-dom dioxus-native-dom anyview-core anyview-peek mail-ui mail-ui-kit mail-ui-reader mail-ui-compose mail-ui-list mail-ui-settings)
 fail=0
 # The crates the window is made of, bottom to top but the shell: the kit, then the feature crates.
 # A feature crate is added to FEATURES when it is made.
-FEATURES=(mail-ui-reader mail-ui-compose mail-ui-list)
+FEATURES=(mail-ui-reader mail-ui-compose mail-ui-list mail-ui-settings)
 WINDOW=(mail-ui-kit ${FEATURES[@]+"${FEATURES[@]}"} mail-ui)
 WINDOW_SRC=(crates/mail-ui-kit/src)
 for crate in ${FEATURES[@]+"${FEATURES[@]}"}; do WINDOW_SRC+=("crates/$crate/src"); done
@@ -155,8 +155,9 @@ if dep_names mail-cli '^mail-(intents|app)[ .=]' || dep_names mail-intents '^mai
   || dep_names mail-ui-reader '^mail-(cli|intents|edge|app)[ .=]' \
   || dep_names mail-ui-compose '^mail-(cli|intents|edge|app)[ .=]' \
   || dep_names mail-ui-list '^mail-(cli|intents|edge|app)[ .=]' \
+  || dep_names mail-ui-settings '^mail-(cli|intents|edge|app)[ .=]' \
   || dep_names mail-ui-model '^mail-(cli|intents|edge|app)[ .=]'; then
-  echo "mail-cli, mail-intents, mail-edge, mail-ui, mail-ui-kit, mail-ui-reader, mail-ui-compose, mail-ui-list and mail-ui-model must not depend on each other or on mail-app: mail-app is the process over them"
+  echo "mail-cli, mail-intents, mail-edge, mail-ui, mail-ui-kit, mail-ui-reader, mail-ui-compose, mail-ui-list, mail-ui-settings and mail-ui-model must not depend on each other or on mail-app: mail-app is the process over them"
   fail=1
 fi
 

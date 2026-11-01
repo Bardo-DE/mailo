@@ -6,6 +6,9 @@ use crate::appearance::WindowDirs;
 use crate::space::{self, Spaces};
 use crate::today::{self, Today};
 use dioxus::prelude::*;
+use ds::prelude::*;
+use ds::style::kit::Styles;
+use ds_settings::Environment;
 
 /// What the first render needs, and nothing it has to ask the disk for again.
 #[derive(Clone)]
@@ -112,4 +115,63 @@ pub fn use_followed_configuration(
             None => {}
         }
     });
+}
+
+/// What the window resolves its look from: the live settings and desktop preferences `launch`
+/// provides, else a fixed value a test provides, else the first run.
+///
+/// A test never reaches `ds_settings::use_environment`, so it never reads or watches the real
+/// config directory.
+pub fn environment() -> Environment {
+    if let Some(live) = try_consume_context::<ReadSignal<Environment>>() {
+        return live();
+    }
+    try_consume_context::<Environment>().unwrap_or_default()
+}
+
+/// The person's own stylesheets, live when `launch` watches the config directory, else none.
+pub fn styles() -> ReadSignal<Styles> {
+    match try_consume_context::<ReadSignal<Styles>>() {
+        Some(live) => live,
+        None => ReadSignal::new(use_signal(Styles::default)),
+    }
+}
+
+/// The quire root the window draws inside, wearing the current Space.
+///
+/// Its own component so a Space change re-renders only the root's attributes and frame
+/// layers, not `App`: the children are `App`'s, unchanged. The Space's look is the frame (the
+/// sidebar sits on its colour, the card on paper); its motion is the root's motion level, since
+/// quire's `SpaceLook` has none (reported to quire); the rest of the appearance, the type
+/// included, is `appearance.toml`'s. A switch or an edit only writes the Spaces, and `Ds`
+/// cross-fades the frame's layers itself. `sheet` is the design system's stylesheet when a window
+/// needs more than `ds::stylesheet()`: the add-account window's parts are `ds-shell`'s.
+#[component]
+pub fn Frame(
+    spaces: Signal<Spaces>,
+    #[props(default)] sheet: Option<&'static str>,
+    children: Element,
+) -> Element {
+    let environment = environment();
+    let look = spaces.read().current().look.clone();
+    let appearance = window_appearance(&environment);
+    rsx! {
+        Ds {
+            appearance,
+            system: environment.system,
+            look,
+            material: Material::Window,
+            styles: styles(),
+            custom_styles: environment.settings.appearance.custom_styles,
+            surface: Some("window"),
+            sheet,
+            {children}
+        }
+    }
+}
+
+/// `appearance.toml`'s appearance. How much the window moves is the person's motion setting and
+/// the desktop's reduced-motion preference (`Ds { system }`), never a Space's.
+pub fn window_appearance(environment: &Environment) -> ds::prelude::Appearance {
+    environment.settings.appearance.appearance()
 }
