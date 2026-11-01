@@ -1,6 +1,9 @@
 //! The pipeline against the real SQLite index, where every other test uses a fake [`Source`].
 
-use super::*;
+use chrono::Utc;
+use mail_logic::search::{Affinity, QUICK_LIMIT, rank_query};
+
+use super::StoreSource;
 use crate::support_tests::{at, sqlite_with};
 use mail_domain::{Filter, PageReq, Property, Query, Sort, SortDir, TextMatch};
 use mail_store::Store;
@@ -8,7 +11,7 @@ use mail_store::Store;
 fn subjects(input: &str, store: &mail_store::SqliteStore) -> Vec<String> {
     let ranked = rank_query(
         input,
-        store,
+        &StoreSource(store),
         &Affinity::default(),
         &Utc,
         &mail_logic::query::unnamed,

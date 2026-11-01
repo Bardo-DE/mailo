@@ -9,10 +9,11 @@ use rusqlite::Connection;
 
 use super::SqliteStore;
 use super::read;
+use crate::StoreError;
 use crate::prefix::{is_cjk_bigram, prefix_range};
 use crate::sql::{self, MATCH_PREDICATE, SqlValue};
 use crate::term::by_frequency;
-use crate::{StoreError, Term};
+use mail_domain::Term;
 
 const VOCAB: &str = "CREATE VIRTUAL TABLE IF NOT EXISTS temp.messages_vocab \
      USING fts5vocab(main, messages_fts, 'row')";

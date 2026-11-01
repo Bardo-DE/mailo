@@ -4,6 +4,7 @@
 use super::*;
 use chrono::Utc;
 use ds::prelude::*;
+use mail_client::search::Source as _;
 use mail_domain::Filter;
 use mail_ui_kit::view::Shell;
 use std::cell::Cell;

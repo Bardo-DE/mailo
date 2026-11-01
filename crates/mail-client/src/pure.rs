@@ -173,7 +173,7 @@ pub mod schedule {
 }
 pub mod search {
     // `run` reads what it is handed: a caller has only the client's (`Client::source`).
-    pub use mail_core::search::{
+    pub use mail_logic::search::{
         ActionHit, Affinity, Command, Find, Found, Highlight, MOST_FOUND, PersonHit, Results,
         SenderStats, Source, Step, Top, find_in, first, list_highlight, match_list, parse, run,
         search_list, snippet,

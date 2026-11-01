@@ -61,7 +61,6 @@ pub use sql::{SqlFilter, SqlValue, compile};
 pub use sqlite::{BlobsSwept, Checkpoint, SqliteStore};
 pub use sqlite::{Freed, Kept, MessageRow};
 pub use swept::Swept;
-pub use term::Term;
 
 pub use error::StoreError;
 
@@ -71,7 +70,7 @@ use mail_domain::{
     FolderContents, Import, Ingest, InviteAnswer, KeyId, KeyTrust, Label, MailboxRef, MailboxRole,
     Message, MessageId, MessageKey, OutboxId, Page, Patch, PgpKey, ProtoOp, Query, ReceiptAnswer,
     RemoteIntent, RemoteRef, Retry, Rule, RuleId, SendState, SmimeCert, SyncCursor, Template,
-    TemplateId, Thread, ThreadId, ThreadSummary, Vacation, View, ViewId,
+    TemplateId, Term, Thread, ThreadId, ThreadSummary, Vacation, View, ViewId,
 };
 use porter_core::AccountId;
 

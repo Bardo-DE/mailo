@@ -1,7 +1,6 @@
 //! The search language against the store: what the names a typed line stands for come from, and
 //! the store listing what a typed `is:vip` asks for. Reading the line is `mail_logic::query`'s.
 
-use crate::search::parse as split;
 use crate::support_tests::{account as in_store, at, message};
 use chrono::Utc;
 use mail_domain::{
@@ -9,6 +8,7 @@ use mail_domain::{
     Star, TextMatch,
 };
 use mail_logic::query::{Known, parse_with};
+use mail_logic::search::parse as split;
 use mail_store::{MemoryStore, Store};
 use porter_core::AccountId;
 

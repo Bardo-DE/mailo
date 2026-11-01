@@ -5,9 +5,10 @@
 //! parity test owns the set, and one case below is where the two orders diverge.
 
 use crate::support::*;
+use mail_domain::Term;
 use mail_domain::*;
 use mail_store::testing::seed_account;
-use mail_store::{MemoryStore, SqliteStore, Store, Term};
+use mail_store::{MemoryStore, SqliteStore, Store};
 use porter_core::AccountId;
 
 struct Mail<'a> {

@@ -38,6 +38,7 @@ pub mod signing;
 pub mod smime;
 pub mod state;
 pub mod template;
+pub mod term;
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
 pub mod threading;
@@ -96,6 +97,7 @@ pub use state::{
     ReadState, Snooze, Star, Threading,
 };
 pub use template::Template;
+pub use term::Term;
 pub use threading::{ThreadInput, normalize_id, sort_subject, thread};
 pub use view::{Cursor, GroupKey, Page, PageReq, Property, Query, Sort, SortDir, View, ViewKind};
 pub use words::{NO_SUBJECT, human_size, subject_or_none};

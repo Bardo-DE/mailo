@@ -60,7 +60,8 @@ pub fn filter_of(
     accounts: &[(String, AccountId)],
     vips: &crate::vip::Vips,
 ) -> Result<Filter, Unsaid> {
-    let extracted = crate::search::extract(input).map_err(|why| Unsaid(vec![why.to_string()]))?;
+    let extracted =
+        mail_logic::search::extract(input).map_err(|why| Unsaid(vec![why.to_string()]))?;
     if let Some(pattern) = &extracted.regex {
         return Err(Unsaid(vec![format!(
             "re:/{}/ (a pattern is matched on this computer, not by a server)",

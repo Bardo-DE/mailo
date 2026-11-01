@@ -729,8 +729,9 @@ impl Drop for Pinned<'_> {
 }
 
 use crate::contact::{AddressBook, Contact, Origin};
-use crate::{OutboxEntry, Settle, Store, Swept, Term, sql};
+use crate::{OutboxEntry, Settle, Store, Swept, sql};
 use chrono::{DateTime, Utc};
+use mail_domain::Term;
 use mail_domain::{
     AccountCaps, Cursor, Draft, DraftId, Filter, Ingest, MailboxRef, Message, MessageId, OutboxId,
     Page, Patch, Property, Query, RemoteIntent, RemoteRef, SendState, SortDir, SyncCursor,
