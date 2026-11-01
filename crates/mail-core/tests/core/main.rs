@@ -7,12 +7,14 @@
 mod support;
 
 mod accounts_read;
+mod arrival;
 mod attachments;
 mod blocking;
 mod direct_sign_in;
 mod fetch_body;
 mod folder_sync;
 mod graph_push;
+mod jmap_arrival;
 mod live_presets;
 mod live_watch;
 mod no_hidden_runtime;
