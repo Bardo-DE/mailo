@@ -3,7 +3,7 @@
 use super::SqliteStore;
 use crate::StoreError;
 use mail_domain::commit::Written;
-use mail_domain::{Commit, OutboxId, Resolve, Row, Unplaced};
+use mail_domain::{Commit, Expect, OutboxId, Resolve, Row, Unplaced};
 use rusqlite::{Transaction, TransactionBehavior};
 
 impl SqliteStore {
@@ -51,6 +51,12 @@ impl SqliteStore {
 
     fn commit_steps(&self, commit: &Commit) -> Result<Written, StoreError> {
         let mut queued: Vec<Option<OutboxId>> = vec![None; commit.queue.len()];
+        // Before anything is written: what it was decided over is still what is there.
+        for row in &commit.rows {
+            if let Row::Expect(expect) = row {
+                self.expecting(expect)?;
+            }
+        }
         // A deletion is addressed while the store still knows where its messages are.
         self.queue_all(commit, Resolve::BeforeForward, &mut queued)?;
         self.write_patch_in(&commit.forward)?;
@@ -75,9 +81,48 @@ impl SqliteStore {
                 Row::Withdrawn { forward, inverse } => {
                     self.withdraw_in(*forward, inverse, commit.at)?;
                 }
+                Row::SendState { draft, state, at } => {
+                    self.set_send_state(*draft, state, *at)?;
+                }
+                Row::FollowUpHeld {
+                    draft,
+                    account,
+                    message_id,
+                    thread,
+                    due,
+                    set,
+                } => {
+                    self.hold_follow_up(&crate::FollowUpHold {
+                        draft: *draft,
+                        account: account.clone(),
+                        message_id: message_id.clone(),
+                        thread: *thread,
+                        at: *due,
+                        set: *set,
+                    })?;
+                }
+                Row::FollowUpReleased { draft } => {
+                    self.release_follow_up(*draft)?;
+                }
+                Row::Expect(_) => {}
             }
         }
         Ok(Written { queued })
+    }
+
+    /// Whether `expect` still holds, or the commit is stale.
+    fn expecting(&self, expect: &Expect) -> Result<(), StoreError> {
+        match expect {
+            Expect::Draft {
+                draft,
+                updated,
+                state,
+            } => match self.load_draft(*draft) {
+                Ok(now) if now.updated == *updated && now.state == *state => Ok(()),
+                Ok(_) | Err(StoreError::NoDraft(_)) => Err(StoreError::Stale),
+                Err(other) => Err(other),
+            },
+        }
     }
 
     fn queue_all(

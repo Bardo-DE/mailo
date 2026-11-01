@@ -149,8 +149,7 @@ fn a_sent_draft_cannot_be_sent_again() {
 }
 
 /// Asking, once queued, to be encrypted to someone there is no key for: the next press of send
-/// is refused. Which of the earlier submission and the draft's state survives that is what
-/// `a_send_refused_leaves_the_queued_one_where_it_was` says.
+/// is refused.
 fn asked_to_encrypt(store: &SqliteStore, draft: DraftId) {
     let mut queued = store.draft(draft).unwrap();
     queued.openpgp = Some(Mode::Encrypt);
@@ -165,17 +164,121 @@ fn asked_to_encrypt(store: &SqliteStore, draft: DraftId) {
         .unwrap();
 }
 
-/// Today the earlier submission is taken back before anything can refuse the new one, so the
-/// refusal leaves nothing queued and the draft editable. Phase 4 makes the refusal leave it as it
-/// was; this is the expectation it changes.
+/// A refusal of the second press leaves the first as it was: its submission still in the outbox,
+/// the bytes it froze, and the draft saying queued. (Before sending was a freeze and a commit, the
+/// earlier submission was taken back before anything could refuse the new one, so the refusal left
+/// nothing queued and the draft editable.)
 #[test]
-fn a_send_refused_pulls_the_queued_one_back_today() {
+fn a_send_refused_leaves_the_queued_one_where_it_was() {
     let store = seeded();
     let draft = written(&store);
     compose::queue(&store, draft.id, Leaves::Now, at(10)).unwrap();
+    let before = submissions(&store);
     asked_to_encrypt(&store, draft.id);
+    let queued_draft = store.draft(draft.id).unwrap();
 
     assert!(compose::queue(&store, draft.id, Leaves::Now, at(20)).is_err());
-    assert!(submissions(&store).is_empty());
+    assert_eq!(submissions(&store), before);
+    assert_eq!(store.draft(draft.id).unwrap(), queued_draft);
+}
+
+fn queue_remind(
+    store: &SqliteStore,
+    draft: DraftId,
+    leaves: Leaves,
+    remind: Option<DateTime<Utc>>,
+    now: DateTime<Utc>,
+) -> Result<(Draft, mail_mime::Posting), compose::SendError> {
+    compose::queue_reminding(
+        store,
+        &mail_secrets::testing::MapSigningStore::default(),
+        &mail_core::pgp::no_passphrase,
+        (draft, mail_logic::picture::PictureSize::Actual),
+        (leaves, remind),
+        now,
+    )
+}
+
+/// The reminder is written with the submission, so a send that is queued has the reminder the
+/// person asked for, and one sent again without asking for one has none.
+#[test]
+fn a_reminder_is_held_with_the_send_and_let_go_with_it() {
+    let store = seeded();
+    let draft = written(&store);
+    let remind = at(86_400);
+    queue_remind(&store, draft.id, Leaves::Now, Some(remind), at(10)).unwrap();
+    let held = mail_core::follow_up::held(&store);
+    assert_eq!(held.len(), 1);
+    assert_eq!(
+        (held[0].draft, held[0].at, held[0].set),
+        (draft.id, remind, at(10))
+    );
+    let message_id = held[0].message_id.clone();
+
+    // Sent again, the same message goes by the same id and the reminder moves with it.
+    queue_remind(&store, draft.id, Leaves::Now, Some(at(172_800)), at(20)).unwrap();
+    let held = mail_core::follow_up::held(&store);
+    assert_eq!(held.len(), 1, "one, not two");
+    assert_eq!(held[0].at, at(172_800));
+    assert_eq!(held[0].message_id, message_id);
+
+    queue_remind(&store, draft.id, Leaves::Now, None, at(30)).unwrap();
+    assert!(mail_core::follow_up::held(&store).is_empty());
+}
+
+/// A send that is refused leaves the reminder its earlier press held, along with the submission.
+#[test]
+fn a_send_refused_keeps_the_reminder_it_had() {
+    let store = seeded();
+    let draft = written(&store);
+    queue_remind(&store, draft.id, Leaves::Now, Some(at(86_400)), at(10)).unwrap();
+    asked_to_encrypt(&store, draft.id);
+    assert!(queue_remind(&store, draft.id, Leaves::Now, Some(at(99_999)), at(20)).is_err());
+    let held = mail_core::follow_up::held(&store);
+    assert_eq!(held.len(), 1);
+    assert_eq!(held[0].at, at(86_400));
+    assert_eq!(submissions(&store).len(), 1);
+}
+
+/// A draft edited between being read and being written is not sent as it was read: nothing is
+/// written, and the next try freezes what is there.
+#[test]
+fn a_draft_edited_while_its_send_was_made_is_frozen_again() {
+    let store = seeded();
+    let draft = written(&store);
+    let read =
+        mail_core::gather::sending(&store, draft.id, mail_logic::picture::PictureSize::Actual)
+            .unwrap();
+    let frozen = compose::freeze::freeze(
+        &read,
+        compose::freeze::Keys::idle(),
+        Leaves::Now,
+        None,
+        at(10),
+        compose::freeze::Ids::generate(),
+    )
+    .unwrap();
+
+    // Edited by someone else after it was read.
+    compose::save(
+        &store,
+        &Draft {
+            subject: "lunch on thursday".to_owned(),
+            updated: at(5),
+            ..store.draft(draft.id).unwrap()
+        },
+    )
+    .unwrap();
+    let raw = store.blobs().put(&frozen.post.message).unwrap();
+    assert!(matches!(
+        store.commit(&frozen.commit(raw)),
+        Err(mail_store::StoreError::Stale)
+    ));
+    assert!(submissions(&store).is_empty(), "nothing was queued");
     assert_eq!(store.draft(draft.id).unwrap().state, SendState::Editing);
+
+    let (_, post) = compose::queue(&store, draft.id, Leaves::Now, at(20)).unwrap();
+    let text = String::from_utf8(post.message).unwrap();
+    assert!(text.contains("Subject: lunch on thursday"), "{text}");
+    assert_eq!(submissions(&store).len(), 1);
 }

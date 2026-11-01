@@ -26,6 +26,10 @@ pub enum StoreError {
     /// said that was not to be done without.
     #[error("work for the server named nothing the server holds")]
     NotQueued,
+    /// A commit was decided over something that changed before it was written (a draft edited
+    /// while its send was being made), and nothing was written: decide again over what is there.
+    #[error("what this was decided over has changed")]
+    Stale,
     #[error("no such account: {0}")]
     NoAccount(AccountId),
     #[error("no such thread: {0}")]
@@ -161,6 +165,7 @@ impl Retryable for StoreError {
             // Our own bug or our own data. Retrying re-runs the same failure forever.
             StoreError::NoThread(_)
             | StoreError::NotQueued
+            | StoreError::Stale
             | StoreError::NoMessage(_)
             | StoreError::NoDraft(_)
             | StoreError::NoTemplate(_)

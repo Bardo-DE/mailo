@@ -55,7 +55,7 @@ pub use account::{
 pub use address::Address;
 pub use autocrypt::{AutocryptPeer, PreferEncrypt, Sighting};
 // `Written` is `commit::Written`: another `Written` is exported below, and callers glob this crate.
-pub use commit::{Commit, Queue, Resolve, Row, UndoId, Unplaced};
+pub use commit::{Commit, Expect, Queue, Resolve, Row, UndoId, Unplaced};
 pub use content::{Attachment, Body, Inline, Label, PartContent};
 pub use draft::{Draft, PendingAttachment, ReplyScope, SendState};
 pub use error::{FolderError, ParseAddressError, ParseFingerprintError, ParseSectionError};
