@@ -177,15 +177,14 @@ impl crate::mail::SyncOps<'_> {
         // configuration, and an edit halfway through a run producing two different client ids is
         // not a behaviour worth having.
         let registry = mail.clients()?;
-        let accounts = mail.roster()?;
-        run_all(
-            mail.store().clone(),
+        let accounts = pick(&mail.roster()?, &|_| true);
+        pass_over(
+            mail.store(),
             mail.secrets(),
             &registry,
             mail.now(),
             Mode::Once,
-            &accounts,
-            &|_| true,
+            accounts,
             hooks,
         )
         .await
@@ -278,37 +277,20 @@ pub async fn run_with(
     now: chrono::DateTime<chrono::Utc>,
     hooks: Hooks<'_>,
 ) -> Result<Vec<PassEnd>, CoreError> {
-    run_all(
-        store,
+    pass_over(
+        &store,
         secrets,
         registry,
         now,
         Mode::Once,
-        accounts,
-        &|_| true,
+        pick(accounts, &|_| true),
         hooks,
     )
     .await
 }
 
-/// A run over the accounts that are `due`, told whether to stop after one pass.
-#[allow(clippy::too_many_arguments)]
-async fn run_all(
-    store: Arc<SqliteStore>,
-    secrets: Arc<dyn AccountSecrets>,
-    registry: &ClientRegistry,
-    now: chrono::DateTime<chrono::Utc>,
-    mode: Mode,
-    accounts: &Accounts,
-    due: &dyn Fn(AccountId) -> bool,
-    hooks: Hooks<'_>,
-) -> Result<Vec<PassEnd>, CoreError> {
-    let accounts = pick(accounts, due);
-    pass_over(&store, secrets, registry, now, mode, accounts, hooks).await
-}
-
 /// The accounts a run is to sync, each as the person syncs it.
-fn pick(accounts: &Accounts, due: &dyn Fn(AccountId) -> bool) -> Vec<Configured> {
+pub(crate) fn pick(accounts: &Accounts, due: &dyn Fn(AccountId) -> bool) -> Vec<Configured> {
     // An account that keeps its mail here has no server: nothing to fetch, nothing to drain,
     // and no credential to ask the keyring for. Left out rather than reported, because a line
     // saying so on every pass would be noise about something that is working as intended.

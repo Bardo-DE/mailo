@@ -422,10 +422,10 @@ pub fn execute(store: Arc<SqliteStore>, command: Command) -> Result<(), String> 
         let say = |watched: mail_core::sync::report::Watched| {
             use std::io::Write as _;
             print!("{}", super::sync::watched_text(&watched));
-            if let mail_core::sync::report::Watched::Pass(end) = &watched {
-                if let Ok(accounts) = mail.roster() {
-                    print!("{}", super::sync::sign_in_hint(&accounts, end));
-                }
+            if let mail_core::sync::report::Watched::Pass(end) = &watched
+                && let Ok(accounts) = mail.roster()
+            {
+                print!("{}", super::sync::sign_in_hint(&accounts, end));
             }
             let _ = std::io::stdout().flush();
         };

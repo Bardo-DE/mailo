@@ -172,13 +172,14 @@ pub async fn listen_with(
     watch: Watch,
     heard: &dyn Fn(Heard),
 ) -> Result<(), Lost> {
+    let account = connected_one(accounts, &account)
+        .ok_or_else(|| unsupported("that account is no longer configured"))?;
     listen_at(
         store,
         secrets,
         registry,
         SUBSCRIPTIONS,
-        accounts,
-        account,
+        &account,
         watch,
         heard,
     )
@@ -192,20 +193,17 @@ pub async fn listen_at(
     secrets: Arc<dyn AccountSecrets>,
     registry: &ClientRegistry,
     subscriptions: &str,
-    accounts: &Accounts,
-    account: AccountId,
+    account: &Configured,
     watch: Watch,
     heard: &dyn Fn(Heard),
 ) -> Result<(), Lost> {
-    let account = connected_one(accounts, &account)
-        .ok_or_else(|| unsupported("that account is no longer configured"))?;
     let run = Run {
         store: &store,
         secrets,
         registry,
         // The wall clock, because a watch outlives any `now` it could be handed.
         now: chrono::Utc::now(),
-        account: &account,
+        account,
     };
     listen_on(
         access(&account.plan.incoming),

@@ -58,15 +58,14 @@ impl crate::mail::SyncOps<'_> {
     ) -> Result<Vec<super::report::PassEnd>, CoreError> {
         let mail = self.0;
         let registry = mail.clients()?;
-        let accounts = mail.roster()?;
-        super::run_all(
-            mail.store().clone(),
+        let accounts = super::pick(&mail.roster()?, &|account| due.contains(&account));
+        super::pass_over(
+            mail.store(),
             mail.secrets(),
             &registry,
             mail.now(),
             super::Mode::Once,
-            &accounts,
-            &|account| due.contains(&account),
+            accounts,
             hooks,
         )
         .await

@@ -352,7 +352,7 @@ fn watching(store: Arc<SqliteStore>, secrets: Arc<MemorySecrets>, graph: &str) -
     let said = heard.clone();
     let (stop, cancel) = watch::channel(false);
     let graph = graph.to_owned();
-    let accounts = crate::support::accounts(&store);
+    let accounts = configured(&store);
     let done = std::thread::spawn(move || {
         crate::blocking::block_on(live::listen_at(
             store,
@@ -360,7 +360,6 @@ fn watching(store: Arc<SqliteStore>, secrets: Arc<MemorySecrets>, graph: &str) -
             &mail_secrets::testing::fake_clients(),
             &graph,
             &accounts,
-            account(),
             Watch {
                 cancel,
                 hold: None,
@@ -796,8 +795,7 @@ fn a_graph_account_without_a_relay_is_polled() {
         secrets(),
         &mail_secrets::testing::fake_clients(),
         "http://127.0.0.1:9/v1.0/subscriptions",
-        &crate::support::accounts(&store),
-        account(),
+        &configured(&store),
         Watch {
             cancel,
             hold: None,
@@ -836,7 +834,7 @@ async fn an_unreachable_relay_is_a_loss_the_scheduler_waits_out_while_polling() 
     let store = store(Some(&format!("http://127.0.0.1:{port}")));
     let (_stop, cancel) = watch::channel(false);
     let secrets = secrets();
-    let accounts = crate::support::accounts(&store);
+    let accounts = configured(&store);
     let lost = tokio::task::spawn_blocking(move || {
         crate::blocking::block_on(live::listen_at(
             store,
@@ -844,7 +842,6 @@ async fn an_unreachable_relay_is_a_loss_the_scheduler_waits_out_while_polling() 
             &mail_secrets::testing::fake_clients(),
             &graph_at,
             &accounts,
-            account(),
             Watch {
                 cancel,
                 hold: None,
@@ -857,4 +854,10 @@ async fn an_unreachable_relay_is_a_loss_the_scheduler_waits_out_while_polling() 
     .unwrap()
     .unwrap_err();
     assert!(matches!(lost.retry, Retry::After(_)), "{lost:?}");
+}
+
+/// The one account, as a pass runs it.
+fn configured(store: &SqliteStore) -> mail_core::sync::Configured {
+    mail_core::sync::Configured::of(crate::support::accounts(store).get(&account()).unwrap())
+        .expect("the account has connected")
 }
