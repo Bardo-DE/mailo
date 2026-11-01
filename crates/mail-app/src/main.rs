@@ -87,6 +87,9 @@ fn main() {
         );
         std::process::exit(1);
     };
+    // Where the data and the settings are, resolved here once: everything below reads them from
+    // what is recorded, none looks for itself.
+    mail_edge::install_roots(roots.clone());
     // Every folder mailo keeps is its owner's alone, a folder an earlier version made included.
     // One that cannot be narrowed is said, and the run goes on: the mail is still the person's.
     for dir in places_kept(&roots) {
@@ -173,9 +176,9 @@ fn main() {
         return;
     }
     {
-        let config = mail_core::config::config_dir();
+        let config = Some(roots.config.clone());
         let look = mail_ui_kit::view::Appearance {
-            marks: mail_ui_model::settings::person_root()
+            marks: mail_ui_model::settings::person_root_in(Some(roots.config.as_path()))
                 .map(|root| mail_ui_model::settings::load(&root))
                 .unwrap_or_default()
                 .window

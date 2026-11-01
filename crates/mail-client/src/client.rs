@@ -403,12 +403,17 @@ impl Client {
         &self.0.shared.wanted
     }
 
-    pub(crate) fn reached(&self) -> &OnceLock<crate::net::Reach> {
-        &self.0.shared.reach
+    #[cfg(test)]
+    pub(crate) fn config_dir(&self) -> Option<std::path::PathBuf> {
+        self.0.shared.config_dir()
     }
 
-    pub(crate) fn mail_kept(&self) -> &Mutex<Option<(Instant, mail_core::Mail)>> {
-        &self.0.shared.mail
+    pub(crate) fn shared_mail(&self) -> mail_core::Mail {
+        self.0.shared.mail()
+    }
+
+    pub(crate) fn reached(&self) -> &OnceLock<crate::net::Reach> {
+        &self.0.shared.reach
     }
 
     pub(crate) fn store_arc(&self) -> Arc<SqliteStore> {
@@ -696,7 +701,7 @@ impl Shared {
     pub(crate) fn invalidate(&self, topics: Topics) {
         if let Some(fetcher) = self.fetcher() {
             if topics.intersects(Topics::ACCOUNTS) {
-                fetcher.accounts(&self.store);
+                fetcher.accounts(self.config_dir().as_deref(), &self.store);
             }
             if topics.intersects(Topics::OUTBOX) {
                 fetcher.outbox_moved();

@@ -99,22 +99,37 @@ fn mail_over(reach: Option<&Reach>, store: Arc<SqliteStore>) -> Mail {
 /// the longest a change to them waits to be seen by the rest.
 const MAIL_KEPT: std::time::Duration = std::time::Duration::from_secs(5);
 
-impl Net<'_> {
-    fn mail(&self) -> Mail {
+impl crate::client::Shared {
+    /// The [`Mail`] over this client's store, as the program said to make it.
+    pub(crate) fn mail(&self) -> Mail {
         // A client not yet told how to reach servers makes one each time, so it keeps nothing
         // that a later `Client::reach` would have to replace.
-        if self.0.reached().get().is_none() {
-            return mail_over(None, self.0.store_arc());
+        if self.reach.get().is_none() {
+            return mail_over(None, self.store_arc());
         }
-        let mut kept = self.0.mail_kept().lock();
+        let mut kept = self.mail.lock();
         if let Some((made, mail)) = kept.as_ref()
             && made.elapsed() < MAIL_KEPT
         {
             return mail.clone();
         }
-        let mail = mail_over(self.0.reached().get(), self.0.store_arc());
+        let mail = mail_over(self.reach.get(), self.store_arc());
         *kept = Some((std::time::Instant::now(), mail.clone()));
         mail
+    }
+
+    /// Where the person's syncing choices are kept: the config directory of the [`Mail`] the
+    /// program made, the one source every pass and every interval reads them from. `None` until
+    /// the program has said how to reach servers.
+    pub(crate) fn config_dir(&self) -> Option<std::path::PathBuf> {
+        self.reach.get()?;
+        self.mail().config_dir().map(std::path::Path::to_path_buf)
+    }
+}
+
+impl Net<'_> {
+    fn mail(&self) -> Mail {
+        self.0.shared_mail()
     }
 
     /// Every account as a value, read now with the person's syncing choices as the program told
@@ -539,5 +554,25 @@ mod tests {
         let _ = client.net().signing();
         let _ = client.net().signing();
         assert!(UNREACHED_SAID.is_completed());
+    }
+
+    /// The fetcher's accounts and a pass's accounts are read with the same choices: the config
+    /// directory is the one the program's `Mail` was made with, and none until it says.
+    #[test]
+    fn the_config_directory_is_the_one_the_program_made_its_mail_with() {
+        let store = Arc::new(mail_store::testing::in_memory());
+        let client = Client::inline(store, Arc::new(mail_core::mail::SystemClock));
+        assert_eq!(client.config_dir(), None, "not reached yet");
+
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let handle = runtime.handle().clone();
+        let dir = std::path::PathBuf::from("/nowhere/mailo-config");
+        let given = dir.clone();
+        client.reach(Reach::new(move |store| {
+            Mail::new(store, handle.clone()).with_config(Some(given.clone()))
+        }));
+        assert_eq!(client.config_dir(), Some(dir));
     }
 }

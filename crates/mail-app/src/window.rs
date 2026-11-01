@@ -35,7 +35,9 @@ pub fn open(
     // The one client every window reads mail through, reaching the servers as the program does.
     let client = mail_client::Client::open(store.clone(), mail_client::ClientConfig::default());
     client.reach(mail_client::Reach::new(|store| {
-        mail_edge::mail(&store).with_junk(mail_ui_model::settings::junk_policy())
+        mail_edge::mail(&store).with_junk(mail_ui_model::settings::junk_policy(
+            mail_ui_model::settings::person_root_in(mail_edge::config_dir().as_deref()).as_ref(),
+        ))
     }));
     let resident = mail_ui::ui::Resident {
         stays,

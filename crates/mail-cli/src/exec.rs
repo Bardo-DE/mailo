@@ -222,7 +222,7 @@ fn reads_settings(command: &Command) -> bool {
 /// stops: running on the defaults in its place would hide it, and a write would replace it.
 pub fn execute(store: Arc<SqliteStore>, command: Command) -> Result<(), String> {
     if reads_settings(&command)
-        && let Some(config) = mail_core::config::config_dir()
+        && let Some(config) = mail_edge::config_dir()
     {
         let found = mail_ui_model::damage::of_config(&config);
         if !found.is_empty() {
@@ -269,7 +269,12 @@ pub fn execute(store: Arc<SqliteStore>, command: Command) -> Result<(), String> 
                 store,
                 std::sync::Arc::new(|store| {
                     let mail =
-                        mail_edge::mail(&store).with_junk(mail_ui_model::settings::junk_policy());
+                        mail_edge::mail(&store).with_junk(mail_ui_model::settings::junk_policy(
+                            mail_ui_model::settings::person_root_in(
+                                mail_edge::config_dir().as_deref(),
+                            )
+                            .as_ref(),
+                        ));
                     match mail_edge::block_on(mail.sync().run(Default::default())) {
                         Ok(ends) => match mail.roster() {
                             Ok(accounts) => print!("{}", super::sync::run_text(&accounts, &ends)),
@@ -360,7 +365,10 @@ pub fn execute(store: Arc<SqliteStore>, command: Command) -> Result<(), String> 
     }
 
     if let Command::Notify { set } = &command {
-        let said = super::settings::notify(mail_ui_model::settings::person_root().as_ref(), *set)?;
+        let said = super::settings::notify(
+            mail_ui_model::settings::person_root_in(mail_edge::config_dir().as_deref()).as_ref(),
+            *set,
+        )?;
         print!("{said}");
         return Ok(());
     }
@@ -370,7 +378,7 @@ pub fn execute(store: Arc<SqliteStore>, command: Command) -> Result<(), String> 
             .map_err(super::remedy::error)?
             .addresses();
         let said = super::offline::command(
-            mail_core::config::config_dir().as_deref(),
+            mail_edge::config_dir().as_deref(),
             store.as_ref(),
             &accounts,
             address.as_deref(),
@@ -440,7 +448,7 @@ pub fn execute(store: Arc<SqliteStore>, command: Command) -> Result<(), String> 
                 let desktop = mail_os::desktop::connect();
                 Some(mail_ui_model::settings::Notices::new(
                     Box::new(move |notification, sound| desktop.show_with(notification, sound)),
-                    mail_ui_model::settings::person_root(),
+                    mail_ui_model::settings::person_root_in(mail_edge::config_dir().as_deref()),
                 ))
             }
         };
@@ -460,7 +468,12 @@ pub fn execute(store: Arc<SqliteStore>, command: Command) -> Result<(), String> 
             notifier,
             mail_core::sync::watcher::Live {
                 whom: &whom,
-                junk: &mail_ui_model::settings::junk_policy,
+                junk: &|| {
+                    mail_ui_model::settings::junk_policy(
+                        mail_ui_model::settings::person_root_in(mail_edge::config_dir().as_deref())
+                            .as_ref(),
+                    )
+                },
             },
             &say,
             asked,

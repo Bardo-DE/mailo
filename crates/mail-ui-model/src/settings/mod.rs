@@ -747,14 +747,16 @@ pub fn person_root() -> Option<ConfigRoot> {
     mail_client::config::config_dir().map(|dir| root_for(&dir))
 }
 
-/// How the junk filter behaves for a sync this process starts: the person's settings, or the
-/// defaults with no config directory.
-pub fn junk_policy() -> mail_client::junk::Policy {
-    person_root()
-        .map(|root| load(&root))
-        .unwrap_or_default()
-        .junk
-        .policy()
+/// The person's own config root under the config directory the program was started with
+/// (`mail_edge::config_dir`), for the edge to hand down: `None` where it has none.
+pub fn person_root_in(config_dir: Option<&Path>) -> Option<ConfigRoot> {
+    config_dir.map(root_for)
+}
+
+/// How the junk filter behaves for a sync this process starts: the person's settings under
+/// `root`, or the defaults with none.
+pub fn junk_policy(root: Option<&ConfigRoot>) -> mail_client::junk::Policy {
+    root.map(load).unwrap_or_default().junk.policy()
 }
 
 /// The store `settings.toml` lives in, under `root`.

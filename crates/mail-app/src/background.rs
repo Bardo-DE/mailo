@@ -158,7 +158,7 @@ fn watch(store: &Arc<SqliteStore>, held: Watching) -> ! {
     let desktop = mail_os::desktop::connect_in_window();
     let notifier = mail_ui_model::settings::Notices::new(
         Box::new(move |notification, sound| desktop.show_with(notification, sound)),
-        mail_ui_model::settings::person_root(),
+        mail_ui_model::settings::person_root_in(mail_edge::config_dir().as_deref()),
     );
     let tell = |watched: mail_core::sync::report::Watched| told(&watched);
     let mut down = Duration::ZERO;
@@ -172,7 +172,14 @@ fn watch(store: &Arc<SqliteStore>, held: Watching) -> ! {
                 Some(&notifier),
                 mail_core::sync::watcher::Live {
                     whom: &|| notifier.whom(),
-                    junk: &mail_ui_model::settings::junk_policy,
+                    junk: &|| {
+                        mail_ui_model::settings::junk_policy(
+                            mail_ui_model::settings::person_root_in(
+                                mail_edge::config_dir().as_deref(),
+                            )
+                            .as_ref(),
+                        )
+                    },
                 },
                 &tell,
                 Some(held.asked()),
