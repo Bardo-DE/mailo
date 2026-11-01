@@ -5453,6 +5453,7 @@ dependencies = [
  "porter-ids",
  "porter-provider",
  "porter-secrets",
+ "proptest",
  "psl",
  "rand 0.8.8",
  "reqwest",
