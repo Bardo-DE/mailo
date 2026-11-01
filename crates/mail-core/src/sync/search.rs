@@ -53,6 +53,7 @@ pub async fn search_server_with(
         registry,
         now,
         account,
+        wanted: Default::default(),
     };
     access(&account.plan.incoming)
         .search(&run, filter, labels)

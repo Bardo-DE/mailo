@@ -255,7 +255,7 @@ pub(super) fn BodyPane(message: MessageId, account: AccountId, mut landed: Signa
             // `spawn_blocking`: the fetch waits on the application's runtime (`Client::net`).
             // Claimed for as long as it runs, so a body pass that starts meanwhile leaves it to us.
             let done = tokio::task::spawn_blocking(move || {
-                let _claim = mail_client::wanted::claim(message);
+                let _claim = client.wanted().claim(message);
                 fetch(client, message)
             })
             .await;

@@ -405,6 +405,10 @@ impl Host for ClientHost {
         self.fetcher().seams.timing
     }
 
+    fn wanted(&self) -> mail_core::wanted::Wanted {
+        self.shared.wanted.clone()
+    }
+
     fn pass(&self, call: PassCall) -> Local<'_, Passed> {
         let store = self.shared.store_arc();
         let pass = self.fetcher().seams.pass.clone();
@@ -413,6 +417,7 @@ impl Host for ClientHost {
             let PassCall {
                 account,
                 started,
+                wanted,
                 cancel,
                 progress,
             } = call;
@@ -427,6 +432,8 @@ impl Host for ClientHost {
                 let hooks = Hooks {
                     progress: Some(&said),
                     cancel: BTreeMap::from([(this_account.clone(), cancel)]),
+                    wanted,
+                    now: Some(started),
                 };
                 let done = pass(store.clone(), started, this_account, hooks);
                 if let (Some(on), Ok(ends)) = (&announcing, &done) {

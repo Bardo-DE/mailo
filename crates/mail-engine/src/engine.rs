@@ -191,6 +191,9 @@ pub struct AccountEngine<B: Backend> {
     /// ([`AccountEngine::downloading_since`]). `None`, every message, unless the account was set
     /// to be downloaded only so far back.
     since: Option<DateTime<Utc>>,
+    /// What the window is about to read and fetching itself, which a body pass fetches first and
+    /// around ([`AccountEngine::with_wanted`]). Nothing, for an engine nobody gave any.
+    wanted: mail_runtime::wanted::Wanted,
     /// What the server was last observed to support with what the person chose laid over it
     /// ([`mail_store::AccountPrefs::over`]): folders picked for roles, and labels kept on the
     /// server or not. Read back from the store after each refresh. `None` while they chose
@@ -315,6 +318,7 @@ impl<B: Backend> AccountEngine<B> {
             kept: None,
             sending: None,
             since: None,
+            wanted: mail_runtime::wanted::Wanted::default(),
             picked: None,
             also: Vec::new(),
             notify: Notify::Unasked,
@@ -323,6 +327,13 @@ impl<B: Backend> AccountEngine<B> {
 
     /// Read this account through Microsoft Graph: every operation goes to `reader`, over HTTPS,
     /// and none to the backend, which is then [`mail_runtime::graph::read::OverHttp`].
+    /// Fetch bodies in the order `wanted` says, and leave out what it says the window is fetching
+    /// itself. An engine without it fetches in the ordinary order.
+    pub fn with_wanted(mut self, wanted: mail_runtime::wanted::Wanted) -> Self {
+        self.wanted = wanted;
+        self
+    }
+
     pub fn with_graph_reader(mut self, reader: mail_runtime::graph::read::Reader) -> Self {
         self.graph = Some(reader);
         self
@@ -2687,8 +2698,13 @@ impl<B: Backend> AccountEngine<B> {
             .into_iter()
             .collect();
         let asked = limit.saturating_add(u32::try_from(resting.len()).unwrap_or(u32::MAX));
-        let (mut order, mut first) =
-            mail_runtime::wanted::backlog(self.store.as_ref(), mailbox, self.since, asked)?;
+        let (mut order, mut first) = mail_runtime::wanted::backlog(
+            &self.wanted,
+            self.store.as_ref(),
+            mailbox,
+            self.since,
+            asked,
+        )?;
         first -= order[..first]
             .iter()
             .filter(|r| resting.contains(*r))

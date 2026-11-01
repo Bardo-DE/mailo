@@ -82,6 +82,8 @@ pub struct JmapEngine {
     identities: Option<Vec<Identity>>,
     /// How often a waiting watch looks in the outbox for a send that has come due.
     outbox_every: Duration,
+    /// What the window is about to read and fetching itself ([`JmapEngine::with_wanted`]).
+    wanted: crate::wanted::Wanted,
 }
 
 impl std::fmt::Debug for JmapEngine {
@@ -110,7 +112,15 @@ impl JmapEngine {
             mailboxes: None,
             identities: None,
             outbox_every: Duration::from_secs(15),
+            wanted: crate::wanted::Wanted::default(),
         })
+    }
+
+    /// Fetch bodies in the order `wanted` says, and leave out what it says the window is
+    /// fetching itself. An engine without it fetches in the ordinary order.
+    pub fn with_wanted(mut self, wanted: crate::wanted::Wanted) -> Self {
+        self.wanted = wanted;
+        self
     }
 
     /// The one mailbox every address of this account is held under.

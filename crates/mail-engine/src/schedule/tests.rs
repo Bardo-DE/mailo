@@ -551,6 +551,10 @@ struct Scripted {
     ending: RefCell<Event>,
     passes: RefCell<Vec<AccountId>>,
     changes: RefCell<Vec<Change>>,
+    /// What the host's window wants, which each pass is handed ([`Host::wanted`]).
+    wanted: Wanted,
+    /// The conversations each pass was told were wanted, in the order the passes ran.
+    told: RefCell<Vec<Vec<mail_domain::ThreadId>>>,
 }
 
 impl Scripted {
@@ -560,6 +564,8 @@ impl Scripted {
             ending: RefCell::new(event),
             passes: RefCell::new(Vec::new()),
             changes: RefCell::new(Vec::new()),
+            wanted: Wanted::default(),
+            told: RefCell::new(Vec::new()),
         }
     }
 
@@ -605,9 +611,14 @@ impl Host for Scripted {
         }
     }
 
+    fn wanted(&self) -> Wanted {
+        self.wanted.clone()
+    }
+
     fn pass(&self, call: PassCall) -> Local<'_, Passed> {
         Box::pin(async move {
             self.passes.borrow_mut().push(call.account.clone());
+            self.told.borrow_mut().push(call.wanted.first());
             let _ = call.progress.send(Event::Stepped(Step::Flags, None));
             Passed {
                 event: self.ending.borrow().clone(),
@@ -643,6 +654,37 @@ async fn eventually(what: &str, holds: impl Fn() -> bool) {
 
 fn one_account(link: Link) -> BTreeMap<AccountId, Link> {
     BTreeMap::from([(acct_account(), link)])
+}
+
+/// A pass is handed what its host's window wants, the same lists the window writes to, and a
+/// host with none hands it nothing.
+#[tokio::test(start_paused = true)]
+async fn a_pass_is_handed_what_its_hosts_window_wants() {
+    let host = Scripted::ending(finished());
+    let thread = mail_domain::ThreadId::from_uuid(uuid::Uuid::from_u128(7));
+    host.wanted.ask_first(&[thread]);
+    let (_dir, store) = {
+        let (store, dir) = empty_store();
+        (dir, Arc::new(store))
+    };
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+    let scheduler = Scheduler::new(
+        &host,
+        store,
+        one_account(current(Live::Polling)),
+        BTreeMap::from([(acct_account(), every())]),
+        tx.clone(),
+    );
+    let driver = async {
+        tx.send(Note::Event(acct_account(), Event::Start(Trigger::Manual)))
+            .unwrap();
+        eventually("a pass ran", || host.runs() == 1).await;
+    };
+    tokio::select! {
+        _ = scheduler.run(rx, End::Never) => panic!("the scheduler ended on its own"),
+        () = driver => {}
+    }
+    assert_eq!(*host.told.borrow(), [vec![thread]]);
 }
 
 #[tokio::test(start_paused = true)]

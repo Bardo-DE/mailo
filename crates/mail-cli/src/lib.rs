@@ -1974,7 +1974,8 @@ pub fn sync_folder(
 ) -> Result<String, String> {
     let id = account_named(&store, account)?;
     let mail = mail_edge::mail(&store);
-    let end = mail_edge::block_on(mail.sync().folder_now(id, path)).map_err(remedy::error)?;
+    let end = mail_edge::block_on(mail.sync().folder_now(id, path, Default::default()))
+        .map_err(remedy::error)?;
     sync::folder_text(&end, path)
 }
 

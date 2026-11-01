@@ -262,7 +262,12 @@ impl Net<'_> {
     /// Fetch one folder now: one no pass fetches, opened.
     pub fn folder_now(&self, account: AccountId, path: &str) -> Result<PassEnd, CallError> {
         let mail = self.mail();
-        Self::wait(&mail, mail.sync().folder_now(account, path)).map_err(CallError::from)
+        Self::wait(
+            &mail,
+            mail.sync()
+                .folder_now(account, path, self.0.wanted().clone()),
+        )
+        .map_err(CallError::from)
     }
 
     /// Download one message's body.

@@ -45,8 +45,18 @@ pub fn folder_now_with(
     now: chrono::DateTime<chrono::Utc>,
 ) -> Result<PassEnd, CoreError> {
     let accounts = crate::support::accounts(&store);
+    let mailbox = mail_domain::MailboxRef {
+        account,
+        path: path.to_owned(),
+    };
     block_on(sync::folder_now_with(
-        store, secrets, registry, &accounts, account, path, now,
+        store,
+        secrets,
+        registry,
+        &accounts,
+        &mailbox,
+        now,
+        Default::default(),
     ))
 }
 

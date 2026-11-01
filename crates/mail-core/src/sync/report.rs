@@ -218,6 +218,11 @@ pub struct Hooks<'a> {
     pub progress: Option<&'a dyn Fn(AccountId, Progress)>,
     /// A signal per account that ends its pass. An account with none runs to the end.
     pub cancel: BTreeMap<AccountId, watch::Receiver<bool>>,
+    /// What the window is about to read and fetching itself, which the pass's body fetches go
+    /// first and around. Nothing, for a pass nobody's window is watching.
+    pub wanted: mail_runtime::wanted::Wanted,
+    /// When the pass began, as its caller counts it; the handle's clock when not said.
+    pub now: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 impl std::fmt::Debug for Hooks<'_> {
@@ -225,6 +230,7 @@ impl std::fmt::Debug for Hooks<'_> {
         f.debug_struct("Hooks")
             .field("progress", &self.progress.map(|_| "a sink"))
             .field("cancel", &self.cancel.keys().collect::<Vec<_>>())
+            .field("now", &self.now)
             .finish()
     }
 }

@@ -27,7 +27,8 @@ pub(crate) async fn signed_engine(
     mode: Mode,
 ) -> Result<AccountEngine<ImapBackend>, Failure> {
     let Signed { held, renewal } = signed_in(run, mode).await?;
-    let engine = imap_engine(run.store, run.account, held, run.secrets.clone());
+    let engine = imap_engine(run.store, run.account, held, run.secrets.clone())
+        .with_wanted(run.wanted.clone());
     Ok(match renewal {
         Some(source) => engine.with_tokens(source),
         None => engine,

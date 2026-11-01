@@ -71,7 +71,7 @@ pub fn use_warming(shell: Signal<Shell>, threads: Memo<Vec<ThreadSummary>>) {
         // The same order is what a body pass fetches first, with the open conversation ahead of
         // it: a message without its body yet cannot be rendered ahead, only fetched ahead.
         let bodies: Vec<ThreadId> = open().into_iter().chain(order.iter().copied()).collect();
-        mail_client::wanted::ask_first(&bodies);
+        client.wanted().ask_first(&bodies);
         // Only the open conversation is kept read as a whole: a value that every commit reads
         // again, body by body. The neighbours are rendered by `warm` below, which reads each
         // once on its own thread and keeps nothing of it. Asked for before the last one is let

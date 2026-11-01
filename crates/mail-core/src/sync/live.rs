@@ -204,6 +204,7 @@ pub async fn listen_at(
         // The wall clock, because a watch outlives any `now` it could be handed.
         now: chrono::Utc::now(),
         account,
+        wanted: Default::default(),
     };
     listen_on(
         access(&account.plan.incoming),
@@ -335,6 +336,7 @@ mod tests {
             registry: &ClientRegistry::default(),
             now: chrono::Utc::now(),
             account: &account,
+            wanted: Default::default(),
         };
         let (stop, cancel) = watch::channel(false);
         let seen = Mutex::new(Vec::new());

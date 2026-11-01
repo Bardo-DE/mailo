@@ -27,6 +27,7 @@ impl crate::mail::SyncOps<'_> {
             registry: &registry,
             now,
             account: &account,
+            wanted: Default::default(),
         };
         access(&account.plan.incoming)
             .quota(&run)

@@ -148,6 +148,9 @@ pub(crate) struct Shared {
     clock_told: Condvar,
     /// How servers are reached, once the program says (`net`).
     pub(crate) reach: OnceLock<crate::net::Reach>,
+    /// What the window is about to read and fetching itself: the client's, handed to each pass
+    /// it runs and to the folders it fetches ([`Client::wanted`]).
+    pub(crate) wanted: mail_core::wanted::Wanted,
     /// The [`Mail`](mail_core::Mail) `reach` last made, and when (`Net::mail`).
     pub(crate) mail: Mutex<Option<(Instant, mail_core::Mail)>>,
 }
@@ -394,6 +397,12 @@ impl Client {
         self.store_arc()
     }
 
+    /// What this client's window is about to read and fetching itself. A body pass run for this
+    /// client fetches the conversations asked for first, and leaves out the messages claimed.
+    pub fn wanted(&self) -> &mail_core::wanted::Wanted {
+        &self.0.shared.wanted
+    }
+
     pub(crate) fn reached(&self) -> &OnceLock<crate::net::Reach> {
         &self.0.shared.reach
     }
@@ -607,6 +616,7 @@ impl Shared {
             clock_poked: Mutex::new(false),
             clock_told: Condvar::new(),
             reach: OnceLock::new(),
+            wanted: mail_core::wanted::Wanted::default(),
             mail: Mutex::new(None),
         }
     }

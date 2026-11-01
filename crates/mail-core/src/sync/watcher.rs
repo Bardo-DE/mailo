@@ -301,6 +301,7 @@ impl Host for Watching<'_> {
             let PassCall {
                 account,
                 started,
+                wanted,
                 cancel,
                 progress,
             } = call;
@@ -311,6 +312,8 @@ impl Host for Watching<'_> {
             let hooks = Hooks {
                 progress: Some(&say),
                 cancel: BTreeMap::from([(account.clone(), cancel)]),
+                wanted,
+                now: Some(started),
             };
             let mail = self.mail_now();
             let done = survive(mail.sync().run_due(std::slice::from_ref(&account), hooks)).await;
