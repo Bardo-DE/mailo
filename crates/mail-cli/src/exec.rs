@@ -228,7 +228,7 @@ pub fn execute(
     if reads_settings(&command)
         && let Some(config) = config
     {
-        let found = mail_ui_model::damage::of_config(&config);
+        let found = mail_ui_model::damage::of_config(config);
         if !found.is_empty() {
             let mut said: Vec<String> = found.iter().map(ToString::to_string).collect();
             said.push("fix or move the file aside, then run the command again".to_owned());
