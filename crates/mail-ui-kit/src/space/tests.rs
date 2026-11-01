@@ -7,7 +7,7 @@ use crate::appearance::{Legacy, WindowDirs};
 use ds::prelude::{SpaceLook, Theme};
 use ds::style::space::palette::Dot;
 use ds::style::space::presets::PRESETS;
-use mail_client::testing::core::profile::ProfileId;
+use mail_client::profile::ProfileId;
 use mail_domain::ThreadId;
 use mail_domain::id::account_id_from_uuid;
 use porter_core::AccountId;

@@ -27,6 +27,7 @@ desktop = ["dep:notify-rust", "dep:zbus"]
 
 [dependencies]
 mail-core.workspace = true
+mail-logic.workspace = true
 mail-domain.workspace = true
 mail-store.workspace = true
 porter-core.workspace = true

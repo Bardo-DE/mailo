@@ -5,6 +5,9 @@
 //! command line and the agent. What the decisions are made over is `mail-domain`; what acts on
 //! them is `mail-core` and the crates under it.
 //!
+//! What the decisions are asked of, when it is not a value, is a trait this crate owns: the
+//! search asks an index through [`search::Source`], and `mail-core` answers with the store.
+//!
 //! A module that needs the time takes it as a value the caller hands in; none reads a clock, the
 //! environment or the store itself.
 
@@ -16,6 +19,7 @@ pub mod otp;
 pub mod own;
 pub mod password;
 pub mod picture;
+pub mod profile;
 pub mod provider;
 pub mod query;
 pub mod recent;

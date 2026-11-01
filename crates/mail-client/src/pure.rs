@@ -135,7 +135,7 @@ pub mod html_document {
     pub use mail_core::html_document::{LABELS, Pictures, Printed, write_file_into};
 }
 pub mod profile {
-    pub use mail_core::profile::{Profile, ProfileId};
+    pub use mail_logic::profile::{Profile, ProfileId};
 }
 pub mod provider {
     pub use mail_logic::provider::{Provider, provider, service_name};

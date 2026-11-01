@@ -236,7 +236,7 @@ struct Paths {
 /// config directory.
 /// The folders mailo keeps: the data and config roots, and the state and cache folders where they
 /// are elsewhere (on Linux each place is its own folder).
-fn places_kept(roots: &mail_core::profile::Roots) -> Vec<std::path::PathBuf> {
+fn places_kept(roots: &mail_logic::profile::Roots) -> Vec<std::path::PathBuf> {
     let mut kept = vec![roots.data.clone(), roots.config.clone()];
     for path in [
         mail_core::config::state_dir(),
@@ -252,8 +252,8 @@ fn places_kept(roots: &mail_core::profile::Roots) -> Vec<std::path::PathBuf> {
     kept
 }
 
-fn roots() -> Option<mail_core::profile::Roots> {
-    Some(mail_core::profile::Roots {
+fn roots() -> Option<mail_logic::profile::Roots> {
+    Some(mail_logic::profile::Roots {
         data: mail_core::config::data_dir()?,
         config: mail_core::config::config_dir()?,
     })

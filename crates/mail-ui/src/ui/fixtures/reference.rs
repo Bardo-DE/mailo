@@ -262,7 +262,7 @@ pub(in crate::ui) fn work() -> Work {
                 email: "ci@example.com".to_owned(),
             },
         ],
-        profile: mail_client::testing::core::profile::ProfileId::default(),
+        profile: mail_client::profile::ProfileId::default(),
     };
     let spaces = space::built(vec![("Work".to_owned(), work, mail)], 0);
     space::save(

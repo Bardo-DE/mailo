@@ -114,7 +114,7 @@ pub fn watching_here() -> bool {
 ///
 /// The lock is asked here, before the window opens, so that the window's first look at who
 /// schedules already finds the app watching.
-pub fn start(store: Arc<SqliteStore>, profile: mail_core::profile::ProfileId) {
+pub fn start(store: Arc<SqliteStore>, profile: mail_logic::profile::ProfileId) {
     let first = claimed(&profile);
     if first.is_some() {
         WATCHING_HERE.store(true, Ordering::Release);
@@ -137,7 +137,7 @@ pub fn start(store: Arc<SqliteStore>, profile: mail_core::profile::ProfileId) {
 }
 
 /// The lock for `profile`'s watch, when this process may have it now.
-fn claimed(profile: &mail_core::profile::ProfileId) -> Option<Watching> {
+fn claimed(profile: &mail_logic::profile::ProfileId) -> Option<Watching> {
     match step(mail_agent::ipc::watching::claim(profile)) {
         Step::Watch(held) => Some(held),
         Step::Wait => None,

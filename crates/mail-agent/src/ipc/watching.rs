@@ -29,7 +29,7 @@
 use super::door::{self, Answer};
 use super::wire::{Request, Response};
 use mail_core::CoreError;
-use mail_core::profile::ProfileId;
+use mail_logic::profile::ProfileId;
 use std::sync::Arc;
 use tokio::sync::watch;
 

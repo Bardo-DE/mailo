@@ -87,7 +87,7 @@ pub enum CoreError {
 
     // ---- profiles
     #[error(transparent)]
-    ProfileId(#[from] crate::profile::NotAProfileId),
+    ProfileId(#[from] mail_logic::profile::NotAProfileId),
     /// A Profile was named by its id or its name and there is none like it.
     #[error("no profile {0:?}")]
     NoProfile(String),

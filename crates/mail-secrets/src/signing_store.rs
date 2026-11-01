@@ -99,7 +99,7 @@ impl Default for KeyringSigningStore {
 
 impl KeyringSigningStore {
     /// The platform's keyring, with entries filed under `service`: a Profile's own
-    /// (`mail_core::profile::Profile::signing_service`).
+    /// (`mail_logic::profile::Profile::signing_service`).
     pub fn for_service(service: impl Into<String>) -> Self {
         Self::with_slots(Box::new(Keyring {
             service: service.into(),
