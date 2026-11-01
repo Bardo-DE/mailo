@@ -269,23 +269,15 @@ if grep -nE '^[[:space:]]*rpassword' crates/mail-core/Cargo.toml; then
 fi
 
 # The app-side crates (`mail-app`, `mail-cli`, `mail-intents`, `mail-edge`) reach the logic through
-# `mail-core`'s `Mail` handle. They still name `mail-runtime` and `mail-store` directly in many
-# places (the store is the window's own model, and the signing keys, places and engines are used by
-# the window); that is a ratchet, not a clean line: the counts below may go down and never up.
-# Lines naming the crate, tests included. crates/mail-edge/src/lib.rs is the one place that builds
-# the handle. scripts/app-lower-crate-uses.txt holds "<app crate> <lower crate> <count>".
-while read -r app lower allowed; do
-  [ -z "$app" ] && continue
-  case "$app" in \#*) continue ;; esac
-  now=$(grep -rE "\b${lower}\b" "crates/$app/src" "crates/$app/tests" --include='*.rs' 2>/dev/null | wc -l)
-  if [ "$now" -gt "$allowed" ]; then
-    echo "$app names $lower on $now lines, over the $allowed in scripts/app-lower-crate-uses.txt: go through mail_core (add the call there) instead"
-    fail=1
-  elif [ "$now" -lt "$allowed" ]; then
-    echo "$app names $lower on only $now lines: lower the $allowed in scripts/app-lower-crate-uses.txt to $now"
+# `mail-core`'s `Mail` handle and `mail-client`, and name none of the crates below them, in
+# dependencies or dev-dependencies: a test seeds a store through `mail_core::fixtures`. That is a
+# fact of their Cargo.toml, not a count to keep down.
+for app in mail-app mail-cli mail-intents mail-edge; do
+  if grep -E '^(mail-store|mail-net|mail-secrets|mail-runtime|mail-engine)[ .=]' "crates/$app/Cargo.toml" | grep -q .; then
+    echo "crates/$app/Cargo.toml names mail-store, mail-net, mail-secrets, mail-runtime or mail-engine: go through mail-core (add the call or the fixture there)"
     fail=1
   fi
-done < scripts/app-lower-crate-uses.txt
+done
 
 # Names that moved to porter, or went with the types they named, must not creep back in. mailo
 # names accounts, secrets and OAuth issuers with `porter_core` and `porter_provider`'s types

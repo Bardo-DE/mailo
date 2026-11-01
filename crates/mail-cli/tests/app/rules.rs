@@ -8,11 +8,11 @@
 use crate::store::acct_account;
 use chrono::{DateTime, TimeZone, Utc};
 use mail_cli as cli;
+use mail_core::fixtures::AccountEngine;
 use mail_core::sync;
 use mail_core::sync::report::{AccountReport, PassEnd};
 use mail_core::{SqliteStore, Store};
 use mail_domain::*;
-use mail_engine::AccountEngine;
 use mail_proto::backend::{Authenticate, ImapBackend};
 use mail_proto::{ImapAuth, ImapCommand, ImapSession};
 use porter_core::SecretText;
@@ -36,7 +36,13 @@ const ME: &str = "me@example.test";
 
 /// Write an account as `account add` would, without going near a credential.
 fn configure(store: &SqliteStore, id: AccountId, plan: &AccountPlan, caps: &AccountCaps) {
-    mail_store::testing::seed_account_plan(store, id.clone(), &plan.address, plan, Some(now()));
+    mail_core::fixtures::seed::seed_account_plan(
+        store,
+        id.clone(),
+        &plan.address,
+        plan,
+        Some(now()),
+    );
     store.put_caps(id, caps, now()).unwrap();
 }
 

@@ -20,7 +20,6 @@ mail-core = { workspace = true, features = ["pdf", "keyring"] }
 mail-agent = { workspace = true, features = ["desktop"] }
 mail-domain.workspace = true
 mail-logic.workspace = true
-mail-store.workspace = true
 mail-client.workspace = true
 mail-edge.workspace = true
 mail-os.workspace = true
@@ -51,12 +50,8 @@ rpassword = "7"
 
 [dev-dependencies]
 mail-domain = { workspace = true, features = ["testing"] }
-mail-store = { workspace = true, features = ["testing"] }
 mail-core = { workspace = true, features = ["testing"] }
 mail-crypto = { workspace = true, features = ["testing"] }
-mail-runtime.workspace = true
-mail-engine.workspace = true
-mail-secrets.workspace = true
 porter-secrets = { workspace = true, features = ["testing"] }
 image = { version = "0.25", default-features = false, features = ["ico", "png", "jpeg", "gif", "webp"] }
 rand = "0.8"

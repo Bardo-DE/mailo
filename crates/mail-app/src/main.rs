@@ -144,7 +144,7 @@ fn main() {
     // Messages an older parser misread are re-read from their stored bytes, once, here — the
     // one place every command and the window pass through. Usually an empty queue and one
     // query. A failure is reported and does not stop the command: the mail is still readable.
-    if let Err(e) = mail_runtime::reparse_queued(&store) {
+    if let Err(e) = mail_core::upkeep::reparse_queued(&store) {
         eprintln!("could not re-read stored headers: {e}");
     }
     // Plain drafts kept before every draft's text was flowed text are made so, once.
@@ -152,7 +152,7 @@ fn main() {
         eprintln!("could not rewrite stored drafts as flowed text: {e}");
     }
     // OpenPGP keys kept before their dates were recorded have them read from their bytes, once.
-    if let Err(e) = mail_runtime::pgp::date_keys(&store) {
+    if let Err(e) = mail_core::upkeep::date_keys(&store) {
         eprintln!("could not read the dates of stored OpenPGP keys: {e}");
     }
 
@@ -232,7 +232,7 @@ struct Paths {
 }
 
 /// The directories Profiles' paths are under: mailo's data directory (`$XDG_DATA_HOME/mailo` on
-/// Linux, the local application data folder on macOS and Windows; `mail_secrets::places`) and its
+/// Linux, the local application data folder on macOS and Windows; `mail_core::config`) and its
 /// config directory.
 /// The folders mailo keeps: the data and config roots, and the state and cache folders where they
 /// are elsewhere (on Linux each place is its own folder).
@@ -254,7 +254,7 @@ fn places_kept(roots: &mail_core::profile::Roots) -> Vec<std::path::PathBuf> {
 
 fn roots() -> Option<mail_core::profile::Roots> {
     Some(mail_core::profile::Roots {
-        data: mail_secrets::places::dir(mail_secrets::places::Place::Data)?,
+        data: mail_core::config::data_dir()?,
         config: mail_core::config::config_dir()?,
     })
 }

@@ -18,10 +18,10 @@ use settle::settle_until;
 
 use crate::drive;
 use drive::Drive;
+use mail_core::fixtures::absorb_rebuilt_into;
 use mail_core::{Arrival, Destination, absorb};
 use mail_core::{SqliteStore, Store};
 use mail_domain::*;
-use mail_runtime::assemble::absorb_rebuilt_into;
 use std::io::Cursor;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -134,8 +134,8 @@ fn rebuilt(date: &str) -> String {
 pub(super) fn with_account(dir: &std::path::Path) -> SqliteStore {
     std::fs::create_dir_all(dir.join("blobs")).unwrap();
     let store = SqliteStore::open(dir.join("mail.db"), dir.join("blobs")).unwrap();
-    mail_store::testing::seed_account(&store, acct_account(), "me@example.test");
-    mail_store::testing::seed_identity_for(
+    mail_core::fixtures::seed::seed_account(&store, acct_account(), "me@example.test");
+    mail_core::fixtures::seed::seed_identity_for(
         &store,
         IdentityId::generate(),
         acct_account(),

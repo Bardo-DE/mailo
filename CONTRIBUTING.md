@@ -155,9 +155,9 @@ for s in scripts/check-*.sh; do bash "$s"; done
 - `check-boundary.sh`: the pure crates reach none of tokio, rusqlite, dioxus, reqwest, the
   keyring or the bus; `mail-core` reaches nothing that draws; `mail-store`, `mail-net`, `mail-secrets`,
   `mail-runtime` and `mail-engine` reach no anyview, `mail-net` and `mail-secrets` reach no
-  `mail-store`, and no driver crate reaches `mail-engine`; `ui` and `cli` do not name each other. It also ratchets the lines in
-  `mail-app` that name a lower crate instead of `mail_core` (`scripts/app-lower-crate-uses.txt`)
-  and the `mail-core` code listed in `scripts/core-prose-allowlist.txt` and
+  `mail-store`, and no driver crate reaches `mail-engine`; `ui` and `cli` do not name each other. The app crates (`mail-app`, `mail-cli`, `mail-intents`, `mail-edge`) and the window's crates name
+  no store, runtime, engine or wire crate in their Cargo.toml, dev-dependencies included. It also ratchets
+  the `mail-core` code listed in `scripts/core-prose-allowlist.txt` and
   `scripts/core-result-string-allowlist.txt`.
 - `check-discards.sh`: in the library crates, a `let _ =`, `.ok()` or `unwrap_or_default()` with
   no comment on or above its line is counted against `scripts/discards.txt`. A fallible result

@@ -89,6 +89,12 @@ pub fn config_dir() -> Option<PathBuf> {
     places::dir(Place::Config)
 }
 
+/// mailo's data directory: `$XDG_DATA_HOME/mailo`, else `$HOME/.local/share/mailo`, on Linux; the
+/// local application data folder on macOS and Windows (`mail_secrets::places`); else None.
+pub fn data_dir() -> Option<PathBuf> {
+    places::dir(Place::Data)
+}
+
 /// `$XDG_STATE_HOME/mailo`, else `$HOME/.local/state/mailo`, on Linux; the local
 /// application data folder on macOS and Windows; else None.
 ///

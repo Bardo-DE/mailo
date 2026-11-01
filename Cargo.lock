@@ -5156,9 +5156,6 @@ dependencies = [
  "mail-edge",
  "mail-intents",
  "mail-os",
- "mail-runtime",
- "mail-secrets",
- "mail-store",
  "mail-ui",
  "mail-ui-compose",
  "mail-ui-kit",
@@ -5208,11 +5205,7 @@ dependencies = [
  "mail-client",
  "mail-core",
  "mail-edge",
- "mail-engine",
  "mail-os",
- "mail-runtime",
- "mail-secrets",
- "mail-store",
  "mail-ui-model",
  "mailo-archive",
  "mailo-crypto",
@@ -5317,7 +5310,6 @@ name = "mail-edge"
 version = "0.1.0"
 dependencies = [
  "mail-core",
- "mail-store",
  "tempfile",
  "tokio",
 ]
@@ -5361,7 +5353,6 @@ dependencies = [
  "mail-client",
  "mail-core",
  "mail-edge",
- "mail-store",
  "mail-ui",
  "mail-ui-model",
  "mailo-domain",

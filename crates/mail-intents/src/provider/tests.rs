@@ -90,21 +90,21 @@ fn world_opening(opener: Opener) -> (Provider, Arc<SqliteStore>, tempfile::TempD
     };
     let preset = presets::manual("me@example.test", &manual, Utc::now());
     {
-        mail_store::testing::seed_account_plan(
+        mail_core::fixtures::seed::seed_account_plan(
             &store,
             acct_account(),
             &preset.plan.address,
             &preset.plan,
             None,
         );
-        mail_store::testing::seed_identity_for(
+        mail_core::fixtures::seed::seed_identity_for(
             &store,
             IdentityId::generate(),
             acct_account(),
             "me@example.test",
             None,
         );
-        mail_store::testing::seed_caps(&store, acct_account(), &caps(), chrono::Utc::now())
+        mail_core::fixtures::seed::seed_caps(&store, acct_account(), &caps(), chrono::Utc::now())
             .unwrap();
     }
     for (n, subject, body) in [
@@ -123,7 +123,7 @@ fn world_opening(opener: Opener) -> (Provider, Arc<SqliteStore>, tempfile::TempD
             )
             .expect("apply");
         // Where the server keeps it, so that what is done here has a server half to queue.
-        mail_store::testing::seed_remote_uid(
+        mail_core::fixtures::seed::seed_remote_uid(
             &store,
             acct_account(),
             "INBOX",
@@ -258,7 +258,7 @@ fn archiving_takes_the_conversation_out_of_the_inbox_and_the_token_puts_it_back(
 
 /// Make every write to the outbox fail, as a full disk or a locked database would.
 fn refuse_queueing(store: &SqliteStore) {
-    mail_store::testing::refuse_outbox_writes(store);
+    mail_core::fixtures::seed::refuse_outbox_writes(store);
 }
 
 #[test]
@@ -668,7 +668,7 @@ fn a_draft_is_saved_and_discarded_by_its_token() {
 }
 
 fn no_drafts(store: &SqliteStore) -> bool {
-    mail_store::testing::count(store, "drafts") == 0
+    mail_core::fixtures::seed::count(store, "drafts") == 0
 }
 
 fn sent_args() -> Vec<(&'static str, serde_json::Value)> {
@@ -766,7 +766,7 @@ fn befriend(store: &SqliteStore) {
         .put_contact(
             "accounting@example.test",
             Some("Accounting"),
-            &mail_store::Origin::Manual,
+            &mail_core::Origin::Manual,
         )
         .expect("contact");
 }
@@ -950,7 +950,7 @@ fn the_sending_account_is_asked_for_when_there_is_a_choice() {
     let (provider, store, _dir) = world();
     let other = new_account_id();
     {
-        mail_store::testing::seed_account(&store, other.clone(), "two@example.test");
+        mail_core::fixtures::seed::seed_account(&store, other.clone(), "two@example.test");
     }
     let refused = provider.perform(&call("mail.message.send", Target::Nothing, &sent_args()));
     assert!(

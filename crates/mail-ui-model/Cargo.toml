@@ -48,6 +48,8 @@ toml = "1"
 tempfile = "3"
 uuid.workspace = true
 mail-domain = { workspace = true, features = ["testing"] }
+# The store a test seeds (`mail_client::testing`): the program never has it.
+mail-client = { workspace = true, features = ["testing"] }
 
 [lints]
 workspace = true

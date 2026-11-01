@@ -29,7 +29,7 @@ fn bare(dir: &std::path::Path) -> Arc<SqliteStore> {
     std::fs::create_dir_all(dir.join("blobs")).unwrap();
     let store = SqliteStore::open(dir.join("mail.db"), dir.join("blobs")).unwrap();
     with_account(&store, acct_account(), "me@example.test");
-    mail_store::testing::seed_identity_for(
+    mail_core::fixtures::seed::seed_identity_for(
         &store,
         IdentityId::generate(),
         acct_account(),
@@ -49,7 +49,7 @@ fn with_account(store: &SqliteStore, id: AccountId, address: &str) {
         login: None,
     };
     let preset = presets::manual(address, &manual, chrono::Utc::now());
-    mail_store::testing::seed_account_plan(
+    mail_core::fixtures::seed::seed_account_plan(
         store,
         id.clone(),
         &preset.plan.address,

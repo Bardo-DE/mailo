@@ -15,12 +15,10 @@ authors = ["Po Hsuan Lai <pohsuanlai0208@gmail.com>"]
 
 [dependencies]
 mail-core = { workspace = true, features = ["keyring"] }
-mail-store.workspace = true
 # `rt-multi-thread` for the application's one runtime, which the libraries are handed.
 tokio = { version = "1", features = ["rt", "rt-multi-thread"] }
 
 [dev-dependencies]
-mail-store = { workspace = true, features = ["testing"] }
 tempfile = "3"
 
 [lints]
