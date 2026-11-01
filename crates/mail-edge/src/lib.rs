@@ -17,8 +17,6 @@
 //!   empty, which is what a test wants.
 //! - [`install_profile`] records whose mail the process is over; until it does, that is the
 //!   default Profile, which is what a test wants.
-//! - [`install_roots`] records the data and config directories (`main` resolves them once);
-//!   until it does there are none, which is what a test wants: no file of the machine's is read.
 //! - [`install_clients`] records the OAuth clients the program signs in as (`main` hands it
 //!   [`OAuthClients::here`], this installation's clients files); until
 //!   it does there are none, which is what a test wants: a sign-in it starts stops at "needs a
@@ -26,7 +24,7 @@
 //! - [`mail`] builds the handle over a store from those.
 
 use mail_core::{Environment, KeyringSigningStore, Mail, OAuthClients, SigningStore, SqliteStore};
-use mail_logic::profile::{Profile, Roots};
+use mail_logic::profile::Profile;
 use std::future::Future;
 use std::sync::{Arc, OnceLock};
 use tokio::runtime::Runtime;
@@ -35,7 +33,6 @@ static RUNTIME: OnceLock<Runtime> = OnceLock::new();
 static ENVIRONMENT: OnceLock<Environment> = OnceLock::new();
 static PROFILE: OnceLock<Profile> = OnceLock::new();
 static CLIENTS: OnceLock<OAuthClients> = OnceLock::new();
-static ROOTS: OnceLock<Roots> = OnceLock::new();
 
 /// The application's one runtime, started the first time anything asks. It lives as long as the
 /// process, which is what the secret store's connection to the keyring needs of it.
@@ -80,24 +77,6 @@ pub fn install_profile(profile: Profile) {
     let _ = PROFILE.set(profile);
 }
 
-/// Records the directories mailo keeps its data and its settings under. Only the first call
-/// counts.
-pub fn install_roots(roots: Roots) {
-    let _ = ROOTS.set(roots);
-}
-
-/// The directories `main` recorded: none until it does.
-pub fn roots() -> Option<Roots> {
-    ROOTS.get().cloned()
-}
-
-/// Where the person's settings are kept, as `main` recorded it with the [`Roots`]: none until it
-/// does, which is what a test wants (every account at the defaults, and no file of the machine's
-/// read). The one place the config directory enters the program below `main`.
-pub fn config_dir() -> Option<std::path::PathBuf> {
-    ROOTS.get().map(|roots| roots.config.clone())
-}
-
 /// The Profile `main` recorded: the default one until it does.
 pub fn profile() -> Profile {
     PROFILE.get().cloned().unwrap_or_default()
@@ -112,9 +91,12 @@ pub fn signing() -> Arc<dyn SigningStore> {
 
 /// The handle on `mail-core` over `store`, with the process's environment, its OAuth clients, its
 /// Profile's signing keys and the application's runtime.
-pub fn mail(store: &Arc<SqliteStore>) -> Mail {
+///
+/// `config` is the config directory `main` resolved, where the person's syncing choices are kept;
+/// `None`, as a test passes, means every account at the defaults and no file of the machine's read.
+pub fn mail(store: &Arc<SqliteStore>, config: Option<&std::path::Path>) -> Mail {
     Mail::new(store.clone(), runtime().handle().clone())
-        .with_config(config_dir())
+        .with_config(config.map(std::path::Path::to_path_buf))
         .with_environment(environment())
         .with_oauth_clients(clients())
         .with_signing(signing())
@@ -153,7 +135,7 @@ mod tests {
     fn a_handle_made_from_the_edge_carries_the_edges_pieces() {
         let dir = tempfile::tempdir().unwrap();
         let store = Arc::new(SqliteStore::in_memory(dir.path()).unwrap());
-        let handle = mail(&store);
+        let handle = mail(&store, None);
         assert!(Arc::ptr_eq(handle.store(), &store));
     }
 }

@@ -331,8 +331,8 @@ mod tests {
             None,
         );
         let store = std::sync::Arc::new(store);
-        let mail =
-            mail_edge::mail(&store).with_secrets(std::sync::Arc::new(MemorySecrets::default()));
+        let mail = mail_edge::mail(&store, None)
+            .with_secrets(std::sync::Arc::new(MemorySecrets::default()));
 
         let asked = remove(&mail, ADDRESS, Consent::Ask).unwrap_err();
         assert!(asked.contains("Nothing was removed"), "{asked}");

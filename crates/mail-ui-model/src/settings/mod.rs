@@ -748,7 +748,7 @@ pub fn person_root() -> Option<ConfigRoot> {
 }
 
 /// The person's own config root under the config directory the program was started with
-/// (`mail_edge::config_dir`), for the edge to hand down: `None` where it has none.
+/// (`main` resolves it once), for the edge to hand down: `None` where it has none.
 pub fn person_root_in(config_dir: Option<&Path>) -> Option<ConfigRoot> {
     config_dir.map(root_for)
 }

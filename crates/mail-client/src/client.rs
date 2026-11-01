@@ -415,6 +415,10 @@ impl Client {
 
     /// The one `T` kept with this client, made by `T::default()` the first time it is asked for.
     ///
+    /// A per-client type map, not a global: the values live in this client's `Shared`, so two
+    /// clients never see each other's. Public because the window's crates keep their state with the
+    /// client they were given.
+    ///
     /// For state that belongs to whoever holds the client (a window's record of the drafts it
     /// has written) and would otherwise be a process-wide static: two clients each have their own,
     /// and a value is dropped with its client.

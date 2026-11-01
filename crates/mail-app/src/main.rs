@@ -87,9 +87,6 @@ fn main() {
         );
         std::process::exit(1);
     };
-    // Where the data and the settings are, resolved here once: everything below reads them from
-    // what is recorded, none looks for itself.
-    mail_edge::install_roots(roots.clone());
     // Every folder mailo keeps is its owner's alone, a folder an earlier version made included.
     // One that cannot be narrowed is said, and the run goes on: the mail is still the person's.
     for dir in places_kept(&roots) {
@@ -167,7 +164,7 @@ fn main() {
             // The one command that is the intents' and not the cli's: the process is where the
             // two meet.
             mail_cli::Command::Intents => mail_app::intents::serve(store),
-            command => mail_cli::exec::execute(store, command),
+            command => mail_cli::exec::execute(store, command, Some(roots.config.as_path())),
         };
         if let Err(message) = done {
             eprintln!("{message}");
@@ -211,6 +208,7 @@ fn main() {
             look,
             spaces,
             dirs,
+            Some(roots.config.clone()),
             start.unwrap_or_else(mail_ui::ui::ask::Open::raise),
         ) {
             eprintln!("mailo: the window could not open: {why}");

@@ -114,7 +114,11 @@ pub fn watching_here() -> bool {
 ///
 /// The lock is asked here, before the window opens, so that the window's first look at who
 /// schedules already finds the app watching.
-pub fn start(store: Arc<SqliteStore>, profile: mail_logic::profile::ProfileId) {
+pub fn start(
+    store: Arc<SqliteStore>,
+    profile: mail_logic::profile::ProfileId,
+    config: Option<std::path::PathBuf>,
+) {
     let first = claimed(&profile);
     if first.is_some() {
         WATCHING_HERE.store(true, Ordering::Release);
@@ -125,7 +129,7 @@ pub fn start(store: Arc<SqliteStore>, profile: mail_logic::profile::ProfileId) {
             let mut next = first;
             loop {
                 match next.take() {
-                    Some(held) => watch(&store, held),
+                    Some(held) => watch(&store, held, config.as_deref()),
                     None => std::thread::sleep(AGAIN),
                 }
                 next = claimed(&profile);
@@ -146,19 +150,19 @@ fn claimed(profile: &mail_logic::profile::ProfileId) -> Option<Watching> {
 
 /// Watch `store` while holding the lock, for as long as the process runs. The lock stays with
 /// the process once taken, so a watch that ended on an error is started again after [`AGAIN`].
-fn watch(store: &Arc<SqliteStore>, held: Watching) -> ! {
+fn watch(store: &Arc<SqliteStore>, held: Watching, config: Option<&std::path::Path>) -> ! {
     WATCHING_HERE.store(true, Ordering::Release);
     if let Some(why) = held.doorless() {
         log::warn!("Sync in another process will not reach mailo: {why}");
     }
-    let accounts = follow_accounts(store);
+    let accounts = follow_accounts(store, config.map(std::path::Path::to_path_buf));
     // The app runs for days: what is said, whose mail, in which mailboxes, with which sound, and
     // how the junk filter behaves are each read as they are used, so Settings is followed from
     // the next pass and not from the next start.
     let desktop = mail_os::desktop::connect_in_window();
     let notifier = mail_ui_model::settings::Notices::new(
         Box::new(move |notification, sound| desktop.show_with(notification, sound)),
-        mail_ui_model::settings::person_root_in(mail_edge::config_dir().as_deref()),
+        mail_ui_model::settings::person_root_in(config),
     );
     let tell = |watched: mail_core::sync::report::Watched| told(&watched);
     let mut down = Duration::ZERO;
@@ -167,17 +171,14 @@ fn watch(store: &Arc<SqliteStore>, held: Watching) -> ! {
         // A panic in the watch ends this run of it, not the thread: the lock is the process's
         // and stays held, so the same claim is used again and nothing is claimed twice.
         let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let mail = mail_edge::mail(store);
+            let mail = mail_edge::mail(store, config);
             mail_edge::block_on(mail.sync().watch_until(
                 Some(&notifier),
                 mail_core::sync::watcher::Live {
                     whom: &|| notifier.whom(),
                     junk: &|| {
                         mail_ui_model::settings::junk_policy(
-                            mail_ui_model::settings::person_root_in(
-                                mail_edge::config_dir().as_deref(),
-                            )
-                            .as_ref(),
+                            mail_ui_model::settings::person_root_in(config).as_ref(),
                         )
                     },
                 },
@@ -257,7 +258,10 @@ fn wait_to_look(
 /// A receiver that moves whenever the accounts that have a server, or how often each is
 /// fetched, have changed: read again after each write to the store, and every
 /// [`ACCOUNTS_EVERY`], by a thread of its own.
-fn follow_accounts(store: &Arc<SqliteStore>) -> mail_agent::ipc::watching::Asked {
+fn follow_accounts(
+    store: &Arc<SqliteStore>,
+    config: Option<std::path::PathBuf>,
+) -> mail_agent::ipc::watching::Asked {
     let (moved, accounts) = tokio::sync::watch::channel(0u64);
     let store = Arc::clone(store);
     let started = std::thread::Builder::new()
@@ -271,7 +275,7 @@ fn follow_accounts(store: &Arc<SqliteStore>) -> mail_agent::ipc::watching::Asked
                     let _ = tx.send(());
                 })
             });
-            let mail = mail_edge::mail(&store);
+            let mail = mail_edge::mail(&store, config.as_deref());
             let intervals = || match mail.roster() {
                 Ok(accounts) => mail_core::sync::due::intervals(&accounts),
                 Err(why) => {

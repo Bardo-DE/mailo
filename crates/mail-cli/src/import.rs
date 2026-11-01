@@ -15,6 +15,7 @@ pub fn run(
     store: &Arc<SqliteStore>,
     path: &std::path::Path,
     into: &Destination,
+    config: Option<&std::path::Path>,
 ) -> Result<String, String> {
     let now = chrono::Utc::now();
     let source = import::detect(path).map_err(super::remedy::error)?;
@@ -26,7 +27,7 @@ pub fn run(
             Ok(said(&total, into))
         }
         Destination::Mailbox { account, folder } => {
-            let mail = mail_edge::mail(store);
+            let mail = mail_edge::mail(store, config);
             let accounts = mail.roster().map_err(super::remedy::error)?;
             let (id, total) =
                 import::queue_uploads(store, &accounts, account, folder, &source, now, &mut tell)
