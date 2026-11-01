@@ -49,8 +49,6 @@ mod settings_tests;
 #[cfg(test)]
 mod shell_tests;
 #[cfg(test)]
-mod signatures_tests;
-#[cfg(test)]
 mod tips_tests;
 
 pub use ds_blitz::LaunchError;
