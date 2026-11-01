@@ -13,6 +13,7 @@
 
 pub mod accounts;
 pub mod act;
+pub mod arrival;
 pub mod discover;
 pub mod follow_up;
 pub mod junk;
