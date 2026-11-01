@@ -8,7 +8,10 @@ fn the_files_that_draw_ask_the_store_nothing() {
     let files = [
         ("list.rs", include_str!("../list.rs")),
         ("window/root.rs", include_str!("../window/root.rs")),
-        ("fetching/mod.rs", include_str!("../fetching/mod.rs")),
+        (
+            "fetching/mod.rs",
+            include_str!("../../../../mail-ui-kit/src/fetching/mod.rs"),
+        ),
         (
             "menus/mod.rs",
             include_str!("../../../../mail-ui-kit/src/menus/mod.rs"),

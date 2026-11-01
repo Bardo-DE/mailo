@@ -55,7 +55,7 @@ pub(super) fn run(opening: Opening) -> Result<(), ds_blitz::LaunchError> {
     // reason (`settings::Notices`).
     let notices = dirs.as_ref().map(|dirs| {
         let desktop = mail_os::desktop::connect_in_window();
-        crate::ui::follow_up::Notices(std::sync::Arc::new(mail_ui_model::settings::Notices::new(
+        mail_ui_kit::notices::Notices(std::sync::Arc::new(mail_ui_model::settings::Notices::new(
             Box::new(move |notification, sound| desktop.show_with(notification, sound)),
             mail_ui_kit::prefs::root_of(dirs),
         )))
@@ -287,7 +287,7 @@ pub fn contexts(
         spaces,
         dirs,
         start,
-        crate::ui::fetching::Passer::idle().0,
+        mail_ui_kit::fetching::Passer::idle().0,
     )
 }
 
@@ -302,7 +302,7 @@ pub fn contexts_passing(
     start: crate::ui::ask::Open,
     pass: mail_client::fetch::Pass,
 ) -> RootContexts {
-    window_contexts(client, look, spaces, dirs, start).with(crate::ui::fetching::Passer(pass))
+    window_contexts(client, look, spaces, dirs, start).with(mail_ui_kit::fetching::Passer(pass))
 }
 
 /// [`contexts`] as the launched window has them: its passes go to the servers.

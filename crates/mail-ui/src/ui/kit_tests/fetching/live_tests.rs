@@ -1,8 +1,11 @@
 //! The live watch in the running window, with a watch of the test's own and passes held shut
 //! until it lets them go, as `fetching/tests.rs` does for the passes alone.
 
-use super::*;
-use crate::ui::fetching::{Fetching, Passer};
+use mail_client::schedule::Daemon;
+use mail_ui_kit::fetching::live::Listener;
+use std::sync::Arc;
+use std::time::Duration;
+use mail_ui_kit::fetching::{Fetching, Passer};
 use crate::ui::fixtures::settle_quiet;
 use crate::ui::fixtures::{dispatching, empty};
 use chrono::Utc;
@@ -201,7 +204,7 @@ impl Script {
 fn Probe() -> Element {
     // As `App` does: a client that reads here acts on what was committed from the first frame.
     use_hook(mail_ui_kit::live::moved_peek);
-    super::super::use_fetching();
+    mail_ui_kit::fetching::use_fetching();
     rsx! {}
 }
 

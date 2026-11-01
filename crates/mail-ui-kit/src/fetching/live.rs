@@ -9,7 +9,6 @@ use mail_client::Client;
 use mail_client::fetch::RETRY_NOW;
 use mail_client::fetch::{Listen, Pushers};
 use mail_client::schedule::Daemon;
-#[cfg(test)]
 use mail_client::schedule::Lost;
 use std::sync::Arc;
 use std::time::Duration;
@@ -17,22 +16,40 @@ use std::time::Duration;
 /// What the watch is, and what it asks of its surroundings. The real ones unless a test
 /// provided its own, as [`super::Passer`] is.
 #[derive(Clone)]
-pub(in crate::ui) struct Listener {
-    pub(super) listen: Listen,
+pub struct Listener {
+    pub listen: Listen,
     /// Every account that can be pushed to, as the store describes them now.
-    pub(super) pushers: Pushers,
-    pub(super) daemon: Arc<dyn Fn() -> Daemon + Send + Sync>,
+    pub pushers: Pushers,
+    pub daemon: Arc<dyn Fn() -> Daemon + Send + Sync>,
     /// How long after being wanted a watch connects, so that opening a window is not also a
     /// second connection racing the first pass.
-    pub(super) first: Duration,
+    pub first: Duration,
     /// The floor under the wait between one lost connection and the next attempt.
-    pub(super) retry: Duration,
+    pub retry: Duration,
 }
 
 impl Listener {
     /// The servers, through [`mail_client::SyncOps::listen`]; the daemon, through its lock.
-    #[cfg(not(test))]
-    pub(in crate::ui) fn server(client: &Client) -> Self {
+    ///
+    /// Not in a test: a watch opens sockets, and a test that forgot to provide its own must not
+    /// reach one. No account is pushed to, so none is watched.
+    pub fn server(client: &Client) -> Self {
+        if cfg!(any(test, feature = "testing")) {
+            return Self {
+                listen: Arc::new(|_, _, _, _, _| {
+                    Err(Lost {
+                        retry: mail_domain::Retry::Fatal(
+                            "a test watched without providing a Listener".to_owned(),
+                        ),
+                        why: "a test watched without providing a Listener".to_owned(),
+                    })
+                }),
+                pushers: Arc::new(|_| Vec::new()),
+                daemon: Arc::new(|| Daemon::Absent),
+                first: Duration::ZERO,
+                retry: RETRY_NOW,
+            };
+        }
         Self {
             listen: client.net().listen(),
             pushers: mail_client::fetch::pushers(),
@@ -44,8 +61,8 @@ impl Listener {
                     // A `mailo watch`, or mailo.app's own (`Program::resident`), is the one
                     // that holds the connection, and the window leaves scheduled fetching to it
                     // (`super::delegate`).
-                    _ if crate::ui::launch::watching_here()
-                        || mail_client::ipc::watching::running(&crate::ui::launch::profile()) =>
+                    _ if crate::program::watching_here()
+                        || mail_client::ipc::watching::running(&crate::program::profile()) =>
                     {
                         Daemon::Holding
                     }
@@ -56,27 +73,10 @@ impl Listener {
             retry: RETRY_NOW,
         }
     }
-
-    /// Not in a test build: a watch opens sockets, and a test that forgot to provide its own
-    /// must not reach one. No account is pushed to, so none is watched.
-    #[cfg(test)]
-    pub(in crate::ui) fn server(_: &Client) -> Self {
-        Self {
-            listen: Arc::new(|_, _, _, _, _| {
-                Err(Lost {
-                    retry: mail_domain::Retry::Fatal(
-                        "a test watched without providing a Listener".to_owned(),
-                    ),
-                    why: "a test watched without providing a Listener".to_owned(),
-                })
-            }),
-            pushers: Arc::new(|_| Vec::new()),
-            daemon: Arc::new(|| Daemon::Absent),
-            first: Duration::ZERO,
-            retry: RETRY_NOW,
-        }
-    }
 }
 
-#[cfg(test)]
-mod tests;
+impl std::fmt::Debug for Listener {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Listener(..)")
+    }
+}

@@ -9,7 +9,7 @@ use super::row::listed::Listed;
 use super::row::{AccountMark, ListRow};
 use super::server_search::{Asked, ServerSearch, found_threads};
 use super::view_groups::group_list;
-use crate::ui::fetching::{Fetching, HasRows, ListFace, list_face};
+use mail_ui_kit::fetching::{Fetching, HasRows, ListFace, list_face};
 use dioxus::prelude::*;
 use ds::components::app::thread_height::{ThreadLines, thread_card_gap, thread_card_height};
 use ds::components::chrome::toolbar::view::Toolbar;
@@ -496,7 +496,7 @@ pub(super) fn ThreadList(
         }),
         Nothing::NoMatch(_) | Nothing::EmptyFolder => None,
     };
-    let retry = EventHandler::new(move |()| super::fetching::sync_now(&shell.read()));
+    let retry = EventHandler::new(move |()| mail_ui_kit::fetching::sync_now(&shell.read()));
     rsx! {
         div { class: "list-col",
             // The list's header is quire's 52 px `Toolbar`: the place's title, New Message, the

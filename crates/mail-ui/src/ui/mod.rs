@@ -15,8 +15,6 @@ pub use mail_ui_compose::compose::discarding_draft;
 mod contacts;
 pub mod default_mail;
 mod erase;
-mod fetching;
-mod folder_open;
 mod follow_up;
 mod frame;
 mod keyboard;

@@ -1,5 +1,6 @@
-use super::super::tests::{account, acct_account, fetching, link, passer};
-use super::*;
+use super::tests::{account, acct_account, fetching, link, passer};
+use mail_client::schedule::Schedule;
+use mail_ui_kit::fetching::delegate::Delegate;
 use crate::ui::app::App;
 use crate::ui::fixtures::settle_quiet;
 use crate::ui::fixtures::{dispatching, rebuild_into};
@@ -14,7 +15,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 fn window_beside(
     store: Arc<SqliteStore>,
     schedule: Arc<AtomicBool>,
-    passer: super::super::Passer,
+    passer: mail_ui_kit::fetching::Passer,
 ) -> VirtualDom {
     dispatching();
     let delegate = Delegate(Arc::new(move || {
@@ -61,7 +62,7 @@ async fn a_window_beside_a_watch_fetches_only_when_a_person_asks() {
         .release
         .lock()
         .unwrap()
-        .send(super::super::tests::finished)
+        .send(super::tests::finished)
         .unwrap();
     settle_quiet(&mut dom).await;
     assert!(

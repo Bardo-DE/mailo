@@ -9,7 +9,7 @@
 use ds::prelude::*;
 use std::collections::BTreeMap;
 
-use crate::ui::fetching::use_status;
+use mail_ui_kit::fetching::use_status;
 use chrono::{DateTime, TimeZone, Utc};
 use dioxus::prelude::*;
 use ds::components::controls::button_model::{Bezel, ImagePosition};
@@ -373,7 +373,7 @@ pub(super) fn ListMore(shell: Signal<Shell>, syncs: bool, side_hidden: Signal<bo
                     }
                     More::Sync => {
                         shell.write().page_menu = PageMenu::Closed;
-                        crate::ui::fetching::sync_now(&shell.read());
+                        mail_ui_kit::fetching::sync_now(&shell.read());
                     }
                 },
                 onclose: move |()| shell.write().page_menu = PageMenu::Closed,

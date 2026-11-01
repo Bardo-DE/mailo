@@ -3,7 +3,7 @@
 //! the folders its messages are in.
 
 use super::super::app::App;
-use super::super::folder_open::Fetcher;
+use mail_ui_kit::fetching::folder_open::Fetcher;
 use super::folder_tests::{acct_imap, folder};
 use crate::ui::fixtures::settle_quiet;
 use crate::ui::fixtures::{Seen, click, dispatching, empty, rebuild_into};
@@ -178,7 +178,7 @@ fn window(store: Arc<SqliteStore>, fetcher: Fetcher) -> (VirtualDom, Seen) {
 /// Where the on-demand fetch of `path` on the account stands, as the window's fetching has it.
 fn folder_state(dom: &mut VirtualDom, path: &str) -> FolderFetch {
     dom.in_scope(ScopeId::APP, || {
-        consume_context::<super::super::fetching::Fetching>().folder(acct_imap(), path)
+        consume_context::<mail_ui_kit::fetching::Fetching>().folder(acct_imap(), path)
     })
 }
 

@@ -7,17 +7,26 @@
 
 use mail_client::Client;
 /// Fetch one folder now: the signature of [`mail_client::SyncOps::folder_now`].
-pub(in crate::ui) use mail_client::fetch::FetchFolder as Fetch;
+pub use mail_client::fetch::FetchFolder as Fetch;
 use std::sync::Arc;
 
 /// What fetches a folder. The real one unless a test provided its own.
 #[derive(Clone)]
-pub(in crate::ui) struct Fetcher(pub Fetch);
+pub struct Fetcher(pub Fetch);
 
 impl Fetcher {
     /// The server, through [`mail_client::SyncOps::folder_now`].
-    #[cfg(not(test))]
-    pub(in crate::ui) fn server(client: &Client) -> Self {
+    ///
+    /// Not in a test: `folder_now` reads the keyring and opens a socket, and a test that forgot
+    /// to provide its own fetcher must fail in words rather than reach either.
+    pub fn server(client: &Client) -> Self {
+        if cfg!(any(test, feature = "testing")) {
+            return Self(Arc::new(|_, _, path, _| {
+                Err(format!(
+                    "a test opened {path} without providing a Fetcher; the real one reaches the server"
+                ))
+            }));
+        }
         // The client keeps this closure (it is one of its seams), so it holds the client weakly:
         // a strong clone here would keep the client's threads running for good.
         let client = client.downgrade();
@@ -28,19 +37,14 @@ impl Fetcher {
             client
                 .net()
                 .folder_now(account, path)
-                .map_err(mail_ui_kit::remedy::told)
+                .map_err(crate::remedy::told)
         }))
     }
+}
 
-    /// Not in a test build: `folder_now` reads the keyring and opens a socket, and a test that
-    /// forgot to provide its own fetcher must fail in words rather than reach either.
-    #[cfg(test)]
-    pub(in crate::ui) fn server(_: &Client) -> Self {
-        Self(Arc::new(|_, _, path, _| {
-            Err(format!(
-                "a test opened {path} without providing a Fetcher; the real one reaches the server"
-            ))
-        }))
+impl std::fmt::Debug for Fetcher {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Fetcher(..)")
     }
 }
 

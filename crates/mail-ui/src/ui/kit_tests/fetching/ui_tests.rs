@@ -239,22 +239,22 @@ async fn sync_while_a_pass_runs_says_it_is_already_checking() {
     settle_quiet(&mut dom).await;
     assert!(link(&dom).is_busy(), "no pass running: {:?}", link(&dom));
     let page = dioxus_ssr::render(&dom);
-    assert!(!page.contains(super::ALREADY_SYNCING), "said unasked");
+    assert!(!page.contains(mail_ui_kit::fetching::ALREADY_SYNCING), "said unasked");
 
     dom.in_scope(ScopeId::APP, || {
-        super::sync_now(&mail_ui_kit::view::Shell::default());
+        mail_ui_kit::fetching::sync_now(&mail_ui_kit::view::Shell::default());
     });
     // The toast is quire's, and its host lays it out a frame after the push.
     let mut page = String::new();
     for _ in 0..8 {
         settle_quiet(&mut dom).await;
         page = dioxus_ssr::render(&dom);
-        if page.contains(super::ALREADY_SYNCING) {
+        if page.contains(mail_ui_kit::fetching::ALREADY_SYNCING) {
             break;
         }
     }
     assert!(
-        page.contains(super::ALREADY_SYNCING),
+        page.contains(mail_ui_kit::fetching::ALREADY_SYNCING),
         "the press said nothing: {page}"
     );
     assert_eq!(

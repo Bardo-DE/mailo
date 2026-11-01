@@ -13,7 +13,7 @@
 //! Graph, which signs it in again for Graph in the browser. Everything else a connection can
 //! suffer it retries by itself, and the sidebar foot's mark says while it does.
 
-use crate::ui::fetching::Fetching;
+use mail_ui_kit::fetching::Fetching;
 use dioxus::prelude::*;
 use ds::components::content::label::{Label, LabelStyle};
 use ds::components::lists::row::row::Outline;

@@ -6,6 +6,7 @@ mod cache_tests;
 mod data;
 mod downloads_tests;
 mod downloads_unedited_tests;
+pub(in crate::ui) mod fetching;
 pub(in crate::ui) mod files_sheet_tests;
 mod files_work_tests;
 mod history;

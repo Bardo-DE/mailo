@@ -5,7 +5,7 @@
 
 use super::need::Need;
 use mail_client::fetch::{First, Link, Pause};
-use mail_ui_kit::view::Nothing;
+use crate::view::Nothing;
 
 /// Whether the list has any rows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -2,7 +2,7 @@
 //! reports where it is, and ends; the link in between is what the list reads. The passes here
 //! are the test's own, held shut until it lets them go, so that "running" can be looked at.
 
-use super::{Fetching, Passer};
+use mail_ui_kit::fetching::{Fetching, Passer};
 use crate::ui::app::App;
 use crate::ui::fixtures::settle_quiet;
 use crate::ui::fixtures::{Seen, click, dispatching, empty, rebuild_into};
@@ -167,7 +167,7 @@ pub(super) fn link(dom: &VirtualDom) -> Link {
 fn is_running(dom: &VirtualDom) -> bool {
     dom.in_scope(ScopeId::APP, || {
         matches!(
-            fetching(dom).ops.read().get(&acct_account()),
+            fetching(dom).operation(&acct_account()),
             Some(Operation::Running(_))
         )
     })
@@ -335,7 +335,7 @@ async fn a_first_pass_that_fails_is_still_the_first_when_it_is_tried_again() {
 fn Probe() -> Element {
     // As `App` does: a client that reads here acts on what was committed from the first frame.
     use_hook(mail_ui_kit::live::moved_peek);
-    super::use_fetching();
+    mail_ui_kit::fetching::use_fetching();
     rsx! {}
 }
 
@@ -476,7 +476,7 @@ async fn new_mail_the_window_fetched_is_announced_while_notifications_are_on() {
         let mut dom = VirtualDom::new(App)
             .with_root_context(crate::ui::fixtures::client(&store))
             .with_root_context(arriving())
-            .with_root_context(crate::ui::follow_up::Notices(recorder.clone()));
+            .with_root_context(mail_ui_kit::notices::Notices(recorder.clone()));
         let seen = rebuild_into(&mut dom);
         if !on {
             dom.in_scope(ScopeId::APP, || {

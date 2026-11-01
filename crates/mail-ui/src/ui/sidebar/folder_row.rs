@@ -1,6 +1,6 @@
 //! One folder's row, the menu under it, and what its picks do.
 
-use super::super::fetching;
+use mail_ui_kit::fetching;
 use super::folder_act::{act, refused, renamed_path};
 use super::folder_parts::{NameField, Naming, Said, actions};
 use super::folder_tree::{Kind, Node};

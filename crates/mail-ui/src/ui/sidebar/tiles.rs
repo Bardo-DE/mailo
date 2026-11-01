@@ -10,7 +10,7 @@
 
 use super::join::{self, Plus};
 use super::tile_menu::TileMenu;
-use crate::ui::fetching::Fetching;
+use mail_ui_kit::fetching::Fetching;
 use crate::ui::reauth::Reauth;
 use dioxus::prelude::*;
 use ds::components::app::pin_tile::{PinFace, PinStatus};

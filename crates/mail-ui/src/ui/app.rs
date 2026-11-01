@@ -226,7 +226,7 @@ pub(super) fn App() -> Element {
 
     // Mail that only arrives when you press a button is mail you miss: every account's link, the
     // timers that poll them and the loop that runs their passes (`fetching`).
-    super::fetching::use_fetching();
+    mail_ui_kit::fetching::use_fetching();
     // Whom to ask to sign in again, once the links have all said how they stand.
     super::reauth::use_reauth();
     // The unread count on the dock or the Dash, when the window was launched with one.

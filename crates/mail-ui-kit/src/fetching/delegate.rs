@@ -13,17 +13,21 @@ use std::sync::Arc;
 /// What reports who schedules. The real one unless a test provided its own, as
 /// [`super::Passer`] is.
 #[derive(Clone)]
-pub(in crate::ui) struct Delegate(pub Arc<dyn Fn() -> Schedule + Send + Sync>);
+pub struct Delegate(pub Arc<dyn Fn() -> Schedule + Send + Sync>);
 
 impl Delegate {
     /// Asks the watch's lock for this Profile ([`mail_client::ipc::watching::running`]), every
     /// time it is asked: a watch may start or stop while the window is open. mailo.app's own
     /// watch, in this process, is asked first (`Program::resident`).
-    #[cfg(not(test))]
-    pub(in crate::ui) fn server() -> Self {
+    ///
+    /// Not in a test: the person's real watch, if there is one, must not change what a test sees.
+    pub fn server() -> Self {
+        if cfg!(any(test, feature = "testing")) {
+            return Self(Arc::new(|| Schedule::Window));
+        }
         Self(Arc::new(|| {
-            if crate::ui::launch::watching_here()
-                || mail_client::ipc::watching::running(&crate::ui::launch::profile())
+            if crate::program::watching_here()
+                || mail_client::ipc::watching::running(&crate::program::profile())
             {
                 Schedule::Watch
             } else {
@@ -31,14 +35,10 @@ impl Delegate {
             }
         }))
     }
-
-    /// Not in a test build: the person's real watch, if there is one, must not change what a
-    /// test sees.
-    #[cfg(test)]
-    pub(in crate::ui) fn server() -> Self {
-        Self(Arc::new(|| Schedule::Window))
-    }
 }
 
-#[cfg(test)]
-mod tests;
+impl std::fmt::Debug for Delegate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Delegate(..)")
+    }
+}

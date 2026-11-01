@@ -9,13 +9,14 @@
 //! ([`seams`]), so a test lends its own. What the screen says is derived from the links and not
 //! stored: see [`Fetching::status`].
 
-mod delegate;
+pub mod delegate;
 mod face;
 mod folder;
+pub mod folder_open;
 mod host;
-mod live;
+pub mod live;
 mod marks;
-mod pass;
+pub mod pass;
 mod scope;
 
 use chrono::{DateTime, Utc};
@@ -27,22 +28,22 @@ use mail_client::schedule::Timing;
 use mail_client::sync::fresh::Pace;
 use mail_client::sync::report::Offer;
 use mail_client::{Client, Snapshot};
-use mail_ui_kit::view::Shell;
+use crate::view::Shell;
 use porter_core::AccountId;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-pub(in crate::ui) use delegate::Delegate;
-pub(in crate::ui) use face::{HasRows, ListFace, list_face};
-pub(in crate::ui) use folder::opened;
-use mail_ui_kit::need::{self, Need, needs_you};
+pub use delegate::Delegate;
+pub use face::{HasRows, ListFace, list_face};
+pub use folder::opened;
+use crate::need::{self, Need, needs_you};
 use mail_ui_model::fetching::status::{StatusLine, status_line};
-pub(in crate::ui) use marks::sync_availability;
-pub(in crate::ui) use pass::Passer;
+pub use marks::sync_availability;
+pub use pass::Passer;
 
 /// The window's mail fetching. Copy, so a handler can take it.
-#[derive(Clone, Copy)]
-pub(in crate::ui) struct Fetching {
+#[derive(Clone, Copy, Debug)]
+pub struct Fetching {
     links: Signal<BTreeMap<AccountId, Link>>,
     /// What each account's pass is doing, for a spinner.
     ops: Signal<BTreeMap<AccountId, Operation>>,
@@ -57,50 +58,56 @@ pub(in crate::ui) struct Fetching {
 impl Fetching {
     /// Tell an account's link that `event` happened. Never blocks, and is ignored for an account
     /// that has no link or whose link has nothing to do with it.
-    pub(in crate::ui) fn send(&self, account: AccountId, event: Event) {
+    pub fn send(&self, account: AccountId, event: Event) {
         self.client.peek().tell(account, event);
     }
 
     /// Ask each of `accounts` for a pass. A link already running one ignores it.
-    pub(in crate::ui) fn sync(&self, accounts: &[AccountId], trigger: Trigger) {
+    pub fn sync(&self, accounts: &[AccountId], trigger: Trigger) {
         for account in accounts {
             self.send(account.clone(), Event::Start(trigger));
         }
     }
 
     /// Ask every account for a pass, as the tests start one.
-    #[cfg(test)]
-    pub(in crate::ui) fn sync_all(&self, trigger: Trigger) {
+    #[cfg(any(test, feature = "testing"))]
+    pub fn sync_all(&self, trigger: Trigger) {
         let all: Vec<AccountId> = self.links.peek().keys().cloned().collect();
         self.sync(&all, trigger);
     }
 
+    /// What `account`'s pass is doing, for a spinner, as a test reads it.
+    #[cfg(any(test, feature = "testing"))]
+    pub fn operation(&self, account: &AccountId) -> Option<Operation> {
+        self.ops.read().get(account).copied()
+    }
+
     /// The credential of `account` was replaced.
-    pub(in crate::ui) fn signed_in(&self, account: AccountId) {
+    pub fn signed_in(&self, account: AccountId) {
         self.send(account, Event::SignedIn);
     }
 
     /// Every link. Read in a component, it redraws when any of them moves.
     /// One account's link, or `None` for one with nothing to fetch.
-    pub(in crate::ui) fn link(&self, account: AccountId) -> Option<Link> {
+    pub fn link(&self, account: AccountId) -> Option<Link> {
         self.links.read().get(&account).cloned()
     }
 
     /// What `account`'s last pass offered beside its failure, if anything: the sign-in
     /// question's Use Microsoft Graph (`reauth`).
-    pub(in crate::ui) fn offer(&self, account: &AccountId) -> Option<Offer> {
+    pub fn offer(&self, account: &AccountId) -> Option<Offer> {
         self.offers.read().get(account).copied()
     }
 
     /// What `account`'s pass is doing, for a spinner: running from the moment it starts.
     /// The accounts `shell` is showing that have something to fetch.
-    pub(in crate::ui) fn in_view(&self, shell: &Shell) -> Vec<AccountId> {
+    pub fn in_view(&self, shell: &Shell) -> Vec<AccountId> {
         let with_links: BTreeSet<AccountId> = self.links.read().keys().cloned().collect();
         scope::in_view(&with_links, shell)
     }
 
     /// Whether any account `shell` is showing is fetching, which is when Sync waits.
-    pub(in crate::ui) fn busy_in(&self, shell: &Shell) -> bool {
+    pub fn busy_in(&self, shell: &Shell) -> bool {
         let links = self.links.read();
         self.in_view(shell)
             .iter()
@@ -109,7 +116,7 @@ impl Fetching {
 
     /// Every account's link, in no order a person would know. Read in a component, it redraws
     /// when any of them moves.
-    pub(in crate::ui) fn all_links(&self) -> Vec<(AccountId, Link)> {
+    pub fn all_links(&self) -> Vec<(AccountId, Link)> {
         self.links
             .read()
             .iter()
@@ -119,23 +126,23 @@ impl Fetching {
 
     /// The accounts waiting for the person to sign in again or to allow Mail again. Read in a
     /// component, it redraws when any link moves.
-    pub(in crate::ui) fn needs(&self) -> Vec<(AccountId, Need)> {
+    pub fn needs(&self) -> Vec<(AccountId, Need)> {
         needs_you(&self.all_links())
     }
 
     /// Those of [`Fetching::needs`] that `shell` is showing.
-    pub(in crate::ui) fn needs_in_view(&self, shell: &Shell) -> Vec<(AccountId, Need)> {
+    pub fn needs_in_view(&self, shell: &Shell) -> Vec<(AccountId, Need)> {
         needs_you(&self.links_in_view(shell))
     }
 
     /// Whether every account has had its first pass say how it stands, so that "needs nothing"
     /// is known and not only not yet asked.
-    pub(in crate::ui) fn settled(&self) -> bool {
+    pub fn settled(&self) -> bool {
         need::settled(&self.all_links())
     }
 
     /// The links of the accounts in view, with whom they belong to.
-    pub(in crate::ui) fn links_in_view(&self, shell: &Shell) -> Vec<(AccountId, Link)> {
+    pub fn links_in_view(&self, shell: &Shell) -> Vec<(AccountId, Link)> {
         let links = self.links.read();
         self.in_view(shell)
             .into_iter()
@@ -144,7 +151,7 @@ impl Fetching {
     }
 
     /// The operation to draw for the accounts in view: running while any of them is.
-    pub(in crate::ui) fn op_in_view(&self, shell: &Shell) -> Operation {
+    pub fn op_in_view(&self, shell: &Shell) -> Operation {
         let ops = self.ops.read();
         self.in_view(shell)
             .iter()
@@ -157,7 +164,7 @@ impl Fetching {
     /// finished pass of it, by this window or by a watch beside it, and what its server allows.
     /// As the client has it read: a watch's passes move nothing in this window's links, and the
     /// store is not read here. An account not read yet is taken to poll at the default interval.
-    pub(in crate::ui) fn pace(&self, account: &AccountId) -> Pace {
+    pub fn pace(&self, account: &AccountId) -> Pace {
         self.paces
             .read()
             .value()
@@ -176,7 +183,7 @@ impl Fetching {
 
     /// `account`'s own status line, what its tile's mark says: `None` for an account with
     /// nothing to fetch (local folders).
-    pub(in crate::ui) fn account_line(
+    pub fn account_line(
         &self,
         account: &AccountId,
         now: DateTime<Utc>,
@@ -186,37 +193,37 @@ impl Fetching {
             &[(&link, self.pace(account))],
             now,
             &chrono::Local,
-            mail_ui_kit::clock::hours(),
+            crate::clock::hours(),
         ))
     }
 
-    pub(in crate::ui) fn status(&self, shell: &Shell, now: DateTime<Utc>) -> StatusLine {
+    pub fn status(&self, shell: &Shell, now: DateTime<Utc>) -> StatusLine {
         let links = self.links.read();
         let shown: Vec<(&Link, Pace)> = self
             .in_view(shell)
             .iter()
             .filter_map(|id| links.get(id).map(|link| (link, self.pace(id))))
             .collect();
-        status_line(&shown, now, &chrono::Local, mail_ui_kit::clock::hours())
+        status_line(&shown, now, &chrono::Local, crate::clock::hours())
     }
 }
 
 /// What Sync says when what it would fetch is already being fetched.
-pub(in crate::ui) const ALREADY_SYNCING: &str = "Already checking for mail.";
+pub const ALREADY_SYNCING: &str = "Already checking for mail.";
 
 /// Sync what `shell` is showing, from the toolbar button and the command menu alike.
 ///
 /// While any of it is already fetching a second press is the same request, and starts nothing;
 /// it says so, because a press that does nothing visible reads as a button that is broken. Every
 /// folder fetched on opening is fetched again the next time it is opened.
-pub(in crate::ui) fn sync_now(shell: &Shell) {
+pub fn sync_now(shell: &Shell) {
     let Some(fetching) = try_consume_context::<Fetching>() else {
         return;
     };
     if fetching.busy_in(shell) {
-        mail_ui_kit::motion::tell(
+        crate::motion::tell(
             ALREADY_SYNCING.to_owned(),
-            mail_ui_kit::motion::Follow::Nothing,
+            crate::motion::Follow::Nothing,
         );
         return;
     }
@@ -226,7 +233,7 @@ pub(in crate::ui) fn sync_now(shell: &Shell) {
 
 /// Sync `account` alone, from its tile's menu, as [`sync_now`] does for what is shown: a second
 /// ask while it fetches starts nothing, and says so.
-pub(in crate::ui) fn sync_account(account: AccountId) {
+pub fn sync_account(account: AccountId) {
     let Some(fetching) = try_consume_context::<Fetching>() else {
         return;
     };
@@ -234,9 +241,9 @@ pub(in crate::ui) fn sync_account(account: AccountId) {
         .link(account.clone())
         .is_some_and(|link| link.is_busy())
     {
-        mail_ui_kit::motion::tell(
+        crate::motion::tell(
             ALREADY_SYNCING.to_owned(),
-            mail_ui_kit::motion::Follow::Nothing,
+            crate::motion::Follow::Nothing,
         );
         return;
     }
@@ -252,7 +259,7 @@ const STATUS_EVERY: std::time::Duration = std::time::Duration::from_secs(30);
 /// [`STATUS_EVERY`]. `None` in a window with no fetching. A hook: the component that calls it is
 /// the one a tick of the clock draws again, so it is called by the small parts that say the
 /// line (the sidebar's sync mark, the list's bar and its ⋯), never by the list.
-pub(in crate::ui) fn use_status(shell: Signal<Shell>) -> Option<StatusLine> {
+pub fn use_status(shell: Signal<Shell>) -> Option<StatusLine> {
     let mut tick = use_signal(|| 0u32);
     use_future(move || async move {
         loop {
@@ -262,26 +269,26 @@ pub(in crate::ui) fn use_status(shell: Signal<Shell>) -> Option<StatusLine> {
     });
     let _ = tick();
     let fetching = try_consume_context::<Fetching>()?;
-    Some(fetching.status(&shell.read(), mail_ui_kit::clock::now()))
+    Some(fetching.status(&shell.read(), crate::clock::now()))
 }
 
 /// Say which accounts came since the window last looked, once it has looked: an account added in
 /// its own window (or by `mailo account add`) is otherwise seen only as the sidebar changing. As
 /// the client keeps the accounts read; the first reading is only what was already there.
 fn announce_added() {
-    let accounts = mail_ui_kit::live::use_live(|| mail_client::query::Accounts);
+    let accounts = crate::live::use_live(|| mail_client::query::Accounts);
     let known = use_hook(|| std::rc::Rc::new(std::cell::RefCell::new(None::<BTreeSet<AccountId>>)));
     use_effect(move || {
         let Snapshot::Ready { value, .. } = &*accounts.read() else {
             return;
         };
-        let rows = mail_ui_kit::data::rows_of(value);
+        let rows = crate::data::rows_of(value);
         let mut known = known.borrow_mut();
         if let Some(before) = known.as_ref() {
             for row in rows.iter().filter(|row| !before.contains(&row.id)) {
-                mail_ui_kit::motion::tell(
+                crate::motion::tell(
                     mail_ui_model::copy::toasts::account_added(&row.address),
-                    mail_ui_kit::motion::Follow::Nothing,
+                    crate::motion::Follow::Nothing,
                 );
             }
         }
@@ -297,8 +304,8 @@ fn seams(client: &Client, speaking: Arc<std::sync::Mutex<Speaking>>) -> Seams {
     let listener =
         try_consume_context::<live::Listener>().unwrap_or_else(|| live::Listener::server(client));
     let delegate = try_consume_context::<Delegate>().unwrap_or_else(Delegate::server);
-    let folder = try_consume_context::<crate::ui::folder_open::Fetcher>()
-        .unwrap_or_else(|| crate::ui::folder_open::Fetcher::server(client));
+    let folder = try_consume_context::<folder_open::Fetcher>()
+        .unwrap_or_else(|| folder_open::Fetcher::server(client));
     Seams {
         pass: pass.0,
         listen: listener.listen,
@@ -306,9 +313,9 @@ fn seams(client: &Client, speaking: Arc<std::sync::Mutex<Speaking>>) -> Seams {
         daemon: listener.daemon,
         schedule: delegate.0,
         folder: folder.0,
-        config: try_consume_context::<mail_ui_kit::appearance::WindowDirs>()
+        config: try_consume_context::<crate::appearance::WindowDirs>()
             .map(|dirs| dirs.config),
-        announce: try_consume_context::<crate::ui::follow_up::Notices>().map(|notices| Announce {
+        announce: try_consume_context::<crate::notices::Notices>().map(|notices| Announce {
             notifier: notices.0,
             speaking,
         }),
@@ -321,8 +328,8 @@ fn seams(client: &Client, speaking: Arc<std::sync::Mutex<Speaking>>) -> Seams {
 }
 
 /// Provide [`Fetching`] for the window, and have the client fetch. Once, from `App`.
-pub(in crate::ui) fn use_fetching() -> Fetching {
-    let client = mail_ui_kit::live::use_client();
+pub fn use_fetching() -> Fetching {
+    let client = crate::live::use_client();
     // The first window to ask starts it: the program's client fetches on a thread of its own
     // from then on, and one that reads here hands back what this window runs.
     let speaking = use_hook(|| Arc::new(std::sync::Mutex::new(Speaking::default())));
@@ -360,7 +367,7 @@ pub(in crate::ui) fn use_fetching() -> Fetching {
     let folders = use_signal(|| first.folders.clone());
     let ops = use_signal(BTreeMap::new);
     let held = use_signal(|| client.clone());
-    let paces = mail_ui_kit::live::use_live(move || {
+    let paces = crate::live::use_live(move || {
         mail_client::query::Paces(links.read().keys().cloned().collect())
     });
     let fetching = use_context_provider(|| Fetching {
@@ -430,7 +437,3 @@ fn follow(fetching: Fetching, now: &Fetched) {
     }
 }
 
-#[cfg(test)]
-mod tests;
-#[cfg(test)]
-mod ui_tests;

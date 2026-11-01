@@ -4,7 +4,7 @@
 use chrono::{DateTime, TimeZone, Utc};
 use mail_domain::id::account_id_from_uuid;
 use mail_domain::*;
-use mail_ui_kit::view::{Shell, folder_of, places_with};
+use crate::view::{Shell, folder_of, places_with};
 use porter_core::AccountId;
 
 fn acct_one() -> AccountId {
@@ -126,9 +126,9 @@ fn folder_places_come_after_the_labels_so_the_badges_line_up() {
         &[],
         &mail_client::testing::core::vip::Vips::default(),
     );
-    let defaults = mail_ui_kit::view::default_places().len();
+    let defaults = crate::view::default_places().len();
     assert_eq!(places.len(), defaults + 2);
-    assert!(mail_ui_kit::view::is_label_place(&places[defaults]));
+    assert!(crate::view::is_label_place(&places[defaults]));
     assert_eq!(places[defaults + 1].name, "2026");
     assert_eq!(
         folder_of(&places[defaults + 1]),
