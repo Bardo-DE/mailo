@@ -62,11 +62,10 @@ pub mod contacts {
     }
 }
 pub mod discover {
-    pub use mail_core::discover::{
-        Failed, Found, Looked, claimed_by, known, settle, typed, typed_domain,
-    };
+    pub use mail_core::discover::{Looked, settle, typed, typed_domain};
+    pub use mail_logic::discover::{Failed, Found, Gap, Source, claimed_by, known};
     pub mod providers {
-        pub use mail_core::discover::providers::set;
+        pub use mail_logic::discover::providers::set;
     }
 }
 pub mod export {

@@ -5798,6 +5798,8 @@ dependencies = [
  "mailo-domain",
  "nucleo-matcher",
  "porter-core",
+ "porter-discover",
+ "porter-ids",
  "porter-provider",
  "psl",
  "regex",

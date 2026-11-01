@@ -5,9 +5,9 @@
 //! when the host was typed by hand. Otherwise the incoming host's suffix, and Graph,
 //! which has no host. A lookalike (`imap.gmail.com.evil.test`) is not Google.
 
-use crate::discover::known;
 use chrono::{DateTime, Utc};
 use mail_domain::{AccountPlan, AuthPlan, Incoming, Outgoing};
+use mail_logic::discover::known;
 use porter_provider::Issuer;
 
 /// A mail host the window knows by name.

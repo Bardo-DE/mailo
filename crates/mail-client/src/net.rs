@@ -343,7 +343,7 @@ impl Net<'_> {
         &self,
         address: &str,
         now: DateTime<Utc>,
-    ) -> Result<mail_core::discover::Found, mail_core::discover::Failed> {
+    ) -> Result<mail_logic::discover::Found, mail_logic::discover::Failed> {
         let mail = self.mail();
         Self::wait(&mail, mail_core::discover::search(address, now))
     }

@@ -20,6 +20,9 @@ name = "mail_logic"
 mail-domain.workspace = true
 porter-core.workspace = true
 porter-provider.workspace = true
+# Discovery's answers and its parsers (no `io` feature: no tokio, no resolver): the lookup is `mail-core`'s.
+porter-discover.workspace = true
+porter-ids.workspace = true
 thiserror.workspace = true
 chrono.workspace = true
 serde.workspace = true

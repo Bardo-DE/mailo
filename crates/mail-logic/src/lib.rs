@@ -8,6 +8,7 @@
 //! A module that needs the time takes it as a value the caller hands in; none reads a clock, the
 //! environment or the store itself.
 
+pub mod discover;
 pub mod follow_up;
 pub mod mailbox_filter;
 pub mod otp;

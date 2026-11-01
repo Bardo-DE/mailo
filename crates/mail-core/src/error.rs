@@ -240,7 +240,7 @@ pub enum CoreError {
 
     // ---- discovery, server search
     #[error(transparent)]
-    Discovery(#[from] crate::discover::Failed),
+    Discovery(#[from] mail_logic::discover::Failed),
     #[error("that account is no longer configured")]
     AccountGone,
 
