@@ -1616,25 +1616,6 @@ impl<B: Backend> AccountEngine<B> {
             })
     }
 
-    /// Run the account's rules over what a pass stored for the first time.
-    ///
-    /// `arrived` is [`SyncReport::arrived`], so each message meets the rules once, when it first
-    /// appears. Their actions are applied here and queued for the server with what the server
-    /// was last seen to support; the outbox drain that ends the pass sends them.
-    pub fn run_rules(
-        &self,
-        arrived: &[MessageId],
-        now: DateTime<Utc>,
-    ) -> Result<mail_store::rules::Ran, RuntimeError> {
-        Ok(mail_store::rules::at_arrival(
-            self.store.as_ref(),
-            self.account.clone(),
-            self.caps(),
-            arrived,
-            now,
-        )?)
-    }
-
     /// A first or incremental sync: survey, then headers, then bodies smallest band first.
     ///
     /// Headers before bodies is not only about speed. On POP3 `RETR` sets the seen flag and

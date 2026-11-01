@@ -112,3 +112,138 @@ pub fn junk_label(
         .find(|l| l.name.eq_ignore_ascii_case(mail_logic::junk::JUNK_LABEL))
         .map(|l| l.id)
 }
+
+/// What an arrival is decided over, read: the account's rules and labels, the VIPs, the user's
+/// names, the conversations the messages are in and what is known of each message.
+#[derive(Debug, Clone, Default)]
+pub struct ArrivalInput {
+    pub rules: Vec<mail_domain::Rule>,
+    pub labels: Vec<mail_domain::Label>,
+    pub vips: Vec<String>,
+    pub names: Vec<String>,
+    pub threads: Vec<ThreadView>,
+    pub evidence: Vec<mail_logic::arrival::Evidence>,
+}
+
+impl ArrivalInput {
+    /// The snapshot a decision is made over, for an account with or without a server and what its
+    /// server was seen to support.
+    pub fn snapshot<'a>(
+        &'a self,
+        account: &'a porter_core::AccountId,
+        has_server: bool,
+        caps: &'a mail_domain::AccountCaps,
+        policy: mail_logic::junk::Policy,
+    ) -> mail_logic::arrival::ArrivalSnapshot<'a> {
+        mail_logic::arrival::ArrivalSnapshot {
+            account,
+            has_server,
+            caps,
+            rules: &self.rules,
+            labels: &self.labels,
+            vips: &self.vips,
+            names: &self.names,
+            policy,
+            threads: &self.threads,
+            evidence: &self.evidence,
+        }
+    }
+}
+
+/// Read what `messages` of `account` are decided over, with `rules` to run over them. A message
+/// that is gone, or on another account, is left out.
+///
+/// What only the junk filter asks (the user's names, who the sender is, the server's verdict, the
+/// counts of the words) is read for the messages it can judge, and not at all with the filter off.
+pub fn arrival_input(
+    store: &SqliteStore,
+    account: &porter_core::AccountId,
+    messages: &[mail_domain::MessageId],
+    rules: Vec<mail_domain::Rule>,
+    policy: &mail_logic::junk::Policy,
+) -> Result<ArrivalInput, CoreError> {
+    use mail_domain::{Body, MailboxRole};
+    use mail_logic::arrival::{Evidence, Standing};
+    use mail_logic::junk::{Filtering, Heed};
+    let mut input = ArrivalInput {
+        rules,
+        labels: store.labels(account.clone())?,
+        vips: store.vips()?.into_iter().map(|vip| vip.address).collect(),
+        ..ArrivalInput::default()
+    };
+    let judging = policy.filtering == Filtering::On;
+    if judging {
+        input.names = store
+            .identities(account.clone())?
+            .into_iter()
+            .filter_map(|identity| identity.from.name)
+            .filter(|name| !name.trim().is_empty())
+            .collect();
+    }
+    for id in messages {
+        let message = match store.message(*id) {
+            Ok(message) => message,
+            Err(mail_store::StoreError::NoMessage(_)) => continue,
+            Err(e) => return Err(e.into()),
+        };
+        if message.account != *account {
+            continue;
+        }
+        if !input
+            .threads
+            .iter()
+            .any(|view| view.thread.summary.id == message.thread)
+        {
+            match thread_view(store, message.thread) {
+                Some(view) => input.threads.push(view),
+                None => continue,
+            }
+        }
+        let mut standing = Standing::default();
+        let judgeable = judging
+            && message.mailbox == MailboxRole::Inbox
+            && !matches!(message.body, Body::Absent);
+        if judgeable {
+            standing.acquaintance = acquaintance(store, &message.from.email);
+            let spared =
+                mail_logic::junk::spared(standing.acquaintance, &message, policy, &input.names);
+            if !spared {
+                if policy.server_says == Heed::Yes
+                    && let Body::Present { raw, .. } = &message.body
+                {
+                    standing.server_spam = store
+                        .blobs()
+                        .get(*raw)
+                        .is_ok_and(|bytes| mail_logic::junk::server_says_spam(&bytes));
+                }
+                if !standing.server_spam {
+                    standing.counts =
+                        store.junk_counts(account.clone(), &mail_logic::junk::words(&message))?;
+                }
+            }
+        }
+        input.evidence.push(Evidence {
+            message: message.id,
+            standing,
+            places: store.placing(message.id)?,
+        });
+    }
+    Ok(input)
+}
+
+/// What the records say of the sender at `address`: whether the contacts hold them, and whether
+/// the user has written to them.
+fn acquaintance(store: &SqliteStore, address: &str) -> mail_logic::junk::Acquaintance {
+    let contact = store
+        .contact(address)
+        .or_log("a sender could not be looked up")
+        .flatten();
+    mail_logic::junk::Acquaintance {
+        in_contacts: contact
+            .as_ref()
+            .is_some_and(|contact| contact.origin != mail_store::Origin::History),
+        written_to: contact
+            .as_ref()
+            .is_some_and(|contact| contact.written.count > 0),
+    }
+}

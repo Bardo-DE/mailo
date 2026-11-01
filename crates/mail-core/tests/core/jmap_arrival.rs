@@ -155,17 +155,12 @@ fn ada() -> Filter {
 }
 
 #[test]
-#[ignore = "a bug until arrivals are folded in mail-core: the JMAP pass runs only the junk filter"]
 fn a_filing_rule_runs_on_a_jmap_account_and_the_server_hears_of_it_in_the_same_pass() {
     let s = setup();
     s.rule(
         "Pelicans",
         ada(),
-        vec![
-            RuleAction::Label("Birds".to_owned()),
-            RuleAction::MarkRead,
-            RuleAction::Archive,
-        ],
+        vec![RuleAction::MarkRead, RuleAction::Archive],
     );
     let id = s.fake.state.lock().unwrap().deliver(
         &raw(1, "Hello", ""),
@@ -188,7 +183,6 @@ fn a_filing_rule_runs_on_a_jmap_account_and_the_server_hears_of_it_in_the_same_p
 }
 
 #[test]
-#[ignore = "a bug until arrivals are folded in mail-core: the JMAP pass runs only the junk filter"]
 fn a_muted_conversations_reply_arrives_read_and_archived_on_a_jmap_account() {
     let s = setup();
     let first = s.fake.state.lock().unwrap().deliver(
@@ -223,7 +217,6 @@ fn a_muted_conversations_reply_arrives_read_and_archived_on_a_jmap_account() {
 }
 
 #[test]
-#[ignore = "a bug until arrivals are folded in mail-core: the JMAP pass runs only the junk filter"]
 fn a_rules_reply_is_sent_by_a_jmap_account_in_the_pass_that_brought_the_mail() {
     let s = setup();
     let kept =

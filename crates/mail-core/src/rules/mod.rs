@@ -2,7 +2,7 @@
 //!
 //! A rule's condition is written in the search language — `from:bank.example subject:statement`
 //! means here what it means in `mailo search` — and its actions are flags. Rules run on each
-//! sync over mail that arrived in the inbox (`mail_store::rules::at_arrival`), and on demand
+//! sync over mail that arrived in the inbox (`crate::arrival`), and on demand
 //! with `rules run`. Where the account's server takes Sieve, `mailo sieve push` puts the ones
 //! it can run there too; see [`server`].
 
@@ -238,14 +238,22 @@ pub fn run(
                     path: path.clone(),
                 })
             });
-            let caps = crate::act::caps_here(store, account.id, now);
-            let ran =
-                mail_store::rules::run_now(store, &caps, &rule, &within, *batch, now, &mut |b| {
+            let caps = crate::act::caps_here(store, account.id.clone(), now);
+            let ran = crate::arrival::run_now(
+                store,
+                accounts.has_server(&account.id),
+                &caps,
+                &rule,
+                &within,
+                *batch,
+                now,
+                &mut |b| {
                     progress(RunProgress {
                         examined: b.examined,
                         matched: b.acted.len(),
                     });
-                })?;
+                },
+            )?;
             Ok(RulesDone::Ran {
                 name: name.clone(),
                 examined: ran.examined,

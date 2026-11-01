@@ -1037,7 +1037,7 @@ mod rules_manage {
             rule: &Rule,
             now: DateTime<Utc>,
             report: &(dyn Fn(usize) + Sync),
-        ) -> Result<mail_store::rules::Ran, CallError> {
+        ) -> Result<mail_core::arrival::Arrived, CallError> {
             mail_core::rules::manage::run(self.0.store(), rule, now, report)
                 .map_err(crate::CallError::from)
         }

@@ -76,30 +76,48 @@ async fn setup() -> Setup {
 
 async fn pass(setup: &mut Setup) -> SyncReport {
     let (_tx, mut cancel) = watch::channel(false);
-    let report = setup
-        .engine
-        .pass(&mut cancel, now(), &mut |_, _, _| {})
-        .await
-        .unwrap();
+    let report = whole(&mut setup.engine, &mut cancel).await;
     assert!(report.needs_attention.is_empty(), "{report:?}");
     report
+}
+
+/// A whole pass, with nothing done to what arrived before the outbox drains.
+async fn whole(engine: &mut JmapEngine, cancel: &mut mail_runtime::Cancel) -> SyncReport {
+    let midway = engine.pass_until_outbox(cancel, now()).await.unwrap();
+    engine.outbox(cancel, now(), midway).await
 }
 
 /// A pass whose arrivals are all called junk, as the junk filter would: each is sent to Spam
 /// before the outbox drains.
 async fn pass_calling_arrivals_junk(setup: &mut Setup) -> SyncReport {
     let (_tx, mut cancel) = watch::channel(false);
-    let mut call_junk = |store: &SqliteStore, caps: &AccountCaps, arrived: &[MessageId]| {
-        for id in arrived {
-            let message = store.message(*id).unwrap();
-            mail_store::rules::perform(store, caps, &Op::Spam, &message, now()).unwrap();
-        }
-    };
-    let report = setup
+    let midway = setup
         .engine
-        .pass(&mut cancel, now(), &mut call_junk)
+        .pass_until_outbox(&mut cancel, now())
         .await
         .unwrap();
+    let caps = midway.caps.clone().expect("the mailboxes are known by now");
+    for id in &midway.report.arrived {
+        let message = setup.store.message(*id).unwrap();
+        let thread = setup.store.thread(message.thread).unwrap();
+        let messages: Vec<Message> = thread
+            .messages
+            .iter()
+            .map(|id| setup.store.message(*id).unwrap())
+            .collect();
+        let applied = Op::Spam.apply(
+            &Target::Messages(vec![message.id]),
+            &thread,
+            &messages,
+            &caps,
+            now(),
+        );
+        setup
+            .store
+            .commit(&applied.into_commit(message.account.clone(), now(), true))
+            .unwrap();
+    }
+    let report = setup.engine.outbox(&mut cancel, now(), midway).await;
     assert!(report.needs_attention.is_empty(), "{report:?}");
     report
 }
@@ -520,11 +538,7 @@ async fn a_refused_password_stops_the_pass_and_says_so() {
     let plan = presets::jmap(USER, &s.fake.session_url(), HttpAuth::Basic).plan;
     s.engine = JmapEngine::new(acct_account(), plan, s.store.clone(), secrets).unwrap();
     let (_tx, mut cancel) = watch::channel(false);
-    let report = s
-        .engine
-        .pass(&mut cancel, now(), &mut |_, _, _| {})
-        .await
-        .unwrap();
+    let report = whole(&mut s.engine, &mut cancel).await;
     assert!(report.needs_reauth, "{report:?}");
 }
 
@@ -623,11 +637,7 @@ async fn an_email_filed_elsewhere_meanwhile_is_not_destroyed_and_comes_back() {
         .touch(&trashed, |email| email.mailboxes = vec!["mbI".to_owned()]);
 
     let (_tx, mut cancel) = watch::channel(false);
-    let report = s
-        .engine
-        .pass(&mut cancel, now(), &mut |_, _, _| {})
-        .await
-        .unwrap();
+    let report = whole(&mut s.engine, &mut cancel).await;
     assert!(
         report
             .needs_attention
@@ -1024,11 +1034,7 @@ async fn moving_to_a_folder_the_server_does_not_have_is_refused_for_good() {
     let lists = s.fake.calls("Mailbox/get").len();
 
     let (_tx, mut cancel) = watch::channel(false);
-    let report = s
-        .engine
-        .pass(&mut cancel, now(), &mut |_, _, _| {})
-        .await
-        .unwrap();
+    let report = whole(&mut s.engine, &mut cancel).await;
     assert!(
         report
             .needs_attention

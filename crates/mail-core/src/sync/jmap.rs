@@ -5,11 +5,13 @@
 //! is the scheduler's, over [`super::live`]'s event source.
 
 use super::report::{Done, Emit, Failure, Progress};
-use super::{Configured, junk_failed, say};
+use super::{Configured, arrival, say};
 use mail_runtime::JmapEngine;
 
-/// One pass, with the junk filter judging what it brought before the outbox drains, as an IMAP
-/// pass does: the engine has no rules step of its own to do it in.
+/// One pass, with the arrivals acted on between its fetches and its outbox, as an IMAP pass's
+/// are: the engine stops short of the outbox ([`JmapEngine::pass_until_outbox`]), the account's
+/// rules and junk filter run over what arrived ([`super::arrival`]), and the outbox then drains
+/// what they queued.
 pub(super) async fn drive(
     engine: &mut JmapEngine,
     account: &Configured,
@@ -19,29 +21,27 @@ pub(super) async fn drive(
 ) -> Result<Done, Failure> {
     // One request round covers the account, so there is nothing finer to say than that it began.
     say(emit, Progress::Connecting);
-    let policy = account.junk;
-    let mut filter_failed = None;
-    let mut sift = |store: &mail_store::SqliteStore,
-                    caps: &mail_domain::AccountCaps,
-                    arrived: &[mail_domain::MessageId]| {
-        if let Err(e) = crate::junk::sift(store, account.id.clone(), caps, arrived, &policy, now) {
-            filter_failed = Some(e);
-        }
-    };
-    let passed = typed(engine.pass(cancel, now, &mut sift).await);
-    passed.map(|mut done| {
-        if let Some(why) = filter_failed {
-            junk_failed(&mut done, why);
-        }
-        done
-    })
-}
-
-/// An engine's answer as data, its failure keeping the decision it carries.
-fn typed(
-    result: Result<mail_runtime::SyncReport, mail_runtime::RuntimeError>,
-) -> Result<Done, Failure> {
-    result
-        .map(Done::from_report)
-        .map_err(|e| Failure::of("", &e))
+    let midway = engine
+        .pass_until_outbox(cancel, now)
+        .await
+        .map_err(|e| Failure::of("", &e))?;
+    let mut acted = Done::default();
+    if let Some(caps) = &midway.caps
+        && !midway.stopped
+    {
+        arrival(
+            engine.store(),
+            account,
+            caps,
+            &midway.report.arrived,
+            now,
+            &mut acted,
+        );
+    }
+    let report = engine.outbox(cancel, now, midway).await;
+    let mut done = Done::from_report(report);
+    done.counts.ruled.extend(acted.counts.ruled);
+    done.counts.noted.extend(acted.counts.noted);
+    done.trouble.extend(acted.trouble);
+    Ok(done)
 }

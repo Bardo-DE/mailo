@@ -11,6 +11,7 @@ use crate::support::{account, store};
 use chrono::{DateTime, TimeZone, Utc};
 use mail_domain::id::account_id_from_uuid;
 use mail_domain::*;
+use mail_logic::arrival::{ArrivalEffect, Speaking};
 use mail_logic::junk::{ENOUGH, Filtering, Order, Policy, Treat};
 use mail_store::SqliteStore;
 use mail_store::Store;
@@ -188,17 +189,20 @@ fn state(store: &SqliteStore, id: MessageId) -> State {
 // The drivers: the one place this file says how arrival is run.
 // ---------------------------------------------------------------------------------------
 
-fn from_ran(ran: mail_store::rules::Ran) -> Seen {
+fn seen(ran: mail_core::arrival::Arrived) -> Seen {
     Seen {
         acted: ran.acted.iter().map(|(_, names)| names.clone()).collect(),
         queued: ran.queued,
         examined: ran.examined,
         muted: ran.muted.len(),
-        junk: Vec::new(),
+        junk: ran.junk,
         left: ran
-            .left
+            .effects
             .into_iter()
-            .map(|one| (one.message, one.action))
+            .map(|effect| match effect {
+                ArrivalEffect::Notice(message) => (message, RuleAction::Notify),
+                ArrivalEffect::RuleSend(request) => (request.message, request.action),
+            })
             .collect(),
     }
 }
@@ -211,22 +215,7 @@ fn arrive(
     policy: Policy,
     now: DateTime<Utc>,
 ) -> Seen {
-    let sift = |store: &SqliteStore| {
-        mail_core::junk::sift(store, account(), caps, arrived, &policy, now)
-            .unwrap()
-            .junk
-    };
-    let mut junk = Vec::new();
-    if policy.order == Order::BeforeRules {
-        junk = sift(store);
-    }
-    let mut seen =
-        from_ran(mail_store::rules::at_arrival(store, account(), caps, arrived, now).unwrap());
-    if policy.order == Order::AfterRules {
-        junk = sift(store);
-    }
-    seen.junk = junk;
-    seen
+    seen(mail_core::arrival::arrive(store, &account(), true, caps, arrived, policy, now).unwrap())
 }
 
 /// [`arrive`] with the junk filter off.
@@ -248,8 +237,8 @@ fn run_now(
     now: DateTime<Utc>,
     progress: &mut dyn FnMut(usize),
 ) -> Seen {
-    from_ran(
-        mail_store::rules::run_now(store, caps, rule, within, batch, now, &mut |ran| {
+    seen(
+        mail_core::arrival::run_now(store, true, caps, rule, within, batch, now, &mut |ran| {
             progress(ran.examined);
         })
         .unwrap(),
@@ -263,16 +252,9 @@ fn apply_to(
     picked: &[MessageId],
     now: DateTime<Utc>,
 ) -> Seen {
-    from_ran(
-        mail_store::rules::apply_to(
-            store,
-            account,
-            caps,
-            picked,
-            mail_store::rules::Speaking::Yes,
-            now,
-        )
-        .unwrap(),
+    seen(
+        mail_core::arrival::apply_to(store, &account, true, caps, picked, Speaking::Yes, now)
+            .unwrap(),
     )
 }
 
