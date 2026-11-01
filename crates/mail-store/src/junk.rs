@@ -2,21 +2,7 @@
 //! spam or not spam (migration 0047). What the counts mean is `mail_core::junk`'s; this keeps
 //! them, and keeps a message from being counted twice.
 
-/// What a message was learned as.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Judged {
-    Spam,
-    Ham,
-}
-
-impl Judged {
-    pub(crate) fn as_str(self) -> &'static str {
-        match self {
-            Judged::Spam => "spam",
-            Judged::Ham => "ham",
-        }
-    }
-}
+pub use mail_domain::Judged;
 
 /// What learning one message did.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

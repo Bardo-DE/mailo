@@ -8,6 +8,7 @@
 use crate::support::*;
 use mail_domain::*;
 use mail_store::{OutboxEntry, Store};
+
 use proptest::prelude::*;
 
 const LABEL_A: LabelId = LabelId::from_uuid(uuid::uuid!("00000000-0000-4000-8000-0000000000d1"));
@@ -458,5 +459,399 @@ fn a_rule_queues_for_a_message_the_server_holds_and_for_no_other() {
             assert_eq!(store.message(ids[0]).unwrap().read, ReadState::Read);
         }
         assert_eq!(held(store, &threads).queue.len(), 1, "{name}");
+    }
+}
+
+// ---------------------------------------------------------------------------------------
+// One commit
+// ---------------------------------------------------------------------------------------
+
+/// The decision as one value, for a person's act: the server told when `server` says so.
+fn committed(applied: &Applied, server: bool) -> Commit {
+    applied.clone().into_commit(acct_account(), at(100), server)
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig { cases: 48, ..ProptestConfig::default() })]
+
+    /// One commit writes what the patch, the queue and the rollback by hand wrote, in either
+    /// store, and both stores agree about it.
+    #[test]
+    fn a_commit_writes_what_writing_by_hand_wrote(specs in specs(), steps in steps()) {
+        let by_hand = Both::new();
+        let by_commit = Both::new();
+        let hand = [&by_hand.sqlite as &dyn Store, &by_hand.memory];
+        let commit = [&by_commit.sqlite as &dyn Store, &by_commit.memory];
+        let threads = seed(&hand, &specs);
+        seed(&commit, &specs);
+        for step in &steps {
+            let Some(applied) = decide(&by_hand.sqlite, &threads, step) else { continue };
+            let wanted = write_in_order(&by_hand.sqlite, &applied, step.server);
+            prop_assert_eq!(&wanted, &write_in_order(&by_hand.memory, &applied, step.server));
+            for (name, store) in by_commit.each() {
+                let written = store.commit(&committed(&applied, step.server));
+                prop_assert_eq!(wanted.is_ok(), written.is_ok(), "{}", name);
+            }
+            let want = held(&by_hand.sqlite, &threads);
+            prop_assert_eq!(&held(&by_commit.sqlite, &threads), &want);
+            prop_assert_eq!(&held(&by_commit.memory, &threads), &want);
+        }
+    }
+}
+
+/// A commit that carries a piece of work for the server says which entry each made.
+#[test]
+fn a_commit_says_what_it_queued() {
+    let both = Both::new();
+    let stores = [&both.sqlite as &dyn Store, &both.memory];
+    let on = |on_server| Spec {
+        thread: false,
+        read: false,
+        star: false,
+        mailbox: 0,
+        labels: (false, false),
+        on_server,
+    };
+    let threads = seed(&stores, &[on(true)]);
+    let step = Step {
+        thread: false,
+        only: None,
+        op: Op::SetRead(ReadState::Read),
+        server: true,
+    };
+    let applied = decide(&both.sqlite, &threads, &step).unwrap();
+    for (name, store) in both.each() {
+        let written = store.commit(&committed(&applied, true)).unwrap();
+        let queue = held(store, &threads).queue;
+        assert_eq!(
+            written.queued,
+            queue.iter().map(|entry| Some(entry.id)).collect::<Vec<_>>(),
+            "{name}"
+        );
+    }
+}
+
+/// What a commit that fails leaves behind is nothing: the conversation and the queue as they
+/// were, wherever in the commit it failed.
+mod atomicity {
+    use super::*;
+
+    /// A conversation in Trash that the server holds, and a deletion of it to commit.
+    fn trashed() -> (Both, [Vec<MessageId>; 2], Commit) {
+        let both = Both::new();
+        let stores = [&both.sqlite as &dyn Store, &both.memory];
+        let trash = MailboxRole::ALL
+            .iter()
+            .position(|r| *r == MailboxRole::Trash)
+            .unwrap() as u8;
+        let threads = seed(
+            &stores,
+            &[Spec {
+                thread: false,
+                read: true,
+                star: false,
+                mailbox: trash,
+                labels: (false, false),
+                on_server: true,
+            }],
+        );
+        let step = Step {
+            thread: false,
+            only: None,
+            op: Op::Destroy,
+            server: true,
+        };
+        let applied = decide(&both.sqlite, &threads, &step).unwrap();
+        let commit = committed(&applied, true);
+        assert_eq!(commit.queue[0].resolve, Resolve::BeforeForward);
+        (both, threads, commit)
+    }
+
+    fn unchanged(both: &Both, threads: &[Vec<MessageId>; 2], before: &Held) {
+        for (name, store) in both.each() {
+            assert_eq!(
+                &held(store, threads),
+                before,
+                "{name} wrote part of a failed commit"
+            );
+        }
+    }
+
+    /// The local change is refused: the deletion already addressed, before it, is undone.
+    #[test]
+    fn a_change_that_is_refused_takes_the_queue_before_it_back() {
+        let (both, threads, mut commit) = trashed();
+        let before = held(&both.sqlite, &threads);
+        commit.forward.changes.push(Change::MessageLabel(
+            threads[0][0],
+            LabelId::generate(),
+            Membership::In,
+        ));
+        // The memory store has no foreign keys to refuse a label that is not there.
+        assert!(both.sqlite.commit(&commit).is_err());
+        assert_eq!(held(&both.sqlite, &threads), before);
+    }
+
+    /// Work after the change that is refused takes the change, and the work before it, back.
+    #[test]
+    fn work_that_is_refused_takes_the_change_back() {
+        let (both, threads, mut commit) = trashed();
+        let before = held(&both.sqlite, &threads);
+        let unknown = MessageId::generate();
+        commit.queue.push(Queue {
+            intent: RemoteIntent::SetFlags {
+                messages: vec![unknown],
+                read: Some(ReadState::Read),
+                star: None,
+            },
+            undo: patch(Vec::new()),
+            id: None,
+            resolve: Resolve::AfterForward,
+            unplaced: Unplaced::Rollback,
+        });
+        for (name, store) in both.each() {
+            assert!(
+                matches!(
+                    store.commit(&commit),
+                    Err(mail_store::StoreError::NotQueued)
+                ),
+                "{name}"
+            );
+        }
+        unchanged(&both, &threads, &before);
+    }
+
+    /// The same work, left out where it names nothing, is skipped and the rest is written.
+    #[test]
+    fn work_that_names_nothing_is_skipped_where_that_is_said() {
+        let (both, _, mut commit) = trashed();
+        commit.queue.push(Queue {
+            intent: RemoteIntent::SetFlags {
+                messages: vec![MessageId::generate()],
+                read: Some(ReadState::Read),
+                star: None,
+            },
+            undo: patch(Vec::new()),
+            id: None,
+            resolve: Resolve::AfterForward,
+            unplaced: Unplaced::Skip,
+        });
+        for (name, store) in both.each() {
+            let written = store.commit(&commit).unwrap();
+            assert!(
+                written.queued[0].is_some() && written.queued[1].is_none(),
+                "{name}"
+            );
+        }
+    }
+
+    /// The outbox refuses the first piece of work.
+    #[test]
+    fn a_queue_the_outbox_refuses_writes_nothing() {
+        let (both, threads, commit) = trashed();
+        let before = held(&both.sqlite, &threads);
+        mail_store::testing::refuse_outbox_writes(&both.sqlite);
+        assert!(both.sqlite.commit(&commit).is_err());
+        assert_eq!(held(&both.sqlite, &threads), before);
+    }
+
+    /// A row refused after the change and the work were written takes both back.
+    #[test]
+    fn a_row_that_is_refused_takes_the_change_and_the_queue_back() {
+        let (both, threads, mut commit) = trashed();
+        let before = held(&both.sqlite, &threads);
+        both.sqlite
+            .raw_connection()
+            .execute_batch(
+                "CREATE TRIGGER refuse_junk BEFORE INSERT ON junk_learned \
+                 BEGIN SELECT RAISE(ABORT, 'full'); END;",
+            )
+            .unwrap();
+        commit.rows.push(Row::JunkTaught {
+            account: acct_account(),
+            message: threads[0][0],
+            words: vec!["viagra".to_owned()],
+            judged: Judged::Spam,
+        });
+        assert!(both.sqlite.commit(&commit).is_err());
+        assert_eq!(held(&both.sqlite, &threads), before);
+        assert_eq!(
+            both.sqlite
+                .junk_counts(acct_account(), &["viagra".to_owned()])
+                .unwrap(),
+            JunkCounts::default()
+        );
+    }
+}
+
+/// What the junk filter learns in a commit is the same in either store, and what is forgotten
+/// is forgotten.
+#[test]
+fn a_commit_teaches_and_untaches_the_junk_filter_alike_in_both_stores() {
+    let both = Both::new();
+    let stores = [&both.sqlite as &dyn Store, &both.memory];
+    let threads = seed(
+        &stores,
+        &[Spec {
+            thread: false,
+            read: true,
+            star: false,
+            mailbox: 0,
+            labels: (false, false),
+            on_server: false,
+        }],
+    );
+    let message = threads[0][0];
+    let words: Vec<String> = ["cheap", "pills"].map(str::to_owned).into();
+    let teach = |judged| Commit {
+        account: acct_account(),
+        at: at(100),
+        forward: patch(Vec::new()),
+        queue: Vec::new(),
+        rows: vec![Row::JunkTaught {
+            account: acct_account(),
+            message,
+            words: words.clone(),
+            judged,
+        }],
+    };
+    let forget = |judged| Commit {
+        rows: vec![Row::JunkForgotten {
+            account: acct_account(),
+            message,
+            judged,
+        }],
+        ..teach(judged)
+    };
+    let counts = || {
+        (
+            both.sqlite.junk_counts(acct_account(), &words).unwrap(),
+            both.memory.junk_counts(acct_account(), &words),
+        )
+    };
+    for commit in [teach(Judged::Spam), teach(Judged::Spam), teach(Judged::Ham)] {
+        both.sqlite.commit(&commit).unwrap();
+        both.memory.commit(&commit).unwrap();
+        let (sqlite, memory) = counts();
+        assert_eq!(sqlite, memory);
+    }
+    let (sqlite, _) = counts();
+    assert_eq!(
+        (sqlite.spam, sqlite.ham),
+        (0, 1),
+        "turned, and counted once"
+    );
+    // Forgetting it as spam, which it no longer is, does nothing; as ham, it leaves nothing.
+    for commit in [forget(Judged::Spam), forget(Judged::Ham)] {
+        both.sqlite.commit(&commit).unwrap();
+        both.memory.commit(&commit).unwrap();
+        let (sqlite, memory) = counts();
+        assert_eq!(sqlite, memory);
+    }
+    assert_eq!(counts().0.ham, 0);
+}
+
+/// Taking an act back withdraws the work that act queued, and only that.
+mod withdrawing {
+    use super::*;
+
+    fn on_server() -> Spec {
+        Spec {
+            thread: false,
+            read: false,
+            star: false,
+            mailbox: 0,
+            labels: (false, false),
+            on_server: true,
+        }
+    }
+
+    fn act(store: &dyn Store, threads: &[Vec<MessageId>; 2], op: Op) -> Applied {
+        let step = Step {
+            thread: false,
+            only: None,
+            op,
+            server: true,
+        };
+        let applied = decide(store, threads, &step).unwrap();
+        store.commit(&committed(&applied, true)).unwrap();
+        applied
+    }
+
+    /// The commit that takes `applied` back: its inverse, and its work out of the outbox.
+    fn take_back(applied: &Applied) -> Commit {
+        Commit {
+            account: acct_account(),
+            at: at(200),
+            forward: applied.inverse.clone(),
+            queue: Vec::new(),
+            rows: vec![Row::Withdrawn {
+                forward: applied.forward.id,
+                inverse: applied.inverse.clone(),
+            }],
+        }
+    }
+
+    #[test]
+    fn an_act_takes_back_its_own_entry_and_no_other() {
+        let both = Both::new();
+        let stores = [&both.sqlite as &dyn Store, &both.memory];
+        let threads = seed(&stores, &[on_server()]);
+        for (name, store) in both.each() {
+            let read = act(store, &threads, Op::SetRead(ReadState::Read));
+            let starred = act(store, &threads, Op::SetStar(Star::Starred));
+            assert_eq!(held(store, &threads).queue.len(), 2, "{name}");
+            store.commit(&take_back(&starred)).unwrap();
+            let queue = held(store, &threads).queue;
+            assert_eq!(queue.len(), 1, "{name}");
+            assert_eq!(
+                queue[0].undo, read.inverse,
+                "{name} withdrew the wrong entry"
+            );
+        }
+    }
+
+    #[test]
+    fn an_entry_the_server_has_been_tried_with_stays() {
+        let both = Both::new();
+        let stores = [&both.sqlite as &dyn Store, &both.memory];
+        let threads = seed(&stores, &[on_server()]);
+        for (name, store) in both.each() {
+            let read = act(store, &threads, Op::SetRead(ReadState::Read));
+            let entry = held(store, &threads).queue.remove(0);
+            store
+                .outbox_settle(
+                    entry.id,
+                    mail_store::Settle::Failed {
+                        reason: "offline".to_owned(),
+                        retry: Retry::Now,
+                    },
+                    at(150),
+                )
+                .unwrap();
+            store.commit(&take_back(&read)).unwrap();
+            assert_eq!(held(store, &threads).queue.len(), 1, "{name}");
+        }
+    }
+
+    /// Work queued before acts were named has no name to find it by, and is found by its undo.
+    #[test]
+    fn an_entry_queued_without_a_name_is_found_by_its_undo() {
+        let both = Both::new();
+        let stores = [&both.sqlite as &dyn Store, &both.memory];
+        let threads = seed(&stores, &[on_server()]);
+        let step = Step {
+            thread: false,
+            only: None,
+            op: Op::SetRead(ReadState::Read),
+            server: true,
+        };
+        let applied = decide(&both.sqlite, &threads, &step).unwrap();
+        for (name, store) in both.each() {
+            write_in_order(store, &applied, true).unwrap();
+            assert_eq!(held(store, &threads).queue.len(), 1, "{name}");
+            store.commit(&take_back(&applied)).unwrap();
+            assert!(held(store, &threads).queue.is_empty(), "{name}");
+        }
     }
 }

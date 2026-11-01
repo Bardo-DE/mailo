@@ -45,7 +45,7 @@ pub struct MemoryStore {
 /// A message that could not be read, and when it was last tried.
 type Tried = (mail_domain::RemoteRef, DateTime<Utc>);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Inner {
     /// Accounts that have appeared in a write. `enqueue` refuses a resolved operation for an
     /// account that was never written, the way the SQL foreign key would.
@@ -108,6 +108,12 @@ struct Inner {
     groups: BTreeMap<crate::GroupId, crate::Group>,
     /// People's cards, by id.
     cards: BTreeMap<crate::CardId, crate::PersonCard>,
+    /// What the junk filter learned each message as, with the words it was learned from.
+    junk_learned: BTreeMap<MessageId, (AccountId, mail_domain::Judged, Vec<String>)>,
+    /// Each word of an account's junk filter: in how many spam and how many good messages.
+    junk_words: BTreeMap<(AccountId, String), (u64, u64)>,
+    /// Each account's messages learned as spam and as not spam.
+    junk_totals: BTreeMap<AccountId, (u64, u64)>,
     /// OpenPGP public keys, by fingerprint.
     pgp_keys: BTreeMap<mail_domain::Fingerprint, mail_domain::PgpKey>,
     /// Autocrypt peer state, by lower-cased address.
@@ -141,6 +147,8 @@ struct OutboxRow {
     /// The messages it is about, addressed again when it is sent. Empty when it names none.
     messages: Vec<MessageId>,
     undo: Patch,
+    /// The act that queued it: the id of the patch it applied.
+    forward: Option<mail_domain::UndoId>,
     attempts: u32,
     next_attempt: DateTime<Utc>,
 }
@@ -191,6 +199,9 @@ impl Default for Inner {
             books: BTreeMap::new(),
             groups: BTreeMap::new(),
             cards: BTreeMap::new(),
+            junk_learned: BTreeMap::new(),
+            junk_words: BTreeMap::new(),
+            junk_totals: BTreeMap::new(),
             pgp_keys: BTreeMap::new(),
             autocrypt: BTreeMap::new(),
             smime_certs: BTreeMap::new(),
@@ -202,6 +213,25 @@ impl MemoryStore {
     /// An empty store.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// What `account`'s junk filter knows of `words`, as `SqliteStore::junk_counts` answers.
+    pub fn junk_counts(&self, account: AccountId, words: &[String]) -> mail_domain::JunkCounts {
+        let inner = self.inner.borrow();
+        let (spam, ham) = inner.junk_totals.get(&account).copied().unwrap_or_default();
+        let mut seen = Vec::new();
+        for word in words {
+            if let Some((s, h)) = inner.junk_words.get(&(account.clone(), word.clone()))
+                && !seen.iter().any(|(w, _, _): &(String, u64, u64)| w == word)
+            {
+                seen.push((word.clone(), *s, *h));
+            }
+        }
+        mail_domain::JunkCounts {
+            spam,
+            ham,
+            words: seen,
+        }
     }
 }
 
@@ -772,7 +802,23 @@ impl Store for MemoryStore {
         undo: &Patch,
         now: DateTime<Utc>,
     ) -> Result<Option<OutboxId>, StoreError> {
-        self.inner.borrow_mut().enqueue(account, &intent, undo, now)
+        self.inner
+            .borrow_mut()
+            .enqueue(account, &intent, undo, None, now)
+    }
+
+    fn commit(
+        &self,
+        commit: &mail_domain::Commit,
+    ) -> Result<mail_domain::commit::Written, StoreError> {
+        let mut inner = self.inner.borrow_mut();
+        // Whole or not at all, as the SQL transaction is: what a failure leaves is what was held.
+        let before = inner.clone();
+        let written = inner.commit(commit);
+        if written.is_err() {
+            *inner = before;
+        }
+        written
     }
 
     fn outbox_due(
@@ -1716,6 +1762,7 @@ impl Inner {
         account: AccountId,
         intent: &RemoteIntent,
         undo: &Patch,
+        forward: Option<mail_domain::UndoId>,
         now: DateTime<Utc>,
     ) -> Result<Option<OutboxId>, StoreError> {
         let Some(op) = self.resolve_intent(account.clone(), intent)? else {
@@ -1767,6 +1814,7 @@ impl Inner {
                 op,
                 messages,
                 undo: undo.clone(),
+                forward,
                 attempts,
                 next_attempt,
             },
@@ -1782,6 +1830,162 @@ impl Inner {
             });
         }
         Ok(Some(id))
+    }
+
+    /// [`Store::commit`], without the undoing of a failure.
+    fn commit(
+        &mut self,
+        commit: &mail_domain::Commit,
+    ) -> Result<mail_domain::commit::Written, StoreError> {
+        use mail_domain::{Resolve, Row, Unplaced};
+        let mut queued: Vec<Option<OutboxId>> = vec![None; commit.queue.len()];
+        for when in [Resolve::BeforeForward, Resolve::AfterForward] {
+            if when == Resolve::AfterForward {
+                self.accounts.insert(commit.account.clone());
+                for change in &commit.forward.changes {
+                    self.write_change(change)?;
+                }
+            }
+            for (at, queue) in commit.queue.iter().enumerate() {
+                if queue.resolve != when {
+                    continue;
+                }
+                let id = self.enqueue(
+                    commit.account.clone(),
+                    &queue.intent,
+                    &queue.undo,
+                    queue.id,
+                    commit.at,
+                )?;
+                if id.is_none() && queue.unplaced == Unplaced::Rollback {
+                    return Err(StoreError::NotQueued);
+                }
+                queued[at] = id;
+            }
+        }
+        for row in &commit.rows {
+            match row {
+                Row::JunkTaught {
+                    account,
+                    message,
+                    words,
+                    judged,
+                } => {
+                    self.junk_learn(account.clone(), *message, words, *judged);
+                }
+                Row::JunkForgotten {
+                    message, judged, ..
+                } => {
+                    self.junk_forget(*message, *judged);
+                }
+                Row::Withdrawn { forward, inverse } => {
+                    self.withdraw(*forward, inverse, commit.at)?;
+                }
+            }
+        }
+        Ok(mail_domain::commit::Written { queued })
+    }
+
+    /// As `SqliteStore::withdraw_in`.
+    fn withdraw(
+        &mut self,
+        forward: mail_domain::UndoId,
+        inverse: &Patch,
+        now: DateTime<Utc>,
+    ) -> Result<(), StoreError> {
+        let Some(id) = self
+            .outbox
+            .iter()
+            .find(|(_, row)| {
+                row.attempts == 0
+                    && match row.forward {
+                        Some(named) => named == forward,
+                        None => &row.undo == inverse,
+                    }
+            })
+            .map(|(id, _)| *id)
+        else {
+            return Ok(());
+        };
+        self.outbox_settle(
+            id,
+            Settle::Failed {
+                reason: "taken back before it was sent".to_owned(),
+                retry: Retry::Fatal("taken back".to_owned()),
+            },
+            now,
+        )
+    }
+
+    /// As `SqliteStore::junk_learn`.
+    fn junk_learn(
+        &mut self,
+        account: AccountId,
+        message: MessageId,
+        words: &[String],
+        judged: mail_domain::Judged,
+    ) {
+        use mail_domain::Judged;
+        let prior = self.junk_learned.get(&message).cloned();
+        if prior.as_ref().is_some_and(|(_, said, _)| *said == judged) {
+            return;
+        }
+        if let Some((_, said, taught)) = prior {
+            self.junk_take_back(&account, &taught, said);
+        }
+        let totals = self.junk_totals.entry(account.clone()).or_default();
+        match judged {
+            Judged::Spam => totals.0 += 1,
+            Judged::Ham => totals.1 += 1,
+        }
+        for word in words {
+            let counts = self
+                .junk_words
+                .entry((account.clone(), word.clone()))
+                .or_default();
+            match judged {
+                Judged::Spam => counts.0 += 1,
+                Judged::Ham => counts.1 += 1,
+            }
+        }
+        self.junk_learned
+            .insert(message, (account, judged, words.to_vec()));
+    }
+
+    /// As `SqliteStore::junk_forget`.
+    fn junk_forget(&mut self, message: MessageId, judged: mail_domain::Judged) {
+        let Some((account, said, taught)) = self.junk_learned.get(&message).cloned() else {
+            return;
+        };
+        if said != judged {
+            return;
+        }
+        self.junk_take_back(&account, &taught, judged);
+        self.junk_learned.remove(&message);
+    }
+
+    fn junk_take_back(
+        &mut self,
+        account: &AccountId,
+        words: &[String],
+        judged: mail_domain::Judged,
+    ) {
+        use mail_domain::Judged;
+        let down = |n: &mut u64| *n = n.saturating_sub(1);
+        if let Some(totals) = self.junk_totals.get_mut(account) {
+            match judged {
+                Judged::Spam => down(&mut totals.0),
+                Judged::Ham => down(&mut totals.1),
+            }
+        }
+        for word in words {
+            if let Some(counts) = self.junk_words.get_mut(&(account.clone(), word.clone())) {
+                match judged {
+                    Judged::Spam => down(&mut counts.0),
+                    Judged::Ham => down(&mut counts.1),
+                }
+            }
+        }
     }
 
     fn resolve_intent(

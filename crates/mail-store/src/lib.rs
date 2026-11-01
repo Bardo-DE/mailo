@@ -290,6 +290,18 @@ pub trait Store {
         now: DateTime<Utc>,
     ) -> Result<Option<OutboxId>, StoreError>;
 
+    /// Write one decision whole: in one transaction, the work to address before the change, the
+    /// change, the work to address after it, and the other rows. Either all of it is written or
+    /// none of it is.
+    ///
+    /// Each [`mail_domain::Queue`] is resolved as [`Store::enqueue`] resolves it. Work that
+    /// names nothing the server holds is skipped under [`mail_domain::Unplaced::Skip`], and under
+    /// [`mail_domain::Unplaced::Rollback`] refuses the commit with [`StoreError::NotQueued`].
+    fn commit(
+        &self,
+        commit: &mail_domain::Commit,
+    ) -> Result<mail_domain::commit::Written, StoreError>;
+
     /// Queued work whose `next_attempt` has arrived, in insertion order.
     ///
     /// Each operation on messages is pointed at where its messages are now, as

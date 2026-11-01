@@ -197,6 +197,22 @@ impl SqliteStore {
         // Taken before the reads that decide what is queued, so they read through it: where a
         // message is addressed and what is written about it are one answer, not two.
         let db = self.touch(Topics::OUTBOX);
+        let tx = db.unchecked_transaction()?;
+        let queued = self.queue_in(account, intent, undo, None, now)?;
+        tx.commit()?;
+        Ok(queued)
+    }
+
+    /// [`Self::queue`], inside a transaction the caller holds, for the act whose patch was
+    /// `forward`.
+    pub(super) fn queue_in(
+        &self,
+        account: AccountId,
+        intent: RemoteIntent,
+        undo: &Patch,
+        forward: Option<mail_domain::UndoId>,
+        now: DateTime<Utc>,
+    ) -> Result<Option<OutboxId>, StoreError> {
         let Some(op) = self.resolve_intent(account.clone(), &intent)? else {
             return Ok(None);
         };
@@ -209,7 +225,6 @@ impl SqliteStore {
         } else {
             Some(to_json("messages", &messages)?)
         };
-        let tx = db.unchecked_transaction()?;
         // A draft's copy on the server is only ever its latest: an upload still waiting is
         // stale once another is queued, or once the draft is sent or discarded, and goes. One
         // already under way when it goes runs to its end and settles into nothing (`settle`);
@@ -244,8 +259,9 @@ impl SqliteStore {
             }
         }
         self.connection().execute(
-            "INSERT INTO outbox (account, op, undo, attempts, next_attempt, created_at, messages)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            "INSERT INTO outbox (account, op, undo, attempts, next_attempt, created_at, messages,
+                                forward_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             params![
                 account.to_string(),
                 to_json("ProtoOp", &op)?,
@@ -254,6 +270,7 @@ impl SqliteStore {
                 from_time(next_attempt),
                 from_time(now),
                 messages,
+                forward.map(|id| id.to_string()),
             ],
         )?;
         let id = OutboxId::from_i64(self.connection().last_insert_rowid());
@@ -279,7 +296,6 @@ impl SqliteStore {
                 ],
             )?;
         }
-        tx.commit()?;
         Ok(Some(id))
     }
 
@@ -392,6 +408,18 @@ impl SqliteStore {
     ) -> Result<(), StoreError> {
         let db = self.touch(Topics::OUTBOX);
         let tx = db.unchecked_transaction()?;
+        self.settle_in(id, settle, now)?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// [`Self::settle`], inside a transaction the caller holds.
+    pub(super) fn settle_in(
+        &self,
+        id: OutboxId,
+        settle: Settle,
+        now: DateTime<Utc>,
+    ) -> Result<(), StoreError> {
         // Taken out of the outbox while it ran: a draft's upload that a later one replaced
         // (`queue`). Whatever it did is the later one's to correct, and there is no row to settle.
         let held: bool = self.connection().query_row(
@@ -484,8 +512,45 @@ impl SqliteStore {
                 self.undo_entry(id, &done)?;
             }
         }
-        tx.commit()?;
         Ok(())
+    }
+
+    /// Take the entry an act queued out of the outbox, if the server has not been tried with
+    /// it: settled as refused, which puts back its undo and drops what it held pending. The act
+    /// is named by the id of its patch; an entry queued before acts were named is found by its
+    /// undo being `inverse`. Does nothing when there is no such entry, or it has been tried.
+    pub(super) fn withdraw_in(
+        &self,
+        forward: mail_domain::UndoId,
+        inverse: &Patch,
+        now: DateTime<Utc>,
+    ) -> Result<(), StoreError> {
+        let found: Vec<(i64, String, Option<String>)> = {
+            let db = self.connection();
+            let mut stmt = db.prepare(
+                "SELECT id, undo, forward_id FROM outbox WHERE attempts = 0
+                   AND (forward_id = ?1 OR forward_id IS NULL) ORDER BY id",
+            )?;
+            stmt.query_map(params![forward.to_string()], |r| {
+                Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+            })?
+            .collect::<Result<_, _>>()?
+        };
+        let Some(id) = found.iter().find_map(|(id, undo, named)| {
+            let same =
+                named.is_some() || json::<Patch>("Patch", undo).is_ok_and(|undo| &undo == inverse);
+            same.then_some(*id)
+        }) else {
+            return Ok(());
+        };
+        self.settle_in(
+            OutboxId::from_i64(id),
+            Settle::Failed {
+                reason: "taken back before it was sent".to_owned(),
+                retry: Retry::Fatal("taken back".to_owned()),
+            },
+            now,
+        )
     }
 
     /// Drop entry `id` and put back its undo, except the changes about `done`.
