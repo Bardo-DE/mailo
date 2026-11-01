@@ -43,6 +43,9 @@ struct Transcript {
     per_connection: Option<usize>,
     /// Whether `EHLO` lists `DSN` (RFC 3461).
     dsn: bool,
+    /// A command, by its beginning, and the reply the server gives it instead of its own: a
+    /// refusal for the outbox to settle.
+    refuse: Option<(&'static str, &'static str)>,
 }
 
 impl Transcript {
@@ -81,10 +84,10 @@ async fn serve(seen: Shared) -> u16 {
 async fn session(sock: tokio::net::TcpStream, seen: Shared) {
     let (read, mut write) = sock.into_split();
     let mut lines = BufReader::new(read).lines();
-    let (cap, dsn) = {
+    let (cap, dsn, refuse) = {
         let mut seen = seen.lock().unwrap();
         seen.connections += 1;
-        (seen.per_connection, seen.dsn)
+        (seen.per_connection, seen.dsn, seen.refuse)
     };
     let mut accepted = 0;
 
@@ -139,7 +142,10 @@ async fn session(sock: tokio::net::TcpStream, seen: Shared) {
         };
         seen.lock().unwrap().commands.push(recorded);
 
-        let reply = if upper.starts_with("EHLO") {
+        let refused = refuse.filter(|(verb, _)| upper.starts_with(verb));
+        let reply = if let Some((_, reply)) = refused {
+            format!("{reply}\r\n")
+        } else if upper.starts_with("EHLO") {
             let dsn = if dsn { "250-DSN\r\n" } else { "" };
             format!(
                 "250-smtp.example\r\n250-SIZE 35882577\r\n250-8BITMIME\r\n{dsn}250 AUTH PLAIN LOGIN\r\n"
@@ -811,4 +817,145 @@ async fn a_pop3_send_is_kept_in_sent_on_its_conversation_and_outlives_the_next_s
             .unwrap(),
         1
     );
+}
+
+/// What a drain of three queued messages, against a server that answers `verb` with `reply`
+/// instead of its own, did to the first of them and to the rest.
+struct Refused {
+    report: mail_runtime::SyncReport,
+    states: Vec<(String, SendState)>,
+    waiting: Vec<String>,
+    accepted: Vec<String>,
+    commands: Vec<String>,
+}
+
+async fn refused_at(verb: &'static str, reply: &'static str) -> Refused {
+    let seen: Shared = Arc::new(Mutex::new(Transcript {
+        refuse: Some((verb, reply)),
+        ..Transcript::default()
+    }));
+    let port = serve(seen.clone()).await;
+    let mut it = three_queued(port);
+    let (_tx, mut cancel) = watch::channel(false);
+    let report = it.engine.drain_outbox(&mut cancel, now()).await.unwrap();
+    let mut states: Vec<(String, SendState)> = it
+        .store
+        .drafts(acct_account())
+        .unwrap()
+        .into_iter()
+        .map(|d| (d.subject, d.state))
+        .collect();
+    states.sort_by_key(|(subject, _)| {
+        ["first", "second", "third"]
+            .iter()
+            .position(|s| s == subject)
+    });
+    let waiting = it
+        .store
+        .outbox_due(
+            acct_account(),
+            now() + chrono::TimeDelta::try_days(365).unwrap(),
+        )
+        .unwrap()
+        .into_iter()
+        .filter_map(|entry| match entry.op {
+            ProtoOp::Submit { draft, .. } => it.store.draft(draft).ok().map(|d| d.subject),
+            _ => None,
+        })
+        .collect();
+    let seen = seen.lock().unwrap();
+    Refused {
+        report,
+        states,
+        waiting,
+        accepted: accepted(&seen),
+        commands: seen.commands.clone(),
+    }
+}
+
+/// A submission the server will not take now: the row waits and goes again, the draft says it
+/// is retrying, nothing is said to the person, and nothing behind it overtakes it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_submission_told_to_wait_stays_queued_and_holds_back_what_follows() {
+    let it = refused_at("MAIL FROM", "451 4.3.0 Try again later").await;
+    assert_eq!(it.report.submitted, 0);
+    assert_eq!(it.report.outbox_settled, 0);
+    assert!(it.report.needs_attention.is_empty(), "{:?}", it.report);
+    assert!(!it.report.needs_reauth);
+    assert_eq!(
+        it.report.hold, None,
+        "a wait a send asked for is the row's, not the pass's"
+    );
+    assert!(it.accepted.is_empty());
+    assert_eq!(it.waiting, ["first", "second", "third"], "no row is lost");
+    assert_eq!(it.report.still_queued, 3);
+    match &it.states[0].1 {
+        SendState::Failed { retry, .. } => {
+            assert!(!matches!(retry, Retry::Fatal(_)), "{retry:?}");
+        }
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(
+        it.states[1].1,
+        SendState::Queued,
+        "the next did not overtake"
+    );
+    assert_eq!(it.states[2].1, SendState::Queued);
+    assert_eq!(
+        it.commands
+            .iter()
+            .filter(|c| c.starts_with("MAIL FROM"))
+            .count(),
+        1,
+        "{:?}",
+        it.commands
+    );
+}
+
+/// A submission the server refuses for good: the row is dropped, the draft says why, the person
+/// is told, and what follows waits for the next drain rather than racing ahead.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_submission_refused_for_good_is_dropped_with_its_reason_and_stops_the_drain() {
+    let it = refused_at("MAIL FROM", "550 5.7.1 Sender refused").await;
+    assert_eq!(it.report.submitted, 0);
+    assert_eq!(it.report.outbox_settled, 0);
+    assert_eq!(it.report.needs_attention.len(), 1, "{:?}", it.report);
+    assert!(it.report.needs_attention[0].contains("Sender refused"));
+    assert!(!it.report.needs_reauth);
+    assert_eq!(it.waiting, ["second", "third"]);
+    assert_eq!(it.report.still_queued, 2);
+    match &it.states[0].1 {
+        SendState::Failed { retry, reason } => {
+            assert!(matches!(retry, Retry::Fatal(_)), "{retry:?}");
+            assert!(reason.contains("Sender refused"), "{reason}");
+        }
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(it.states[1].1, SendState::Queued);
+    assert_eq!(it.states[2].1, SendState::Queued);
+    assert!(it.accepted.is_empty());
+}
+
+/// A sending credential the server refuses is the row's trouble and the draft's, not the
+/// account's: the row waits, the pass is not told to ask the person to sign in, and nothing is
+/// said as a note.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_refused_sending_password_is_the_rows_and_not_the_passes() {
+    let it = refused_at("AUTH", "535 5.7.8 Authentication credentials invalid").await;
+    assert_eq!(it.report.submitted, 0);
+    assert!(!it.report.needs_reauth, "sending is apart from receiving");
+    assert!(it.report.needs_attention.is_empty(), "{:?}", it.report);
+    assert_eq!(it.waiting, ["first", "second", "third"], "no row is lost");
+    assert!(
+        matches!(
+            &it.states[0].1,
+            SendState::Failed {
+                retry: Retry::NeedsReauth,
+                ..
+            }
+        ),
+        "{:?}",
+        it.states
+    );
+    assert!(it.accepted.is_empty());
 }
