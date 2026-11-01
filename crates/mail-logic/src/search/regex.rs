@@ -74,7 +74,9 @@ fn find_re(input: &str) -> Option<usize> {
     None
 }
 
+// A test times itself; a decision never reads the clock.
 #[cfg(test)]
+#[allow(clippy::disallowed_methods)]
 mod tests {
     use std::time::{Duration, Instant};
 

@@ -73,7 +73,9 @@ pub fn match_list(query: &str, haystacks: &[&str]) -> Vec<FuzzyHit> {
     hits
 }
 
+// A test times itself; a decision never reads the clock.
 #[cfg(test)]
+#[allow(clippy::disallowed_methods)]
 mod tests {
     use super::match_list;
 
