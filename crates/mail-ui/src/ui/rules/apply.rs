@@ -108,7 +108,7 @@ mod tests {
     fn with_rule(actions: Vec<RuleAction>) -> bool {
         let (store, _dir) = seeded();
         let thread = thread_like(&store, "hi");
-        mail_store::Store::put_rule(
+        mail_client::testing::Store::put_rule(
             &*store,
             &Rule {
                 id: RuleId::generate(),

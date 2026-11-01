@@ -132,14 +132,9 @@ mail-ui-reader = { workspace = true, features = ["testing"] }
 mail-ui-compose = { workspace = true, features = ["testing"] }
 # The values a test starts from (`mail_domain::testing`): the program never has them.
 mail-domain = { workspace = true, features = ["testing"] }
-# Seeding a store without writing SQL (`mail_store::testing`): the program never has it.
-mail-store = { workspace = true, features = ["testing"] }
-# A test's double at a seam keeping what a server gave in the window's store
-# (`Client::store_for_test`): the program never has it.
+# The store a test seeds and the doubles it swaps in (`mail_client::testing`), and the client's
+# own seam for a server's answers (`Client::store_for_test`): the program has neither.
 mail-client = { workspace = true, features = ["testing"] }
-# The doubles at the runtime's seams (`mail_core::testing`): the program never has them.
-mail-core = { workspace = true, features = ["testing"] }
-mail-agent = { workspace = true, features = ["desktop"] }
 porter-secrets = { workspace = true, features = ["testing"] }
 # Read back by the window's own tests (reader blocks, print, PGP/S-MIME composer); not used by the
 # window itself, which gets them from `mail-core` and quire.
@@ -168,7 +163,6 @@ mail-crypto = { workspace = true, features = ["testing"] }
 # The Maildir naming the import and export tests read a file with.
 mail-archive.workspace = true
 # What a test reads back of a key the keyring holds (`ui/pgp/tests.rs`).
-mail-runtime = { workspace = true }
 
 [lints]
 workspace = true

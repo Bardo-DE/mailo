@@ -17,7 +17,7 @@ authors = ["Po Hsuan Lai <pohsuanlai0208@gmail.com>"]
 
 [features]
 # What a front end's tests build a client with (`Client::inline`): off in the program.
-testing = ["mail-store/testing"]
+testing = ["mail-store/testing", "mail-core/testing"]
 # The desktop's notification service, named for a caller that shows notifications itself.
 desktop = ["mail-agent/desktop"]
 

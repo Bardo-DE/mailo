@@ -6,7 +6,7 @@ use base64::Engine as _;
 use super::*;
 use crate::ui::app::App;
 use crate::ui::fixtures::{key, work};
-use mail_core::SqliteStore;
+use mail_client::testing::SqliteStore;
 use mail_editor::{Check, Doc, ImageRef, Level, Object, ParaKind, Range, Table};
 use mail_ui_compose::compose::page::{Float, Fold, Guard, RowShown, When};
 use std::sync::Arc;
@@ -101,7 +101,7 @@ pub(super) fn window_with(
 pub(super) fn with_identities(built: &crate::ui::fixtures::Work) {
     for row in mail_ui_kit::data::account_rows(&crate::ui::fixtures::client(&built.store)) {
         let (account, address) = (row.id, row.address);
-        mail_store::testing::seed_identity_for(
+        mail_client::testing::seed::seed_identity_for(
             &built.store,
             IdentityId::generate(),
             account,

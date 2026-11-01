@@ -1,8 +1,8 @@
 use super::{SHOWN, draft_key, draft_of, rows, thread_key, thread_of};
 use crate::ui::fixtures::{acct_account, inbox_query, seeded, work};
 use chrono::{TimeZone, Utc};
-use mail_core::SqliteStore;
-use mail_core::Store;
+use mail_client::testing::SqliteStore;
+use mail_client::testing::Store;
 use mail_domain::{Address, Draft, DraftId, ThreadId};
 use mail_logic::when::Clock;
 use mail_ui_kit::space::SpaceId;
@@ -117,9 +117,15 @@ fn parked(
     body: &str,
     minute: i64,
 ) -> Draft {
-    let draft =
-        mail_core::compose::draft_new(store, acct_account(), to, subject, body, time(minute))
-            .unwrap_or_else(|why| panic!("a draft: {why}"));
+    let draft = mail_client::testing::core::compose::draft_new(
+        store,
+        acct_account(),
+        to,
+        subject,
+        body,
+        time(minute),
+    )
+    .unwrap_or_else(|why| panic!("a draft: {why}"));
     today.park(SpaceId(0), draft.id, "Draft", at(time(minute)));
     draft
 }
@@ -141,7 +147,8 @@ fn each_draft_is_named_by_what_is_in_it_and_an_empty_or_gone_one_is_left_out() {
     let written = parked(&store, &mut today, "", &[], long, 3);
     let _empty = parked(&store, &mut today, "", &[], "", 4);
     let gone = parked(&store, &mut today, "Gone", &[], "", 5);
-    mail_core::compose::discard(&store, gone.id).unwrap_or_else(|why| panic!("{why}"));
+    mail_client::testing::core::compose::discard(&store, gone.id)
+        .unwrap_or_else(|why| panic!("{why}"));
 
     let got: Vec<(String, String, Option<String>)> = rows(
         &crate::ui::fixtures::client(&store),

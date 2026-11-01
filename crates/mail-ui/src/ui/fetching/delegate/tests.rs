@@ -4,8 +4,8 @@ use crate::ui::app::App;
 use crate::ui::fixtures::settle_quiet;
 use crate::ui::fixtures::{dispatching, rebuild_into};
 use dioxus::dioxus_core::VirtualDom;
-use mail_core::SqliteStore;
-use mail_core::fetch::{Event, Link, Trigger};
+use mail_client::testing::SqliteStore;
+use mail_client::testing::core::fetch::{Event, Link, Trigger};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 

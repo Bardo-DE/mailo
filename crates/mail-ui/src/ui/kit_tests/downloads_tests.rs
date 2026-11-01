@@ -31,7 +31,7 @@ fn a_rows_second_line() {
         thread: ThreadId::generate(),
         subject: "  Minutes of the board ".to_owned(),
     };
-    let size = mail_core::attach::human_size(2048);
+    let size = mail_client::testing::core::attach::human_size(2048);
     let when = mail_logic::when::upcoming(at(0), at(1), &chrono::Local, Clock::H24);
     let cases = [
         (

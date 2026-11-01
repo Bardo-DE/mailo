@@ -6,7 +6,7 @@ use super::super::tests::opened_on;
 use super::row_id;
 use crate::ui::fixtures::{Seen, Work, click, drain_seen, identify, settle_quiet, type_into, work};
 use dioxus::dioxus_core::VirtualDom;
-use mail_core::signature;
+use mail_client::testing::core::signature;
 use mail_domain::{IdentityId, Signature};
 use mail_ui_kit::view::PageId;
 use mail_ui_model::copy;
@@ -15,7 +15,7 @@ use mail_ui_model::copy;
 /// opens.
 fn work_signature(built: &Work) -> Signature {
     // The reference fixture's accounts are plans without identities, as an account is stored.
-    let (address, account) = mail_core::compose::sending_accounts(&built.store)
+    let (address, account) = mail_client::testing::core::compose::sending_accounts(&built.store)
         .into_iter()
         .next()
         .expect("the fixture has an account that sends");

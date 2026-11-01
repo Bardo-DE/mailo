@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use chrono::{TimeZone, Utc};
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::id::account_id_from_uuid;
 use mail_domain::*;
 use mail_proto::sieve::Pushed;
@@ -40,7 +40,7 @@ pub(super) fn own_server(store: &Arc<SqliteStore>) -> AccountRow {
 
 /// `plan` kept as account `id`, as `account add` keeps one, and its row.
 pub(super) fn seeded(store: &Arc<SqliteStore>, id: AccountId, plan: &AccountPlan) -> AccountRow {
-    mail_store::testing::seed_account_plan(
+    mail_client::testing::seed::seed_account_plan(
         store,
         id.clone(),
         &plan.address,

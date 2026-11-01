@@ -66,9 +66,9 @@ mod tests {
             account: mail_domain::id::account_id_from_uuid(uuid::Uuid::from_u128(1)),
             summary: "Ada".to_owned(),
             body: "lunch".to_owned(),
-            opens: mail_core::notify::Opens::Inbox(mail_domain::id::account_id_from_uuid(
-                uuid::Uuid::from_u128(1),
-            )),
+            opens: mail_client::testing::core::notify::Opens::Inbox(
+                mail_domain::id::account_id_from_uuid(uuid::Uuid::from_u128(1)),
+            ),
             reply: false,
         }
     }

@@ -1,4 +1,4 @@
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::id::account_id_from_uuid;
 use mail_domain::*;
 use porter_core::AccountId;
@@ -12,7 +12,7 @@ pub(in crate::ui) fn identify(
     account: AccountId,
     email: &str,
 ) {
-    mail_store::testing::seed_identity_for(store, identity, account, email, None);
+    mail_client::testing::seed::seed_identity_for(store, identity, account, email, None);
 }
 
 pub(in crate::ui) fn acct_account() -> AccountId {
@@ -43,14 +43,19 @@ pub(in crate::ui) fn seeded() -> (Arc<SqliteStore>, tempfile::TempDir) {
     let store = Arc::new(SqliteStore::in_memory(dir.path()).unwrap());
     let identity = IdentityId::generate();
     {
-        mail_store::testing::seed_account(&store, acct_account(), "me@example.test");
+        mail_client::testing::seed::seed_account(&store, acct_account(), "me@example.test");
         identify(&store, identity, acct_account(), "me@example.test");
         // Capabilities, because `account add` always writes them and a fixture without them is a
         // state the application cannot reach. Gmail's own: archiving means dropping the inbox
         // label, and labels are the server's. This is what decides whether an operation performed
         // in the window has a server half at all.
-        mail_store::testing::seed_caps(&store, acct_account(), &gmail_caps(), chrono::Utc::now())
-            .unwrap();
+        mail_client::testing::seed::seed_caps(
+            &store,
+            acct_account(),
+            &gmail_caps(),
+            chrono::Utc::now(),
+        )
+        .unwrap();
     }
 
     let raw = store
@@ -393,5 +398,8 @@ pub(in crate::ui) fn inbox_query() -> Query {
 
 /// A client over `store` that reads where it is asked, as a test's window reads.
 pub(in crate::ui) fn client(store: &Arc<SqliteStore>) -> mail_client::Client {
-    mail_client::Client::inline(store.clone(), Arc::new(mail_core::mail::SystemClock))
+    mail_client::Client::inline(
+        store.clone(),
+        Arc::new(mail_client::testing::core::mail::SystemClock),
+    )
 }

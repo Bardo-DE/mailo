@@ -10,7 +10,7 @@ use crate::ui::fixtures::{
 use crate::ui::settings_window::settings_root;
 use crate::ui::settings_window::tests::opened_on;
 use dioxus::dioxus_core::VirtualDom;
-use mail_core::Storage;
+use mail_client::testing::core::Storage;
 use mail_ui_kit::data::account_rows;
 use mail_ui_kit::settings_at::{SettingsAsked, SettingsAt};
 use mail_ui_kit::view::PageId;

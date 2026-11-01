@@ -1,16 +1,16 @@
 //! Asking for a read receipt: Send ▾'s item, the row it shows while on, and the draft it saves.
 
-use mail_core::Store;
+use mail_client::testing::Store;
 
 use super::*;
 use crate::ui::fixtures::{acct_account, click, seeded};
-use mail_core::SqliteStore;
+use mail_client::testing::SqliteStore;
 use mail_ui_compose::compose::foot::pick_send;
 use mail_ui_compose::compose::page::{Float, Saved};
 use mail_ui_compose::compose::receipt::{ASK, KEY, OFF_KEY};
 
 fn fresh_draft(store: &SqliteStore) -> Draft {
-    mail_core::compose::draft_new(store, acct_account(), &[], "", "", Utc::now())
+    mail_client::testing::core::compose::draft_new(store, acct_account(), &[], "", "", Utc::now())
         .unwrap_or_else(|why| panic!("a new draft: {why}"))
 }
 

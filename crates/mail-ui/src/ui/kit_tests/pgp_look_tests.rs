@@ -3,13 +3,13 @@
 
 use std::sync::Arc;
 
-use mail_core::testing::MapSigningStore;
+use mail_client::testing::MapSigningStore;
 use mail_crypto::openpgp::Cert;
 use mail_domain::*;
 
 use super::pgp_tests::{ME, arrive, own_key, reader_looking, sealed, someone_elses, until};
 use crate::ui::fixtures::seeded;
-use mail_core::message::{Looks, Read};
+use mail_client::testing::core::message::{Looks, Read};
 use mail_ui_kit::pgp::{Look, lookup, save_attachment};
 
 /// A message to me saying `text`, with `map.bin` attached, unique by `word`.
@@ -89,7 +89,7 @@ fn a_key_arriving_by_any_road_opens_a_message_again_without_the_sheet() {
 
     // Imported straight through the data side, as `mailo pgp import` would: nothing tells the
     // window, and nothing has to.
-    mail_core::pgp::keys::import(
+    mail_client::testing::core::pgp::keys::import(
         &store,
         &*secrets,
         key.armored().unwrap().as_bytes(),

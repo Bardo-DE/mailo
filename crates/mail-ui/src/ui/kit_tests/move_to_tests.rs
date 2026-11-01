@@ -9,7 +9,7 @@ use chrono::Utc;
 use dioxus::html::input_data::keyboard_types::Modifiers;
 use dioxus::prelude::*;
 use dioxus_core::VirtualDom;
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::id::account_id_from_uuid;
 use mail_domain::*;
 use porter_core::AccountId;
@@ -57,7 +57,7 @@ fn store() -> (Arc<SqliteStore>, tempfile::TempDir, Vec<ThreadId>) {
         archive: ArchiveMeans::MoveToFolder("Archive".to_owned()),
         ..preset.expected_caps.clone()
     };
-    mail_store::testing::seed_account_plan(
+    mail_client::testing::seed::seed_account_plan(
         &store,
         acct_imap(),
         &preset.plan.address,
@@ -215,11 +215,11 @@ fn the_menu_offers_the_accounts_own_folders_and_nothing_else() {
 fn window(store: Arc<SqliteStore>) -> (VirtualDom, Seen) {
     dispatching();
     let fetcher = Fetcher(Arc::new(|_, account, _, _| {
-        Ok(mail_core::sync::report::PassEnd::Finished(
-            mail_core::sync::report::AccountReport {
+        Ok(mail_client::testing::core::sync::report::PassEnd::Finished(
+            mail_client::testing::core::sync::report::AccountReport {
                 account,
                 address: "me@nowhere.example".to_owned(),
-                counts: mail_core::sync::report::Counts::default(),
+                counts: mail_client::testing::core::sync::report::Counts::default(),
                 trouble: Vec::new(),
             },
         ))
@@ -368,7 +368,8 @@ fn queued_folders(store: &SqliteStore) -> Vec<String> {
 /// Filed into `path`, as a pick in the menu does it, with the undo it hands the toast.
 fn file(store: &Arc<SqliteStore>, thread: ThreadId, path: &str) -> mail_logic::undo::Undo {
     let label = folder_label(&crate::ui::fixtures::client(store), acct_imap(), path).unwrap();
-    mail_core::act::perform(store, thread, Op::File(label)).expect("the move was not made")
+    mail_client::testing::core::act::perform(store, thread, Op::File(label))
+        .expect("the move was not made")
 }
 
 #[test]
@@ -379,7 +380,7 @@ fn a_move_taken_back_with_nothing_after_it_never_reaches_the_server() {
     file(&store, threads[1], "收據");
     assert_eq!(queued_folders(&store), [TO, "收據"]);
 
-    assert!(mail_core::act::take_back(&store, &moved));
+    assert!(mail_client::testing::core::act::take_back(&store, &moved));
     assert_eq!(queued_folders(&store), ["收據"], "the move is still queued");
     assert_eq!(filed_in(&store, TO), 0);
 }
@@ -391,7 +392,7 @@ fn a_move_with_a_later_one_on_the_same_conversation_stays_queued_when_taken_back
     file(&store, threads[0], "收據");
     assert_eq!(queued_folders(&store), [TO, "收據"]);
 
-    assert!(mail_core::act::take_back(&store, &first));
+    assert!(mail_client::testing::core::act::take_back(&store, &first));
     // Withdrawing the first would write the state from before it under the second, which was
     // made on top of it. Both go, in the order they were made, and the second is where it ends.
     assert_eq!(

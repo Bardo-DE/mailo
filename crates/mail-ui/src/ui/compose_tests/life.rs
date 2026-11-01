@@ -1,12 +1,12 @@
 //! The page against a real store: the guards, autosave, Esc, and Send then Undo.
 
 use ds::prelude::*;
-use mail_core::Store;
+use mail_client::testing::Store;
 
 use super::*;
 use crate::ui::fixtures::{acct_account, click, press, seeded};
 use ds_harness::harness::SETTLE_BOUND;
-use mail_core::SqliteStore;
+use mail_client::testing::SqliteStore;
 use mail_editor::{to_flowed, to_html};
 use mail_ui_compose::compose::desk::reopen;
 use mail_ui_compose::compose::page::{Guard, Phase};
@@ -16,7 +16,7 @@ fn far() -> DateTime<Utc> {
 }
 
 fn fresh_draft(store: &SqliteStore) -> Draft {
-    mail_core::compose::draft_new(store, acct_account(), &[], "", "", Utc::now())
+    mail_client::testing::core::compose::draft_new(store, acct_account(), &[], "", "", Utc::now())
         .unwrap_or_else(|why| panic!("a new draft: {why}"))
 }
 
@@ -276,7 +276,7 @@ async fn attach_puts_the_files_the_dialog_chose_on_the_draft() {
     // Over the budget without writing it: a sparse file is only its length.
     let huge = files.path().join("huge.bin");
     std::fs::File::create(&huge)
-        .and_then(|file| file.set_len(mail_core::compose::ATTACHMENT_BUDGET + 1))
+        .and_then(|file| file.set_len(mail_client::testing::core::compose::ATTACHMENT_BUDGET + 1))
         .unwrap_or_else(|why| panic!("{why}"));
     let (dialogs, asked) = Dialogs::answering(vec![agenda, huge]);
 
@@ -690,11 +690,17 @@ async fn a_picture_in_the_body_reopens_drawn_and_is_saved_by_its_name() {
     let (store, _dir) = seeded();
     let draft = fresh_draft(&store);
     let png = b"\x89PNG\r\n\x1a\nnot really a picture";
-    let (mut stored, cid) =
-        mail_core::compose::attach_inline(&store, draft.id, "photo.png", png, Utc::now())
-            .unwrap_or_else(|why| panic!("the picture: {why}"));
+    let (mut stored, cid) = mail_client::testing::core::compose::attach_inline(
+        &store,
+        draft.id,
+        "photo.png",
+        png,
+        Utc::now(),
+    )
+    .unwrap_or_else(|why| panic!("the picture: {why}"));
     stored.html = Some(format!("<p>Look</p><img alt=\"\" src=\"cid:{cid}\">"));
-    mail_core::compose::save(&store, &stored).unwrap_or_else(|why| panic!("save: {why}"));
+    mail_client::testing::core::compose::save(&store, &stored)
+        .unwrap_or_else(|why| panic!("save: {why}"));
 
     let page = life::load(
         &crate::ui::fixtures::client(&store),

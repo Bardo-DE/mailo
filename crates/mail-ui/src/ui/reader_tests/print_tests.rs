@@ -5,7 +5,7 @@ use crate::ui::fixtures::{
 use chrono::TimeZone;
 use dioxus::prelude::*;
 use dioxus_core::{ElementId, VirtualDom};
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::*;
 use mail_reader::Pages;
 use mail_ui_reader::print::tool::{PrintChoice, ROWS, job_of};

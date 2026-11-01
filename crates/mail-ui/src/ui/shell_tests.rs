@@ -3,7 +3,7 @@
 use super::app::App;
 use super::fixtures::{dispatching, rebuild_into, seeded, work};
 use dioxus::prelude::*;
-use mail_core::SqliteStore;
+use mail_client::testing::SqliteStore;
 use std::sync::Arc;
 
 fn page_of(store: Arc<SqliteStore>, dirs: Option<mail_ui_kit::appearance::WindowDirs>) -> String {
@@ -135,13 +135,15 @@ fn favourites_appear_once_a_conversation_is_pinned() {
         "Favourites with nothing pinned:\n{page}"
     );
     let hi = super::fixtures::thread_like(&store, "hi");
-    assert!(mail_core::snooze::pin(&store, hi, chrono::Utc::now()).unwrap_or(false));
+    assert!(
+        mail_client::testing::core::snooze::pin(&store, hi, chrono::Utc::now()).unwrap_or(false)
+    );
     let page = page_of(store.clone(), None);
     assert!(
         page.contains(mail_ui_model::copy::headers::FAVOURITES),
         "no Favourites with a pinned conversation:\n{page}"
     );
-    let subject = mail_core::Store::thread(store.as_ref(), hi)
+    let subject = mail_client::testing::Store::thread(store.as_ref(), hi)
         .map(|thread| thread.summary.subject)
         .unwrap_or_default();
     assert!(
@@ -271,11 +273,11 @@ async fn follow(
 /// accounts, and not otherwise: not before one is scheduled, and not for another Space's.
 #[tokio::test]
 async fn scheduled_is_in_the_sidebar_only_while_a_send_waits_in_the_space() {
-    use mail_core::Store as _;
+    use mail_client::testing::Store as _;
     dispatching();
     let (store, _dir) = seeded();
     async fn sidebar(
-        store: &std::sync::Arc<mail_core::SqliteStore>,
+        store: &std::sync::Arc<mail_client::testing::SqliteStore>,
         spaces: mail_ui_kit::space::Spaces,
     ) -> bool {
         let mut dom = VirtualDom::new(App)
@@ -308,8 +310,15 @@ async fn scheduled_is_in_the_sidebar_only_while_a_send_waits_in_the_space() {
     );
 
     let now = chrono::Utc::now();
-    let draft = mail_core::compose::draft_new(&store, mine.clone(), &[], "Friday", "", now)
-        .unwrap_or_else(|why| panic!("{why}"));
+    let draft = mail_client::testing::core::compose::draft_new(
+        &store,
+        mine.clone(),
+        &[],
+        "Friday",
+        "",
+        now,
+    )
+    .unwrap_or_else(|why| panic!("{why}"));
     store
         .set_send_state(
             draft.id,

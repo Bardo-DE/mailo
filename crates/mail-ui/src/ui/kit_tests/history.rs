@@ -33,7 +33,7 @@ fn writing_to_someone_is_what_replied_means() {
     let before = history(&crate::ui::fixtures::client(&built.store));
     assert!(!before.get("dana@example.com").is_some_and(|d| d.replied));
     // One of the fixture's messages, rewritten as sent from the Google account to Dana.
-    mail_store::testing::edit_messages(&built.store, |message| {
+    mail_client::testing::seed::edit_messages(&built.store, |message| {
         if message.subject != "Accepted: Design review, Thursday 14:00" {
             return false;
         }

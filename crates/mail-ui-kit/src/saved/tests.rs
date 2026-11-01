@@ -30,7 +30,7 @@ fn a_saved_view_is_a_place_after_the_folders_and_badged_by_its_filter() {
         &labels(),
         &[],
         std::slice::from_ref(&view),
-        &mail_core::vip::Vips::default(),
+        &mail_client::testing::core::vip::Vips::default(),
     );
     let last = places.last().unwrap();
     assert_eq!(last.name, "Trips");

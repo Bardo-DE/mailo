@@ -290,7 +290,7 @@ impl Window {
 fn a_reply_text_opens_as_paragraphs_a_signature_and_a_folded_original() {
     use mail_editor::Object;
     let text = "Sounds good.\r\n\r\n-- \r\nDana\r\n\r\nOn Wed, 23 Sep 2026 at 09:02, Sam Okafor wrote:\r\n> first line\r\n> second line\r\n";
-    let nodes = mail_core::compose::doc_from_text(text);
+    let nodes = mail_client::testing::core::compose::doc_from_text(text);
     let shape: Vec<String> = nodes
         .iter()
         .map(|node| match node {
@@ -324,7 +324,7 @@ fn a_flowed_text_draft_opens_as_its_paragraphs() {
         html: None,
         ..Draft::blank(&mail_domain::testing::identity(), at(0))
     };
-    let doc = mail_core::compose::doc_of(&draft, &[]);
+    let doc = mail_client::testing::core::compose::doc_of(&draft, &[]);
     let paras: Vec<String> = doc
         .nodes
         .iter()

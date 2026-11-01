@@ -4,7 +4,7 @@
 
 use super::*;
 use crate::ui::contacts::tests::{ADDED, HEARD, ME, NO_REPLY, WRITTEN, the_book};
-use mail_core::SqliteStore;
+use mail_client::testing::SqliteStore;
 use mail_ui_compose::compose::page::Float;
 use mail_ui_compose::compose::recipients::{people_items, pick_person, typed};
 use mail_ui_kit::lines::List;
@@ -18,7 +18,7 @@ fn keys(page: &Page, list: List) -> Vec<String> {
 
 /// What the book itself answers for `text`, best first.
 fn book_order(store: &SqliteStore, text: &str) -> Vec<String> {
-    use mail_core::Store;
+    use mail_client::testing::Store;
     store
         .contacts_matching(text, mail_ui_kit::book::SUGGESTED)
         .unwrap_or_else(|why| panic!("the book: {why}"))

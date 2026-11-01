@@ -8,9 +8,9 @@ use std::sync::Arc;
 use chrono::{TimeDelta, Utc};
 use dioxus::prelude::*;
 use dioxus_core::VirtualDom;
-use mail_core::SigningStore;
-use mail_core::testing::MapSigningStore;
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::MapSigningStore;
+use mail_client::testing::core::SigningStore;
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::signing::{SigningKeyId, SigningKeyRef};
 use mail_domain::*;
 
@@ -159,7 +159,7 @@ async fn an_identity_files_password_is_asked_in_a_sheet_and_never_drawn() {
     );
     assert!(!page.contains(PASSWORD), "the password is in the markup");
     assert!(!page.contains(prompt), "still asking: {page}");
-    let own = mail_core::smime::own_cert(&store, "me@example.test", Utc::now())
+    let own = mail_client::testing::core::smime::own_cert(&store, "me@example.test", Utc::now())
         .unwrap()
         .unwrap();
     assert!(holds(&secrets, &own));
@@ -197,7 +197,7 @@ async fn a_certificate_is_trusted_and_the_trust_taken_back() {
     let (store, _dir) = seeded();
     let secrets = Arc::new(MapSigningStore::default());
     let root = pki().root.cert.fingerprint();
-    mail_core::smime::certs::import(
+    mail_client::testing::core::smime::certs::import(
         &store,
         secrets.as_ref(),
         pki().root.cert.pem().as_bytes(),

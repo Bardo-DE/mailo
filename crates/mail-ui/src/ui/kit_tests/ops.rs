@@ -2,7 +2,7 @@
 
 mod tests {
     use crate::ui::fixtures::{acct_account, gmail_caps, inbox_query, realistic};
-    use mail_core::{SqliteStore, Store};
+    use mail_client::testing::{SqliteStore, Store};
     use mail_domain::*;
     use mail_ui_kit::ops::apply_op;
 
@@ -91,7 +91,7 @@ mod tests {
                 archive: ArchiveMeans::LocalOnly,
                 ..gmail_caps()
             };
-            mail_store::testing::seed_caps(
+            mail_client::testing::seed::seed_caps(
                 &client,
                 acct_account(),
                 &local_only,

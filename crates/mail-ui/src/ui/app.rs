@@ -1044,7 +1044,7 @@ mod tests {
     };
     use dioxus::prelude::*;
     use dioxus_core::{NoOpMutations, VirtualDom};
-    use mail_core::Store;
+    use mail_client::testing::Store;
 
     #[tokio::test]
     async fn the_first_run_offers_a_way_to_add_an_account() {

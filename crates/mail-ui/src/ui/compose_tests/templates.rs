@@ -1,10 +1,10 @@
 //! Templates from the composer: saved from ⋯, listed, started from `/` on an empty page, deleted.
 
-use mail_core::Store;
+use mail_client::testing::Store;
 
 use super::*;
 use crate::ui::fixtures::{acct_account, seeded};
-use mail_core::SqliteStore;
+use mail_client::testing::SqliteStore;
 use mail_ui_compose::compose::page::Float;
 use mail_ui_compose::compose::templates::{
     EMOJI_KEY, SAVE_KEY, START_KEY, every, forget, page_slash_items, pick, save_named,
@@ -12,7 +12,7 @@ use mail_ui_compose::compose::templates::{
 };
 
 fn fresh(store: &SqliteStore) -> Draft {
-    mail_core::compose::draft_new(store, acct_account(), &[], "", "", Utc::now())
+    mail_client::testing::core::compose::draft_new(store, acct_account(), &[], "", "", Utc::now())
         .unwrap_or_else(|why| panic!("a new draft: {why}"))
 }
 

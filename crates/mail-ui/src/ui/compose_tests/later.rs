@@ -1,12 +1,12 @@
 //! Send later in the window: the Sends choice as the outbox reads it, a scheduled send on the
 //! pill and in the Scheduled place, and Cancel, against a real store.
 
-use mail_core::Store;
+use mail_client::testing::Store;
 
 use super::*;
 use crate::ui::fixtures::{acct_account, click, pick_named, right_click, seeded, settle};
-use mail_core::SqliteStore;
-use mail_core::compose::Leaves;
+use mail_client::testing::SqliteStore;
+use mail_client::testing::core::compose::Leaves;
 use mail_editor::to_html;
 use mail_ui_compose::compose::later::{choose_time, leaves, pick_time, scheduled};
 use mail_ui_compose::compose::page::{Float, Phase, When};
@@ -148,7 +148,7 @@ fn scheduled_page(window: &mut Window, at: DateTime<Utc>) -> String {
 }
 
 fn fresh(store: &SqliteStore) -> Draft {
-    mail_core::compose::draft_new(store, acct_account(), &[], "", "", Utc::now())
+    mail_client::testing::core::compose::draft_new(store, acct_account(), &[], "", "", Utc::now())
         .unwrap_or_else(|why| panic!("a new draft: {why}"))
 }
 

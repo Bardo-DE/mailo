@@ -8,7 +8,7 @@ use crate::ui::fixtures::{
     settle_quiet_seen, work,
 };
 use dioxus::prelude::*;
-use mail_core::Store as _;
+use mail_client::testing::Store as _;
 use mail_domain::{Filter, PageReq, Property, Query, Sort, SortDir};
 use mail_ui_model::copy;
 

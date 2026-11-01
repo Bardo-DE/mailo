@@ -6,7 +6,7 @@ use std::sync::Arc;
 use dioxus::prelude::*;
 use dioxus_core::VirtualDom;
 use ds::prelude::*;
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::{SqliteStore, Store};
 
 use crate::ui::contacts::tests::{ADDED, HEARD, the_book};
 use crate::ui::fixtures::{

@@ -7,7 +7,7 @@ use super::tests::{
 };
 use crate::ui::fixtures::{Seen, click, settle_quiet, settle_quiet_seen};
 use dioxus::prelude::{ScopeId, VirtualDom, consume_context};
-use mail_core::fetch::{Link, Trigger};
+use mail_client::testing::core::fetch::{Link, Trigger};
 use std::sync::atomic::Ordering;
 
 /// The opening tag of the element that carries `needle`.
@@ -220,7 +220,7 @@ async fn an_account_removed_in_settings_leaves_the_links() {
 
     let account = acct_account();
     let secrets = porter_secrets::MemorySecrets::default();
-    mail_core::account::remove(&store, &secrets, account)
+    mail_client::testing::core::account::remove(&store, &secrets, account)
         .await
         .unwrap_or_else(|why| panic!("{why:?}"));
     settle_quiet_seen(&mut dom).await;

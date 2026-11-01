@@ -238,7 +238,7 @@ fn file_name(claimed: &str) -> FileName {
 mod tests {
     use super::*;
     use anyview_core::FormatKind;
-    use mail_core::SqliteStore;
+    use mail_client::testing::SqliteStore;
 
     fn client(dir: &std::path::Path) -> Arc<SqliteStore> {
         std::fs::create_dir_all(dir.join("blobs")).unwrap();
@@ -246,7 +246,10 @@ mod tests {
     }
 
     fn as_client(store: &Arc<SqliteStore>) -> mail_client::Client {
-        mail_client::Client::inline(store.clone(), Arc::new(mail_core::mail::SystemClock))
+        mail_client::Client::inline(
+            store.clone(),
+            Arc::new(mail_client::testing::core::mail::SystemClock),
+        )
     }
 
     /// Bytes that differ from one position to the next.

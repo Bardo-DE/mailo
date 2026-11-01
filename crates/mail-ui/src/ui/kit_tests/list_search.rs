@@ -11,7 +11,7 @@ use crate::ui::fixtures::{Work, dispatching, rebuild_into, type_into, work};
 use chrono::Utc;
 use dioxus::prelude::*;
 use dioxus_core::{ElementId, NoOpMutations, VirtualDom};
-use mail_core::search::list_highlight;
+use mail_client::testing::core::search::list_highlight;
 use mail_domain::*;
 use mail_ui_kit::debounce::QUIET;
 use mail_ui_kit::list_search::row_hit;

@@ -4,7 +4,7 @@ mod tests {
     use chrono::{DateTime, Utc};
     use mail_client::ClientError;
     use mail_client::Query;
-    use mail_core::SqliteStore;
+    use mail_client::testing::SqliteStore;
     use mail_ui_kit::live::read_now;
 
     /// A reading that always fails.

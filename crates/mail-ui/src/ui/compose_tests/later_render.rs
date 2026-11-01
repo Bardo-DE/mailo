@@ -51,7 +51,7 @@ fn window(dress: impl FnOnce(&mut Page), before: Before) -> (String, Work) {
             )
         });
         kept.unwrap_or_else(|why| panic!("a template: {why}"));
-        let other = mail_core::compose::draft_new(
+        let other = mail_client::testing::core::compose::draft_new(
             &built.store,
             dom.in_runtime(|| page.peek().from.clone()),
             &[],
@@ -60,8 +60,13 @@ fn window(dress: impl FnOnce(&mut Page), before: Before) -> (String, Work) {
             Utc::now(),
         )
         .unwrap_or_else(|why| panic!("{why}"));
-        mail_core::template::save(&built.store, other.id, "Interview thanks", Utc::now())
-            .unwrap_or_else(|why| panic!("{why}"));
+        mail_client::testing::core::template::save(
+            &built.store,
+            other.id,
+            "Interview thanks",
+            Utc::now(),
+        )
+        .unwrap_or_else(|why| panic!("{why}"));
         // The page's own words were the template's; it starts empty again.
         dom.in_runtime(|| {
             let mut write = page.write();
@@ -83,7 +88,7 @@ fn window(dress: impl FnOnce(&mut Page), before: Before) -> (String, Work) {
             let sent = life::send(
                 &crate::ui::fixtures::client(&built.store),
                 &mail_client::SigningKeys::new(std::sync::Arc::new(
-                    mail_core::testing::MapSigningStore::default(),
+                    mail_client::testing::MapSigningStore::default(),
                 )),
                 &mut write,
                 Anyway::Yes,

@@ -5,8 +5,8 @@
 use crate::ui::fixtures::{acct_account, seeded};
 use chrono::TimeZone;
 use ds_blitz::{PageSize, PrintError, PrintOutcome};
-use mail_core::html_document::Printed;
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::core::html_document::Printed;
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::*;
 use mail_reader::{Pages, Script};
 use mail_ui_kit::original::{Consent, FetchImage, Got, ReaderNet};

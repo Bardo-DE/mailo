@@ -8,7 +8,7 @@ use mail_ui_compose::compose::page::Float;
 async fn the_from_menu_does_not_offer_local_folders() {
     let mut offered = Vec::new();
     let (markup, _root) = window_with(|page, store| {
-        mail_core::account::local(store, chrono::Utc::now())
+        mail_client::testing::core::account::local(store, chrono::Utc::now())
             .unwrap_or_else(|why| panic!("local folders: {why}"));
         offered = mail_ui_kit::data::account_rows(&crate::ui::fixtures::client(store))
             .into_iter()
@@ -40,10 +40,10 @@ async fn the_from_menu_offers_each_alias_beside_the_accounts_own_addresses() {
             .filter(|row| !row.is_local())
             .map(|row| (row.id, row.address))
             .collect();
-        mail_core::identity::add_alias(
+        mail_client::testing::core::identity::add_alias(
             store,
             own[0].0.clone(),
-            &mail_core::identity::Typed {
+            &mail_client::testing::core::identity::Typed {
                 name: "The Press Desk".to_owned(),
                 email: ALIAS.to_owned(),
                 reply_to: String::new(),

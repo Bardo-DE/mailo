@@ -10,9 +10,9 @@ use chrono::Utc;
 use dioxus::prelude::*;
 use dioxus_core::VirtualDom;
 use ds::motion::detail::operation::Operation;
-use mail_core::fetch::{Count, Event, First, Link, Step, Trigger};
-use mail_core::sync::report::{AccountReport, Counts, PassEnd, Progress};
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::core::fetch::{Count, Event, First, Link, Step, Trigger};
+use mail_client::testing::core::sync::report::{AccountReport, Counts, PassEnd, Progress};
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::id::account_id_from_uuid;
 use mail_domain::*;
 use porter_core::AccountId;
@@ -35,7 +35,7 @@ pub(super) fn account(fetched: bool) -> (Arc<SqliteStore>, tempfile::TempDir) {
         login: None,
     };
     let preset = presets::manual("me@nowhere.example", &manual, Utc::now());
-    mail_store::testing::seed_account_plan(
+    mail_client::testing::seed::seed_account_plan(
         &store,
         acct_account(),
         &preset.plan.address,
@@ -43,7 +43,7 @@ pub(super) fn account(fetched: bool) -> (Arc<SqliteStore>, tempfile::TempDir) {
         Some(Utc::now()),
     );
     if fetched {
-        mail_store::testing::seed_sync_state(
+        mail_client::testing::seed::seed_sync_state(
             &store,
             acct_account(),
             "INBOX",
@@ -83,7 +83,7 @@ pub(super) fn refused() -> PassEnd {
         address: "me@nowhere.example".to_owned(),
         retry: Retry::NeedsReauth,
         why: "the server refused the password".to_owned(),
-        pause: mail_core::fetch::Pause::ServerBusy,
+        pause: mail_client::testing::core::fetch::Pause::ServerBusy,
         offer: None,
     }
 }
@@ -94,7 +94,7 @@ pub(super) fn unreachable() -> PassEnd {
         address: "me@nowhere.example".to_owned(),
         retry: Retry::After(Duration::from_secs(5)),
         why: "cannot connect".to_owned(),
-        pause: mail_core::fetch::Pause::Unreachable,
+        pause: mail_client::testing::core::fetch::Pause::Unreachable,
         offer: None,
     }
 }
@@ -363,7 +363,7 @@ async fn the_accounts_that_come_and_go_get_and_lose_their_link() {
         login: None,
     };
     let preset = presets::manual("two@other.example", &manual, Utc::now());
-    mail_store::testing::seed_account_plan(
+    mail_client::testing::seed::seed_account_plan(
         &store,
         acct_later(),
         &preset.plan.address,
@@ -392,7 +392,7 @@ async fn the_accounts_that_come_and_go_get_and_lose_their_link() {
     );
 
     // Gone: its link goes, and the pass it was running is cancelled and forgotten.
-    mail_store::testing::delete_account_row(&store, acct_later());
+    mail_client::testing::seed::delete_account_row(&store, acct_later());
     settle_quiet(&mut dom).await;
     assert_eq!(
         dom.in_scope(ScopeId::APP, || fetching(&dom).link(acct_later())),
@@ -406,10 +406,10 @@ async fn the_accounts_that_come_and_go_get_and_lose_their_link() {
 
 /// What a test's window was told to say aloud.
 #[derive(Default)]
-struct Recorder(Mutex<Vec<mail_core::notify::Notification>>);
+struct Recorder(Mutex<Vec<mail_client::testing::core::notify::Notification>>);
 
-impl mail_core::notify::Notifier for Recorder {
-    fn show(&self, notification: &mail_core::notify::Notification) {
+impl mail_client::testing::core::notify::Notifier for Recorder {
+    fn show(&self, notification: &mail_client::testing::core::notify::Notification) {
         self.0.lock().unwrap().push(notification.clone());
     }
 }

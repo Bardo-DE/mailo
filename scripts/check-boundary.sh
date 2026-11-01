@@ -401,12 +401,13 @@ fi
 fail=$((fail | under_fail))
 
 # The window names no store: the dependencies of `mail-ui` and of the crates it is made of
-# (`WINDOW`, below), dev-dependencies aside (which seed a store as a fixture for their tests), hold
-# no `mail-core`, `mail-agent`, `mail-store`, `mail-net`, `mail-secrets`, `mail-runtime` or `mail-engine`. Everything it knows of mail comes from `mail-client`.
-for crate in "${WINDOW[@]}"; do
-  if awk '/^\[/ { dev = ($0 ~ /dev-dependencies/) } !dev && /^(mail-core|mail-agent|mail-store|mail-net|mail-secrets|mail-runtime|mail-engine)[ .=]/' \
+# (`WINDOW`, below) and of `mail-ui-model`, dev-dependencies too, hold no `mail-core`, `mail-agent`,
+# `mail-store`, `mail-net`, `mail-secrets`, `mail-runtime` or `mail-engine`. Everything it knows of
+# mail comes from `mail-client`, and a test that seeds a store does it through `mail_client::testing`.
+for crate in "${WINDOW[@]}" mail-ui-model; do
+  if grep -E '^(mail-core|mail-agent|mail-store|mail-net|mail-secrets|mail-runtime|mail-engine)[ .=]' \
     "crates/$crate/Cargo.toml" | grep -q .; then
-    echo "crates/$crate/Cargo.toml names mail-core, mail-agent, mail-store, mail-net, mail-secrets, mail-runtime or mail-engine outside its dev-dependencies: go through mail-client"
+    echo "crates/$crate/Cargo.toml names mail-core, mail-agent, mail-store, mail-net, mail-secrets, mail-runtime or mail-engine: go through mail-client (mail_client::testing for a test)"
     fail=1
   fi
 done

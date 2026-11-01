@@ -8,15 +8,15 @@
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
-use mail_core::SqliteStore;
-use mail_core::testing::MapSigningStore;
+use mail_client::testing::MapSigningStore;
+use mail_client::testing::SqliteStore;
 use mail_crypto::smime::{Cert, Identity, Sealing};
 use mail_domain::*;
 
 use super::pgp_tests::{ME, arrive, lines, reader, reader_looking, seals, shows, until};
 use crate::ui::fixtures::seeded;
 use crate::ui::fixtures::smime_support::{Person, identity, pki, rng, stranger_pki};
-use mail_core::smime::Protected;
+use mail_client::testing::core::smime::Protected;
 use mail_ui_kit::pgp::{Said, Tone, doubt, said_smime};
 
 const BEA: &str = "bea@example.test";
@@ -38,15 +38,21 @@ pub(super) fn identity_file() -> Vec<u8> {
 /// The user's identity imported, its private key in `secrets`.
 pub(super) fn with_identity(store: &SqliteStore, secrets: &MapSigningStore) -> SmimeCert {
     let given = || Some(PASSWORD.to_owned());
-    mail_core::smime::certs::import(store, secrets, &identity_file(), &given, Utc::now())
-        .unwrap()
-        .remove(0)
-        .cert
+    mail_client::testing::core::smime::certs::import(
+        store,
+        secrets,
+        &identity_file(),
+        &given,
+        Utc::now(),
+    )
+    .unwrap()
+    .remove(0)
+    .cert
 }
 
 /// The test authority's root, imported and trusted, as a user of it would have it.
 pub(super) fn trust_root(store: &SqliteStore, secrets: &MapSigningStore) {
-    mail_core::smime::certs::import(
+    mail_client::testing::core::smime::certs::import(
         store,
         secrets,
         pki().root.cert.pem().as_bytes(),
@@ -54,8 +60,12 @@ pub(super) fn trust_root(store: &SqliteStore, secrets: &MapSigningStore) {
         Utc::now(),
     )
     .unwrap();
-    mail_core::smime::certs::trust(store, pki().root.cert.fingerprint(), KeyTrust::Verified)
-        .unwrap();
+    mail_client::testing::core::smime::certs::trust(
+        store,
+        pki().root.cert.fingerprint(),
+        KeyTrust::Verified,
+    )
+    .unwrap();
 }
 
 /// A message from bea saying `text`, with `map.bin` attached, unique by `word`.

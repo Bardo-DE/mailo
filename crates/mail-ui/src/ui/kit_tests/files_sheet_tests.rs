@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use dioxus::prelude::*;
 use dioxus_core::VirtualDom;
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::*;
 use porter_core::AccountId;
 
@@ -108,7 +108,7 @@ fn import_locally(store: &Arc<SqliteStore>, root: &Path) -> AccountId {
         &mut |_| {},
     )
     .unwrap();
-    mail_core::account::local(store, chrono::Utc::now()).unwrap()
+    mail_client::testing::core::account::local(store, chrono::Utc::now()).unwrap()
 }
 
 #[tokio::test]
@@ -265,11 +265,15 @@ async fn local_folders_leak_no_address_and_have_nothing_to_sync() {
 #[test]
 fn local_folders_send_nothing_and_tell_no_server() {
     let (store, dir) = crate::ui::fixtures::seeded();
-    let sending_before = mail_core::compose::sending_accounts(&store);
+    let sending_before = mail_client::testing::core::compose::sending_accounts(&store);
     let local = import_locally(&store, &a_maildir(dir.path()));
-    assert_eq!(mail_core::compose::sending_accounts(&store), sending_before);
+    assert_eq!(
+        mail_client::testing::core::compose::sending_accounts(&store),
+        sending_before
+    );
     assert!(
-        mail_core::compose::account_for(&store, Some(presets::LOCAL_FOLDERS)).is_err(),
+        mail_client::testing::core::compose::account_for(&store, Some(presets::LOCAL_FOLDERS))
+            .is_err(),
         "local folders were offered as a From"
     );
 

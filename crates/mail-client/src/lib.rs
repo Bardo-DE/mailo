@@ -24,6 +24,8 @@ mod net;
 mod pure;
 pub mod query;
 mod stored;
+#[cfg(feature = "testing")]
+pub mod testing;
 
 pub use act::{Act, Acted, Destroy, Perform, TakeBack, Ticket};
 pub use caches::{Framing, Looking};

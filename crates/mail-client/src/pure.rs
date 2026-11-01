@@ -105,11 +105,11 @@ pub mod notify {
     };
     #[cfg(feature = "desktop")]
     pub mod desktop {
-        pub use mail_agent::notify::desktop::Desktop;
         /// What the app hands the macOS notification centre's banners through, and the click it
         /// hears back.
         #[cfg(target_os = "macos")]
         pub use mail_agent::notify::desktop::heard;
+        pub use mail_agent::notify::desktop::{Desktop, Launch};
     }
     #[cfg(all(feature = "desktop", target_os = "macos"))]
     pub mod banner {

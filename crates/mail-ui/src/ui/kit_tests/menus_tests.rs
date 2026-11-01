@@ -3,7 +3,7 @@ use crate::ui::fixtures::{acct_account, dispatching, inbox_query, realistic};
 use chrono::TimeZone;
 use dioxus::prelude::*;
 use dioxus_core::{NoOpMutations, VirtualDom};
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::*;
 use mail_logic::when::Clock;
 use mail_ui_kit::menu::Right;
@@ -18,7 +18,7 @@ mod naming_a_conversation {
 
     fn a_label(store: &SqliteStore, name: &str) -> LabelId {
         let id = LabelId::generate();
-        mail_store::testing::seed_label(
+        mail_client::testing::seed::seed_label(
             store,
             id,
             acct_account(),

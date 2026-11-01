@@ -13,7 +13,7 @@ use dioxus_core::{ElementId, VirtualDom};
 use ds::base::time::clock::VirtualClock;
 use ds::motion::settle::settle as anim_settle;
 use ds::prelude::*;
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::*;
 use std::sync::Arc;
 
@@ -57,7 +57,7 @@ fn exit_settles() -> std::time::Duration {
 }
 
 fn changes(store: &SqliteStore) -> i64 {
-    mail_store::testing::total_changes(store)
+    mail_client::testing::seed::total_changes(store)
 }
 
 fn mailboxes(store: &SqliteStore, thread: ThreadId) -> MailboxSet {
@@ -172,7 +172,7 @@ async fn dragging_a_row_onto_archive_archives_it() {
 async fn a_row_dropped_on_a_label_wears_it() {
     let Mounted { mut dom, seen, .. } = mounted_with(|store, dana| {
         let account = store.thread(dana).unwrap().summary.account;
-        mail_store::testing::seed_label(
+        mail_client::testing::seed::seed_label(
             store,
             LabelId::generate(),
             account.clone(),

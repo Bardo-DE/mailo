@@ -47,8 +47,6 @@ toml = "1"
 [dev-dependencies]
 tempfile = "3"
 uuid.workspace = true
-# What a test reads a setting's meaning back through (`mail_core::notify::Opens`).
-mail-core = { workspace = true, features = ["testing"] }
 mail-domain = { workspace = true, features = ["testing"] }
 
 [lints]

@@ -2,7 +2,7 @@
 //! seed a store, so they run beside the window's fixtures.
 
 use mail_client::Syncing;
-use mail_core::SqliteStore;
+use mail_client::testing::SqliteStore;
 use mail_domain::*;
 use mail_ui_kit::data::*;
 use mail_ui_kit::view::Listing;
@@ -10,7 +10,7 @@ use mail_ui_kit::view::Listing;
 /// The conversations a listing asks for, as the client reads them: for a test that checks what
 /// a place lists.
 fn list_for(
-    store: &mail_core::SqliteStore,
+    store: &mail_client::testing::SqliteStore,
     listing: Listing,
     now: chrono::DateTime<chrono::Utc>,
 ) -> Vec<ThreadSummary> {
@@ -64,7 +64,7 @@ mod tests {
         assert!(list_for(&store, shell.listing(PAGE), now).is_empty());
 
         let hi = thread_like(&store, "hi");
-        mail_core::history::record(&store, hi, now);
+        mail_client::testing::core::history::record(&store, hi, now);
         let listed = list_for(&store, shell.listing(PAGE), now);
         assert_eq!(
             listed.iter().map(|summary| summary.id).collect::<Vec<_>>(),

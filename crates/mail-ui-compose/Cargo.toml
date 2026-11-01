@@ -67,8 +67,6 @@ mail-domain = { workspace = true, features = ["testing"] }
 # A test's double at a seam keeping what a server gave in the window's store
 # (`Client::store_for_test`): the program never has it.
 mail-client = { workspace = true, features = ["testing"] }
-# The doubles at the runtime's seams (`mail_core::testing`): the program never has them.
-mail-core = { workspace = true, features = ["testing"] }
 # The doubles the kit's hooks are driven with (a host that records its asks, a dialog that answers).
 mail-ui-kit = { workspace = true, features = ["testing"] }
 tempfile = "3"
