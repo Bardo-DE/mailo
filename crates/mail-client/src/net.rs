@@ -6,14 +6,13 @@
 //! its OAuth clients, its keyring and its runtime. A client never told reaches them with none of
 //! those: no keyring, so nothing signs in, which is what a test wants of a call it did not fake.
 
-use crate::Client;
+use crate::{CallError, Client};
 use chrono::{DateTime, Utc};
 use mail_core::account::{Added, Credentials, RemoveError, Removed, Setup};
 use mail_core::sync::Configured;
 use mail_core::sync::report::PassEnd;
 use mail_core::{
-    AccountSecrets, CoreError, Environment, Mail, NoKeyring, OAuthClients, Pushed, Searched,
-    SigningStore,
+    AccountSecrets, Environment, Mail, NoKeyring, OAuthClients, Pushed, Searched, SigningStore,
 };
 use mail_domain::{MessageId, PgpKey, Retry, Section};
 use mail_store::SqliteStore;
@@ -233,9 +232,9 @@ impl Net<'_> {
     }
 
     /// Fetch one folder now: one no pass fetches, opened.
-    pub fn folder_now(&self, account: AccountId, path: &str) -> Result<PassEnd, CoreError> {
+    pub fn folder_now(&self, account: AccountId, path: &str) -> Result<PassEnd, CallError> {
         let mail = self.mail();
-        Self::wait(&mail, mail.sync().folder_now(account, path))
+        Self::wait(&mail, mail.sync().folder_now(account, path)).map_err(CallError::from)
     }
 
     /// Download one message's body.
@@ -245,25 +244,26 @@ impl Net<'_> {
     }
 
     /// Download one attachment left on the server.
-    pub fn fetch_part(&self, message: MessageId, section: &Section) -> Result<(), CoreError> {
+    pub fn fetch_part(&self, message: MessageId, section: &Section) -> Result<(), CallError> {
         let mail = self.mail();
-        Self::wait(&mail, mail.sync().fetch_part(message, section))
+        Self::wait(&mail, mail.sync().fetch_part(message, section)).map_err(CallError::from)
     }
 
     /// Send what an account has queued to go up (an import's messages).
-    pub fn drain(&self, account: AccountId) -> Result<mail_runtime::SyncReport, CoreError> {
+    pub fn drain(&self, account: AccountId) -> Result<mail_runtime::SyncReport, CallError> {
         let mail = self.mail();
-        Self::wait(&mail, mail.sync().drain(account))
+        Self::wait(&mail, mail.sync().drain(account)).map_err(CallError::from)
     }
 
     /// Put an account's rules on its server, never over a script someone else made.
-    pub fn push_rules(&self, account: &Configured) -> Result<Pushed, CoreError> {
+    pub fn push_rules(&self, account: &Configured) -> Result<Pushed, CallError> {
         let mail = self.mail();
         Self::wait(
             &mail,
             mail.rules()
                 .push(account, mail_proto::sieve::Takeover::Refuse),
         )
+        .map_err(CallError::from)
     }
 
     /// Set an account's kept vacation reply where its JMAP or Graph server keeps one.
@@ -273,9 +273,9 @@ impl Net<'_> {
     }
 
     /// How much of an account's storage its server says is used.
-    pub fn quota(&self, account: AccountId) -> Result<Option<mail_core::Storage>, CoreError> {
+    pub fn quota(&self, account: AccountId) -> Result<Option<mail_core::Storage>, CallError> {
         let mail = self.mail();
-        Self::wait(&mail, mail.sync().quota(account))
+        Self::wait(&mail, mail.sync().quota(account)).map_err(CallError::from)
     }
 
     /// Ask `address`'s domain for its key (Web Key Directory), keeping what it gives.
@@ -292,12 +292,13 @@ impl Net<'_> {
     }
 
     /// Search one account's server for `input`.
-    pub fn search_server(&self, account: AccountId, input: &str) -> Result<Searched, CoreError> {
+    pub fn search_server(&self, account: AccountId, input: &str) -> Result<Searched, CallError> {
         let mail = self.mail();
         Self::wait(
             &mail,
             mail_core::server_search::search(&mail, account, input),
         )
+        .map_err(CallError::from)
     }
 
     /// Leave a mailing list the way `found` says.
@@ -306,12 +307,13 @@ impl Net<'_> {
         found: &mail_core::unsubscribe::Found,
         http: &reqwest::Client,
         now: DateTime<Utc>,
-    ) -> Result<mail_core::unsubscribe::Outcome, CoreError> {
+    ) -> Result<mail_core::unsubscribe::Outcome, CallError> {
         let mail = self.mail();
         Self::wait(
             &mail,
             mail_core::unsubscribe::perform(self.0.store(), found, http, now),
         )
+        .map_err(CallError::from)
     }
 
     /// Find how `address`'s provider is reached.
@@ -325,9 +327,9 @@ impl Net<'_> {
     }
 
     /// Follow a JMAP session `url`, without a credential.
-    pub fn find_jmap(&self, url: &str) -> Result<String, CoreError> {
+    pub fn find_jmap(&self, url: &str) -> Result<String, CallError> {
         let mail = self.mail();
-        Self::wait(&mail, mail_core::discover::find_jmap(url))
+        Self::wait(&mail, mail_core::discover::find_jmap(url)).map_err(CallError::from)
     }
 
     /// Add an account, or set up again one already here.
@@ -339,7 +341,7 @@ impl Net<'_> {
         graph: bool,
         now: DateTime<Utc>,
         credentials: Credentials<'_>,
-    ) -> Result<Added, CoreError> {
+    ) -> Result<Added, CallError> {
         let mail = self.mail();
         Self::wait(
             &mail,
@@ -353,6 +355,7 @@ impl Net<'_> {
                 credentials,
             ),
         )
+        .map_err(CallError::from)
     }
 
     /// Move a Microsoft account onto Graph.
@@ -361,12 +364,13 @@ impl Net<'_> {
         account: AccountId,
         now: DateTime<Utc>,
         credentials: Credentials<'_>,
-    ) -> Result<Added, CoreError> {
+    ) -> Result<Added, CallError> {
         let mail = self.mail();
         Self::wait(
             &mail,
             mail_core::account::switch_to_graph(self.0.store(), account, now, credentials),
         )
+        .map_err(CallError::from)
     }
 
     /// Sign in to `address`'s server once, to see that its password is right.
@@ -375,12 +379,13 @@ impl Net<'_> {
         address: &str,
         secrets: Arc<dyn AccountSecrets>,
         now: DateTime<Utc>,
-    ) -> Result<(), CoreError> {
+    ) -> Result<(), CallError> {
         let mail = self.mail();
         Self::wait(
             &mail,
             mail_core::sync::check_sign_in(&self.0.store_arc(), address, secrets, now),
         )
+        .map_err(CallError::from)
     }
 
     /// Remove an account and what it kept here, and its secrets.

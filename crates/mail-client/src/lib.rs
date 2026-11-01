@@ -16,6 +16,7 @@ mod client;
 mod clock;
 mod error;
 mod external;
+mod fault;
 pub mod fetch;
 mod live;
 mod net;
@@ -28,6 +29,7 @@ pub use caches::{Framing, Looking};
 pub use client::{Client, ClientConfig, FetchRun, WeakClient};
 pub use error::ClientError;
 pub use external::on_write;
+pub use fault::{CallError, Fault};
 pub use live::{Live, Query, Snapshot, bucket_of};
 pub use mail_store::{Generation, Topics};
 pub use net::{Net, Reach, SignIn};
@@ -39,8 +41,6 @@ pub use stored::Stored;
 /// root holds is the client's own API.
 pub mod prelude {
     pub use mail_core::{
-        AccountSecrets, ClientRegistry, CoreError, Environment, NoKeyring, OAuthClients, Program,
-        Pushed, Searched, SigningStore,
+        AccountSecrets, ClientRegistry, Environment, NoKeyring, OAuthClients, Program, SigningStore,
     };
-    pub use mail_store::StoreError;
 }

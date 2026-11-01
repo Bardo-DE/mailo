@@ -19,9 +19,9 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
 use chrono::{DateTime, Utc};
+use mail_client::Fault;
 use mail_client::account::{Outcome, Setup};
 use mail_client::discover::{Failed, Found, Looked as Resolved};
-use mail_client::prelude::CoreError;
 use mail_client::prelude::{Environment, OAuthClients};
 use mail_domain::presets::{self, Preset};
 use mail_domain::{AuthPlan, HttpAuth};
@@ -219,9 +219,9 @@ impl Seams {
                                 "could not remove the account that could not sign in: {trouble}"
                             );
                         }
-                        let fault = match why {
-                            CoreError::SignInRefused { .. } => AddFault::Refused,
-                            CoreError::ServerUnreachable { .. } => AddFault::Unreachable,
+                        let fault = match why.fault() {
+                            Fault::SignInRefused => AddFault::Refused,
+                            Fault::ServerUnreachable => AddFault::Unreachable,
                             _ => AddFault::Unsaved,
                         };
                         return Err(AddError {

@@ -15,7 +15,7 @@ use ds::components::fields::text_field_model::Invalid;
 use ds::motion::detail::stamp::EventStamp;
 use ds::prelude::*;
 use mail_client::RelayRefused;
-use mail_client::prelude::CoreError;
+use mail_client::{CallError, Fault};
 use mail_ui_kit::data::AccountRow;
 use mail_ui_model::copy::errors;
 use mail_ui_model::copy::fields::account as row;
@@ -76,13 +76,13 @@ pub(super) fn PushRelay(row: AccountRow) -> Element {
 }
 
 /// Why `error` kept the relay from being set, in the window's words.
-fn refused(error: &CoreError) -> &'static str {
-    match error {
-        CoreError::Relay(RelayRefused::NotAnAddress) => errors::RELAY_NOT_AN_ADDRESS,
-        CoreError::Relay(RelayRefused::NotHttps) => errors::RELAY_NOT_HTTPS,
-        CoreError::Relay(RelayRefused::Extras) => errors::RELAY_EXTRAS,
-        other => {
-            log::warn!("the push relay could not be kept: {other}");
+fn refused(error: &CallError) -> &'static str {
+    match error.fault() {
+        Fault::Relay(RelayRefused::NotAnAddress) => errors::RELAY_NOT_AN_ADDRESS,
+        Fault::Relay(RelayRefused::NotHttps) => errors::RELAY_NOT_HTTPS,
+        Fault::Relay(RelayRefused::Extras) => errors::RELAY_EXTRAS,
+        _ => {
+            log::warn!("the push relay could not be kept: {error}");
             errors::RELAY_NOT_KEPT
         }
     }

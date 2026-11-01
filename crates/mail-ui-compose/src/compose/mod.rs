@@ -599,7 +599,7 @@ pub fn delete_draft(mut page: Signal<Page>, shell: Signal<Shell>, desk: Desk) {
 fn deleted(
     client: &Client,
     stored: Draft,
-) -> Result<mail_logic::undo::Undo, mail_client::prelude::CoreError> {
+) -> Result<mail_logic::undo::Undo, mail_client::CallError> {
     life::discard(client, stored.id)?;
     Ok(mail_logic::undo::Undo {
         thread: None,
@@ -644,7 +644,6 @@ pub fn delete_stored_draft(shell: Signal<Shell>, draft: DraftId) {
     let outcome = client
         .stored()
         .draft(draft)
-        .map_err(mail_client::prelude::CoreError::from)
         .and_then(|stored| deleted(&client, stored));
     match outcome {
         Ok(undo) => forget(shell, desk, draft, undo),

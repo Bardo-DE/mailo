@@ -15,7 +15,7 @@ use ds::file_drop::drag::FileDrop;
 use ds::file_drop::hook::{FileDropHandle, use_file_drop};
 use ds::prelude::*;
 use ds::root::common::Common;
-use mail_client::prelude::CoreError;
+use mail_client::{CallError, Fault};
 
 use super::life;
 use super::page::{Guard, Page};
@@ -136,12 +136,10 @@ enum BodyRefused {
 }
 
 impl BodyRefused {
-    fn of(why: CoreError) -> Self {
-        match why {
-            CoreError::NotAnInlineImage { .. } | CoreError::InlineImagesTooBig { .. } => {
-                BodyRefused::AsFile
-            }
-            other => BodyRefused::Said(mail_ui_kit::remedy::told(other)),
+    fn of(why: CallError) -> Self {
+        match why.fault() {
+            Fault::NotAnInlineImage | Fault::InlineImagesTooBig => BodyRefused::AsFile,
+            _ => BodyRefused::Said(mail_ui_kit::remedy::told(why)),
         }
     }
 }
@@ -272,26 +270,25 @@ fn into_body(mut page: Signal<Page>, name: &str, bytes: &[u8]) -> Result<(), Bod
 mod tests {
     use super::{BodyRefused, Lands, Picked, read_picked, shown_in};
     use mail_client::compose::ATTACHMENT_BUDGET;
-    use mail_client::prelude::CoreError;
+    use mail_client::{CallError, Fault};
     use mail_ui_model::settings::MessageFormat;
 
     /// A picture the body cannot take is attached; every other refusal is said.
     #[test]
     fn a_picture_the_body_cannot_hold_goes_as_a_file() {
         assert_eq!(
-            BodyRefused::of(CoreError::InlineImagesTooBig {
-                limit: "6 MB".to_owned()
-            }),
+            BodyRefused::of(CallError::new(
+                Fault::InlineImagesTooBig,
+                "too many pictures"
+            )),
             BodyRefused::AsFile
         );
         assert_eq!(
-            BodyRefused::of(CoreError::NotAnInlineImage {
-                name: "scan.tiff".to_owned()
-            }),
+            BodyRefused::of(CallError::new(Fault::NotAnInlineImage, "not a picture")),
             BodyRefused::AsFile
         );
         assert!(matches!(
-            BodyRefused::of(CoreError::DraftOnItsWay),
+            BodyRefused::of(CallError::new(Fault::DraftOnItsWay, "on its way")),
             BodyRefused::Said(_)
         ));
     }

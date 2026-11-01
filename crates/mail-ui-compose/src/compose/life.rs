@@ -144,7 +144,7 @@ pub(crate) fn pictures_queued(draft: DraftId) -> PictureSize {
 ///
 /// The record stays: dropped, it would let that autosave through. A page taken after it, as
 /// one is after the discard's Undo puts the draft back, is later and writes as ever.
-pub fn discard(client: &Client, draft: DraftId) -> Result<String, mail_client::prelude::CoreError> {
+pub fn discard(client: &Client, draft: DraftId) -> Result<String, mail_client::CallError> {
     discarding(draft, || client.compose().discard(draft))
 }
 
@@ -215,9 +215,7 @@ pub fn keep_on_server(
     match client.compose().keep_on_server(draft, now) {
         Ok(queued) => Ok(queued),
         // Discarded or sent from somewhere else meanwhile: there is nothing to keep.
-        Err(mail_client::prelude::CoreError::Store(mail_client::prelude::StoreError::NoDraft(
-            _,
-        ))) => Ok(false),
+        Err(why) if *why.fault() == mail_client::Fault::NoDraft => Ok(false),
         Err(why) => Err(why.to_string()),
     }
 }

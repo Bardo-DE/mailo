@@ -2,11 +2,11 @@
 // Generated from a list of function names; each is the `mail-core` function of the same name.
 
 mod signature {
+    #[allow(unused_imports)]
+    use crate::CallError;
     use crate::Client;
     #[allow(unused_imports)]
     use chrono::{DateTime, Utc};
-    #[allow(unused_imports)]
-    use mail_core::error::CoreError;
     #[allow(unused_imports)]
     use mail_core::signature::*;
     #[allow(unused_imports)]
@@ -33,8 +33,9 @@ mod signature {
 
     impl SignatureCalls<'_> {
         /// `mail_core::signature::of_identity`.
-        pub fn of_identity(&self, identity: IdentityId) -> Result<Vec<Signature>, CoreError> {
+        pub fn of_identity(&self, identity: IdentityId) -> Result<Vec<Signature>, CallError> {
             mail_core::signature::of_identity(self.0.store(), identity)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::signature::default_for`.
@@ -42,24 +43,25 @@ mod signature {
             &self,
             identity: IdentityId,
             purpose: SignatureUse,
-        ) -> Result<Option<Signature>, CoreError> {
+        ) -> Result<Option<Signature>, CallError> {
             mail_core::signature::default_for(self.0.store(), identity, purpose)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::signature::restore`.
-        pub fn restore(&self, had: &Signature) -> Result<(), CoreError> {
-            mail_core::signature::restore(self.0.store(), had)
+        pub fn restore(&self, had: &Signature) -> Result<(), CallError> {
+            mail_core::signature::restore(self.0.store(), had).map_err(crate::CallError::from)
         }
     }
 }
 pub use signature::SignatureCalls;
 
 mod identity {
+    #[allow(unused_imports)]
+    use crate::CallError;
     use crate::Client;
     #[allow(unused_imports)]
     use chrono::{DateTime, Utc};
-    #[allow(unused_imports)]
-    use mail_core::error::CoreError;
     #[allow(unused_imports)]
     use mail_core::identity::*;
     #[allow(unused_imports)]
@@ -86,34 +88,36 @@ mod identity {
 
     impl IdentityCalls<'_> {
         /// `mail_core::identity::of_account`.
-        pub fn of_account(&self, account: AccountId) -> Result<Vec<Identity>, CoreError> {
-            mail_core::identity::of_account(self.0.store(), account)
+        pub fn of_account(&self, account: AccountId) -> Result<Vec<Identity>, CallError> {
+            mail_core::identity::of_account(self.0.store(), account).map_err(crate::CallError::from)
         }
 
         /// `mail_core::identity::set_name`.
-        pub fn set_name(&self, account: AccountId, typed: &str) -> Result<Identity, CoreError> {
+        pub fn set_name(&self, account: AccountId, typed: &str) -> Result<Identity, CallError> {
             mail_core::identity::set_name(self.0.store(), account, typed)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::identity::add_alias`.
-        pub fn add_alias(&self, account: AccountId, typed: &Typed) -> Result<Identity, CoreError> {
+        pub fn add_alias(&self, account: AccountId, typed: &Typed) -> Result<Identity, CallError> {
             mail_core::identity::add_alias(self.0.store(), account, typed)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::identity::edit`.
-        pub fn edit(&self, id: IdentityId, typed: &Typed) -> Result<Identity, CoreError> {
-            mail_core::identity::edit(self.0.store(), id, typed)
+        pub fn edit(&self, id: IdentityId, typed: &Typed) -> Result<Identity, CallError> {
+            mail_core::identity::edit(self.0.store(), id, typed).map_err(crate::CallError::from)
         }
     }
 }
 pub use identity::IdentityCalls;
 
 mod rules_block {
+    #[allow(unused_imports)]
+    use crate::CallError;
     use crate::Client;
     #[allow(unused_imports)]
     use chrono::{DateTime, Utc};
-    #[allow(unused_imports)]
-    use mail_core::error::CoreError;
     #[allow(unused_imports)]
     use mail_core::rules::block::*;
     #[allow(unused_imports)]
@@ -140,26 +144,28 @@ mod rules_block {
 
     impl RulesBlockCalls<'_> {
         /// `mail_core::rules::block::who_to_block`.
-        pub fn who_to_block(&self, thread: ThreadId) -> Result<Option<String>, CoreError> {
+        pub fn who_to_block(&self, thread: ThreadId) -> Result<Option<String>, CallError> {
             mail_core::rules::block::who_to_block(self.0.store(), thread)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::rules::block::block`.
-        pub fn block(&self, account: AccountId, email: &str) -> Result<Blocked, CoreError> {
+        pub fn block(&self, account: AccountId, email: &str) -> Result<Blocked, CallError> {
             mail_core::rules::block::block(self.0.store(), account, email)
+                .map_err(crate::CallError::from)
         }
     }
 }
 pub use rules_block::RulesBlockCalls;
 
 mod erase {
+    #[allow(unused_imports)]
+    use crate::CallError;
     use crate::Client;
     #[allow(unused_imports)]
     use chrono::{DateTime, Utc};
     #[allow(unused_imports)]
     use mail_core::erase::*;
-    #[allow(unused_imports)]
-    use mail_core::error::CoreError;
     #[allow(unused_imports)]
     use mail_core::sync::Configured;
     #[allow(unused_imports)]
@@ -194,9 +200,9 @@ pub use erase::EraseCalls;
 mod export {
 
     #[allow(unused_imports)]
-    use chrono::{DateTime, Utc};
+    use crate::CallError;
     #[allow(unused_imports)]
-    use mail_core::error::CoreError;
+    use chrono::{DateTime, Utc};
     #[allow(unused_imports)]
     use mail_core::export::*;
     #[allow(unused_imports)]
@@ -212,17 +218,17 @@ mod export {
 
     impl super::super::export::Export<'_> {
         /// `mail_core::export::raw_message`.
-        pub fn raw_message(&self, id: MessageId) -> Result<Option<Vec<u8>>, CoreError> {
-            mail_core::export::raw_message(self.0.store(), id)
+        pub fn raw_message(&self, id: MessageId) -> Result<Option<Vec<u8>>, CallError> {
+            mail_core::export::raw_message(self.0.store(), id).map_err(crate::CallError::from)
         }
     }
 }
 mod signature_more {
 
     #[allow(unused_imports)]
-    use chrono::{DateTime, Utc};
+    use crate::CallError;
     #[allow(unused_imports)]
-    use mail_core::error::CoreError;
+    use chrono::{DateTime, Utc};
     #[allow(unused_imports)]
     use mail_core::signature::*;
     #[allow(unused_imports)]
@@ -238,23 +244,24 @@ mod signature_more {
 
     impl super::signature::SignatureCalls<'_> {
         /// `mail_core::signature::every`.
-        pub fn every(&self) -> Result<Vec<(Identity, Vec<Signature>)>, CoreError> {
-            mail_core::signature::every(self.0.store())
+        pub fn every(&self) -> Result<Vec<(Identity, Vec<Signature>)>, CallError> {
+            mail_core::signature::every(self.0.store()).map_err(crate::CallError::from)
         }
 
         /// `mail_core::signature::create`.
-        pub fn create(&self, identity: IdentityId, name: &str) -> Result<Signature, CoreError> {
+        pub fn create(&self, identity: IdentityId, name: &str) -> Result<Signature, CallError> {
             mail_core::signature::create(self.0.store(), identity, name)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::signature::write`.
-        pub fn write(&self, id: SignatureId, doc: &Doc) -> Result<Signature, CoreError> {
-            mail_core::signature::write(self.0.store(), id, doc)
+        pub fn write(&self, id: SignatureId, doc: &Doc) -> Result<Signature, CallError> {
+            mail_core::signature::write(self.0.store(), id, doc).map_err(crate::CallError::from)
         }
 
         /// `mail_core::signature::rename`.
-        pub fn rename(&self, id: SignatureId, name: &str) -> Result<Signature, CoreError> {
-            mail_core::signature::rename(self.0.store(), id, name)
+        pub fn rename(&self, id: SignatureId, name: &str) -> Result<Signature, CallError> {
+            mail_core::signature::rename(self.0.store(), id, name).map_err(crate::CallError::from)
         }
 
         /// `mail_core::signature::make_default`.
@@ -263,22 +270,23 @@ mod signature_more {
             id: SignatureId,
             purpose: SignatureUse,
             default: IsDefault,
-        ) -> Result<Signature, CoreError> {
+        ) -> Result<Signature, CallError> {
             mail_core::signature::make_default(self.0.store(), id, purpose, default)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::signature::delete`.
-        pub fn delete(&self, id: SignatureId) -> Result<Signature, CoreError> {
-            mail_core::signature::delete(self.0.store(), id)
+        pub fn delete(&self, id: SignatureId) -> Result<Signature, CallError> {
+            mail_core::signature::delete(self.0.store(), id).map_err(crate::CallError::from)
         }
     }
 }
 mod identity_more {
 
     #[allow(unused_imports)]
-    use chrono::{DateTime, Utc};
+    use crate::CallError;
     #[allow(unused_imports)]
-    use mail_core::error::CoreError;
+    use chrono::{DateTime, Utc};
     #[allow(unused_imports)]
     use mail_core::identity::*;
     #[allow(unused_imports)]
@@ -294,17 +302,17 @@ mod identity_more {
 
     impl super::identity::IdentityCalls<'_> {
         /// `mail_core::identity::remove_alias`.
-        pub fn remove_alias(&self, id: IdentityId) -> Result<(), CoreError> {
-            mail_core::identity::remove_alias(self.0.store(), id)
+        pub fn remove_alias(&self, id: IdentityId) -> Result<(), CallError> {
+            mail_core::identity::remove_alias(self.0.store(), id).map_err(crate::CallError::from)
         }
     }
 }
 mod graph_push {
+    #[allow(unused_imports)]
+    use crate::CallError;
     use crate::Client;
     #[allow(unused_imports)]
     use chrono::{DateTime, Utc};
-    #[allow(unused_imports)]
-    use mail_core::error::CoreError;
     #[allow(unused_imports)]
     use mail_core::sync::Configured;
     #[allow(unused_imports)]
@@ -340,8 +348,9 @@ mod graph_push {
             &self,
             account: AccountId,
             text: &str,
-        ) -> Result<Option<String>, CoreError> {
+        ) -> Result<Option<String>, CallError> {
             mail_core::sync::graph_push::set_relay(self.0.store(), account, text)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::sync::graph_push::relayed`.
@@ -355,9 +364,9 @@ pub use graph_push::GraphPushCalls;
 mod rules_manage {
 
     #[allow(unused_imports)]
-    use chrono::{DateTime, Utc};
+    use crate::CallError;
     #[allow(unused_imports)]
-    use mail_core::error::CoreError;
+    use chrono::{DateTime, Utc};
     #[allow(unused_imports)]
     use mail_core::rules::manage::*;
     #[allow(unused_imports)]
@@ -383,8 +392,9 @@ mod rules_manage {
             threads: &[mail_domain::ThreadId],
             sending: Sending,
             now: DateTime<Utc>,
-        ) -> Result<usize, CoreError> {
+        ) -> Result<usize, CallError> {
             mail_core::rules::manage::apply_to(self.0.store(), threads, sending, now)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::rules::manage::would_send`.
@@ -396,11 +406,11 @@ mod rules_manage {
 mod compose {
 
     #[allow(unused_imports)]
+    use crate::CallError;
+    #[allow(unused_imports)]
     use chrono::{DateTime, Utc};
     #[allow(unused_imports)]
     use mail_core::compose::*;
-    #[allow(unused_imports)]
-    use mail_core::error::CoreError;
     #[allow(unused_imports)]
     use mail_core::sync::Configured;
     #[allow(unused_imports)]
@@ -422,11 +432,11 @@ mod compose {
 mod compose_weight {
 
     #[allow(unused_imports)]
+    use crate::CallError;
+    #[allow(unused_imports)]
     use chrono::{DateTime, Utc};
     #[allow(unused_imports)]
     use mail_core::compose::*;
-    #[allow(unused_imports)]
-    use mail_core::error::CoreError;
     #[allow(unused_imports)]
     use mail_core::sync::Configured;
     #[allow(unused_imports)]
@@ -458,11 +468,11 @@ mod compose_weight {
 mod compose_modes {
 
     #[allow(unused_imports)]
+    use crate::CallError;
+    #[allow(unused_imports)]
     use chrono::{DateTime, Utc};
     #[allow(unused_imports)]
     use mail_core::compose::*;
-    #[allow(unused_imports)]
-    use mail_core::error::CoreError;
     #[allow(unused_imports)]
     use mail_core::sync::Configured;
     #[allow(unused_imports)]
@@ -482,17 +492,18 @@ mod compose_modes {
             to: &[Address],
             grace: chrono::TimeDelta,
             now: DateTime<Utc>,
-        ) -> Result<Redirected, CoreError> {
+        ) -> Result<Redirected, CallError> {
             mail_core::compose::redirect(self.0.store(), message, to, grace, now)
+                .map_err(crate::CallError::from)
         }
     }
 }
 mod sync_caps {
 
     #[allow(unused_imports)]
-    use chrono::{DateTime, Utc};
+    use crate::CallError;
     #[allow(unused_imports)]
-    use mail_core::error::CoreError;
+    use chrono::{DateTime, Utc};
     #[allow(unused_imports)]
     use mail_core::sync::Configured;
     #[allow(unused_imports)]
