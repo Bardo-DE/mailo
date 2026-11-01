@@ -9,8 +9,8 @@ use std::path::{Path, PathBuf};
 
 use chrono::Utc;
 use mail_client::Client;
+use mail_client::SigningKeys;
 use mail_client::message::{Looks, Opening, Protection, Sealed};
-use mail_client::prelude::SigningStore;
 use mail_domain::*;
 use mail_mime::Parsed;
 
@@ -136,7 +136,7 @@ pub fn last(looks: &Looks, message: MessageId, body: Option<BlobId>) -> Option<L
 pub fn lookup(
     looks: &Looks,
     client: &Client,
-    secrets: &dyn SigningStore,
+    secrets: &SigningKeys,
     message: MessageId,
     body: Option<BlobId>,
 ) -> Look {
@@ -152,7 +152,7 @@ pub fn lookup(
 pub fn unlock(
     looks: &Looks,
     client: &Client,
-    secrets: &dyn SigningStore,
+    secrets: &SigningKeys,
     message: MessageId,
     body: Option<BlobId>,
     passphrase: Password,

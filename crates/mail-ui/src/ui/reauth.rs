@@ -243,9 +243,6 @@ impl Reauth {
             let switching = account.clone();
             // The sign-in waits on a browser: a blocking thread's to wait for.
             let answer = tokio::task::spawn_blocking(move || {
-                let net = client.net();
-                let (environment, secrets) = (net.environment(), net.secrets());
-                let saved = net.oauth_clients().saved();
                 let browse = |url: &str| {
                     if let Err(why) = webbrowser::open(url) {
                         log::warn!("the browser would not open the Microsoft sign-in: {why}");
@@ -256,11 +253,8 @@ impl Reauth {
                     .switch_to_graph(
                         switching,
                         chrono::Utc::now(),
-                        mail_client::account::Credentials {
+                        mail_client::Proof {
                             password: None,
-                            saved: &saved,
-                            secrets: secrets.as_ref(),
-                            environment: &environment,
                             on_url: &browse,
                             signed: None,
                         },

@@ -22,7 +22,6 @@ use chrono::{DateTime, Utc};
 use mail_client::Fault;
 use mail_client::account::{Outcome, Setup};
 use mail_client::discover::{Failed, Found, Looked as Resolved};
-use mail_client::prelude::{Environment, OAuthClients};
 use mail_domain::presets::{self, Preset};
 use mail_domain::{AuthPlan, HttpAuth};
 use mail_logic::password::Password;
@@ -121,11 +120,9 @@ pub struct Seams {
 }
 
 impl Seams {
-    /// The network, the keyring and the program's OAuth clients, `clients`.
-    pub fn real(client: Client, clients: OAuthClients) -> Seams {
-        let environment = client.net().environment();
-        let has = (environment.clone(), clients.clone());
-        let signs_in = (client.clone(), clients.clone());
+    /// The network, the keyring and the program's OAuth clients, all the client's.
+    pub fn real(client: Client) -> Seams {
+        let signs_in = client.clone();
         Seams {
             lookup: Arc::new({
                 let client = client.clone();
@@ -135,30 +132,24 @@ impl Seams {
                 let client = client.clone();
                 move |domain| client.net().find_jmap(domain).map_err(String::from)
             }),
-            client: Arc::new(move |issuer| has_client(issuer, &has.0, &has.1)),
+            client: Arc::new({
+                let client = client.clone();
+                move |issuer| client.net().has_oauth_client(issuer)
+            }),
             authorize: Arc::new(move |issuer, scopes, urls| {
-                let (client, clients) = signs_in.clone();
+                let client = signs_in.clone();
                 Box::pin(async move {
                     // `sign_in` borrows a callback that is not `Sync`, so it runs on a thread of
                     // its own and the future waits for it. Dropping the future drops `stop`, which
                     // ends the sign-in and frees its listener.
                     let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
                     let _stop = stop;
-                    let net = client.net();
-                    let environment = net.environment();
-                    net.on_thread("mailo-sign-in", move || async move {
-                        let saved = clients.saved();
-                        let client = mail_client::account::oauth_client(
-                            issuer,
-                            &environment,
-                            &saved,
-                        )
-                        .ok_or_else(|| "no client id".to_owned())?;
+                    let on_thread = client.clone();
+                    on_thread.net().on_thread("mailo-sign-in", move || async move {
                         let on_url = |url: &str| urls(url);
+                        let net = client.net();
                         tokio::select! {
-                            signed = mail_client::account::authorize(&client, &scopes, &on_url, Utc::now()) => {
-                                signed.map_err(|why| why.to_string())
-                            }
+                            signed = net.authorize(issuer, &scopes, &on_url, Utc::now()) => signed,
                             _ = stopped => Err("cancelled".to_owned()),
                         }
                     })
@@ -173,8 +164,6 @@ impl Seams {
                     password,
                     signed,
                 } = request;
-                let environment = client.net().environment();
-                let secrets = client.net().secrets();
                 let added = client
                     .net()
                     .add_with_password(
@@ -183,11 +172,8 @@ impl Seams {
                         false,
                         false,
                         Utc::now(),
-                        mail_client::account::Credentials {
+                        mail_client::Proof {
                             password: password.as_ref(),
-                            saved: &clients.saved(),
-                            secrets: secrets.as_ref(),
-                            environment: &environment,
                             // The sign-in has been made and its address shown already.
                             on_url: &|_| {},
                             signed: signed.as_ref(),
@@ -198,10 +184,7 @@ impl Seams {
                 // now, while the form is still up: a wrong user name or password is said here in
                 // the server's words, not found at the first sync as "sign in again".
                 if matches!(added.outcome, Outcome::PasswordStored { bearer: false, .. }) {
-                    let checked =
-                        client
-                            .net()
-                            .check_sign_in(&added.address, secrets.clone(), Utc::now());
+                    let checked = client.net().check_sign_in(&added.address, Utc::now());
                     if let Err(why) = checked {
                         // An account that is new and cannot sign in is not kept, so the person
                         // is not left with one that says "sign in again" and can only be
@@ -209,10 +192,7 @@ impl Seams {
                         let removed = if added.updated {
                             Ok(None)
                         } else {
-                            client
-                                .net()
-                                .remove_account(secrets.as_ref(), added.account.clone())
-                                .map(Some)
+                            client.net().remove_account(added.account.clone()).map(Some)
                         };
                         if let Err(trouble) = removed {
                             log::warn!(
@@ -234,12 +214,6 @@ impl Seams {
             }),
         }
     }
-}
-
-/// Whether an OAuth client for `issuer` is at hand: one typed in the environment, or one of
-/// `clients` (the program's: this installation's files).
-pub fn has_client(issuer: Issuer, environment: &Environment, clients: &OAuthClients) -> bool {
-    mail_client::account::oauth_client(issuer, environment, &clients.saved()).is_some()
 }
 
 /// The provider files of [`OFFERED`], in its order.

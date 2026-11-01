@@ -126,7 +126,7 @@ fn quire(ask: Ask) {
     // clients are the ones the program gave the client, as every other sign-in's are.
     let client = mail_ui_kit::live::client();
     let props = window::AddAccountWindowProps {
-        wiring: window::Wiring::real(client.clone(), client.net().oauth_clients()),
+        wiring: window::Wiring::real(client.clone()),
         prefill: ask.address,
         join: ask.join,
     };

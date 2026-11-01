@@ -64,7 +64,8 @@ async fn an_openpgp_message_opened_lists_what_is_attached_inside_and_saves_it_wh
 #[test]
 fn a_key_arriving_by_any_road_opens_a_message_again_without_the_sheet() {
     let (store, _dir) = seeded();
-    let secrets = MapSigningStore::default();
+    let secrets = Arc::new(MapSigningStore::default());
+    let keys = mail_client::SigningKeys::new(secrets.clone());
     // A key of mine, made elsewhere and not yet here.
     let key = someone_elses(ME, 121);
     let raw = letter("marten", "the marten waits");
@@ -77,7 +78,7 @@ fn a_key_arriving_by_any_road_opens_a_message_again_without_the_sheet() {
     let Look::Opened(first) = lookup(
         &looks,
         &crate::ui::fixtures::client(&store),
-        &secrets,
+        &keys,
         message.id,
         body,
     ) else {
@@ -90,7 +91,7 @@ fn a_key_arriving_by_any_road_opens_a_message_again_without_the_sheet() {
     // window, and nothing has to.
     mail_core::pgp::keys::import(
         &store,
-        &secrets,
+        &*secrets,
         key.armored().unwrap().as_bytes(),
         chrono::Utc::now(),
     )
@@ -98,7 +99,7 @@ fn a_key_arriving_by_any_road_opens_a_message_again_without_the_sheet() {
     let Look::Opened(second) = lookup(
         &looks,
         &crate::ui::fixtures::client(&store),
-        &secrets,
+        &keys,
         message.id,
         body,
     ) else {

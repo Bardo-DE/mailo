@@ -34,7 +34,6 @@ use ds::prelude::*;
 use ds::root::common::Common;
 use ds::style::tokens::control_size::ControlSize;
 use mail_client::Storage;
-use mail_client::prelude::AccountSecrets;
 use mail_ui_kit::appearance::WindowDirs;
 use mail_ui_kit::common::Problem;
 use mail_ui_kit::data::{AccountRow, use_account_rows};
@@ -55,20 +54,17 @@ const ASK: &str = "Remove Account\u{2026}";
 pub(in crate::ui) type ReadStorage =
     Arc<dyn Fn(mail_client::Client, AccountId) -> Result<Option<Storage>, String> + Send + Sync>;
 
-/// The keyring a removal forgets the sign-in from, and what asks a server how full the account
-/// is, handed in as a context so tests reach their own and never the user's.
+/// What asks a server how full the account is, handed in as a context so tests reach their own and never the user's.
 #[derive(Clone)]
 pub(in crate::ui) struct Seams {
-    pub secrets: Arc<dyn AccountSecrets>,
     pub storage: ReadStorage,
 }
 
 impl Seams {
-    /// The system keyring: the launched window's, handed as a root context there
+    /// The servers asked: the launched window's, handed as a root context there
     /// (`launch::native`) and nowhere else.
-    pub(in crate::ui) fn real(client: &mail_client::Client) -> Seams {
+    pub(in crate::ui) fn real() -> Seams {
         Seams {
-            secrets: client.net().secrets(),
             storage: remembered(
                 Arc::new(|client, account| {
                     client
@@ -81,12 +77,10 @@ impl Seams {
         }
     }
 
-    /// A window's whose root handed none, as a test's does: a keyring that holds nothing, so a
-    /// removal forgets nothing and touches no keyring of the user's, and no server to ask, so
+    /// A window's whose root handed none, as a test's does: no server to ask, so
     /// the page says nothing of storage and opens no socket.
     fn none() -> Seams {
         Seams {
-            secrets: Arc::new(mail_client::prelude::NoKeyring),
             storage: Arc::new(|_, _| Ok(None)),
         }
     }
@@ -196,19 +190,14 @@ fn confirm(mut shell: Signal<Shell>, account: AccountId) {
         return;
     };
     to(shell, AccountStep::Removing);
-    let seams = seams();
     let dirs = try_consume_context::<WindowDirs>();
     let removing = account.clone();
     // The client forgets the secrets and then the account's mail, waiting on its runtime, so a
     // blocking thread waits for it. The task is the window's, not the page's: a page left
     // mid-removal would otherwise drop it between the keyring and the database.
     dioxus::core::spawn_forever(async move {
-        let removed = tokio::task::spawn_blocking(move || {
-            client
-                .net()
-                .remove_account(seams.secrets.as_ref(), removing)
-        })
-        .await;
+        let removed =
+            tokio::task::spawn_blocking(move || client.net().remove_account(removing)).await;
         // A thread that panicked removed nothing it can say.
         let Ok(removed) = removed else {
             return;

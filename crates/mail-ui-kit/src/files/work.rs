@@ -361,10 +361,7 @@ pub fn export_now(
     if chosen.is_empty() {
         return Err("Nothing to export.".to_owned());
     }
-    let done =
-        client
-            .export()
-            .export(&client.net().environment(), &chosen, target, now, progress)?;
+    let done = client.export().export(&chosen, target, now, progress)?;
     let said = mail_os::said::export::said(&done, target)
         .lines()
         .collect::<Vec<_>>()

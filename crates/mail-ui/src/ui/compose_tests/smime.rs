@@ -272,7 +272,7 @@ fn a_locked_openpgp_key_is_known_by_the_sends_typed_error() {
     // The data side's answer, typed: the key, whether or not a passphrase was asked for.
     let refused = mail_ui_compose::compose::life::queue(
         &crate::ui::fixtures::client(&store),
-        secrets.as_ref(),
+        &mail_client::SigningKeys::new(secrets.clone()),
         &mail_core::pgp::no_passphrase,
         draft.id,
         mail_core::compose::Leaves::Now,
@@ -285,7 +285,7 @@ fn a_locked_openpgp_key_is_known_by_the_sends_typed_error() {
     let wrong = |_: Fingerprint| Some("not the words".to_owned());
     let refused = mail_ui_compose::compose::life::queue(
         &crate::ui::fixtures::client(&store),
-        secrets.as_ref(),
+        &mail_client::SigningKeys::new(secrets.clone()),
         &wrong,
         draft.id,
         mail_core::compose::Leaves::Now,

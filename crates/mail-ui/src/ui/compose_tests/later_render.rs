@@ -82,7 +82,9 @@ fn window(dress: impl FnOnce(&mut Page), before: Before) -> (String, Work) {
             write.when = When::Tomorrow;
             let sent = life::send(
                 &crate::ui::fixtures::client(&built.store),
-                &mail_core::testing::MapSigningStore::default(),
+                &mail_client::SigningKeys::new(std::sync::Arc::new(
+                    mail_core::testing::MapSigningStore::default(),
+                )),
                 &mut write,
                 Anyway::Yes,
                 chrono::TimeDelta::seconds(5),

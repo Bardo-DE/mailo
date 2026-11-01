@@ -28,7 +28,6 @@ use ds::host::measure::MountedRef;
 use ds::prelude::*;
 use mail_client::account::direct::{WAIT, signs_in_directly};
 use mail_client::account::{Mode, SignInError};
-use mail_client::prelude::OAuthClients;
 use mail_domain::AuthPlan;
 use porter_core::AuthKind;
 use porter_provider::{Issuer, ProviderSpec};
@@ -121,8 +120,8 @@ pub struct DirectSignIns(pub Arc<dyn SignInDirectly>);
 impl DirectSignIns {
     /// The program's: `clients`, the system browser, the keyring and `client`. For the launched
     /// window's root alone.
-    pub(in crate::ui) fn real(client: Client, clients: OAuthClients) -> DirectSignIns {
-        DirectSignIns(Arc::new(Real { client, clients }))
+    pub(in crate::ui) fn real(client: Client) -> DirectSignIns {
+        DirectSignIns(Arc::new(Real { client }))
     }
 }
 
@@ -148,21 +147,15 @@ impl std::fmt::Debug for DirectSignIns {
 /// The program's: its OAuth clients, the system browser, the keyring and `client`.
 struct Real {
     client: Client,
-    clients: OAuthClients,
 }
 
 impl SignInDirectly for Real {
     fn has_client(&self, issuer: Issuer) -> bool {
-        mail_ui_model::add_account::provider::has_client(
-            issuer,
-            &self.client.net().environment(),
-            &self.clients,
-        )
+        self.client.net().has_oauth_client(issuer)
     }
 
     fn sign_in(&self, issuer: Issuer, mode: Mode) -> Signing {
         let client = self.client.clone();
-        let clients = self.clients.clone();
         Box::pin(async move {
             // `sign_in_with` borrows the browser's callback across its wait, which is not `Send`,
             // so it runs on a thread of its own, as the add-account sheet's sign-in does, and
@@ -171,9 +164,6 @@ impl SignInDirectly for Real {
             let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
             let _stop = stop;
             tokio::task::spawn_blocking(move || {
-                let saved = clients.saved();
-                let environment = client.net().environment();
-                let secrets = client.net().secrets();
                 let browse = |url: &str| webbrowser::open(url);
                 let profiles = mail_client::account::direct::Profiles::default();
                 client
@@ -182,9 +172,6 @@ impl SignInDirectly for Real {
                         issuer,
                         mode,
                         mail_client::SignIn {
-                            secrets: secrets.as_ref(),
-                            saved: &saved,
-                            environment: &environment,
                             browse: &browse,
                             profiles: &profiles,
                             wait: WAIT,

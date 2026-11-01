@@ -36,7 +36,7 @@ fn now() -> DateTime<Utc> {
 /// The window's seams, with `secrets` as the keyring and nothing else reachable.
 pub(in crate::ui) fn seams_with(secrets: Arc<MapSigningStore>) -> Seams {
     Seams {
-        secrets,
+        secrets: mail_client::SigningKeys::new(secrets),
         lookup: Arc::new(|_, _| Err("no lookups in tests".to_owned())),
         pick: Arc::new(|| None),
         save: Arc::new(|_| None),

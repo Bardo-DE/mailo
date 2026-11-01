@@ -14,7 +14,7 @@
 
 use chrono::Utc;
 use mail_client::Client;
-use mail_client::prelude::SigningStore;
+use mail_client::SigningKeys;
 use mail_domain::{Fingerprint, PgpKey, SecretHeld};
 use std::path::{Path, PathBuf};
 
@@ -72,7 +72,7 @@ pub enum Done {
 /// Do `job`. Blocks — on the keyring, a file dialog, the disk — so the page runs it on a
 /// blocking thread.
 pub fn work(client: &Client, seams: &Seams, job: Job) -> Result<Done, String> {
-    let secrets = seams.secrets.as_ref();
+    let secrets = &seams.secrets;
     let said = match job {
         Job::Cert(job) => return super::certs::work(client, seams, job),
         Job::Generate(address) => generate(client, secrets, &address)?,
@@ -131,7 +131,7 @@ pub fn work(client: &Client, seams: &Seams, job: Job) -> Result<Done, String> {
     Ok(Done::Said(said))
 }
 
-fn generate(client: &Client, secrets: &dyn SigningStore, address: &str) -> Result<String, String> {
+fn generate(client: &Client, secrets: &SigningKeys, address: &str) -> Result<String, String> {
     let key = client
         .keys()
         .generate(secrets, address, Utc::now())
@@ -142,7 +142,7 @@ fn generate(client: &Client, secrets: &dyn SigningStore, address: &str) -> Resul
     ))
 }
 
-fn import(client: &Client, secrets: &dyn SigningStore, path: &Path) -> Result<String, String> {
+fn import(client: &Client, secrets: &SigningKeys, path: &Path) -> Result<String, String> {
     let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
     let imported = client
         .keys()

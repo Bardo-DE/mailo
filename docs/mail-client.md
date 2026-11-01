@@ -40,14 +40,16 @@ module privacy cannot hide another crate's paths. `scripts/check-boundary.sh` fa
 `[dependencies]` name one of those crates, and there is no allowlist: until the split, the
 stages simply convert the window, and the split is what keeps it converted.
 
-The failures and seams a caller names beside the client's own (`CoreError`, `StoreError`,
-`Remedy`, `OAuthClients`, `SigningStore`, ...) are under `mail_client::prelude`; the crate root
-holds the client's own API. `mail-client` re-exports only what reads no store (`pure.rs`): `mail-core`'s words for mail
+Every call fails with the client's own `CallError`, which says its words and the step that mends
+it and tells apart (`Fault`) the few failures a window answers in its own way; the lower crates'
+errors are not named above the client. The crate root holds the client's own API, and the types a
+window must hold or handle (`SigningKeys`, what a push wrote, what a server search found) are the
+client's own or live in a pure crate (`mail-proto`). `mail-client` re-exports only what reads no store (`pure.rs`): `mail-core`'s words for mail
 (`Scope`, `undo`, `when`, `editor`, the pure parts of `view` and `place`, the shapes a call takes
 and hands back) and what it does with no store at all (parsing a search, the files under the
 config directory). Each re-exported module holds only what the window uses of `mail-core`'s. It
 never hands out `&SqliteStore` or `Mail`: what the program reaches servers with is the client's
-too (`net().secrets()`, `environment()`, `oauth_clients()`, `runtime()`), and a client never
+too (`net().signing()`, `has_oauth_client()`, `authorize()`, `runtime()`), and a client never
 told ([`Reach`]) has no keyring and no OAuth client, which is what a test's window has.
 
 `mail-client` is logic only. Its queries are facts about the mail — the accounts with their

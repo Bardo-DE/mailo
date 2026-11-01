@@ -57,10 +57,10 @@ impl PartialEq for Wiring {
 }
 
 impl Wiring {
-    /// The network, the keyring, the program's OAuth clients (`clients`) and the browser.
-    pub(super) fn real(client: Client, clients: mail_client::prelude::OAuthClients) -> Wiring {
+    /// The network, the keyring, the program's OAuth clients and the browser.
+    pub(super) fn real(client: Client) -> Wiring {
         Wiring::new(
-            Seams::real(client, clients),
+            Seams::real(client),
             Arc::new(|url| webbrowser::open(url).map_err(|why| why.to_string())),
         )
     }

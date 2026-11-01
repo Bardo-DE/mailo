@@ -268,7 +268,7 @@ pub fn send_again(client: &Client, resend: Resend) -> bool {
     let secrets = mail_ui_kit::pgp::seams().secrets;
     super::life::queue_reminding(
         client,
-        secrets.as_ref(),
+        &secrets,
         &mail_client::pgp::no_passphrase,
         resend.draft,
         // A time of its own: no grace is counted before it. The page that chose a picture size is

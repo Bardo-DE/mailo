@@ -5,8 +5,8 @@
 
 use chrono::{DateTime, TimeZone, Utc};
 use mail_client::Client;
+use mail_client::SigningKeys;
 use mail_client::compose::Leaves;
-use mail_client::prelude::SigningStore;
 use mail_domain::*;
 use mail_logic::picture::PictureSize;
 use std::collections::BTreeMap;
@@ -329,7 +329,7 @@ impl<Tz> std::fmt::Debug for Dated<'_, Tz> {
 /// `grace` first ([`grace`]).
 pub fn send<Tz: TimeZone>(
     client: &Client,
-    secrets: &dyn SigningStore,
+    secrets: &SigningKeys,
     page: &mut Page,
     anyway: Anyway,
     grace: chrono::TimeDelta,
@@ -422,7 +422,7 @@ where
 #[cfg(any(test, feature = "testing"))]
 pub fn queue(
     client: &Client,
-    secrets: &dyn SigningStore,
+    secrets: &SigningKeys,
     ask: mail_client::pgp::Ask<'_>,
     draft: DraftId,
     leaves: Leaves,
@@ -446,7 +446,7 @@ pub fn queue(
 /// made smaller as the bytes are frozen unless that is [`PictureSize::Actual`].
 pub(crate) fn queue_reminding(
     client: &Client,
-    secrets: &dyn SigningStore,
+    secrets: &SigningKeys,
     ask: mail_client::pgp::Ask<'_>,
     draft: DraftId,
     Going {

@@ -115,7 +115,7 @@ impl Sheets for WindowSheets {
 }
 
 /// The account service has no secrets of its own to keep: the provider files nothing with it
-/// (mailo keeps its accounts' secrets itself, `mail_client::prelude::AccountSecrets`).
+/// (mailo keeps its accounts' secrets itself, in the client's keyring).
 #[derive(Debug, Clone, Copy)]
 pub struct NoSecrets;
 

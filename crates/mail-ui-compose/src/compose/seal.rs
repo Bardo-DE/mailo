@@ -266,15 +266,8 @@ pub(crate) async fn seal_and_queue(
             }
             typed
         };
-        let queued = super::life::queue_reminding(
-            &client,
-            secrets.as_ref(),
-            &ask,
-            draft,
-            going,
-            remind,
-            Utc::now(),
-        );
+        let queued =
+            super::life::queue_reminding(&client, &secrets, &ask, draft, going, remind, Utc::now());
         drop(passphrase);
         match queued {
             Ok(due) => Ok(due),

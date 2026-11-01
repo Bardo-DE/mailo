@@ -473,7 +473,6 @@ mod export {
     use crate::CallError;
     use crate::Client;
     use chrono::{DateTime, Utc};
-    use mail_core::environment::Environment;
     use mail_core::export::Target;
     use mail_core::export::*;
     use mail_domain::*;
@@ -494,14 +493,20 @@ mod export {
         /// `mail_core::export::export`.
         pub fn export(
             &self,
-            env: &Environment,
             messages: &[MessageId],
             target: &Target,
             now: DateTime<Utc>,
             progress: &mut dyn FnMut(&Exported),
         ) -> Result<Exported, CallError> {
-            mail_core::export::export(self.0.store(), env, messages, target, now, progress)
-                .map_err(crate::CallError::from)
+            mail_core::export::export(
+                self.0.store(),
+                &self.0.net().environment(),
+                messages,
+                target,
+                now,
+                progress,
+            )
+            .map_err(crate::CallError::from)
         }
 
         /// `mail_core::export::raw_head`.

@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 use chrono::{DateTime, Utc};
 use dioxus::prelude::*;
 use mail_client::Client;
-use mail_client::prelude::SigningStore;
+use mail_client::SigningKeys;
 use mail_domain::{CertFingerprint, CertSource, KeyTrust, SecretHeld, SmimeCert};
 
 use super::actions::{Act, Opened, RowActions, line};
@@ -57,7 +57,7 @@ pub enum CertJob {
 
 /// Do `job`. Blocks — on the keyring, a file dialog, the disk.
 pub fn work(client: &Client, seams: &Seams, job: CertJob) -> Result<Done, String> {
-    let secrets = seams.secrets.as_ref();
+    let secrets = &seams.secrets;
     let said = match job {
         CertJob::Import => {
             let Some(path) = (seams.pick)() else {
@@ -116,7 +116,7 @@ pub fn work(client: &Client, seams: &Seams, job: CertJob) -> Result<Done, String
 /// this returns.
 fn import(
     client: &Client,
-    secrets: &dyn SigningStore,
+    secrets: &SigningKeys,
     path: &Path,
     password: Option<Password>,
 ) -> Result<Done, String> {

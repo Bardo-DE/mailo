@@ -424,7 +424,7 @@ fn send_page(
     let secrets = mail_ui_kit::pgp::seams().secrets;
     let sent = life::send(
         &client,
-        secrets.as_ref(),
+        &secrets,
         &mut page.write(),
         anyway,
         life::grace(),

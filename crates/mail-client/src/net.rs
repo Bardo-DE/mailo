@@ -6,14 +6,12 @@
 //! its OAuth clients, its keyring and its runtime. A client never told reaches them with none of
 //! those: no keyring, so nothing signs in, which is what a test wants of a call it did not fake.
 
-use crate::{CallError, Client};
+use crate::{CallError, Client, SigningKeys};
 use chrono::{DateTime, Utc};
 use mail_core::account::{Added, Credentials, RemoveError, Removed, Setup};
 use mail_core::sync::Configured;
 use mail_core::sync::report::PassEnd;
-use mail_core::{
-    AccountSecrets, Environment, Mail, NoKeyring, OAuthClients, Pushed, Searched, SigningStore,
-};
+use mail_core::{AccountSecrets, Environment, Mail, NoKeyring, Pushed, Searched, SigningStore};
 use mail_domain::{MessageId, PgpKey, Retry, Section};
 use mail_store::SqliteStore;
 use porter_core::AccountId;
@@ -119,14 +117,9 @@ impl Net<'_> {
         mail
     }
 
-    /// Where account secrets are kept: the program's keyring, or none for a client never told.
-    pub fn secrets(&self) -> Arc<dyn AccountSecrets> {
-        self.mail().secrets()
-    }
-
-    /// Where signing keys are kept, as [`Net::secrets`].
-    pub fn signing(&self) -> Arc<dyn SigningStore> {
-        self.mail().signing()
+    /// Where signing keys are kept, as the program told the client.
+    pub fn signing(&self) -> SigningKeys {
+        SigningKeys::new(self.mail().signing())
     }
 
     /// The privacy relay's key or token, kept in the keyring: `None` while none is kept. Blocks on
@@ -158,13 +151,42 @@ impl Net<'_> {
     }
 
     /// What the program was started with.
-    pub fn environment(&self) -> Environment {
+    pub(crate) fn environment(&self) -> Environment {
         self.mail().environment().clone()
     }
 
-    /// The OAuth clients the program signs in as.
-    pub fn oauth_clients(&self) -> OAuthClients {
-        self.mail().oauth_clients().clone()
+    /// The provider icons not yet kept in `dir`, for the program this is.
+    pub fn missing_provider_icons(
+        &self,
+        dir: &std::path::Path,
+    ) -> Vec<mail_core::provider::Provider> {
+        mail_core::provider::icon::missing(dir, self.mail().environment().program)
+    }
+
+    /// Whether an OAuth client for `issuer` is at hand: one typed in the environment, or one of
+    /// the program's.
+    pub fn has_oauth_client(&self, issuer: porter_provider::Issuer) -> bool {
+        let mail = self.mail();
+        mail_core::account::oauth_client(issuer, mail.environment(), &mail.oauth_clients().saved())
+            .is_some()
+    }
+
+    /// Sign in to `issuer` in the browser and hand back what it gave, handing `on_url` the address
+    /// to open. Waits on the person, so it runs on a thread of its own ([`Net::on_thread`]).
+    pub async fn authorize(
+        &self,
+        issuer: porter_provider::Issuer,
+        scopes: &[String],
+        on_url: &dyn Fn(&str),
+        now: DateTime<Utc>,
+    ) -> Result<porter_core::Credential, String> {
+        let mail = self.mail();
+        let saved = mail.oauth_clients().saved();
+        let client = mail_core::account::oauth_client(issuer, mail.environment(), &saved)
+            .ok_or_else(|| "no client id".to_owned())?;
+        mail_core::account::authorize(&client, scopes, on_url, now)
+            .await
+            .map_err(|why| why.to_string())
     }
 
     /// The runtime servers are reached on.
@@ -340,9 +362,10 @@ impl Net<'_> {
         microsoft: bool,
         graph: bool,
         now: DateTime<Utc>,
-        credentials: Credentials<'_>,
+        proof: Proof<'_>,
     ) -> Result<Added, CallError> {
         let mail = self.mail();
+        let (saved, secrets) = (mail.oauth_clients().saved(), mail.secrets());
         Self::wait(
             &mail,
             mail_core::account::add_with_password(
@@ -352,7 +375,7 @@ impl Net<'_> {
                 microsoft,
                 graph,
                 now,
-                credentials,
+                proof.of(&saved, secrets.as_ref(), mail.environment()),
             ),
         )
         .map_err(CallError::from)
@@ -363,24 +386,26 @@ impl Net<'_> {
         &self,
         account: AccountId,
         now: DateTime<Utc>,
-        credentials: Credentials<'_>,
+        proof: Proof<'_>,
     ) -> Result<Added, CallError> {
         let mail = self.mail();
+        let (saved, secrets) = (mail.oauth_clients().saved(), mail.secrets());
         Self::wait(
             &mail,
-            mail_core::account::switch_to_graph(self.0.store(), account, now, credentials),
+            mail_core::account::switch_to_graph(
+                self.0.store(),
+                account,
+                now,
+                proof.of(&saved, secrets.as_ref(), mail.environment()),
+            ),
         )
         .map_err(CallError::from)
     }
 
     /// Sign in to `address`'s server once, to see that its password is right.
-    pub fn check_sign_in(
-        &self,
-        address: &str,
-        secrets: Arc<dyn AccountSecrets>,
-        now: DateTime<Utc>,
-    ) -> Result<(), CallError> {
+    pub fn check_sign_in(&self, address: &str, now: DateTime<Utc>) -> Result<(), CallError> {
         let mail = self.mail();
+        let secrets = mail.secrets();
         Self::wait(
             &mail,
             mail_core::sync::check_sign_in(&self.0.store_arc(), address, secrets, now),
@@ -389,16 +414,51 @@ impl Net<'_> {
     }
 
     /// Remove an account and what it kept here, and its secrets.
-    pub fn remove_account(
-        &self,
-        secrets: &dyn AccountSecrets,
-        account: AccountId,
-    ) -> Result<Removed, RemoveError> {
+    pub fn remove_account(&self, account: AccountId) -> Result<Removed, RemoveError> {
         let mail = self.mail();
+        let secrets = mail.secrets();
         Self::wait(
             &mail,
-            mail_core::account::remove(self.0.store(), secrets, account),
+            mail_core::account::remove(self.0.store(), secrets.as_ref(), account),
         )
+    }
+}
+
+/// What an add of an account is given to sign it in with: the password it was typed, or the
+/// credential a browser sign-in already made. The client adds what only it has, the keyring and the
+/// OAuth clients.
+pub struct Proof<'a> {
+    /// The password for a password account. `None`, or an empty one, is no password.
+    pub password: Option<&'a mail_logic::password::Password>,
+    /// Handed the address to open when the account signs in in a browser, before the sign-in
+    /// waits for it. Called on the thread the add runs on.
+    pub on_url: &'a dyn Fn(&str),
+    /// The credential a sign-in already obtained, for an account that signs in in a browser.
+    /// `None` signs in here.
+    pub signed: Option<&'a porter_core::Credential>,
+}
+
+impl<'a> Proof<'a> {
+    fn of(
+        self,
+        saved: &'a mail_core::ClientRegistry,
+        secrets: &'a dyn AccountSecrets,
+        environment: &'a Environment,
+    ) -> Credentials<'a> {
+        Credentials {
+            password: self.password,
+            saved,
+            secrets,
+            environment,
+            on_url: self.on_url,
+            signed: self.signed,
+        }
+    }
+}
+
+impl std::fmt::Debug for Proof<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Proof").finish_non_exhaustive()
     }
 }
 
@@ -406,9 +466,6 @@ impl Net<'_> {
 /// the client's.
 #[derive(Clone, Copy)]
 pub struct SignIn<'a> {
-    pub secrets: &'a dyn AccountSecrets,
-    pub saved: &'a mail_core::ClientRegistry,
-    pub environment: &'a mail_core::Environment,
     pub browse: &'a dyn Fn(&str) -> std::io::Result<()>,
     pub profiles: &'a mail_core::account::direct::Profiles,
     pub wait: std::time::Duration,
@@ -431,10 +488,8 @@ impl Net<'_> {
         cancel: impl Future<Output = ()>,
     ) -> Result<Added, mail_core::account::SignInError> {
         let mail = self.mail();
+        let (saved, secrets) = (mail.oauth_clients().saved(), mail.secrets());
         let SignIn {
-            secrets,
-            saved,
-            environment,
             browse,
             profiles,
             wait,
@@ -447,9 +502,9 @@ impl Net<'_> {
                 mode,
                 mail_core::account::Direct {
                     store: self.0.store(),
-                    secrets,
-                    saved,
-                    environment,
+                    secrets: secrets.as_ref(),
+                    saved: &saved,
+                    environment: mail.environment(),
                     browse,
                     profiles,
                     wait,
@@ -469,8 +524,8 @@ mod tests {
     fn a_client_never_told_how_to_reach_servers_says_so_once_and_still_answers() {
         let store = Arc::new(mail_store::testing::in_memory());
         let client = Client::inline(store, Arc::new(mail_core::mail::SystemClock));
-        let _ = client.net().secrets();
-        let _ = client.net().secrets();
+        let _ = client.net().signing();
+        let _ = client.net().signing();
         assert!(UNREACHED_SAID.is_completed());
     }
 }
