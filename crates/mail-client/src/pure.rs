@@ -152,10 +152,9 @@ pub mod remote_image {
 pub mod rules {
     pub use mail_core::rules::ListedRule;
     pub mod manage {
-        pub use mail_core::rules::manage::{
-            ConditionError, Draft, SaveError, Sending, Step, read_condition,
-        };
+        pub use mail_core::rules::manage::{Draft, SaveError, Sending, Step};
         pub use mail_domain::rule::DEFAULT_REPLY_DAYS;
+        pub use mail_logic::rules::condition::{ConditionError, read_condition};
     }
     pub mod server {
         pub use mail_core::rules::server::{

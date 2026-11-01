@@ -1153,7 +1153,7 @@ async fn pass_on<B: mail_proto::Backend>(
             let noted = crate::rules::speak::carry_out(
                 engine.store(),
                 &ran.left,
-                crate::rules::guard::Occasion::Arrival,
+                mail_logic::rules::guard::Occasion::Arrival,
                 now,
             );
             done.counts.noted.extend(noted);

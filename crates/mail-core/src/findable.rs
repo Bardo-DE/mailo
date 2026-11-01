@@ -12,12 +12,13 @@
 //! on only that.
 
 use crate::error::CoreError;
-use crate::notify::{Own, own_addresses};
+use crate::notify::own_addresses;
 use chrono::{DateTime, Utc};
 use mail_domain::{
     Address, Filter, LabelId, MailboxRole, PageReq, Property, Query, Sort, SortDir, ThreadSummary,
     subject_or_none,
 };
+use mail_logic::own::Own;
 use mail_store::{SqliteStore, Store, StoreError};
 use std::collections::{BTreeMap, HashMap};
 

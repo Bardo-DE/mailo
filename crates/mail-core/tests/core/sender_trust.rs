@@ -7,8 +7,9 @@
 
 use crate::support::account;
 use mail_core::auth::{Standing, results_of, standing};
-use mail_core::rules::block::{Blocked, block, condition};
+use mail_core::rules::block::{Blocked, block};
 use mail_domain::*;
+use mail_logic::rules::block::condition;
 use mail_mime::Verdict;
 use mail_runtime::{Arrival, absorb};
 use mail_store::{SqliteStore, Store};

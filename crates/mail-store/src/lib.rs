@@ -45,7 +45,7 @@ pub use blob::Blobs;
 pub use changes::{Committed, Generation, Topics, Wake};
 pub use contact::{
     AddressBook, BookCard, CardId, Contact, Edit, Group, GroupHome, GroupId, Kind, Origin,
-    PersonCard, Tally, Vip, no_reply,
+    PersonCard, Tally, Vip,
 };
 pub use dispatch::{PASSES_TO_FIND, SYNCS_TO_FIND};
 pub use file::write_atomic;
