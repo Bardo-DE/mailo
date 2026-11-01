@@ -96,8 +96,7 @@ impl Provider {
             Utc::now(),
         );
         if let Err(why) = queued {
-            let _ =
-                mail_ui::ui::discarding_draft(draft.id, || compose::discard(&self.store, draft.id));
+            let _ = compose::discard(&self.store, draft.id);
             return Err(AppRefusal::Failed(why.to_string()));
         }
         Ok(outcome(
@@ -189,9 +188,7 @@ impl Provider {
                 )
                 .map(|_| draft.id)
                 .map_err(|why| {
-                    let _ = mail_ui::ui::discarding_draft(draft.id, || {
-                        compose::discard(&self.store, draft.id)
-                    });
+                    let _ = compose::discard(&self.store, draft.id);
                     why.to_string()
                 })
             });
@@ -200,9 +197,7 @@ impl Provider {
                 Err(why) => {
                     for draft in queued {
                         if compose::unsend(&self.store, draft, Utc::now()).is_ok() {
-                            let _ = mail_ui::ui::discarding_draft(draft, || {
-                                compose::discard(&self.store, draft)
-                            });
+                            let _ = compose::discard(&self.store, draft);
                         }
                     }
                     return Err(AppRefusal::Failed(why));
@@ -258,9 +253,10 @@ impl Provider {
         })
     }
 
-    /// Discard a draft an action made.
+    /// Discard a draft an action made. This process has no window, so no autosave of the draft is
+    /// writing it back: nothing to wait for or to refuse.
     pub(super) fn discard(&self, draft: DraftId) -> Result<(), UndoFault> {
-        mail_ui::ui::discarding_draft(draft, || compose::discard(&self.store, draft))
+        compose::discard(&self.store, draft)
             .map(drop)
             .map_err(|_| UndoFault::Gone)
     }

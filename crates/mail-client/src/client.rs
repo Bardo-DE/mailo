@@ -151,9 +151,14 @@ pub(crate) struct Shared {
     /// What the window is about to read and fetching itself: the client's, handed to each pass
     /// it runs and to the folders it fetches ([`Client::wanted`]).
     pub(crate) wanted: mail_core::wanted::Wanted,
+    /// What callers keep with the client, one value of each type ([`Client::local`]).
+    pub(crate) locals: Mutex<std::collections::HashMap<std::any::TypeId, LocalValue>>,
     /// The [`Mail`](mail_core::Mail) `reach` last made, and when (`Net::mail`).
     pub(crate) mail: Mutex<Option<(Instant, mail_core::Mail)>>,
 }
+
+/// A value a caller keeps with a client ([`Client::local`]).
+pub(crate) type LocalValue = Arc<dyn std::any::Any + Send + Sync>;
 
 /// Fetching run where the caller runs it: what [`Client::fetch`] hands a client that reads on
 /// its caller's thread. Runs until it is dropped.
@@ -408,6 +413,22 @@ impl Client {
         self.0.shared.config_dir()
     }
 
+    /// The one `T` kept with this client, made by `T::default()` the first time it is asked for.
+    ///
+    /// For state that belongs to whoever holds the client (a window's record of the drafts it
+    /// has written) and would otherwise be a process-wide static: two clients each have their own,
+    /// and a value is dropped with its client.
+    pub fn local<T: Default + Send + Sync + 'static>(&self) -> Arc<T> {
+        let mut kept = self.0.shared.locals.lock();
+        let value = kept
+            .entry(std::any::TypeId::of::<T>())
+            .or_insert_with(|| Arc::new(T::default()))
+            .clone();
+        value
+            .downcast::<T>()
+            .unwrap_or_else(|_| unreachable!("a value is kept under its own type"))
+    }
+
     pub(crate) fn shared_mail(&self) -> mail_core::Mail {
         self.0.shared.mail()
     }
@@ -622,6 +643,7 @@ impl Shared {
             clock_told: Condvar::new(),
             reach: OnceLock::new(),
             wanted: mail_core::wanted::Wanted::default(),
+            locals: Mutex::new(std::collections::HashMap::new()),
             mail: Mutex::new(None),
         }
     }

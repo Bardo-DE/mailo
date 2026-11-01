@@ -11,7 +11,7 @@ use mail_domain::*;
 use mail_logic::picture::PictureSize;
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use super::page::{Guard, Page, Phase, Saved, When, Wire};
 use super::protection::Protection;
@@ -22,11 +22,40 @@ use mail_ui_kit::lines::List;
 use mail_ui_kit::today::Today;
 use mail_ui_model::settings::{ComposeSettings, MessageFormat};
 
-/// How long a send waits in the outbox before it may leave, which is how long Undo has: the
-/// person's `compose.undo_send`, read when Send is pressed, so a change in Settings counts from the
-/// next send and never moves one already counting down. `Off` is no wait at all.
-pub fn grace() -> chrono::TimeDelta {
-    mail_ui_kit::prefs::current().compose.undo_send.grace()
+/// What a window has done with its drafts, kept with its client ([`Client::local`]): two clients
+/// each have their own, and it goes with the client.
+#[derive(Debug, Default)]
+struct Ledger {
+    /// Counts the pages taken, so each is later than every one before ([`stamp`]).
+    stamps: AtomicU64,
+    /// The stamp of the page each draft was last written from. Held while a write is made, so
+    /// writes of one draft go one at a time and in the order their pages were taken.
+    written: Mutex<BTreeMap<DraftId, u64>>,
+    /// The picture size each draft was last queued to send at. The draft keeps its pictures as
+    /// attached and the size is the page's choice, so a send taken back and queued again
+    /// ([`pictures_queued`]) asks here rather than send at full size. Held as long as the client
+    /// is, as a page is: after a restart a draft sends its pictures as attached, as it always has.
+    queued: Mutex<BTreeMap<DraftId, PictureSize>>,
+    /// When each draft's copy was last queued for the server ([`keep_on_server`]).
+    kept: Mutex<Kept>,
+}
+
+impl Ledger {
+    fn written(&self) -> MutexGuard<'_, BTreeMap<DraftId, u64>> {
+        self.written.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn queued_at(&self) -> MutexGuard<'_, BTreeMap<DraftId, PictureSize>> {
+        self.queued.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn stamp(&self) -> u64 {
+        self.stamps.fetch_add(1, Ordering::Relaxed) + 1
+    }
+}
+
+fn ledger(client: &Client) -> Arc<Ledger> {
+    client.local()
 }
 
 /// The page for `draft`: the parked copy when there is one, exactly as it was left, else a page
@@ -82,10 +111,11 @@ pub(crate) fn format_of(
 /// Write the page to its draft. The dot goes clean only when the client took it.
 pub fn save(client: &Client, page: &mut Page, now: DateTime<Utc>) -> Result<Draft, String> {
     let edited = {
-        let mut written = written();
+        let ledger = ledger(client);
+        let mut written = ledger.written();
         let edited = put(client, page, now)?;
         // This page is the newest there is: nothing was taken after it.
-        written.insert(page.draft, stamp());
+        written.insert(page.draft, ledger.stamp());
         edited
     };
     page.saved = Saved::Clean;
@@ -93,9 +123,8 @@ pub fn save(client: &Client, page: &mut Page, now: DateTime<Utc>) -> Result<Draf
 }
 
 /// A page taken now, to be written by [`save_stamped`]: each is later than every one before.
-pub fn stamp() -> u64 {
-    static STAMPS: AtomicU64 = AtomicU64::new(0);
-    STAMPS.fetch_add(1, Ordering::Relaxed) + 1
+pub fn stamp(client: &Client) -> u64 {
+    ledger(client).stamp()
 }
 
 /// Write `page`, as it was when `stamp` was taken, to its draft, off the thread that draws:
@@ -107,7 +136,8 @@ pub fn save_stamped(
     stamp: u64,
     now: DateTime<Utc>,
 ) -> Result<Option<Draft>, String> {
-    let mut written = written();
+    let ledger = ledger(client);
+    let mut written = ledger.written();
     if written.get(&page.draft).is_some_and(|last| *last > stamp) {
         return Ok(None);
     }
@@ -116,28 +146,16 @@ pub fn save_stamped(
     Ok(Some(edited))
 }
 
-/// The stamp of the page each draft was last written from. Held while a write is made, so writes
-/// of one draft go one at a time and in the order their pages were taken.
-fn written() -> MutexGuard<'static, BTreeMap<DraftId, u64>> {
-    static WRITTEN: Mutex<BTreeMap<DraftId, u64>> = Mutex::new(BTreeMap::new());
-    WRITTEN.lock().unwrap_or_else(PoisonError::into_inner)
-}
-
-/// The picture size each draft was last queued to send at. The draft keeps its pictures as
-/// attached and the size is the page's choice, so a send taken back and queued again
-/// ([`pictures_queued`]) asks here rather than send at full size. Held for the process, as a page
-/// is: after a restart a draft sends its pictures as attached, as it always has.
-fn queued_at() -> MutexGuard<'static, BTreeMap<DraftId, PictureSize>> {
-    static QUEUED: Mutex<BTreeMap<DraftId, PictureSize>> = Mutex::new(BTreeMap::new());
-    QUEUED.lock().unwrap_or_else(PoisonError::into_inner)
-}
-
 /// How large the pictures of `draft`'s last queued send were to go.
-pub(crate) fn pictures_queued(draft: DraftId) -> PictureSize {
-    queued_at().get(&draft).copied().unwrap_or_default()
+pub(crate) fn pictures_queued(client: &Client, draft: DraftId) -> PictureSize {
+    ledger(client)
+        .queued_at()
+        .get(&draft)
+        .copied()
+        .unwrap_or_default()
 }
 
-/// Discard `draft` from the client, as every discard in this process does: under the lock the
+/// Discard `draft` from the client, as every discard of this client does: under the lock the
 /// writes hold, so an autosave already writing finishes first, and recorded as written by a page
 /// taken now, so an autosave of a page taken before the discard is refused ([`save_stamped`]'s
 /// `None`) rather than writing the draft back.
@@ -145,15 +163,10 @@ pub(crate) fn pictures_queued(draft: DraftId) -> PictureSize {
 /// The record stays: dropped, it would let that autosave through. A page taken after it, as
 /// one is after the discard's Undo puts the draft back, is later and writes as ever.
 pub fn discard(client: &Client, draft: DraftId) -> Result<String, mail_client::CallError> {
-    discarding(draft, || client.compose().discard(draft))
-}
-
-/// [`discard`], made by `discard`: for the program beside the window, which holds the client
-/// itself (`intents`).
-pub fn discarding<T, E>(draft: DraftId, discard: impl FnOnce() -> Result<T, E>) -> Result<T, E> {
-    let mut written = written();
-    let done = discard()?;
-    written.insert(draft, stamp());
+    let ledger = ledger(client);
+    let mut written = ledger.written();
+    let done = client.compose().discard(draft)?;
+    written.insert(draft, ledger.stamp());
     Ok(done)
 }
 
@@ -203,9 +216,10 @@ pub fn keep_on_server(
     now: DateTime<Utc>,
     keeping: Keeping,
 ) -> Result<bool, String> {
-    static KEPT: Mutex<Kept> = Mutex::new(Kept(BTreeMap::new()));
-    let _written = written();
-    let due = KEPT
+    let ledger = ledger(client);
+    let _written = ledger.written();
+    let due = ledger
+        .kept
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .due(draft, now, keeping);
@@ -475,8 +489,8 @@ pub(crate) fn queue_reminding(
         }
     };
     match pictures {
-        PictureSize::Actual => queued_at().remove(&draft),
-        size => queued_at().insert(draft, size),
+        PictureSize::Actual => ledger(client).queued_at().remove(&draft),
+        size => ledger(client).queued_at().insert(draft, size),
     };
     // The send is queued whatever becomes of the reminder: one that could not be kept is said
     // where the window says what it could not do, and is no reason to take back mail the outbox

@@ -11,7 +11,6 @@ pub mod tidy;
 mod add_account;
 mod app;
 mod command;
-pub use mail_ui_compose::compose::discarding_draft;
 mod contacts;
 pub mod default_mail;
 mod erase;
