@@ -14,6 +14,7 @@ use mail_domain::{BlobId, Ingest, Patch, RemoteRef, Row};
 use mail_store::{SqliteStore, Store, StoreError};
 use porter_core::AccountId;
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 
 /// The blobs of a batch, by the digest of their bytes.
 pub(super) type Blobs = HashMap<blake3::Hash, BlobId>;
@@ -56,9 +57,8 @@ fn put(
     digest: blake3::Hash,
     bytes: &[u8],
 ) -> Result<(), RuntimeError> {
-    if !blobs.contains_key(&digest) {
-        let id = store.blobs().put(bytes).map_err(RuntimeError::Store)?;
-        blobs.insert(digest, id);
+    if let Entry::Vacant(slot) = blobs.entry(digest) {
+        slot.insert(store.blobs().put(bytes).map_err(RuntimeError::Store)?);
     }
     Ok(())
 }

@@ -340,7 +340,6 @@ mod tests {
     use super::*;
     use crate::assemble::parse::{Provenance, Reading, parse};
     use chrono::TimeZone;
-    use mail_domain::testing as _;
     use uuid::Uuid;
 
     fn at() -> DateTime<Utc> {
