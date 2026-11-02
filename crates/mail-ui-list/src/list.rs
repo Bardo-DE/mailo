@@ -64,7 +64,11 @@ fn pitch(lines: Option<ThreadLines>) -> f32 {
 /// have no layout, so a viewport there is never measured and would show the overscan alone: they
 /// ask for every row to be mounted ([`mount_every_row`]), and the windowing itself is tested on
 /// Blitz.
-const OVERSCAN: usize = 4;
+const OVERSCAN: usize = 12;
+
+/// How many rows below the viewport the list has left when it asks for the next page: a couple
+/// of screens, so a fling reaches the page already read instead of the end of the list.
+const PAGE_AHEAD: usize = 60;
 
 static EVERY_ROW: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(cfg!(test));
 
@@ -101,6 +105,28 @@ enum Slot {
     ServerHeading,
     /// A conversation a search of the server found that the list does not already hold.
     Server(ThreadId),
+}
+
+/// What the list holds to draw its items: each row's data and each heading's element, by key. A
+/// row's element is made by [`Held::draw`] only when the list mounts it, so listing another page
+/// costs the rows that page shows, not every row listed.
+#[derive(Default)]
+struct Held {
+    rows: std::collections::HashMap<Slot, (Listed, Selection)>,
+    headings: std::collections::HashMap<Slot, Element>,
+}
+
+impl Held {
+    /// `slot`'s element: a heading's as made, a row's by `make` from its data.
+    fn draw(&self, slot: &Slot, make: impl FnOnce(Listed, Selection) -> Element) -> Element {
+        if let Some(heading) = self.headings.get(slot) {
+            return heading.clone();
+        }
+        match self.rows.get(slot) {
+            Some((listed, selection)) => make(listed.clone(), *selection),
+            None => rsx! {},
+        }
+    }
 }
 
 /// A row of the date-ordered list: a conversation, or one message of it while the place lists a
@@ -224,8 +250,6 @@ pub fn ThreadList(
         .filter(|row| shell.read().scope.shows(row.id.clone()))
         .count()
         > 1;
-    let dress_row =
-        |summary: &ThreadSummary| dress(summary, &accounts, several, &names, &highlight);
     // Where a search's list ends, each account in view with a server offers to search it.
     let line = marking.read().line.clone();
     let servers: Vec<(AccountId, String)> = if line.is_empty() || more() {
@@ -296,8 +320,12 @@ pub fn ThreadList(
         messages.set(shown.iter().filter_map(|row| row.message).collect());
     }
     // The list's items, top to bottom: drafts, a search's top results, then the bands, then
-    // what a search of the server found that the list does not hold.
-    let mut items: Vec<ListItem<Slot>> = Vec::new();
+    // what a search of the server found that the list does not hold. Only what a row's height
+    // and place need is worked out here, for every row; what it draws (its model, its dress, its
+    // element) is worked out by `row` for the rows the list mounts, so a new page costs the
+    // rows it shows rather than every row listed.
+    let mut order: Vec<Slot> = Vec::new();
+    let mut held = Held::default();
     // Each row's lines, by its key: what its pitch is computed from. A heading has none.
     let snippets = shell.read().parts.snippet.shown();
     let mut lines: std::collections::HashMap<Slot, ThreadLines> = std::collections::HashMap::new();
@@ -305,20 +333,10 @@ pub fn ThreadList(
     let now = chrono::Utc::now();
     let hours = mail_ui_kit::clock::hours();
     // Every row, a conversation or a draft, is the one `ListRow`, drawn from its `RowModel`.
-    let mut push_row = |slot: Slot,
-                        listed: Listed,
-                        dress: Dress,
-                        selection: Selection,
-                        items: &mut Vec<ListItem<Slot>>| {
-        let Dress { via, chips, hit } = dress;
-        let model = listed.row(hit.as_ref(), snippets, now, &chrono::Local, hours);
-        lines.insert(slot.clone(), model.lines);
-        let label = listed.subject();
-        items.push(ListItem::row(
-            slot,
-            label,
-            rsx! { ListRow { listed, model, shell, chips, via, selection } },
-        ));
+    let mut push_row = |slot: Slot, listed: Listed, selection: Selection, order: &mut Vec<Slot>| {
+        lines.insert(slot.clone(), listed.lines(snippets));
+        order.push(slot.clone());
+        held.rows.insert(slot, (listed, selection));
     };
     // A draft is selected while its composer is open.
     for draft in drafts() {
@@ -328,22 +346,15 @@ pub fn ThreadList(
             Selection::Unselected
         };
         let slot = Slot::Draft(draft.id.to_string());
-        push_row(
-            slot,
-            Listed::Draft(draft),
-            Dress::default(),
-            selection,
-            &mut items,
-        );
+        push_row(slot, Listed::Draft(draft), selection, &mut order);
     }
-    let mut mail_row = |slot: Slot, row: Row, items: &mut Vec<ListItem<Slot>>| {
-        let dress = dress_row(&row.summary);
+    let mut mail_row = |slot: Slot, row: Row, order: &mut Vec<Slot>| {
         let selection = selection_of(row.summary.id, row.message);
         let listed = match row.message {
             Some(message) => Listed::Message(row.summary, message),
             None => Listed::Thread(row.summary),
         };
-        push_row(slot, listed, dress, selection, items);
+        push_row(slot, listed, selection, order);
     };
     let conversation = |summary: ThreadSummary| Row {
         summary,
@@ -351,12 +362,11 @@ pub fn ThreadList(
     };
     let strip = top();
     if !strip.is_empty() {
-        items.push(ListItem::heading(
-            Slot::TopHeading,
-            rsx! { div { class: "band", SectionHeader { title: copy::headers::TOP_RESULTS.to_owned() } } },
-        ));
+        let slot = Slot::TopHeading;
+        order.push(slot.clone());
+        held.headings.insert(slot, rsx! { div { class: "band", SectionHeader { title: copy::headers::TOP_RESULTS.to_owned() } } });
         for summary in strip {
-            mail_row(Slot::Top(summary.id), conversation(summary), &mut items);
+            mail_row(Slot::Top(summary.id), conversation(summary), &mut order);
         }
     }
     for band in group_list(
@@ -367,26 +377,27 @@ pub fn ThreadList(
         &chrono::Local,
     ) {
         if let Some(title) = band.title {
-            items.push(ListItem::heading(
-                Slot::Band(title.clone()),
+            let slot = Slot::Band(title.clone());
+            order.push(slot.clone());
+            held.headings.insert(
+                slot,
                 rsx! { div { class: "band", SectionHeader { title } } },
-            ));
+            );
         }
         for row in band.threads {
             let slot = match row.message {
                 Some(message) => Slot::Message(message),
                 None => Slot::Thread(row.summary.id),
             };
-            mail_row(slot, row, &mut items);
+            mail_row(slot, row, &mut order);
         }
     }
     if !server_rows.is_empty() {
-        items.push(ListItem::heading(
-            Slot::ServerHeading,
-            rsx! { div { class: "band", SectionHeader { title: copy::headers::FROM_SERVER.to_owned() } } },
-        ));
+        let slot = Slot::ServerHeading;
+        order.push(slot.clone());
+        held.headings.insert(slot, rsx! { div { class: "band", SectionHeader { title: copy::headers::FROM_SERVER.to_owned() } } });
         for summary in server_rows {
-            mail_row(Slot::Server(summary.id), conversation(summary), &mut items);
+            mail_row(Slot::Server(summary.id), conversation(summary), &mut order);
         }
     }
     let cursor = match (shell.read().open, shell.read().focus) {
@@ -407,12 +418,20 @@ pub fn ThreadList(
     // Windowed: only the rows near the viewport are mounted, so a folder of ten thousand draws as
     // cheaply as one of twenty. Each item's height is known before it is drawn — a mail or draft
     // row, or a heading — and each is held to it (`style/list.css`).
-    let keys: Vec<Slot> = items.iter().map(|item| item.key.clone()).collect();
-    let drawn: std::collections::HashMap<Slot, Element> = items
-        .into_iter()
-        .map(|item| (item.key, item.content))
-        .collect();
-    let row = Callback::new(move |slot: Slot| drawn.get(&slot).cloned().unwrap_or_else(|| rsx! {}));
+    let keys = order;
+    let row = Callback::new(move |slot: Slot| {
+        held.draw(&slot, |listed, selection| {
+            let Dress { via, chips, hit } = match &listed {
+                Listed::Thread(summary) | Listed::Message(summary, _) => {
+                    dress(summary, &accounts, several, &names, &highlight)
+                }
+                Listed::Draft(_) => Dress::default(),
+            };
+            let model = listed.row(hit.as_ref(), snippets, now, &chrono::Local, hours);
+            debug_assert_eq!(model.lines, listed.lines(snippets));
+            rsx! { ListRow { listed, model, shell, chips, via, selection } }
+        })
+    });
     let height = RowHeight::PerKey(Callback::new(move |slot: Slot| {
         Px(pitch(lines.get(&slot).copied()))
     }));
@@ -567,6 +586,7 @@ pub fn ThreadList(
                         row,
                         height,
                         overscan: overscan(),
+                        page_rows: PAGE_AHEAD,
                         cursor,
                         onselect: open_slot,
                         // The next page is asked for as the end of the list comes near.

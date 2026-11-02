@@ -76,3 +76,53 @@ fn the_search_shown_says_where_it_looked() {
         assert_eq!(searched(scope, "Inbox", looked, *all), *want, "{name}");
     }
 }
+
+/// The next page is asked for with a couple of screens still below, and more rows are mounted
+/// around the viewport than the few that left a fling blank.
+#[test]
+fn the_list_pages_ahead_and_mounts_around_the_viewport() {
+    assert!(super::PAGE_AHEAD >= 40, "{}", super::PAGE_AHEAD);
+    assert!(
+        (super::PAGE_AHEAD as u32) < mail_ui_kit::data::PAGE,
+        "a page must be longer than the distance paged ahead"
+    );
+    assert!(super::OVERSCAN >= 10, "{}", super::OVERSCAN);
+}
+
+/// A row's element is made when it is mounted: drawing a window of a long list makes that many,
+/// and a new page of rows listed under the same keys makes none of its own.
+#[test]
+fn a_page_costs_the_rows_it_shows() {
+    use super::{Held, Slot};
+    use crate::row::listed::Listed;
+    use dioxus::prelude::*;
+    use ds::prelude::Selection;
+    use std::cell::Cell;
+
+    let listed = |n: usize| {
+        let mut held = Held::default();
+        for at in 0..n {
+            held.rows.insert(
+                Slot::Draft(format!("{at}")),
+                (
+                    Listed::Thread(mail_domain::testing::summary()),
+                    Selection::Unselected,
+                ),
+            );
+        }
+        held
+    };
+    let made = Cell::new(0usize);
+    let window: Vec<Slot> = (0..30).map(|at| Slot::Draft(format!("{at}"))).collect();
+    for n in [1_000, 1_100] {
+        made.set(0);
+        let held = listed(n);
+        for slot in &window {
+            held.draw(slot, |_, _| {
+                made.set(made.get() + 1);
+                rsx! {}
+            });
+        }
+        assert_eq!(made.get(), 30, "{n} rows listed");
+    }
+}
