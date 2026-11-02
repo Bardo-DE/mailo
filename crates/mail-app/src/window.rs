@@ -28,6 +28,10 @@ pub fn open(
     if stays {
         crate::background::start(store.clone(), profile.clone());
     }
+    // This thread is the one the window draws on, and what it reads it reads before it can draw
+    // again: the last reader is kept for it, so it never waits behind a sync pass's reads or a
+    // worker's snapshot.
+    SqliteStore::reserve_reader_for_this_thread();
     // The one client every window reads mail through, reaching the servers as the program does.
     let client = mail_client::Client::open(store.clone(), mail_client::ClientConfig::default());
     client.reach(mail_client::Reach::new(|store| {
@@ -50,7 +54,7 @@ pub fn open(
                 }
             })
                 as std::sync::Arc<
-                    dyn Fn(std::sync::Arc<dyn mail_ui::launcher::Badge>) + Send + Sync,
+                    dyn Fn(std::sync::Arc<dyn mail_os::launcher::Badge>) + Send + Sync,
                 >
         }),
     };

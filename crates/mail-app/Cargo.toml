@@ -105,6 +105,8 @@ mail-intents.workspace = true
 mail-client.workspace = true
 # The window, over the client.
 mail-ui.workspace = true
+# The launcher's count and the words the command line prints, which the window shares.
+mail-os.workspace = true
 # The platform keyring holds the account secrets and the signing keys: the library keeps it opt-in.
 mail-runtime = { workspace = true, features = ["keyring"] }
 # The one logger the libraries write through (`main.rs`): warnings to stderr, as they were printed.

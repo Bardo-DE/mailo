@@ -5133,6 +5133,7 @@ dependencies = [
  "mail-core",
  "mail-edge",
  "mail-intents",
+ "mail-os",
  "mail-runtime",
  "mail-store",
  "mail-ui",
@@ -5176,6 +5177,7 @@ dependencies = [
  "mail-client",
  "mail-core",
  "mail-edge",
+ "mail-os",
  "mail-runtime",
  "mail-store",
  "mail-ui",
@@ -5297,6 +5299,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "mail-os"
+version = "0.1.0"
+dependencies = [
+ "block2 0.6.2",
+ "dispatch2",
+ "mail-appkit",
+ "mail-client",
+ "mailo-domain",
+ "mailo-proto",
+ "objc2 0.6.4",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
+ "zbus",
+]
+
+[[package]]
 name = "mail-parser"
 version = "0.11.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5397,13 +5415,11 @@ dependencies = [
  "arboard",
  "base64 0.22.1",
  "blitz-dom",
- "block2 0.6.2",
  "chordkit",
  "chrono",
  "dioxus",
  "dioxus-native-dom",
  "dioxus-ssr",
- "dispatch2",
  "ds",
  "ds-blitz",
  "ds-harness",
@@ -5415,6 +5431,7 @@ dependencies = [
  "mail-appkit",
  "mail-client",
  "mail-core",
+ "mail-os",
  "mail-runtime",
  "mail-store",
  "mail-ui",
@@ -5422,9 +5439,6 @@ dependencies = [
  "mailo-mime",
  "mailo-pim",
  "mailo-proto",
- "objc2 0.6.4",
- "objc2-app-kit 0.3.2",
- "objc2-foundation 0.3.2",
  "pdfrum",
  "porter-capability",
  "porter-client-inproc",

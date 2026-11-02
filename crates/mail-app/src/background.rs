@@ -35,7 +35,7 @@ use mail_core::ipc::watching::{Refused, Watching};
 use mail_core::schedule::End;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// The platform an app runs on, as far as staying open is concerned.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -81,8 +81,22 @@ pub fn step<W>(claimed: Result<W, Refused>) -> Step<W> {
     }
 }
 
+/// How long the watch is left down after its first panic, and the most it is left down for as
+/// each one after it doubles the wait.
+const REVIVE: Duration = Duration::from_secs(5);
+const REVIVE_AT_MOST: Duration = Duration::from_secs(300);
+
+/// How long to leave the watch down after a panic that follows one that took `after`.
+fn revive_after(after: Duration) -> Duration {
+    (after * 2).clamp(REVIVE, REVIVE_AT_MOST)
+}
+
 /// How often the accounts are looked at, beside each write to the store.
 const ACCOUNTS_EVERY: Duration = Duration::from_secs(30);
+
+/// How soon after one look at the accounts the next may be. A sync writes to the store without
+/// stopping, each write saying so, and a look reads every account and its settings.
+const ACCOUNTS_GAP: Duration = Duration::from_secs(2);
 
 /// Set once the app's own watch holds the lock: a window of this process asks it before it
 /// knocks on the lock's door, so it leaves fetching to the app even where the door could not be
@@ -141,32 +155,60 @@ fn watch(store: &Arc<SqliteStore>, held: Watching) -> ! {
     // The app runs for days: what is said, whose mail, in which mailboxes, with which sound, and
     // how the junk filter behaves are each read as they are used, so Settings is followed from
     // the next pass and not from the next start.
-    let desktop = mail_core::notify::desktop::Desktop::connect_in_window();
+    let desktop = mail_ui::desktop::connect_in_window();
     let notifier = mail_ui::settings::Notices::new(
         Box::new(move |notification, sound| desktop.show_with(notification, sound)),
         mail_ui::settings::person_root(),
     );
     let tell = |watched: mail_core::sync::report::Watched| told(&watched);
+    let mut down = Duration::ZERO;
     loop {
-        let mail = mail_edge::mail(store);
-        let ran = mail_edge::block_on(mail.sync().watch_until(
-            Some(&notifier),
-            mail_core::sync::watcher::Live {
-                whom: &|| notifier.whom(),
-                junk: &mail_ui::settings::junk_policy,
-            },
-            &tell,
-            Some(held.asked()),
-            Some(accounts.clone()),
-            End::Never,
-        ));
-        if let Err(why) = ran {
-            log::warn!(
-                "checking for mail stopped: {}",
-                mail_cli::remedy::error(why)
-            );
+        let began = std::time::Instant::now();
+        // A panic in the watch ends this run of it, not the thread: the lock is the process's
+        // and stays held, so the same claim is used again and nothing is claimed twice.
+        let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let mail = mail_edge::mail(store);
+            mail_edge::block_on(mail.sync().watch_until(
+                Some(&notifier),
+                mail_core::sync::watcher::Live {
+                    whom: &|| notifier.whom(),
+                    junk: &mail_ui::settings::junk_policy,
+                },
+                &tell,
+                Some(held.asked()),
+                Some(accounts.clone()),
+                End::Never,
+            ))
+        }));
+        match ran {
+            Ok(Ok(_)) => std::thread::sleep(AGAIN),
+            Ok(Err(why)) => {
+                log::warn!(
+                    "checking for mail stopped: {}",
+                    mail_cli::remedy::error(why)
+                );
+                std::thread::sleep(AGAIN);
+            }
+            Err(panicked) => {
+                let what = panicked
+                    .downcast_ref::<&str>()
+                    .map(|text| (*text).to_owned())
+                    .or_else(|| panicked.downcast_ref::<String>().cloned())
+                    .unwrap_or_else(|| "the watch panicked".to_owned());
+                // A watch that ran a while before it fell starts the waits again from the
+                // shortest, so only one that keeps falling at once is left down for long.
+                down = if began.elapsed() > REVIVE_AT_MOST {
+                    REVIVE
+                } else {
+                    revive_after(down)
+                };
+                log::error!("checking for mail panicked, trying again in {down:?}: {what}");
+                // While it is down the window schedules for itself, as it does with no watch.
+                WATCHING_HERE.store(false, Ordering::Release);
+                std::thread::sleep(down);
+                WATCHING_HERE.store(true, Ordering::Release);
+            }
         }
-        std::thread::sleep(AGAIN);
     }
 }
 
@@ -180,6 +222,29 @@ fn told(watched: &mail_core::sync::report::Watched) {
         Watched::RunFailed { why } | Watched::RemindersFailed { why } => log::warn!("{why}"),
         Watched::AnnounceFailed { address, why } => log::warn!("{address}: {why}"),
     }
+}
+
+/// Wait until the accounts are worth looking at again: a write heard on `written`, or `every`
+/// with none, but never sooner than `gap` after `looked`, when the last look was. Every write
+/// heard by then is taken as one, so a burst of them is a single look, and the one that ends it
+/// is not lost for having come early. A store that cannot be watched (its sender went with the
+/// watch that was never made) is looked at every `every` all the same.
+///
+/// Not by `data_version`: a commit through the store's own connection, which is where an account
+/// edited in this process is written, does not change it.
+fn wait_to_look(
+    written: &std::sync::mpsc::Receiver<()>,
+    looked: Option<Instant>,
+    every: Duration,
+    gap: Duration,
+) {
+    if let Err(std::sync::mpsc::RecvTimeoutError::Disconnected) = written.recv_timeout(every) {
+        std::thread::sleep(every);
+    }
+    if let Some(at) = looked {
+        std::thread::sleep(gap.saturating_sub(at.elapsed()));
+    }
+    while written.try_recv().is_ok() {}
 }
 
 /// A receiver that moves whenever the accounts that have a server, or how often each is
@@ -200,16 +265,10 @@ fn follow_accounts(store: &Arc<SqliteStore>) -> mail_core::ipc::watching::Asked 
                 })
             });
             let mut known = mail_core::sync::due::intervals(&store);
+            let mut looked = Some(Instant::now());
             loop {
-                // A write and a timeout are both a reason to look. A store that cannot be watched
-                // (its sender went with the watch that was never made) is looked at every
-                // ACCOUNTS_EVERY all the same.
-                if let Err(std::sync::mpsc::RecvTimeoutError::Disconnected) =
-                    written.recv_timeout(ACCOUNTS_EVERY)
-                {
-                    std::thread::sleep(ACCOUNTS_EVERY);
-                }
-                while written.try_recv().is_ok() {}
+                wait_to_look(&written, looked, ACCOUNTS_EVERY, ACCOUNTS_GAP);
+                looked = Some(Instant::now());
                 let now = mail_core::sync::due::intervals(&store);
                 if now != known {
                     known = now;

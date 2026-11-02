@@ -17,11 +17,16 @@ FORBIDDEN=(tokio rusqlite dioxus reqwest keyring-core porter-client porter-dbus 
 # renderer under it, so that the two front-ends (`mail-ui`, and `mail-cli`) sit over one
 # core that knows neither.
 CORE=(mail-core mail-client)
-FORBIDDEN_CORE=(dioxus ds ds-settings ds-blitz blitz-dom dioxus-native-dom anyview-core anyview-peek)
+FORBIDDEN_CORE=(dioxus ds ds-settings ds-blitz blitz-dom dioxus-native-dom anyview-core anyview-peek mail-appkit)
+# `mail-os` is the app layer's OS integration (the launcher's count, the login item, the mail-link
+# handler, what an operation says): it does no drawing, so it may never reach the toolkit or the
+# renderer, nor `mail-ui`, which would pull both in. The window and the command line share it.
+OS=(mail-os)
+FORBIDDEN_OS=(dioxus ds ds-settings ds-blitz blitz-dom dioxus-native-dom anyview-core anyview-peek mail-ui)
 fail=0
 
 # A name `cargo tree` does not know prints nothing, which would read as a boundary that holds.
-for crate in "${PURE[@]}" "${CORE[@]}" mail-store mail-runtime; do
+for crate in "${PURE[@]}" "${CORE[@]}" "${OS[@]}" mail-store mail-runtime; do
   if ! cargo tree -p "$crate" --depth 0 >/dev/null 2>&1; then
     echo "no package named $crate: update the names in this script"
     exit 1
@@ -57,6 +62,21 @@ if [ "$core_fail" -eq 0 ]; then
 fi
 fail=$((fail | core_fail))
 
+os_fail=0
+for crate in "${OS[@]}"; do
+  for dep in "${FORBIDDEN_OS[@]}"; do
+    if cargo tree -p "$crate" -i "$dep" 2>/dev/null | grep -q .; then
+      echo "LEAK: $crate depends on $dep"
+      cargo tree -p "$crate" -i "$dep" 2>/dev/null | head -20
+      os_fail=1
+    fi
+  done
+done
+if [ "$os_fail" -eq 0 ]; then
+  echo "os boundary holds: ${OS[*]} reach none of ${FORBIDDEN_OS[*]}"
+fi
+fail=$((fail | os_fail))
+
 # `mail-store` and `mail-runtime` sit between the pure crates and the core, and draw nothing either:
 # anyview, which peeks at a file and draws a card, is `mail-ui`'s alone (its `anyview` feature).
 lower_fail=0
@@ -85,8 +105,8 @@ if grep -rnE '\banyview_(core|peek)\b' crates --include='*.rs' \
 fi
 
 # The window (`mail-ui`'s `ui`) and the terminal (`mail-cli`) never name each other: what
-# they share is `mail-core`'s (or, for the settings files and the words of a finished import, the
-# top of `mail-ui`). A path into `mail_ui::ui` from the terminal is a helper that belongs in
+# they share is `mail-core`'s (or, for the settings files, the top of `mail-ui`, and the words of a
+# finished import, `mail-os`). A path into `mail_ui::ui` from the terminal is a helper that belongs in
 # `mail-core` (or, if it is truly neither's, nowhere yet). The window cannot name the terminal at
 # all: `mail-ui` has no `mail-cli` in its Cargo.toml, and `mail-cli` and `mail-intents` hold no
 # dioxus, ds-*, blitz or quire (below). `mail-cli` and `mail-intents` do not depend on each other
@@ -108,6 +128,27 @@ if dep_names mail-cli '^mail-(intents|app)[ .=]' || dep_names mail-intents '^mai
   || dep_names mail-edge '^mail-(cli|intents|ui|client|app)[ .=]' \
   || dep_names mail-ui '^mail-(cli|intents|edge|app)[ .=]'; then
   echo "mail-cli, mail-intents, mail-edge and mail-ui must not depend on each other or on mail-app: mail-app is the process over them"
+  fail=1
+fi
+
+# The crates below the window name no part of it: what a sidebar, a toast, a sheet or a button
+# shows is the window's to decide, so a lower crate says what happened and what a count is of,
+# never where or how it is drawn. Comments are held to it too, and a word that is a domain term
+# somewhere (a stylesheet, a window of time) is rephrased there, not listed. Left out: `notify/`,
+# where "toast" is the operating system's own word, the one MIME type that ends in `.sheet`, and
+# the SQL migrations, which are applied
+# files and not edited. Words are matched in lower case; a capitalised one is caught in comments.
+UI_WORDS='sidebar|toast|toolbar|dialog|modal|popover|tooltip|pane|button|sheet'
+LOWER_CRATES=(crates/mail-core crates/mail-client crates/mail-store/src crates/mail-store/tests crates/mail-runtime)
+if grep -rnE "\\b($UI_WORDS)s?\\b" "${LOWER_CRATES[@]}" --include='*.rs' \
+  | grep -vE '^crates/mail-core/src/notify(/|\.rs)|openxmlformats-officedocument'; then
+  echo "a crate below the window names a part of the window: say what happened and let mail-ui word it"
+  fail=1
+fi
+CAPS='Sidebar|Toast|Toolbar|Dialog|Modal|Popover|Tooltip|Pane|Button|Sheet'
+if grep -rnE "^[^:]+:[0-9]+:[[:space:]]*//.*\\b($CAPS)s?\\b" "${LOWER_CRATES[@]}" --include='*.rs' \
+  | grep -vE '^crates/mail-core/src/notify(/|\.rs)'; then
+  echo "a crate below the window names a part of the window in a comment: say what happened and let mail-ui word it"
   fail=1
 fi
 

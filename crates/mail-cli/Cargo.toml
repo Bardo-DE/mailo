@@ -22,6 +22,7 @@ mail-domain.workspace = true
 mail-store.workspace = true
 mail-client.workspace = true
 mail-edge.workspace = true
+mail-os.workspace = true
 mail-ui.workspace = true
 mail-mime = { workspace = true, features = ["openpgp", "smime"] }
 mail-proto.workspace = true
