@@ -127,7 +127,7 @@ pub struct Mail {
     clients: OAuthClients,
     clock: Arc<dyn Clock>,
     runtime: Handle,
-    junk: crate::junk::Policy,
+    junk: mail_logic::junk::Policy,
 }
 
 impl std::fmt::Debug for Mail {
@@ -151,19 +151,19 @@ impl Mail {
             clients: OAuthClients::default(),
             clock: Arc::new(SystemClock),
             runtime,
-            junk: crate::junk::Policy::default(),
+            junk: mail_logic::junk::Policy::default(),
         }
     }
 
     /// With the junk filter behaving as `junk` says: the window's setting.
     #[must_use]
-    pub fn with_junk(mut self, junk: crate::junk::Policy) -> Self {
+    pub fn with_junk(mut self, junk: mail_logic::junk::Policy) -> Self {
         self.junk = junk;
         self
     }
 
     /// How the junk filter behaves on what a sync brings.
-    pub fn junk(&self) -> crate::junk::Policy {
+    pub fn junk(&self) -> mail_logic::junk::Policy {
         self.junk
     }
 

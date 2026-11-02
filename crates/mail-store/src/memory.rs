@@ -18,7 +18,8 @@ use mail_domain::{
 use porter_core::AccountId;
 use serde::Serialize;
 
-use crate::{Dispatch, OutboxEntry, Settle, Store, StoreError, Swept, Term};
+use crate::{Dispatch, OutboxEntry, Settle, Store, StoreError, Swept};
+use mail_domain::Term;
 
 mod cards;
 mod contacts;

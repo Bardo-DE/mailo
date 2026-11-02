@@ -159,7 +159,7 @@ impl Net<'_> {
     pub fn missing_provider_icons(
         &self,
         dir: &std::path::Path,
-    ) -> Vec<mail_core::provider::Provider> {
+    ) -> Vec<mail_logic::provider::Provider> {
         mail_core::provider::icon::missing(dir, self.mail().environment().program)
     }
 
@@ -343,7 +343,7 @@ impl Net<'_> {
         &self,
         address: &str,
         now: DateTime<Utc>,
-    ) -> Result<mail_core::discover::Found, mail_core::discover::Failed> {
+    ) -> Result<mail_logic::discover::Found, mail_logic::discover::Failed> {
         let mail = self.mail();
         Self::wait(&mail, mail_core::discover::search(address, now))
     }

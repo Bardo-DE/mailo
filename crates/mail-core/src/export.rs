@@ -76,7 +76,12 @@ pub fn select(
         (None, _) => {
             let index = crate::query::known_labels(store);
             let label = mail_logic::query::named(&index);
-            let prepared = crate::search::prepare(words, store, &chrono::Local, &label)?;
+            let prepared = mail_logic::search::prepare(
+                words,
+                &crate::search::StoreSource(store),
+                &chrono::Local,
+                &label,
+            )?;
             (prepared.filter, prepared.regex)
         }
     };
@@ -100,7 +105,7 @@ pub fn select(
         )?;
         for summary in &page.items {
             if let Some(regex) = &regex
-                && !crate::search::regex_hits(regex, &summary.subject, &summary.snippet)
+                && !mail_logic::search::regex_hits(regex, &summary.subject, &summary.snippet)
             {
                 continue;
             }

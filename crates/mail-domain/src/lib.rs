@@ -20,6 +20,7 @@ pub mod incoming;
 pub mod ingest;
 pub mod invite;
 pub mod jmap_id;
+pub mod junk;
 pub mod keyword;
 pub mod message;
 pub mod op;
@@ -38,6 +39,7 @@ pub mod signing;
 pub mod smime;
 pub mod state;
 pub mod template;
+pub mod term;
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
 pub mod threading;
@@ -69,6 +71,7 @@ pub use invite::{Attendance, InviteAnswer};
 pub use jmap_id::{
     JmapAccountId, JmapBlobId, JmapEmailId, JmapIdentityId, JmapMailboxId, JmapThreadId,
 };
+pub use junk::JunkCounts;
 pub use keyword::{THUNDERBIRD_TAGS, keyword_label, label_keyword};
 pub use message::{Message, MessageKey, SortFacts, Thread, ThreadSummary};
 pub use op::{Action, Applied, Change, Op, OpKind, Patch, RemoteIntent, Target};
@@ -96,6 +99,7 @@ pub use state::{
     ReadState, Snooze, Star, Threading,
 };
 pub use template::Template;
+pub use term::Term;
 pub use threading::{ThreadInput, normalize_id, sort_subject, thread};
 pub use view::{Cursor, GroupKey, Page, PageReq, Property, Query, Sort, SortDir, View, ViewKind};
 pub use words::{NO_SUBJECT, human_size, subject_or_none};

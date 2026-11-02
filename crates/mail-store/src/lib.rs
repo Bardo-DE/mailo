@@ -45,7 +45,7 @@ pub use blob::Blobs;
 pub use changes::{Committed, Generation, Topics, Wake};
 pub use contact::{
     AddressBook, BookCard, CardId, Contact, Edit, Group, GroupHome, GroupId, Kind, Origin,
-    PersonCard, Tally, Vip, no_reply,
+    PersonCard, Tally, Vip,
 };
 pub use dispatch::{PASSES_TO_FIND, SYNCS_TO_FIND};
 pub use file::write_atomic;
@@ -61,7 +61,6 @@ pub use sql::{SqlFilter, SqlValue, compile};
 pub use sqlite::{BlobsSwept, Checkpoint, SqliteStore};
 pub use sqlite::{Freed, Kept, MessageRow};
 pub use swept::Swept;
-pub use term::Term;
 
 pub use error::StoreError;
 
@@ -71,7 +70,7 @@ use mail_domain::{
     FolderContents, Import, Ingest, InviteAnswer, KeyId, KeyTrust, Label, MailboxRef, MailboxRole,
     Message, MessageId, MessageKey, OutboxId, Page, Patch, PgpKey, ProtoOp, Query, ReceiptAnswer,
     RemoteIntent, RemoteRef, Retry, Rule, RuleId, SendState, SmimeCert, SyncCursor, Template,
-    TemplateId, Thread, ThreadId, ThreadSummary, Vacation, View, ViewId,
+    TemplateId, Term, Thread, ThreadId, ThreadSummary, Vacation, View, ViewId,
 };
 use porter_core::AccountId;
 

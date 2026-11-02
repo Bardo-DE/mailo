@@ -5,11 +5,12 @@
 //! answers; the window runs the same two searches over seams of its own and calls [`settle`] too.
 //! What to say about the result, and what to ask, is each front-end's.
 
-use super::{Failed, Found, Gap, find_jmap, search};
+use super::{find_jmap, search};
 use crate::account::Setup;
 use chrono::{DateTime, Utc};
 use mail_domain::presets::{self, Manual, ManualPop3, Preset};
 use mail_domain::{HttpAuth, Incoming, Outgoing, Tls};
+use mail_logic::discover::{Failed, Found, Gap};
 use mail_logic::password::Password;
 use porter_sheet::{Hop, MailServers, Manual as Typed, Security};
 

@@ -12,9 +12,9 @@
 
 use super::{Command, Consent};
 use mail_core::account::Setup;
-use mail_core::discover::{Failed, Found, Gap};
 use mail_domain::presets::Preset;
 use mail_domain::{AuthPlan, Incoming, Outgoing, Tls, Username};
+use mail_logic::discover::{Failed, Found, Gap};
 use porter_provider::Issuer;
 use std::fmt::Write as _;
 
@@ -190,7 +190,7 @@ pub fn needed(command: &Command) -> Option<String> {
     };
     // Lowercased the way `account::add` stores it, so what is shown is what is saved.
     let address = address.to_lowercase();
-    mail_core::discover::known(&address, chrono::Utc::now())
+    mail_logic::discover::known(&address, chrono::Utc::now())
         .is_none()
         .then_some(address)
 }
@@ -257,7 +257,7 @@ pub fn show(
     lookup: impl FnOnce(&str) -> Result<Found, String>,
 ) -> Result<String, String> {
     let address = address.to_lowercase();
-    if let Some(preset) = mail_core::discover::known(&address, chrono::Utc::now()) {
+    if let Some(preset) = mail_logic::discover::known(&address, chrono::Utc::now()) {
         return Ok(describe(&address, "from the built-in table", &preset));
     }
     let found = lookup(&address)?;
@@ -346,7 +346,7 @@ pub fn before_add_jmap(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mail_core::discover::Source;
+    use mail_logic::discover::Source;
 
     pub(super) fn now() -> chrono::DateTime<chrono::Utc> {
         chrono::DateTime::parse_from_rfc3339("2026-09-24T12:00:00Z")
@@ -553,7 +553,7 @@ mod tests {
 mod jmap_tests {
     use super::tests::now;
     use super::*;
-    use mail_core::discover::Source;
+    use mail_logic::discover::Source;
 
     fn add(consent: Consent) -> Command {
         Command::AccountAdd {

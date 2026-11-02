@@ -23,10 +23,10 @@
 //! never found is let go a week after it was due.
 
 use crate::error::{CoreError, Logged};
-use crate::notify::{Notification, Notifier, Opens, Own};
+use crate::notify::{Notification, Notifier, Opens};
 use chrono::{DateTime, TimeDelta, Utc};
 use mail_domain::{Filter, FollowUp, MailboxRole, Message, Op, Snooze, ThreadId, ThreadSummary};
-use mail_logic::follow_up::{in_scope, remind};
+use mail_logic::follow_up::{in_scope, remind, replied};
 use mail_store::{SqliteStore, Store};
 
 use held::landed;
@@ -34,13 +34,6 @@ pub use held::{Held, after_queue, held, hold, release};
 
 /// How long after it was due a composer's reminder still waits for its message to be found.
 const STALE: TimeDelta = TimeDelta::days(7);
-
-/// Whether anyone other than the user has written in `messages` since `set`.
-pub fn replied(messages: &[Message], own: &Own, set: DateTime<Utc>) -> bool {
-    messages
-        .iter()
-        .any(|message| message.date > set && !own.includes(&message.from.email))
-}
 
 /// The conversations whose reminder came back with no reply, most recently returned first, for
 /// the top of the inbox.

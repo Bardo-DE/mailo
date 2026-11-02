@@ -5121,6 +5121,7 @@ dependencies = [
  "mail-secrets",
  "mail-store",
  "mailo-domain",
+ "mailo-logic",
  "notify-rust",
  "porter-core",
  "serde",
@@ -5259,7 +5260,6 @@ dependencies = [
 name = "mail-core"
 version = "0.1.0"
 dependencies = [
- "aho-corasick",
  "base64 0.22.1",
  "chrono",
  "futures-util",
@@ -5280,7 +5280,6 @@ dependencies = [
  "mailo-pim",
  "mailo-proto",
  "mailo-reader",
- "nucleo-matcher",
  "pdfrum",
  "porter-capability",
  "porter-core",
@@ -5311,6 +5310,7 @@ name = "mail-edge"
 version = "0.1.0"
 dependencies = [
  "mail-core",
+ "mailo-logic",
  "tempfile",
  "tokio",
 ]
@@ -5798,11 +5798,17 @@ dependencies = [
 name = "mailo-logic"
 version = "0.1.0"
 dependencies = [
+ "aho-corasick",
  "chrono",
+ "mailo-archive",
  "mailo-domain",
+ "nucleo-matcher",
  "porter-core",
+ "porter-discover",
+ "porter-ids",
  "porter-provider",
  "psl",
+ "regex",
  "serde",
  "serde_json",
  "thiserror 2.0.21",

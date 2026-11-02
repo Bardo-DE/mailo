@@ -502,7 +502,7 @@ mod microsoft {
         // The common case, and the one nothing can infer: a work mailbox on the company's own
         // domain. Guessing would mean autodiscover, and guessing wrong points the client at a
         // host the user never named.
-        assert!(mail_core::discover::known("me@yourcompany.example", now()).is_none());
+        assert!(mail_logic::discover::known("me@yourcompany.example", now()).is_none());
 
         let parsed = cli::parse(&args("account add me@yourcompany.example --microsoft")).unwrap();
         match parsed {

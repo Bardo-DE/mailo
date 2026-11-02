@@ -420,7 +420,7 @@ pub async fn add_receiving(
             preset.plan.address = address.clone();
             preset
         }
-        None => match crate::discover::known(&address, now) {
+        None => match mail_logic::discover::known(&address, now) {
             Some(preset) => preset,
             None => {
                 return Err(CoreError::NoPreset { address });
@@ -620,8 +620,11 @@ pub async fn add_receiving(
             },
         },
     };
-    crate::provider::icon::fetch_if_missing(crate::provider::provider(&plan), environment.program)
-        .await;
+    crate::provider::icon::fetch_if_missing(
+        mail_logic::provider::provider(&plan),
+        environment.program,
+    )
+    .await;
     Ok(Added {
         address,
         account,
@@ -699,7 +702,7 @@ fn kept_on_imap(
 
 /// Which kind of Microsoft account `address` is: by the tenant `credential` was issued in, when
 /// it has been signed in and its token says ([`tokens::tenant_of`]), else by the address's
-/// domain ([`crate::discover::microsoft_domain`]).
+/// domain ([`mail_logic::discover::microsoft_domain`]).
 pub fn microsoft_account_of(
     address: &str,
     credential: Option<&Credential>,
@@ -707,7 +710,7 @@ pub fn microsoft_account_of(
     let tenant = credential.and_then(tokens::tenant_of);
     mail_domain::presets::microsoft_account(
         tenant.as_deref(),
-        crate::discover::microsoft_domain(address),
+        mail_logic::discover::microsoft_domain(address),
     )
 }
 

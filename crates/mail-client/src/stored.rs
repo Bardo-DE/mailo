@@ -38,8 +38,8 @@ impl Client {
     }
 
     /// What a search reads ([`mail_core::search::run`]).
-    pub fn source(&self) -> &dyn mail_core::search::Source {
-        self.store()
+    pub fn source(&self) -> mail_core::search::StoreSource<'_, mail_store::SqliteStore> {
+        mail_core::search::StoreSource(self.store())
     }
 }
 

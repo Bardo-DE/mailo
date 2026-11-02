@@ -5,7 +5,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use mail_client::testing::core::discover::{Failed, Gap};
+use mail_client::discover::{Failed, Gap};
 use porter_capability::{CapabilityKind, KindToggle, Toggle};
 use porter_core::{ProviderId, SecretText};
 use porter_sheet::{

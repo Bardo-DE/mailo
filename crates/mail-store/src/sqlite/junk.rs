@@ -2,7 +2,8 @@
 
 use super::SqliteStore;
 use crate::StoreError;
-use crate::junk::{Judged, JunkCounts, Learned};
+use crate::junk::{Judged, Learned};
+use mail_domain::JunkCounts;
 use mail_domain::MessageId;
 use porter_core::AccountId;
 use rusqlite::{OptionalExtension, params};

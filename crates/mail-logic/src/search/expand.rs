@@ -5,10 +5,10 @@
 //! each `Text` still a whole word. A bigram expands the query and is not offered as a suggestion.
 
 use mail_domain::filter::search_tokens;
-use mail_domain::{Filter, TextMatch};
+use mail_domain::{Filter, Term, TextMatch};
 
 use super::parsing::Parsed;
-use super::source::{Source, Term};
+use super::source::Source;
 
 /// How many vocabulary entries one prefix may fan out to.
 const PREFIX_LIMIT: usize = 32;
@@ -121,10 +121,10 @@ mod tests {
     use std::cell::Cell;
 
     use chrono::Utc;
-    use mail_domain::{Filter, TextMatch, ThreadSummary};
+    use mail_domain::{Filter, Term, TextMatch, ThreadSummary};
 
     use super::super::Parsed;
-    use super::super::source::{Source, Term};
+    use super::super::source::Source;
     use super::{expand, suggestions};
     use crate::search::parse;
 
@@ -207,7 +207,7 @@ mod tests {
     }
 
     fn parsed(input: &str) -> Parsed {
-        parse(input, &Utc, &mail_logic::query::unnamed)
+        parse(input, &Utc, &crate::query::unnamed)
     }
 
     fn contains(filter: &Filter) -> Vec<String> {

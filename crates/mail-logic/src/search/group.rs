@@ -260,7 +260,3 @@ fn fuzzy_query(ranked: &RankedMail) -> String {
     parts.extend(ranked.parsed.phrases.iter().cloned());
     parts.join(" ")
 }
-
-#[cfg(test)]
-#[path = "group_tests.rs"]
-mod tests;

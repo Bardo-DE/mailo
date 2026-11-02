@@ -2,9 +2,10 @@
 //! a typed one comes due, which conversations a list narrowed to a scope holds, and how a returned
 //! reminder reads. Sweeping the reminders is `mail_core::follow_up`.
 
+use crate::own::Own;
 use crate::snooze::TimeError;
 use chrono::{DateTime, TimeDelta, TimeZone, Utc};
-use mail_domain::{Filter, FollowUp, MatchCtx, Op, ThreadId, ThreadSummary};
+use mail_domain::{Filter, FollowUp, MatchCtx, Message, Op, ThreadId, ThreadSummary};
 
 /// The times a reminder offers by name, as `(key, what it says)`. A typed time is the rest.
 pub const CHOICES: [(&str, &str); 3] = [
@@ -88,6 +89,13 @@ pub fn remind(at: DateTime<Utc>, set: DateTime<Utc>) -> Op {
     Op::SetFollowUp(FollowUp::Until { at, set })
 }
 
+/// Whether anyone other than the user has written in `messages` since `set`.
+pub fn replied(messages: &[Message], own: &Own, set: DateTime<Utc>) -> bool {
+    messages
+        .iter()
+        .any(|message| message.date > set && !own.includes(&message.from.email))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -129,6 +137,63 @@ mod tests {
                 Ok(at) => assert_eq!(got, Ok(at), "{choice:?}"),
                 Err(()) => assert!(got.is_err(), "{choice:?} should be refused: {got:?}"),
             }
+        }
+    }
+
+    #[test]
+    fn a_reply_is_someone_else_writing_after_the_reminder_was_set() {
+        use mail_domain::MailboxRole;
+        use mail_domain::testing::message as made;
+        let thread = |n: u128| mail_domain::ThreadId::from_uuid(uuid::Uuid::from_u128(0x7000 + n));
+        const ME: &str = "me@example.test";
+        let message = |n: u128, t, from: &str, date, mailbox| Message {
+            thread: t,
+            date,
+            mailbox,
+            ..made(n, from, "s", "t")
+        };
+        let own = Own::new([ME, "alias@example.test"]);
+        let set = day(0);
+        let t = thread(1);
+        let mine = message(1, t, ME, day(-1), MailboxRole::Sent);
+        // (name, the conversation's messages, replied)
+        let cases: [(&str, Vec<Message>, bool); 5] = [
+            ("only what I sent", vec![mine.clone()], false),
+            (
+                "their earlier mail, which I was answering",
+                vec![
+                    message(2, t, "ada@example.test", day(-2), MailboxRole::Inbox),
+                    mine.clone(),
+                ],
+                false,
+            ),
+            (
+                "my own later note, from another of my addresses",
+                vec![
+                    mine.clone(),
+                    message(3, t, "ALIAS@example.test", day(1), MailboxRole::Sent),
+                ],
+                false,
+            ),
+            (
+                "their answer after",
+                vec![
+                    mine.clone(),
+                    message(4, t, "ada@example.test", day(1), MailboxRole::Inbox),
+                ],
+                true,
+            ),
+            (
+                "an answer a rule filed away still counts",
+                vec![
+                    mine,
+                    message(5, t, "grace@example.test", day(2), MailboxRole::Archive),
+                ],
+                true,
+            ),
+        ];
+        for (name, messages, want) in cases {
+            assert_eq!(replied(&messages, &own, set), want, "{name}");
         }
     }
 }

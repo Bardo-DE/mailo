@@ -8,8 +8,8 @@
 use ds_blitz::Extent;
 use ds_harness::{Clock, Harness, HarnessConfig, Viewport};
 use mail_core::SqliteStore;
-use mail_core::discover::{Failed, Found, Gap, Source};
 use mail_domain::presets;
+use mail_logic::discover::{Failed, Found, Gap, Source};
 use mail_ui::ui::native::{AddAccountOpened, AddAccountWiring, add_account_root};
 use mail_ui_model::add_account::provider::{Request, Seams};
 use porter_core::{Credential, SecretText};

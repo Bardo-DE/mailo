@@ -15,6 +15,7 @@ authors = ["Po Hsuan Lai <pohsuanlai0208@gmail.com>"]
 
 [dependencies]
 mail-core = { workspace = true, features = ["keyring"] }
+mail-logic.workspace = true
 # `rt-multi-thread` for the application's one runtime, which the libraries are handed.
 tokio = { version = "1", features = ["rt", "rt-multi-thread"] }
 

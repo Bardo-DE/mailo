@@ -3,7 +3,6 @@
 //! The `regex` crate is linear-time, and the compiled form is capped, so a pattern cannot hang
 //! the window. An invalid pattern is the crate's own error text. It is never a panic.
 
-use crate::error::CoreError;
 use regex::RegexBuilder;
 
 /// Compiled size cap, and the same cap on the lazy DFA. One mebibyte.
@@ -20,7 +19,7 @@ pub struct Extracted {
 ///
 /// No such clause is `Ok` with `regex: None`. A pattern the `regex` crate refuses — a broken
 /// class, a program past [`SIZE_LIMIT`] — is `Err` of that crate's message.
-pub fn extract(input: &str) -> Result<Extracted, CoreError> {
+pub fn extract(input: &str) -> Result<Extracted, regex::Error> {
     let Some(start) = find_re(input) else {
         return Ok(Extracted {
             rest: input.to_owned(),
@@ -50,12 +49,11 @@ pub fn hits(regex: &regex::Regex, subject: &str, snippet: &str) -> bool {
 }
 
 /// Compile `pattern` with the size caps. The error string belongs to the `regex` crate.
-pub fn compile(pattern: &str) -> Result<regex::Regex, CoreError> {
+pub fn compile(pattern: &str) -> Result<regex::Regex, regex::Error> {
     RegexBuilder::new(pattern)
         .size_limit(SIZE_LIMIT)
         .dfa_size_limit(SIZE_LIMIT)
         .build()
-        .map_err(CoreError::from)
 }
 
 /// Byte index of a `re:/` that starts a token. ASCII, so the index is a char boundary.

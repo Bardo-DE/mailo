@@ -5,12 +5,13 @@
 //! that it never builds mail or raises a notification itself. A sync pass carries them out
 //! before its outbox drain, so what they send leaves in the same pass.
 
-use super::guard::{self, Occasion};
+use super::guard;
 use crate::compose::Leaves;
 use crate::error::{CoreError, Logged};
-use crate::notify::Own;
 use chrono::{DateTime, Utc};
 use mail_domain::{Address, MessageId, ReplyScope, RuleAction};
+use mail_logic::own::Own;
+use mail_logic::rules::guard::Occasion;
 use mail_store::rules::Left;
 use mail_store::{SqliteStore, Store};
 

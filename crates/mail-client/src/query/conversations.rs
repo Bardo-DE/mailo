@@ -1,7 +1,7 @@
 //! Conversations, by each way mail can be asked for: matching a query, searched for, waiting on
 //! a reply, opened before.
 //!
-//! A search is [`mail_core::search::search_list`], the function `mailo search` calls, over the
+//! A search is [`mail_logic::search::search_list`], the function `mailo search` calls, over the
 //! accounts asked for. So `from:`, a prefix, a phrase and `re:/…/` mean the same thing to every
 //! caller. A bare `re:/…/` narrows nothing, so it is run over the conversations of the query it
 //! is asked within ([`How::Within`]) rather than over a ranked sample of all mail that would look
@@ -9,8 +9,10 @@
 
 use crate::{ClientError, Query as Asked, Topics};
 use chrono::{DateTime, Utc};
-use mail_core::search::{self, Highlight, Source, Term};
+use mail_core::search::StoreSource;
+use mail_domain::Term;
 use mail_domain::{Filter, LabelId, MessageId, PageReq, Query, ThreadId, ThreadSummary};
+use mail_logic::search::{self, Highlight, Source};
 use mail_store::{SqliteStore, Store};
 use porter_core::AccountId;
 
@@ -221,11 +223,11 @@ impl Scoped<'_> {
 
 impl Source for Scoped<'_> {
     fn terms_with_prefix(&self, prefix: &str, limit: usize) -> Vec<Term> {
-        <SqliteStore as Source>::terms_with_prefix(self.store, prefix, limit)
+        Source::terms_with_prefix(&StoreSource(self.store), prefix, limit)
     }
 
     fn listed(&self, filter: &Filter, page: PageReq, now: DateTime<Utc>) -> Vec<ThreadSummary> {
-        <SqliteStore as Source>::listed(self.store, &self.narrow(filter), page, now)
+        Source::listed(&StoreSource(self.store), &self.narrow(filter), page, now)
     }
 
     fn top(
@@ -235,6 +237,12 @@ impl Source for Scoped<'_> {
         window: &[ThreadId],
         now: DateTime<Utc>,
     ) -> Vec<(ThreadSummary, f64)> {
-        <SqliteStore as Source>::top(self.store, &self.narrow(filter), k, window, now)
+        Source::top(
+            &StoreSource(self.store),
+            &self.narrow(filter),
+            k,
+            window,
+            now,
+        )
     }
 }

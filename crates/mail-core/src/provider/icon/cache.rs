@@ -2,8 +2,8 @@
 
 use super::decode::SIDE;
 use super::{IconError, PNG_MAGIC};
-use crate::provider::Provider;
 use base64::Engine as _;
+use mail_logic::provider::Provider;
 use std::path::{Path, PathBuf};
 
 /// Icons read once from the cache directory, each drawn ahead at the sizes a window asks for.
