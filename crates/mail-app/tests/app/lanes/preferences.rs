@@ -91,6 +91,9 @@ fn settings_rebinds_a_key_for_the_open_window_pushes_an_account_and_orders_the_s
     assert_eq!(inbox(&window), INBOX.len(), "the old key still archived");
     window.press(&[], Key::Char('x'), 1);
     window.until("the new key archives", |h| row_of(h, INBOX[0].1).is_none());
+    window.until_stored("the new key's archive is written", |store| {
+        inbox_at(store, chrono::Utc::now()).len() == INBOX.len() - 1
+    });
 
     // Reset puts the shipped key back, and with nothing changed there is nothing to restore.
     window.in_settings(copy::titles::KEYBOARD, |settings| {

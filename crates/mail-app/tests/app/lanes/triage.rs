@@ -302,7 +302,9 @@ fn rows_picked_together_are_acted_on_as_one_gesture_and_one_undo() {
     window.press(&[Key::Shift], Key::Char('j'), 1);
     window.press(&[], Key::Char('e'), 1);
     window.until("the three leave", |h| h.count(".list .ds-thread") == 1);
-    assert_eq!(inbox_at(&window.store, chrono::Utc::now()), [subjects[0]]);
+    window.until_stored("the three are archived", |store| {
+        inbox_at(store, chrono::Utc::now()) == [subjects[0]]
+    });
     window.press(&[PRIMARY], Key::Char('z'), 1);
     window.until("one Ctrl-Z brings all three back", |h| {
         h.count(".list .ds-thread") == INBOX.len()
@@ -322,6 +324,9 @@ fn snooze_until_tomorrow(window: &mut Window, subject: &str) -> chrono::DateTime
     window.menu_item(copy::menus::TOMORROW);
     window.until("the snoozed row leaves the inbox", |h| {
         row_of(h, subject).is_none()
+    });
+    window.until_stored("the snooze is stored", |store| {
+        matches!(conversation(store, subject).snooze, Snooze::Until(_))
     });
     let Snooze::Until(at) = conversation(&window.store, subject).snooze else {
         panic!("{subject:?} is not snoozed");

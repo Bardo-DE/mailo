@@ -399,9 +399,13 @@ fn filing_into_folders(store: &SqliteStore) {
 
 /// The copies waiting for the server, by folder.
 fn copies(window: &Window) -> Vec<String> {
+    copies_in(&window.store)
+}
+
+/// [`copies`], of `store`.
+fn copies_in(store: &SqliteStore) -> Vec<String> {
     let far = chrono::Utc::now() + chrono::Duration::days(3650);
-    window
-        .store
+    store
         .outbox_due(account(), far)
         .expect("the outbox reads")
         .into_iter()
@@ -437,6 +441,9 @@ fn copy_to_lists_a_conversation_in_the_folder_and_where_it_was_and_undo_takes_th
     window.until("the copy is queued and the picker gone", |h| {
         h.count(".ds-pick-list") == 0
     });
+    window.until_stored("the copy is queued", |store| {
+        !copies_in(store).is_empty()
+    });
     assert_eq!(
         copies(&window),
         [PROJECTS],
@@ -459,8 +466,7 @@ fn copy_to_lists_a_conversation_in_the_folder_and_where_it_was_and_undo_takes_th
     window.until("the undo takes it out of Projects", |h| {
         row_of(h, subject).is_none()
     });
-    assert!(
-        copies(&window).is_empty(),
-        "the copy is still queued after its undo"
-    );
+    window.until_stored("the undo drops the queued copy", |store| {
+        copies_in(store).is_empty()
+    });
 }
