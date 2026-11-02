@@ -8,9 +8,10 @@ use crate::sync::report::{Done, Failure};
 use crate::sync::run::{Run, Signed, signed_in};
 use crate::sync::{Mode, fetch_folder, imap_engine, poll_floor, pushed_folders, to_sync};
 use mail_domain::{Filter, LabelId, MailboxRef, MessageId};
+use mail_engine::{AccountEngine, Notify};
 use mail_proto::Storage;
 use mail_proto::backend::ImapBackend;
-use mail_runtime::{AccountEngine, Cancel, Notify, RuntimeError, Searched, Woke};
+use mail_runtime::{Cancel, RuntimeError, Searched, Woke};
 use std::time::Duration;
 use tokio::sync::watch;
 
@@ -26,7 +27,8 @@ pub(crate) async fn signed_engine(
     mode: Mode,
 ) -> Result<AccountEngine<ImapBackend>, Failure> {
     let Signed { held, renewal } = signed_in(run, mode).await?;
-    let engine = imap_engine(run.store, run.account, held, run.secrets.clone());
+    let engine = imap_engine(run.store, run.account, held, run.secrets.clone())
+        .with_wanted(run.wanted.clone());
     Ok(match renewal {
         Some(source) => engine.with_tokens(source),
         None => engine,
@@ -111,7 +113,7 @@ impl Access for Imap {
                     .or_log_default("the folders could not be read to watch them")
             };
             let others = pushed_folders(account, &folders);
-            let build = |held: mail_runtime::Held| {
+            let build = |held: mail_secrets::Held| {
                 let engine = imap_engine(run.store, account, held, run.secrets.clone());
                 match &renewal {
                     Some(renewal) => engine.with_tokens(renewal.clone()),

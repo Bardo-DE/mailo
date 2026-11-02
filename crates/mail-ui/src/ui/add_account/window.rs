@@ -13,8 +13,8 @@
 //! window's notice: the current Space takes it in when it shows some accounts and not others.
 //! Every window draws the new account as the client says the store moved.
 
-use crate::ui::provider_chip::{MarkAt, style_of_mark};
-use crate::ui::view::Marks;
+use mail_ui_kit::provider_chip::{MarkAt, style_of_mark};
+use mail_ui_kit::view::Marks;
 use std::sync::Arc;
 
 use dioxus::prelude::*;
@@ -25,17 +25,15 @@ use ds_shell::prelude::{
     BrowserWait, ProviderList, ReviewServices, ShowCode, SignInFailed, SignInForm, SignInWorking,
 };
 use mail_client::Client;
-use mail_client::profile::ProfileId;
-use porter_core::AccountId;
 
 use super::Join;
-use super::host::{self, Ended, Shown};
 use super::map::{self, Action, Out, Sheet, Step};
-use super::provider::{Added, Seams};
 use super::size;
-use crate::ui::app::Frame;
-use crate::ui::space::{self, Spaces};
 use crate::ui::style::STYLE;
+use mail_ui_kit::frame::Frame;
+use mail_ui_kit::space::{self, Spaces};
+use mail_ui_model::add_account::host::{self, Ended, Shown};
+use mail_ui_model::add_account::provider::{Added, Seams};
 
 /// Open an address in the system browser.
 pub type Browse = dyn Fn(&str) -> Result<(), String> + Send + Sync;
@@ -57,10 +55,10 @@ impl PartialEq for Wiring {
 }
 
 impl Wiring {
-    /// The network, the keyring, the program's OAuth clients (`clients`) and the browser.
-    pub(super) fn real(client: Client, clients: mail_client::prelude::OAuthClients) -> Wiring {
+    /// The network, the keyring, the program's OAuth clients and the browser.
+    pub(super) fn real(client: Client) -> Wiring {
         Wiring::new(
-            Seams::real(client, clients),
+            Seams::real(client),
             Arc::new(|url| webbrowser::open(url).map_err(|why| why.to_string())),
         )
     }
@@ -79,7 +77,7 @@ pub(super) fn AddAccountWindow(wiring: Wiring, prefill: Option<String>, join: Jo
     let spawner: Arc<dyn Spawner> = Arc::new(ds_blitz::TokioSpawner::current());
     let environment = use_environment(desktop.store(), desktop.prefs.clone(), spawner);
     use_context_provider(|| environment);
-    crate::ui::prefs::use_window_settings();
+    mail_ui_kit::prefs::use_window_settings();
     rsx! { AddAccountShell { wiring, prefill, join } }
 }
 
@@ -122,13 +120,13 @@ fn AddAccountShell(wiring: Wiring, prefill: Option<String>, join: Join) -> Eleme
     let loaded = try_consume_context::<mail_client::provider::icon::Loaded>().unwrap_or_default();
     let icons = use_signal(|| loaded);
     use_context_provider(|| icons);
-    crate::ui::provider_chip::use_fetch_missing(icons);
-    crate::ui::host::use_window_host();
-    let dirs = try_consume_context::<crate::ui::appearance::WindowDirs>();
-    let _ = crate::ui::prefs::use_prefs(dirs.as_ref());
+    mail_ui_kit::provider_chip::use_fetch_missing(icons);
+    mail_ui_kit::host::use_window_host();
+    let dirs = try_consume_context::<mail_ui_kit::appearance::WindowDirs>();
+    let _ = mail_ui_kit::prefs::use_prefs(dirs.as_ref());
     // Icons or letters, as the provider-marks setting says.
     let marks = Marks::from(
-        crate::ui::prefs::use_settings()
+        mail_ui_kit::prefs::use_settings()
             .read()
             .window
             .provider_marks,
@@ -140,7 +138,7 @@ fn AddAccountShell(wiring: Wiring, prefill: Option<String>, join: Join) -> Eleme
             dirs.as_ref()
                 .map(space::load)
                 .or_else(try_consume_context::<Spaces>)
-                .unwrap_or_else(|| crate::ui::space::first_run(&[]))
+                .unwrap_or_else(|| mail_ui_kit::space::first_run(&[]))
         }
     });
     let mut sheet = use_signal(Sheet::default);
@@ -223,9 +221,11 @@ fn AddAccountShell(wiring: Wiring, prefill: Option<String>, join: Join) -> Eleme
         // Nothing is left to draw (and nothing typed is kept) while the window goes.
         sheet.set(Sheet::default());
         if ended == Ended::Added
-            && let Some(account) = added_to.take().and_then(|address| account_at(&address))
+            && let Some(account) = added_to
+                .take()
+                .and_then(|address| mail_ui_kit::add_account::account_at(&address))
         {
-            into_scope(&mut spaces, account, join);
+            mail_ui_kit::add_account::into_scope(&mut spaces, account, join);
         }
         if let Some(handle) = &handle {
             handle.close();
@@ -239,7 +239,7 @@ fn AddAccountShell(wiring: Wiring, prefill: Option<String>, join: Join) -> Eleme
     let slug = step.as_ref().map_or("none", Step::slug);
     rsx! {
         Frame { spaces, sheet: Some(ds_shell::stylesheet()),
-            style { {STYLE} }
+            style { {*STYLE} }
             div {
                 class: "add-account-window",
                 "data-step": slug,
@@ -270,7 +270,7 @@ fn body(step: Step, send: Callback<Action>, marks: Marks) -> Element {
     let cancel = move |()| send.call(Action::Cancel);
     let back = move |()| send.call(Action::Back);
     let copy = move |text: String| {
-        crate::ui::hover::copy(&text);
+        mail_ui_kit::hover::copy(&text);
         send.call(Action::Copied);
     };
     let act = move |action: Option<Action>| {
@@ -388,45 +388,6 @@ fn body(step: Step, send: Callback<Action>, marks: Marks) -> Element {
                 p { class: "add-account-detail", role: "alert", "{detail}" }
             }
         },
-    }
-}
-
-/// The account mailo's client has for `address`, which the add has just written.
-pub(super) fn account_at(address: &str) -> Option<AccountId> {
-    let client = crate::ui::live::client();
-    crate::ui::data::account_rows(&client)
-        .into_iter()
-        .find(|row| row.address == address)
-        .map(|row| row.id)
-}
-
-/// A new account joins the Space it was added from, as `join` names it; or none.
-pub(super) fn into_scope(spaces: &mut Signal<Spaces>, account: AccountId, join: Join) {
-    if join == Join::Nowhere {
-        return;
-    }
-    // The Spaces as they are on disk: this window's copy may be older than a Space another
-    // window added or switched to meanwhile, and keeping it would undo that.
-    if let Some(dirs) = try_consume_context::<crate::ui::appearance::WindowDirs>()
-        && let Some(stored) = space::stored(&dirs)
-        && *spaces.peek() != stored
-    {
-        spaces.set(stored);
-    }
-    let widened = {
-        let mut all = spaces.write();
-        let into = match join {
-            Join::Into(space) => space,
-            Join::OnScreen | Join::Nowhere => all.current().id,
-        };
-        let mut widened = false;
-        all.edit(into, |space| {
-            widened = space.payload.widen(&ProfileId::default(), account)
-        });
-        widened
-    };
-    if widened {
-        crate::ui::frame::keep(&spaces.read());
     }
 }
 

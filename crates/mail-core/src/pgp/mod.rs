@@ -2,7 +2,7 @@
 //!
 //! The pieces: [`keys`] makes, imports, exports and forgets keys; [`read`] opens a message when
 //! the reader shows it; [`send`] seals an outgoing one as Send is pressed. The cryptography is
-//! `mail_mime::openpgp`'s, the keyring and the Web Key Directory are `mail_runtime`'s, and this
+//! `mail_crypto::openpgp`'s, the keyring and the Web Key Directory are `mail_runtime`'s, and this
 //! module decides which keys to use.
 
 pub mod keys;
@@ -14,15 +14,15 @@ pub use read::{Protected, open_bytes, open_message};
 pub use seal::OpenPgp;
 
 use chrono::{DateTime, Utc};
+use mail_crypto::CryptoError;
 use mail_domain::{Fingerprint, KeySource, PgpKey};
-use mail_mime::MimeError;
 use mail_runtime::RuntimeError;
 use mail_store::{SqliteStore, Store, StoreError};
 
 /// Asked for the passphrase of the user's key with this fingerprint, when a protected key has
 /// to sign or decrypt. `None` is "not given": the send is refused or the message stays locked.
 ///
-/// The command line asks on the terminal; the window asks in a dialog; a test
+/// The command line asks on the terminal; the window asks in the window; a test
 /// answers from a table. Nothing is asked for a key that has no passphrase.
 pub type Ask<'a> = &'a dyn Fn(Fingerprint) -> Option<String>;
 
@@ -83,7 +83,7 @@ pub enum PgpError {
     )]
     SecretWouldBeLost(Fingerprint),
     #[error("{0}")]
-    Mime(MimeError),
+    Crypto(CryptoError),
     #[error("{0}")]
     Runtime(#[from] RuntimeError),
     #[error("store: {0}")]
@@ -92,8 +92,8 @@ pub enum PgpError {
 
 impl PgpError {
     /// The step that mends this, when there is one: the front end words it.
-    pub fn remedy(&self) -> Option<crate::Remedy> {
-        use crate::Remedy;
+    pub fn remedy(&self) -> Option<mail_logic::remedy::Remedy> {
+        use mail_logic::remedy::Remedy;
         match self {
             PgpError::NoKeyFor(_) => Some(Remedy::FindPgpKey),
             PgpError::NoOwnKey(address) => Some(Remedy::MakePgpKey {
@@ -107,11 +107,11 @@ impl PgpError {
     }
 }
 
-impl From<MimeError> for PgpError {
-    fn from(e: MimeError) -> Self {
+impl From<CryptoError> for PgpError {
+    fn from(e: CryptoError) -> Self {
         match e {
-            MimeError::KeyLocked(fingerprint) => PgpError::Locked(fingerprint),
-            other => PgpError::Mime(other),
+            CryptoError::KeyLocked(fingerprint) => PgpError::Locked(fingerprint),
+            other => PgpError::Crypto(other),
         }
     }
 }
@@ -148,8 +148,11 @@ pub async fn lookup_address(
     address: &str,
     now: DateTime<Utc>,
 ) -> Result<Option<PgpKey>, PgpError> {
-    let http = mail_runtime::wkd::client()?;
-    let Some(cert) = mail_runtime::wkd::lookup(&http, address).await? else {
+    let http = mail_net::wkd::client().map_err(RuntimeError::from)?;
+    let Some(cert) = mail_net::wkd::lookup(&http, address)
+        .await
+        .map_err(RuntimeError::from)?
+    else {
         return Ok(None);
     };
     let kept = store.put_pgp_key(cert.record(KeySource::Wkd, now, &[address]))?;

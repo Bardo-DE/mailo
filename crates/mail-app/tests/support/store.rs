@@ -75,7 +75,7 @@ pub fn account(
     std::fs::create_dir_all(dir.join("blobs")).unwrap();
     let store = SqliteStore::open(dir.join("mail.db"), dir.join("blobs")).unwrap();
     add_account(&store, account.clone(), address);
-    mail_store::testing::seed_identity_for(
+    mail_core::fixtures::seed::seed_identity_for(
         &store,
         IdentityId::generate(),
         account.clone(),
@@ -83,14 +83,14 @@ pub fn account(
         None,
     );
     if let Some(caps) = caps {
-        mail_store::testing::seed_caps(&store, account, caps, chrono::Utc::now()).unwrap();
+        mail_core::fixtures::seed::seed_caps(&store, account, caps, chrono::Utc::now()).unwrap();
     }
     store
 }
 
 /// `account` at `address` in `store`, with nothing else of it: no identity, no capabilities.
 pub fn add_account(store: &SqliteStore, account: AccountId, address: &str) {
-    mail_store::testing::seed_account(store, account, address);
+    mail_core::fixtures::seed::seed_account(store, account, address);
 }
 
 /// Deliver `raw` into `account`'s Inbox as POP3 does, `uidl` naming it.

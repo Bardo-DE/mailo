@@ -6,8 +6,8 @@ use crate::error::CoreError;
 use crate::sync::report::{Done, Failure};
 use crate::sync::run::{Run, Signed, signed_in};
 use crate::sync::{Mode, Removing, pop3_engine, remove_copies};
+use mail_engine::AccountEngine;
 use mail_proto::backend::Pop3Backend;
-use mail_runtime::AccountEngine;
 use tokio::sync::watch;
 
 /// POP3.
@@ -16,7 +16,8 @@ pub(crate) struct Pop3;
 /// An engine for `run`'s account, signed in with its password.
 async fn signed_engine(run: &Run<'_>, mode: Mode) -> Result<AccountEngine<Pop3Backend>, Failure> {
     let Signed { held, renewal } = signed_in(run, mode).await?;
-    let engine = pop3_engine(run.store, run.account, &held, run.secrets.clone())?;
+    let engine = pop3_engine(run.store, run.account, &held, run.secrets.clone())?
+        .with_wanted(run.wanted.clone());
     Ok(match renewal {
         Some(source) => engine.with_tokens(source),
         None => engine,

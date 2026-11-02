@@ -483,7 +483,6 @@ fn a_command_is_done_off_the_callers_thread_and_says_its_generation() {
 
     let acted = done(client.act(mail_client::Perform {
         ops: vec![(mail_domain::ThreadId::generate(), mail_domain::Op::Archive)],
-        clock: mail_core::when::Clock::H24,
         alone: Vec::new(),
         then_erase: false,
     }))
@@ -560,8 +559,7 @@ fn counting() -> (mail_client::fetch::Seams, Arc<Mutex<Vec<AccountId>>>) {
                 why: "no watch here".to_owned(),
             })
         }),
-        pushers: Arc::new(|_| Vec::new()),
-        config: None,
+        pushers: Arc::new(|_, _| Vec::new()),
         announce: None,
         daemon: Arc::new(|| mail_core::schedule::Daemon::Absent),
         schedule: Arc::new(|| mail_core::schedule::Schedule::Window),
@@ -603,6 +601,31 @@ fn a_client_fetches_on_a_thread_of_its_own_the_accounts_it_has_and_those_added_a
         passes.lock().unwrap().contains(&later) && fetched.borrow().links.contains_key(&later)
     });
     assert_eq!(passes.lock().unwrap().len(), 2, "each fetched once");
+    client.shutdown(Duration::from_secs(1));
+}
+
+/// A pass is handed the client's own `wanted`: what a window asks of its client reaches the
+/// passes that client runs, and a second client's passes do not hear it.
+#[test]
+fn a_pass_is_handed_what_its_clients_window_wants() {
+    let (store, _dir) = on_disk();
+    let account = imap_account(&store, 1);
+    let client = client(&store);
+    let other = self::client(&store);
+    let thread = mail_domain::ThreadId::from_uuid(uuid::Uuid::from_u128(11));
+    client.wanted().ask_first(&[thread]);
+    let (mut seams, passes) = counting();
+    let heard: Arc<Mutex<Vec<Vec<mail_domain::ThreadId>>>> = Arc::default();
+    let hearing = heard.clone();
+    let inner = seams.pass.clone();
+    seams.pass = Arc::new(move |store, started, account, hooks| {
+        hearing.lock().unwrap().push(hooks.wanted.first());
+        inner(store, started, account, hooks)
+    });
+    assert!(client.fetch(seams).is_none());
+    until("the pass", || passes.lock().unwrap().contains(&account));
+    assert_eq!(heard.lock().unwrap()[0], [thread]);
+    assert!(other.wanted().first().is_empty());
     client.shutdown(Duration::from_secs(1));
 }
 
@@ -738,7 +761,7 @@ fn asking_to_fetch_reads_the_store_on_the_fetching_thread_and_not_the_askers() {
     let asker = std::thread::current().id();
     let readers: Arc<Mutex<Vec<std::thread::ThreadId>>> = Arc::default();
     let seen = readers.clone();
-    seams.pushers = Arc::new(move |_| {
+    seams.pushers = Arc::new(move |_, _| {
         seen.lock().unwrap().push(std::thread::current().id());
         Vec::new()
     });
@@ -816,6 +839,7 @@ fn seed_conversation(store: &SqliteStore) -> mail_domain::ThreadId {
                 id: ChangeId::generate(),
                 changes: vec![Change::MessageUpsert(Box::new(message))],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     thread
@@ -835,7 +859,6 @@ fn what_reads_the_clock_is_read_again_when_a_snooze_ends_with_nobody_asking() {
         &store,
         thread,
         mail_domain::Op::SetSnooze(mail_domain::Snooze::Until(ends)),
-        mail_core::when::Clock::H24,
     )
     .expect("snoozed");
     assert_eq!(client.next_clock(), Some(ends));
@@ -1083,4 +1106,39 @@ fn the_relay_key_is_kept_in_the_keyring() {
         Ok(None),
         "an empty key forgets it"
     );
+}
+
+/// A change that has a bug in it.
+struct Breaks;
+
+impl mail_client::Act for Breaks {
+    type Done = ();
+
+    fn run(self, _: &SqliteStore) {
+        panic!("a bug in a change");
+    }
+}
+
+/// A change that does nothing and says so.
+struct Fine;
+
+impl mail_client::Act for Fine {
+    type Done = u8;
+
+    fn run(self, _: &SqliteStore) -> u8 {
+        7
+    }
+}
+
+#[test]
+fn a_change_that_panics_is_not_done_and_the_next_one_still_is() {
+    let (store, _dir) = on_disk();
+    let client = client(&store);
+
+    assert!(
+        done(client.act(Breaks)).is_none(),
+        "the ticket says not done"
+    );
+    let next = done(client.act(Fine)).expect("the act thread went on");
+    assert_eq!(next.done, 7);
 }

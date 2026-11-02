@@ -118,7 +118,7 @@ impl JmapEngine {
         let mut state = None;
         let mut survey = true;
         if let Some((since, _)) = self.cursor()?
-            && let Some((reached, created)) = self.changes(&client, &mailboxes, since).await?
+            && let Some((reached, created)) = self.changes(&client, &mailboxes, since, now).await?
         {
             state = Some(reached);
             wanted.extend(created);
@@ -148,10 +148,13 @@ impl JmapEngine {
                     email_id: id.clone(),
                 })
                 .collect();
-            self.write(Truth {
-                gone,
-                ..Truth::default()
-            })?;
+            self.write(
+                Truth {
+                    gone,
+                    ..Truth::default()
+                },
+                now,
+            )?;
             wanted.extend(listed);
             state = state.or(listed_at);
         }
@@ -180,6 +183,7 @@ impl JmapEngine {
                     provider_threads: Vec::new(),
                     gone: Vec::new(),
                 },
+                now,
             )?;
         }
         Ok(())
@@ -192,6 +196,7 @@ impl JmapEngine {
         client: &Client,
         mailboxes: &Mailboxes,
         since: String,
+        now: DateTime<Utc>,
     ) -> Result<Option<(String, Vec<JmapEmailId>)>, RuntimeError> {
         let account = &client.session.account;
         let mut since = since;
@@ -231,7 +236,7 @@ impl JmapEngine {
                 .extend(changes.destroyed.iter().map(|id| RemoteRef::Jmap {
                     email_id: id.clone(),
                 }));
-            self.write(truth)?;
+            self.write(truth, now)?;
             wanted.extend(changes.created);
             since = changes.new_state;
             if changes.more == More::No {
@@ -374,11 +379,11 @@ impl JmapEngine {
                 report.unreadable(&self.mailbox(), stored.unreadable);
                 report
                     .arrived
-                    .extend(crate::engine::first_stored(&stored.patch));
+                    .extend(crate::pass::first_stored(&stored.patch));
             }
             // Flags and labels after the messages they sit on exist.
             truth.gone.clear();
-            self.write(truth)?;
+            self.write(truth, now)?;
         }
         Ok(())
     }
@@ -392,8 +397,13 @@ impl JmapEngine {
     ) -> Result<(), RuntimeError> {
         // What the window is showing first, and nothing it is fetching for itself. However old:
         // a JMAP pass is not cut by the account's window, which only the other protocols read.
-        let (backlog, _) =
-            crate::wanted::backlog(self.store.as_ref(), &self.mailbox(), None, budget as u32)?;
+        let (backlog, _) = crate::wanted::backlog(
+            &self.wanted,
+            self.store.as_ref(),
+            &self.mailbox(),
+            None,
+            budget as u32,
+        )?;
         let wanted = email_ids(&backlog);
         if wanted.is_empty() {
             return Ok(());
@@ -438,7 +448,7 @@ impl JmapEngine {
     }
 
     /// Write what the server said about emails already held.
-    fn write(&self, truth: Truth) -> Result<(), RuntimeError> {
+    fn write(&self, truth: Truth, now: DateTime<Utc>) -> Result<(), RuntimeError> {
         let Truth {
             flags,
             flag_colors,
@@ -463,8 +473,9 @@ impl JmapEngine {
                 provider_threads: Vec::new(),
                 gone,
             },
+            now,
         )?;
-        self.store.refile(self.account.clone(), &filed)?;
+        self.store.refile(self.account.clone(), &filed, now)?;
         Ok(())
     }
 }

@@ -123,7 +123,7 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo nextest run --workspace          # or cargo test --workspace; no network needed
 ./scripts/check-boundary.sh            # the sans-I/O boundary
-./scripts/check-copy.sh                # the window's words live in crates/mail-ui/src/ui/copy
+./scripts/check-copy.sh                # the window's words live in crates/mail-ui-model/src/copy
 cargo deny check licenses
 ```
 
@@ -182,16 +182,28 @@ Published libraries (each package is named `mailo-*`; its folder keeps the `crat
 | Crate | For |
 | --- | --- |
 | `mailo-domain` (`crates/mail-domain`) | The vocabulary: accounts, messages, folders, rules, drafts, identifiers. Pure data and functions. |
-| `mailo-mime` (`crates/mail-mime`) | Parsing and building MIME, HTML sanitising, OpenPGP and S/MIME (behind features), iMIP, `mailto:`. |
+| `mailo-mime` (`crates/mail-mime`) | Parsing and building MIME, iMIP, `mailto:`, authentication results and read receipts. |
+| `mailo-crypto` (`crates/mail-crypto`) | OpenPGP and S/MIME (behind features), and the mark-certificate check behind BIMI logos: bytes in, values out. |
+| `mailo-archive` (`crates/mail-archive`) | mbox, Maildir, `.emlx`, Thunderbird and Takeout archives, read and written without touching a file. |
 | `mailo-proto` (`crates/mail-proto`) | Sans-I/O protocol machines for IMAP, POP3, SMTP, ManageSieve, and JMAP's requests and responses: bytes in, "what I need next" out. |
 | `mailo-pim` (`crates/mail-pim`) | vCard, iCalendar invitations and the WebDAV/CardDAV conversation, as text in and values out. |
+| `mailo-editor` (`crates/mail-editor`) | The composer's rich-text document as pure edits: operations, undo, markdown shortcuts, slash commands, and writers to HTML and `format=flowed`. |
+| `mailo-reader` (`crates/mail-reader`) | How a received message becomes what is read: HTML sanitised and lowered to blocks, plain text and quoted tails, the script a message is written in, and the printed page. |
+| `mailo-logic` (`crates/mail-logic`) | The decisions that need no I/O: how an instant is written for a reader, what an undo reverses, how a typed time and a typed search line are read, ranked and marked, what a discovery answer comes to and which provider an address is on, what the junk filter's words say, when a rule may send on its own, and what a filter means. A clock or a store is passed in, never reached for. |
 
-Not published, app-side: `mail-store` (SQLite, FTS5, the outbox), `mail-runtime` (tokio and
-sockets), `mail-core` (everything the application does, with no window or terminal),
+Not published, app-side: `mail-store` (SQLite, FTS5, the outbox), `mail-net` (sockets, TLS, DNS and
+the HTTP clients, with the lookups that are one fetch; no store), `mail-secrets` (the keyrings, the
+OAuth clients, sign-in and token renewal; no store), `mail-runtime` (the protocol drivers over
+them, and the BIMI and key lookups), `mail-engine` (the engines and the scheduler that run an
+account's passes and outbox over the drivers), `mail-agent` (the per-user watch's lock and door, and the
+desktop notifications that announce new mail), `mail-core` (everything the application does, with no window or terminal),
 `mail-client` (the one door to mail: values already read, kept read as the store changes, and the
 calls the window makes), `mail-ui` (the window, with no store in its dependencies), `mail-appkit`
-(macOS only: the one place that needs `unsafe`, for the AppKit delegate) and `mail-app` (the
-`mailo` binary: it makes the client and hands it to the window, and holds the command line).
+(macOS only: the one place that needs `unsafe`, for the AppKit delegate), `mail-edge` (the
+process's runtime, environment and Profile, as `mail-core` is handed them), `mail-cli` (the command
+line), `mail-intents` (what the desktop's intent router asks of mailo over D-Bus) and `mail-app` (the
+`mailo` binary: it makes the client and hands it to the window, and starts the command line or the
+intents provider).
 
 ## Contributing
 

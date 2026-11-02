@@ -6,13 +6,16 @@
 
 mod support;
 
+mod accounts_read;
+mod arrival;
+mod arrival_fold;
 mod attachments;
 mod blocking;
 mod direct_sign_in;
 mod fetch_body;
 mod folder_sync;
 mod graph_push;
-mod ipc;
+mod jmap_arrival;
 mod live_presets;
 mod live_watch;
 mod no_hidden_runtime;
@@ -25,6 +28,7 @@ mod search_scale;
 mod seed_live;
 mod sender_standing;
 mod sender_trust;
+mod sending;
 mod sign_in_check;
 mod sync_path;
 

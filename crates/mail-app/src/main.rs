@@ -40,10 +40,10 @@ fn main() {
         environment.program = mail_core::Program::of_executable(&exe);
     }
     environment.hours = mail_app::edge::clock();
-    mail_app::edge::install_environment(environment);
+    mail_edge::install_environment(environment);
     // The OAuth clients it signs in as: porter's files and mailo's earlier one. Chosen here and
     // handed down, so no library and no test reads them for itself.
-    mail_app::edge::install_clients(mail_core::OAuthClients::here());
+    mail_edge::install_clients(mail_core::OAuthClients::here());
 
     // No arguments opens the window, and `open <thread>` opens it on a conversation; anything
     // else is the CLI. One binary because they are one application over one store, and a
@@ -63,7 +63,7 @@ fn main() {
     let command = if start.is_some() {
         None
     } else {
-        match mail_app::cli::parse(&args) {
+        match mail_cli::parse(&args) {
             Ok(command) => Some(command),
             Err(message) => {
                 eprintln!("{message}");
@@ -72,9 +72,9 @@ fn main() {
         }
     };
 
-    let command = match mail_app::cli::exec::prepare(command) {
-        Ok(mail_app::cli::exec::Prepared::Finished) => return,
-        Ok(mail_app::cli::exec::Prepared::Run(command)) => command,
+    let command = match mail_cli::exec::prepare(command) {
+        Ok(mail_cli::exec::Prepared::Finished) => return,
+        Ok(mail_cli::exec::Prepared::Run(command)) => command,
         Err(message) => {
             eprintln!("{message}");
             std::process::exit(1);
@@ -127,7 +127,7 @@ fn main() {
     {
         return;
     }
-    mail_app::edge::install_profile(chosen);
+    mail_edge::install_profile(chosen);
     if let Err(e) = std::fs::create_dir_all(&dirs.blobs) {
         eprintln!("cannot create {}: {e}", dirs.blobs.display());
         std::process::exit(1);
@@ -144,7 +144,7 @@ fn main() {
     // Messages an older parser misread are re-read from their stored bytes, once, here — the
     // one place every command and the window pass through. Usually an empty queue and one
     // query. A failure is reported and does not stop the command: the mail is still readable.
-    if let Err(e) = mail_runtime::reparse_queued(&store) {
+    if let Err(e) = mail_core::upkeep::reparse_queued(&store, std::time::SystemTime::now().into()) {
         eprintln!("could not re-read stored headers: {e}");
     }
     // Plain drafts kept before every draft's text was flowed text are made so, once.
@@ -152,25 +152,31 @@ fn main() {
         eprintln!("could not rewrite stored drafts as flowed text: {e}");
     }
     // OpenPGP keys kept before their dates were recorded have them read from their bytes, once.
-    if let Err(e) = mail_runtime::pgp::date_keys(&store) {
+    if let Err(e) = mail_core::upkeep::date_keys(&store) {
         eprintln!("could not read the dates of stored OpenPGP keys: {e}");
     }
 
     let store = std::sync::Arc::new(store);
-    // Every command is the cli's: the steps that wait on the network or end the process live in
-    // `cli::exec`. No command is the window.
+    // Every command is the cli's but `intents`: the steps that wait on the network or end the
+    // process live in `mail_cli::exec`. No command is the window.
     if let Some(command) = command {
-        if let Err(message) = mail_app::cli::exec::execute(store, command) {
+        let done = match command {
+            // The one command that is the intents' and not the cli's: the process is where the
+            // two meet.
+            mail_cli::Command::Intents => mail_app::intents::serve(store),
+            command => mail_cli::exec::execute(store, command, Some(roots.config.as_path())),
+        };
+        if let Err(message) = done {
             eprintln!("{message}");
             std::process::exit(1);
         }
         return;
     }
     {
-        let config = mail_core::config::config_dir();
-        let look = mail_ui::ui::view::Appearance {
-            marks: mail_ui::settings::person_root()
-                .map(|root| mail_ui::settings::load(&root))
+        let config = Some(roots.config.clone());
+        let look = mail_ui_kit::view::Appearance {
+            marks: mail_ui_model::settings::person_root_in(Some(roots.config.as_path()))
+                .map(|root| mail_ui_model::settings::load(&root))
                 .unwrap_or_default()
                 .window
                 .provider_marks
@@ -180,28 +186,29 @@ fn main() {
         // were theirs.
         let legacy = config
             .as_deref()
-            .map(mail_ui::ui::appearance::legacy)
+            .map(mail_ui_kit::appearance::legacy)
             .unwrap_or_default();
         // The look is the desktop's (`quire/appearance.toml`), which the window follows live.
         // What mailo kept for itself is brought over once, when the desktop has none, and
         // never written again.
-        if let (Some(from), Some(to)) = (config.as_deref(), mail_ui::ui::appearance::desktop_dir())
+        if let (Some(from), Some(to)) = (config.as_deref(), mail_ui_kit::appearance::desktop_dir())
         {
-            mail_ui::ui::appearance::adopt(from, &to);
+            mail_ui_kit::appearance::adopt(from, &to);
         }
         let ids = account_ids(&store);
         let dirs = config.and_then(|config| {
             mail_core::config::state_dir()
-                .map(|state| mail_ui::ui::appearance::WindowDirs { config, state })
+                .map(|state| mail_ui_kit::appearance::WindowDirs { config, state })
         });
         // The stored Spaces, or a first run over the accounts, written where the window
         // keeps them.
-        let spaces = mail_ui::ui::space::boot(dirs.as_ref(), &ids, &legacy);
+        let spaces = mail_ui_kit::space::boot(dirs.as_ref(), &ids, &legacy);
         if let Err(why) = mail_app::window::open(
             store,
             look,
             spaces,
             dirs,
+            Some(roots.config.clone()),
             start.unwrap_or_else(mail_ui::ui::ask::Open::raise),
         ) {
             eprintln!("mailo: the window could not open: {why}");
@@ -226,11 +233,11 @@ struct Paths {
 }
 
 /// The directories Profiles' paths are under: mailo's data directory (`$XDG_DATA_HOME/mailo` on
-/// Linux, the local application data folder on macOS and Windows; `mail_runtime::places`) and its
+/// Linux, the local application data folder on macOS and Windows; `mail_core::config`) and its
 /// config directory.
 /// The folders mailo keeps: the data and config roots, and the state and cache folders where they
 /// are elsewhere (on Linux each place is its own folder).
-fn places_kept(roots: &mail_core::profile::Roots) -> Vec<std::path::PathBuf> {
+fn places_kept(roots: &mail_logic::profile::Roots) -> Vec<std::path::PathBuf> {
     let mut kept = vec![roots.data.clone(), roots.config.clone()];
     for path in [
         mail_core::config::state_dir(),
@@ -246,9 +253,9 @@ fn places_kept(roots: &mail_core::profile::Roots) -> Vec<std::path::PathBuf> {
     kept
 }
 
-fn roots() -> Option<mail_core::profile::Roots> {
-    Some(mail_core::profile::Roots {
-        data: mail_runtime::places::dir(mail_runtime::places::Place::Data)?,
+fn roots() -> Option<mail_logic::profile::Roots> {
+    Some(mail_logic::profile::Roots {
+        data: mail_core::config::data_dir()?,
         config: mail_core::config::config_dir()?,
     })
 }

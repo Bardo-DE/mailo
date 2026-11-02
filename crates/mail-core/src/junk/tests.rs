@@ -1,36 +1,30 @@
 use super::*;
 use crate::support_tests::{account, at, caps};
+use chrono::{DateTime, Utc};
+use mail_domain::testing::message;
 use mail_domain::{
-    Address, BlobId, Change, ChangeId, MessageKey, Patch, ReadState, Star, ThreadId,
+    AccountCaps, Address, Body, Change, ChangeId, MailboxRole, Membership, MessageId, Op, Patch,
 };
+use mail_logic::junk::{ENOUGH, Filtering, Heed, JUNK_LABEL, Policy, Treat};
+use mail_store::Store;
+use porter_core::AccountId;
 
-fn message(n: u128, from: &str, subject: &str, text: &str) -> Message {
-    Message {
-        id: MessageId::from_uuid(uuid::Uuid::from_u128(0x9000 + n)),
-        thread: ThreadId::from_uuid(uuid::Uuid::from_u128(0x7000 + n)),
-        account: account(),
-        key: MessageKey::Rfc(format!("m{n}@example.test")),
-        date: at(n as i64),
-        from: Address::new(from),
-        reply_to: vec![],
-        to: vec![Address::named("Ada Lovelace", "ada@example.test")],
-        cc: vec![],
-        bcc: vec![],
-        subject: subject.to_owned(),
-        in_reply_to: None,
-        references: vec![],
-        rfc_message_id: None,
-        read: ReadState::Unread,
-        star: Star::Unstarred,
-        flag: mail_domain::Hue::Red,
-        mailbox: MailboxRole::Inbox,
-        labels: vec![],
-        body: Body::Present {
-            text: Some(text.to_owned()),
-            raw: BlobId::from_uuid(uuid::Uuid::from_u128(0xB000 + n)),
-        },
-        attachments: vec![],
-    }
+/// What judging a pass's arrivals did.
+struct Sifted {
+    junk: Vec<MessageId>,
+}
+
+/// Judge `arrived` as `policy` says, with the account's rules, as a pass does.
+fn sift(
+    store: &SqliteStore,
+    account: AccountId,
+    caps: &AccountCaps,
+    arrived: &[MessageId],
+    policy: &Policy,
+    now: DateTime<Utc>,
+) -> Result<Sifted, CoreError> {
+    let ran = crate::arrival::arrive(store, &account, true, caps, arrived, *policy, now)?;
+    Ok(Sifted { junk: ran.junk })
 }
 
 /// The policy the person's settings give by default: the filter switched on.
@@ -53,6 +47,7 @@ fn stored(store: &SqliteStore, mut message: Message, raw: &[u8]) -> Message {
                 id: ChangeId::generate(),
                 changes: vec![Change::MessageUpsert(Box::new(message.clone()))],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     message
@@ -86,72 +81,6 @@ fn trained_as(name: Option<&str>) -> SqliteStore {
         learn(&store, &[ham], Judged::Ham).unwrap();
     }
     store
-}
-
-#[test]
-fn a_messages_words_are_its_subjects_its_texts_and_its_senders_domain() {
-    let words = words(&message(
-        1,
-        "Promo@Prizes.Example",
-        "FREE prize!!",
-        "a free 2026 lottery",
-    ));
-    assert_eq!(words, ["from:prizes.example", "free", "prize", "lottery"]);
-}
-
-#[test]
-fn the_score_says_nothing_until_enough_is_learned_and_then_leans_the_right_way() {
-    let counts = |spam, ham, words: Vec<(&str, u64, u64)>| JunkCounts {
-        spam,
-        ham,
-        words: words
-            .into_iter()
-            .map(|(w, s, h)| (w.to_owned(), s, h))
-            .collect(),
-    };
-    assert_eq!(
-        score(&counts(ENOUGH - 1, ENOUGH, vec![("prize", ENOUGH - 1, 0)])),
-        None,
-        "too little spam"
-    );
-    assert_eq!(
-        score(&counts(ENOUGH, ENOUGH, vec![])),
-        Some(0.5),
-        "no word it knows"
-    );
-    let spammy = score(&counts(
-        ENOUGH,
-        ENOUGH,
-        vec![("prize", ENOUGH - 1, 0), ("winner", ENOUGH - 2, 1)],
-    ))
-    .unwrap();
-    let hammy = score(&counts(
-        ENOUGH,
-        ENOUGH,
-        vec![("budget", 0, ENOUGH - 1), ("meeting", 1, ENOUGH - 2)],
-    ))
-    .unwrap();
-    assert!(spammy > THRESHOLD, "{spammy}");
-    assert!(hammy < 0.1, "{hammy}");
-}
-
-#[test]
-fn the_servers_verdict_is_read_from_its_headers() {
-    let cases: &[(&[u8], bool)] = &[
-        (b"X-Spam-Flag: YES\r\nSubject: hi\r\n\r\nbody", true),
-        (b"X-Spam-Status: Yes, score=9.1\r\n\r\n", true),
-        (b"X-Spam-Status: No, score=0.1\r\n\r\n", false),
-        (b"Subject: hi\r\n\r\nX-Spam-Flag: YES", false),
-        (b"", false),
-    ];
-    for (raw, want) in cases {
-        assert_eq!(
-            server_says_spam(raw),
-            *want,
-            "{}",
-            String::from_utf8_lossy(raw)
-        );
-    }
 }
 
 #[test]
@@ -356,17 +285,6 @@ fn a_handle_nobody_set_up_does_not_judge() {
 }
 
 #[test]
-fn a_message_of_a_hundred_thousand_words_is_judged_by_its_first_two_thousand() {
-    let text: String = (0..100_000).map(|n| format!("w{n:06} ")).collect();
-    let big = message(1, "promo@prizes.example", "Subject words", &text);
-    let words = words(&big);
-    assert_eq!(words.len(), MOST_WORDS);
-    assert_eq!(words[0], "from:prizes.example");
-    assert_eq!(&words[1..3], ["subject", "words"]);
-    assert_eq!(words[3], "w000000");
-}
-
-#[test]
 fn an_identity_with_an_empty_name_spares_nobody() {
     let store = trained_as(Some(""));
     let mut arriving = message(500, "promo@prizes.example", "Hello", SPAMMY);
@@ -391,6 +309,7 @@ fn mail_whose_body_has_not_come_is_not_judged() {
                 id: ChangeId::generate(),
                 changes: vec![Change::MessageUpsert(Box::new(arriving.clone()))],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     let sifted = sift(&store, account(), &caps(), &[arriving.id], &on(), at(1000)).unwrap();
@@ -410,21 +329,14 @@ fn undoing_spam_and_not_spam_leaves_the_counts_as_they_were() {
         message(500, "promo@prizes.example", "Hello", SPAMMY),
         b"",
     );
-    let spam =
-        crate::act::perform(&store, arriving.thread, Op::Spam, crate::when::Clock::H24).unwrap();
+    let spam = crate::act::perform(&store, arriving.thread, Op::Spam).unwrap();
     assert_eq!(counts(), (before.0 + 1, before.1));
     assert!(crate::act::take_back(&store, &spam));
     assert_eq!(counts(), before, "Spam, undone");
 
     // Not Spam: from the Spam folder back out.
-    crate::act::perform(&store, arriving.thread, Op::Spam, crate::when::Clock::H24).unwrap();
-    let restored = crate::act::perform(
-        &store,
-        arriving.thread,
-        Op::Restore,
-        crate::when::Clock::H24,
-    )
-    .unwrap();
+    crate::act::perform(&store, arriving.thread, Op::Spam).unwrap();
+    let restored = crate::act::perform(&store, arriving.thread, Op::Restore).unwrap();
     // Spam taught spam, then Not Spam turned it to ham.
     assert_eq!(counts(), (before.0, before.1 + 1));
     assert!(crate::act::take_back(&store, &restored));
@@ -444,28 +356,28 @@ fn taking_the_junk_label_off_teaches_not_spam() {
         message(500, "promo@prizes.example", "Hello", SPAMMY),
         b"",
     );
-    let label = mail_store::rules::label_named(
-        &store,
-        account(),
-        JUNK_LABEL,
-        mail_domain::LabelOrigin::User,
-    )
-    .unwrap();
-    crate::act::perform(
-        &store,
-        arriving.thread,
-        Op::Label(label, Membership::In),
-        crate::when::Clock::H24,
-    )
-    .unwrap();
+    let label = mail_domain::Label {
+        id: mail_domain::LabelId::generate(),
+        account: account(),
+        name: JUNK_LABEL.to_owned(),
+        color: None,
+        origin: mail_domain::LabelOrigin::User,
+    };
+    store
+        .apply(
+            account(),
+            &Patch {
+                id: ChangeId::generate(),
+                changes: vec![Change::LabelUpsert(label.clone())],
+            },
+            chrono::Utc::now(),
+        )
+        .unwrap();
+    let label = label.id;
+    crate::act::perform(&store, arriving.thread, Op::Label(label, Membership::In)).unwrap();
     let before = counts();
-    let off = crate::act::perform(
-        &store,
-        arriving.thread,
-        Op::Label(label, Membership::Out),
-        crate::when::Clock::H24,
-    )
-    .unwrap();
+    let off =
+        crate::act::perform(&store, arriving.thread, Op::Label(label, Membership::Out)).unwrap();
     assert_eq!(counts(), before + 1);
     assert!(crate::act::take_back(&store, &off));
     assert_eq!(counts(), before);

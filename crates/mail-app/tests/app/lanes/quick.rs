@@ -5,7 +5,7 @@
 
 use mail_core::{SqliteStore, Store};
 use mail_domain::{Change, ChangeId, Patch, ReadState};
-use mail_ui::ui::copy;
+use mail_ui_model::copy;
 
 use super::drive::{Key, PRIMARY};
 use super::look::conversation;
@@ -59,6 +59,7 @@ fn read(store: &SqliteStore, subject: &str) {
                 id: ChangeId::generate(),
                 changes,
             },
+            chrono::Utc::now(),
         )
         .expect("read");
 }

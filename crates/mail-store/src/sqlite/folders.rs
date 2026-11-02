@@ -7,8 +7,8 @@ use crate::StoreError;
 use crate::changes::Topics;
 use mail_domain::folder::{layered, renamed};
 use mail_domain::{
-    Change, Folder, FolderContents, FolderWork, LabelId, LabelOrigin, MailboxRef, MessageId,
-    ProtoOp, ThreadId,
+    Folder, FolderContents, FolderWork, LabelId, LabelOrigin, MailboxRef, MessageId, ProtoOp,
+    ThreadId,
 };
 use porter_core::AccountId;
 use rusqlite::params;
@@ -131,6 +131,7 @@ impl SqliteStore {
             ("remote_map", "mailbox"),
             ("destroyed", "mailbox"),
             ("sync_state", "mailbox"),
+            ("unreadable", "mailbox"),
         ] {
             let names: Vec<String> = {
                 let db = self.connection();
@@ -273,6 +274,10 @@ impl SqliteStore {
             "DELETE FROM sync_state WHERE account = ?1 AND mailbox = ?2",
             params![account.to_string(), path],
         )?;
+        self.connection().execute(
+            "DELETE FROM unreadable WHERE account = ?1 AND mailbox = ?2",
+            params![account.to_string(), path],
+        )?;
         self.forget_destroyed_in(account, path)?;
         for message in held.mapped {
             let remaining: i64 = self
@@ -280,7 +285,7 @@ impl SqliteStore {
                 .prepare_cached("SELECT count(*) FROM remote_map WHERE message = ?1")?
                 .query_row(params![message.to_string()], |r| r.get(0))?;
             if remaining == 0
-                && let Some(thread) = self.write_change(&Change::MessageDelete(message))?
+                && let Some(thread) = self.delete_message(message)?
             {
                 self.refresh_summary(thread)?;
             }

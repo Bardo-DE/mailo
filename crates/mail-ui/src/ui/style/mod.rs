@@ -9,28 +9,32 @@
 //! rendered window); a rule that needs a value quire has no token for is a request to quire,
 //! never a literal here.
 //!
-//! The order below is the cascade and is load-bearing. It is one `concat!` and not several
-//! named pieces because `concat!` takes literals only: `include_str!` expands to one, a `const`
-//! does not.
+//! The order below is the cascade and is load-bearing. Each run of files is one `concat!` and not
+//! several named pieces because `concat!` takes literals only: `include_str!` expands to one, a
+//! `const` does not.
 
 #[cfg(test)]
 mod exceptions;
 
-pub(super) const STYLE: &str = concat!(
-    include_str!("shell.css"),
-    include_str!("list.css"),
-    include_str!("menus.css"),
-    include_str!("reader.css"),
-    include_str!("invite.css"),
-    include_str!("composer.css"),
-    include_str!("contacts.css"),
-    include_str!("files.css"),
-    include_str!("accounts.css"),
-    include_str!("settings.css"),
-    include_str!("rules.css"),
-    include_str!("pgp.css"),
-    include_str!("controls.css"),
-);
+/// The sheet, in the cascade's order: the window's own rules, then the reader's and the composer's (each crate
+/// brings its files as one), then the rest. Joined once, on first use, and kept for the run.
+pub(super) static STYLE: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| {
+    let shell = include_str!("shell.css");
+    let menus = include_str!("menus.css");
+    let files_accounts = concat!(include_str!("files.css"), include_str!("accounts.css"));
+    let pgp_controls = concat!(include_str!("pgp.css"), include_str!("controls.css"));
+    Box::leak(
+        format!(
+            "{shell}{}{menus}{}{}{}{files_accounts}{}{pgp_controls}",
+            mail_ui_list::STYLE,
+            mail_ui_reader::STYLE,
+            mail_ui_compose::STYLE,
+            mail_ui_settings::CONTACTS_STYLE,
+            mail_ui_settings::STYLE
+        )
+        .into_boxed_str(),
+    )
+});
 
 #[cfg(test)]
 pub(in crate::ui) mod tests {
@@ -39,7 +43,7 @@ pub(in crate::ui) mod tests {
 
     /// Everything the window's markup is styled by: quire's stylesheet, then mailo's.
     pub(in crate::ui) fn full_css() -> String {
-        format!("{}\n{STYLE}", ds::stylesheet())
+        format!("{}\n{}", ds::stylesheet(), *STYLE)
     }
 
     /// The custom properties mailo's own rules use that the stylesheet does not declare: the
@@ -132,7 +136,7 @@ pub(in crate::ui) mod tests {
     /// fails here (`assert_clean` reports a stale exception) rather than hiding a later offence.
     #[test]
     fn our_stylesheet_lints_clean() {
-        assert_clean(STYLE, &config());
+        assert_clean(*STYLE, &config());
     }
 
     /// Coherence rule 2, surface by surface: no class nothing styles, no raw control, no raw
@@ -141,27 +145,34 @@ pub(in crate::ui) mod tests {
     /// named with its surface.
     #[tokio::test]
     async fn every_class_each_surface_draws_is_styled() {
-        use crate::ui::{compose, files, invite, pgp, rules};
+        use crate::ui::{
+            compose_tests,
+            kit_tests::{files_sheet_tests, pgp_certs_tests, pgp_keys_tests},
+            reader_tests::invite_card_tests,
+        };
         let surfaces = [
             ("the frame", frame_markup().await),
-            ("the composer", compose::tests::render::drawn_states()),
-            ("the people menu", compose::tests::people::drawn_states()),
+            ("the composer", compose_tests::render::drawn_states()),
+            ("the people menu", compose_tests::people::drawn_states()),
             (
                 "send later and templates",
-                compose::tests::later_render::drawn_states(),
+                compose_tests::later_render::drawn_states(),
             ),
             (
                 "the composer's seal bar",
-                compose::tests::openpgp::drawn_states().await,
+                compose_tests::openpgp::drawn_states().await,
             ),
-            ("the invitation card", invite::card_tests::drawn_states()),
-            ("the rules page", rules::page_tests::drawn_states().await),
+            ("the invitation card", invite_card_tests::drawn_states()),
+            (
+                "the rules page",
+                crate::ui::settings_tests::rules_page::drawn_states().await,
+            ),
             (
                 "the mail file sheets",
-                files::sheet_tests::drawn_states().await,
+                files_sheet_tests::drawn_states().await,
             ),
-            ("the keys page", pgp::keys_tests::drawn_states().await),
-            ("the certificates", pgp::certs_tests::drawn_states().await),
+            ("the keys page", pgp_keys_tests::drawn_states().await),
+            ("the certificates", pgp_certs_tests::drawn_states().await),
         ];
         let offences: Vec<String> = surfaces
             .iter()
@@ -191,7 +202,7 @@ pub(in crate::ui) mod tests {
     /// mailo's stylesheet with its comments removed.
     fn uncommented() -> String {
         let mut css = String::new();
-        let mut rest = STYLE;
+        let mut rest: &str = *STYLE;
         while let Some(start) = rest.find("/*") {
             css.push_str(&rest[..start]);
             rest = rest[start + 2..]

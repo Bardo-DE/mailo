@@ -8,10 +8,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use mail_domain::{Message, ThreadSummary};
 
-use crate::Term;
 use crate::prefix::{is_cjk_bigram, prefix_range, term_has_prefix};
 use crate::sql::message_index;
 use crate::term::by_frequency;
+use mail_domain::Term;
 
 pub(crate) fn terms_with_prefix<'a>(
     messages: impl Iterator<Item = &'a Message>,

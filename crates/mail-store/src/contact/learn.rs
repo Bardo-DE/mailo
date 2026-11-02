@@ -37,26 +37,6 @@ pub fn clean_name(name: Option<&str>) -> Option<String> {
     Some(collapsed)
 }
 
-/// Whether an address's local part says nobody reads what is sent to it: `noreply`,
-/// `no-reply`, `no_reply`, `do-not-reply`, `donotreply`, and the same followed by more words
-/// (`noreply-billing`), or a bounce sender. Compared as words split on the separators people use
-/// in local parts — never as a substring, or `snoreply@` and `reno.reply@` would be caught.
-pub fn no_reply(address: &str) -> bool {
-    let local = address.split('@').next().unwrap_or_default().to_lowercase();
-    let words: Vec<&str> = local
-        .split(['-', '_', '.', '+'])
-        .filter(|w| !w.is_empty())
-        .collect();
-    const PREFIXES: &[&[&str]] = &[
-        &["noreply"],
-        &["no", "reply"],
-        &["donotreply"],
-        &["do", "not", "reply"],
-        &["mailer", "daemon"],
-    ];
-    PREFIXES.iter().any(|prefix| words.starts_with(prefix))
-}
-
 /// Whether a message's header section says it came through a list: a `List-Id` (RFC 2919), or
 /// `Precedence: bulk` or `list`. `head` is the start of the raw message; only its header section
 /// is read, and header names are compared whole.
@@ -129,7 +109,7 @@ pub fn events(seen: &Seen<'_>) -> Vec<(String, Event)> {
             let Some(address) = normalise(&seen.from.email) else {
                 return Vec::new();
             };
-            let looks = if seen.sender == Kind::Bulk || no_reply(&address) {
+            let looks = if seen.sender == Kind::Bulk || mail_domain::address::no_reply(&address) {
                 Kind::Bulk
             } else {
                 Kind::Person
@@ -431,26 +411,6 @@ mod tests {
         ];
         for (input, expected) in CASES {
             assert_eq!(clean_name(*input).as_deref(), *expected, "{input:?}");
-        }
-    }
-
-    #[test]
-    fn no_reply_addresses_are_recognised_by_whole_words() {
-        const CASES: &[(&str, bool)] = &[
-            ("noreply@x.test", true),
-            ("no-reply@x.test", true),
-            ("No_Reply@x.test", true),
-            ("donotreply@x.test", true),
-            ("do-not-reply@x.test", true),
-            ("noreply-billing@x.test", true),
-            ("MAILER-DAEMON@x.test", true),
-            ("snoreply@x.test", false),
-            ("reno.reply@x.test", false),
-            ("reply@x.test", false),
-            ("nora@x.test", false),
-        ];
-        for (input, expected) in CASES {
-            assert_eq!(no_reply(input), *expected, "{input}");
         }
     }
 

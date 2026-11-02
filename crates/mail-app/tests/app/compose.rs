@@ -5,12 +5,12 @@
 
 use crate::store::acct_account;
 use chrono::{DateTime, TimeZone, Utc};
-use mail_app::cli::compose as words;
+use mail_cli::compose as words;
 use mail_core::compose;
 use mail_core::{SqliteStore, Store};
 use mail_domain::id::account_id_from_uuid;
 use mail_domain::*;
-use mail_ui::ui::view;
+use mail_ui_kit::view;
 use porter_core::AccountId;
 
 const IDENTITY: IdentityId =
@@ -51,14 +51,14 @@ fn seeded() -> (SqliteStore, tempfile::TempDir) {
     plan.identities = vec![identity()];
 
     {
-        mail_store::testing::seed_account_plan(
+        mail_core::fixtures::seed::seed_account_plan(
             &store,
             acct_account(),
             "me@example.test",
             &plan,
             None,
         );
-        mail_store::testing::seed_identity_for(
+        mail_core::fixtures::seed::seed_identity_for(
             &store,
             IDENTITY,
             acct_account(),
@@ -135,6 +135,7 @@ fn seeded() -> (SqliteStore, tempfile::TempDir) {
                 provider_threads: Vec::new(),
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     (store, dir)
@@ -357,6 +358,7 @@ fn own_message(store: &SqliteStore) -> MessageId {
                 provider_threads: Vec::new(),
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     id
@@ -417,6 +419,7 @@ fn headers_only(store: &SqliteStore) -> MessageId {
                 provider_threads: Vec::new(),
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     id
@@ -501,6 +504,7 @@ fn the_queued_bytes_are_frozen_against_a_later_edit() {
                 id: ChangeId::generate(),
                 changes: vec![Change::DraftUpsert(Box::new(draft.clone()))],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
 
@@ -546,7 +550,7 @@ fn an_account_with_no_identity_says_so_instead_of_inventing_a_sender() {
     // address is how mail goes out under an address the user does not own, so replying must
     // stop and say what is wrong. The message is there, so it is the identity check that fires.
     let (store, _dir) = seeded();
-    mail_store::testing::delete_identities(&store, acct_account());
+    mail_core::fixtures::seed::delete_identities(&store, acct_account());
 
     let err = compose::draft_reply(&store, ORIGINAL, ReplyScope::Sender, "hi", at(10))
         .expect_err("no identity to send as")
@@ -588,7 +592,7 @@ fn drafts_reports_what_is_waiting() {
         words::drafts(
             &compose::drafts(&store).unwrap(),
             at(30),
-            mail_core::when::Clock::H24
+            mail_logic::when::Clock::H24
         )
         .contains("no drafts")
     );
@@ -597,7 +601,7 @@ fn drafts_reports_what_is_waiting() {
     let listed = words::drafts(
         &compose::drafts(&store).unwrap(),
         at(30),
-        mail_core::when::Clock::H24,
+        mail_logic::when::Clock::H24,
     );
     assert!(listed.contains("draft"), "{listed}");
     assert!(listed.contains("Re: lunch on friday"), "{listed}");
@@ -608,7 +612,7 @@ fn drafts_reports_what_is_waiting() {
         words::drafts(
             &compose::drafts(&store).unwrap(),
             at(30),
-            mail_core::when::Clock::H24
+            mail_logic::when::Clock::H24
         )
         .contains("queued")
     );
@@ -1082,6 +1086,7 @@ mod forwarding_as_an_attachment {
                     provider_threads: Vec::new(),
                     gone: vec![],
                 },
+                chrono::Utc::now(),
             )
             .unwrap();
         id
@@ -1532,14 +1537,14 @@ mod choosing_the_sender {
         )
         .plan;
         plan.address = "work@example.test".to_owned();
-        mail_store::testing::seed_account_plan(
+        mail_core::fixtures::seed::seed_account_plan(
             store,
             acct_second(),
             "work@example.test",
             &plan,
             Some(chrono::Utc::now() + chrono::Duration::seconds(1)),
         );
-        mail_store::testing::seed_identity_for(
+        mail_core::fixtures::seed::seed_identity_for(
             store,
             SECOND_IDENTITY,
             acct_second(),
@@ -1621,7 +1626,7 @@ mod choosing_the_sender {
     fn moving_to_an_account_with_no_identity_leaves_the_draft_alone() {
         let (store, _dir) = seeded();
         also(&store);
-        mail_store::testing::delete_identities(&store, acct_second());
+        mail_core::fixtures::seed::delete_identities(&store, acct_second());
         let draft = compose::draft_new(&store, acct_account(), &[], "", "", at(10)).unwrap();
 
         compose::move_draft_to(&store, draft.id, acct_second(), at(11))
@@ -1878,8 +1883,8 @@ mod carrying_a_file {
         let limit = compose::SendLimit::USUAL;
         assert_eq!(weight.pictures(), 1);
         assert!(
-            weight.against(compose::PictureSize::Small, limit)
-                < weight.against(compose::PictureSize::Actual, limit)
+            weight.against(mail_logic::picture::PictureSize::Small, limit)
+                < weight.against(mail_logic::picture::PictureSize::Actual, limit)
         );
 
         compose::queue_sized(
@@ -1888,7 +1893,7 @@ mod carrying_a_file {
             &mail_core::pgp::no_passphrase,
             draft,
             compose::Leaves::Now,
-            compose::PictureSize::Small,
+            mail_logic::picture::PictureSize::Small,
             at(30),
         )
         .expect("send queues");

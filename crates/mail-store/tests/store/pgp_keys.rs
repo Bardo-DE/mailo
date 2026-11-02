@@ -221,6 +221,7 @@ fn a_draft_keeps_what_it_asks_openpgp_to_do() {
         s.apply(
             account.clone(),
             &patch(vec![Change::DraftUpsert(Box::new(draft.clone()))]),
+            chrono::Utc::now(),
         )
         .unwrap();
         assert_eq!(
@@ -228,4 +229,68 @@ fn a_draft_keeps_what_it_asks_openpgp_to_do() {
             Some(Mode::SignAndEncrypt)
         );
     }
+}
+
+/// What one message from `peer@example.test` taught, with the header of `byte`'s key when there is one.
+fn sighting(byte: Option<u8>, day: i64) -> Row {
+    Row::KeyLearned(Taught::Autocrypt {
+        sighting: mail_domain::autocrypt::Sighting {
+            address: "peer@example.test".to_owned(),
+            at: at(day),
+            header: byte.map(|b| (fp(b), PreferEncrypt::Mutual)),
+        },
+        key: byte.map(|b| key(b, "peer@example.test", KeySource::Autocrypt, day)),
+    })
+}
+
+#[test]
+fn key_lessons_are_written_with_the_messages_and_agree_in_both_stores() {
+    let found = Both::new().agree(|store| {
+        let m = message(1);
+        let mut batch = ingest("INBOX");
+        batch.messages = vec![Fetched {
+            remote: imap("INBOX", 1),
+            key: m.key.clone(),
+            raw: BlobId::generate(),
+            message: m.clone(),
+        }];
+        // A newer header, then an older one that the rules refuse, then a message with none.
+        let rows = [
+            sighting(Some(1), 10),
+            sighting(Some(2), 5),
+            sighting(None, 12),
+        ];
+        let said = store
+            .ingest_with(acct_account(), batch.clone(), &rows, at(20))
+            .unwrap();
+        // Again: nothing about the keys has changed.
+        let again = store
+            .ingest_with(acct_account(), ingest("INBOX"), &rows, at(21))
+            .unwrap();
+        (
+            said.keys_changed,
+            again.keys_changed,
+            store.pgp_key(fp(1)).unwrap().map(|k| k.fingerprint),
+            store.pgp_key(fp(2)).unwrap(),
+            store.autocrypt_peer("peer@example.test").unwrap(),
+        )
+    });
+    assert!(found.0, "a key not held before changes the keys held");
+    assert!(!found.1, "the same lessons again change nothing");
+    assert_eq!(found.2, Some(fp(1)));
+    assert_eq!(found.3, None, "the older header is not kept");
+    let peer = found.4.unwrap();
+    assert_eq!(peer.key, Some(fp(1)));
+    assert_eq!(peer.last_seen, Some(at(12)));
+}
+
+#[test]
+fn a_stranger_who_sent_no_header_leaves_no_state() {
+    let found = Both::new().agree(|store| {
+        store
+            .ingest_with(acct_account(), ingest("INBOX"), &[sighting(None, 3)], at(4))
+            .unwrap();
+        store.autocrypt_peer("peer@example.test").unwrap()
+    });
+    assert_eq!(found, None);
 }

@@ -6,14 +6,7 @@
 //! and motion state, its toast host and a composer desk for a reply.
 
 use super::note::left;
-use crate::ui::actions::{self, Heard};
-use crate::ui::app::Frame;
-use crate::ui::compose::{self, SendPill};
-use crate::ui::intent::{Intent, Scope, intent, on_thread};
-use crate::ui::reading::{ReaderIn, reading_column};
-use crate::ui::space::Spaces;
 use crate::ui::style::STYLE;
-use crate::ui::view::{Shell, Shortcut};
 use crate::ui::window_core::{use_window_core, use_window_desk};
 use chordkit::StandardAction;
 use dioxus::prelude::*;
@@ -22,6 +15,13 @@ use ds::components::overlays::inline_banner::InlineBanner;
 use ds::prelude::*;
 use ds_settings::use_environment;
 use mail_domain::*;
+use mail_ui_compose::compose::{self, SendPill};
+use mail_ui_kit::actions::{self, Heard};
+use mail_ui_kit::frame::Frame;
+use mail_ui_kit::intent::{Intent, Scope, intent, on_thread};
+use mail_ui_kit::space::Spaces;
+use mail_ui_kit::view::{Shell, Shortcut};
+use mail_ui_reader::reading::{ReaderIn, reading_column};
 use std::sync::Arc;
 
 /// The conversation a window shows, as a root context: how a test's harness, which renders a
@@ -37,7 +37,7 @@ pub(super) fn MessageWindow(thread: ThreadId) -> Element {
     let spawner: Arc<dyn Spawner> = Arc::new(ds_blitz::TokioSpawner::current());
     let environment = use_environment(desktop.store(), desktop.prefs.clone(), spawner);
     use_context_provider(|| environment);
-    crate::ui::prefs::use_window_settings();
+    mail_ui_kit::prefs::use_window_settings();
     rsx! { MessageShell { thread } }
 }
 
@@ -55,25 +55,27 @@ pub(in crate::ui) fn MessageShell(thread: ThreadId) -> Element {
     let loaded = try_consume_context::<mail_client::provider::icon::Loaded>().unwrap_or_default();
     let icons = use_signal(|| loaded);
     use_context_provider(|| icons);
-    crate::ui::provider_chip::use_fetch_missing(icons);
-    crate::ui::host::use_window_host();
+    mail_ui_kit::provider_chip::use_fetch_missing(icons);
+    mail_ui_kit::host::use_window_host();
+    // "Open in new window" from here opens through quire too, unless a test gave a recorder.
+    super::use_windows();
     // The settings its root watches (brand logos, spelling, server search), or, drawn by a test,
     // read from its config directory.
-    let _ = crate::ui::prefs::use_prefs(
-        try_consume_context::<crate::ui::appearance::WindowDirs>().as_ref(),
+    let _ = mail_ui_kit::prefs::use_prefs(
+        try_consume_context::<mail_ui_kit::appearance::WindowDirs>().as_ref(),
     );
     // The window's keymap, with mailo's actions in it: this window is its own root.
     let core = use_window_core();
     let keys = core.keys;
     // The conversation and the labels, as the client keeps them read: the window reads no store.
-    let every = crate::ui::live::use_live(|| mail_client::query::Accounts);
-    let read = crate::ui::live::use_live(move || mail_client::query::Conversation(thread));
+    let every = mail_ui_kit::live::use_live(|| mail_client::query::Accounts);
+    let read = mail_ui_kit::live::use_live(move || mail_client::query::Conversation(thread));
     let shell = use_signal(|| {
-        let client = crate::ui::live::client();
+        let client = mail_ui_kit::live::client();
         let mut shell = Shell {
-            appearance: try_consume_context::<crate::ui::view::Appearance>().unwrap_or_default(),
-            keymap: try_consume_context::<crate::ui::appearance::WindowDirs>()
-                .map(|dirs| crate::ui::keymap::load(&dirs.config))
+            appearance: try_consume_context::<mail_ui_kit::view::Appearance>().unwrap_or_default(),
+            keymap: try_consume_context::<mail_ui_kit::appearance::WindowDirs>()
+                .map(|dirs| mail_ui_kit::keymap::load(&dirs.config))
                 .unwrap_or_default(),
             labels: every
                 .peek()
@@ -89,14 +91,14 @@ pub(in crate::ui) fn MessageShell(thread: ThreadId) -> Element {
     });
     // The Spaces, read and never written: the first window owns the file.
     let spaces = use_signal(|| {
-        try_consume_context::<crate::ui::appearance::WindowDirs>()
-            .map(|dirs| crate::ui::space::load(&dirs))
+        try_consume_context::<mail_ui_kit::appearance::WindowDirs>()
+            .map(|dirs| mail_ui_kit::space::load(&dirs))
             .or_else(try_consume_context::<Spaces>)
-            .unwrap_or_else(|| crate::ui::space::first_run(&[]))
+            .unwrap_or_else(|| mail_ui_kit::space::first_run(&[]))
     });
     // A reply's desk. Handed no directories, so nothing here writes Today or the settings,
     // which are the first window's.
-    let today = use_signal(crate::ui::today::Today::default);
+    let today = use_signal(mail_ui_kit::today::Today::default);
     let desk = use_window_desk(core, shell, spaces, None, today, None);
     // Drawn again whenever the client reads the conversation again, here or from another window.
     let summary = conversation_of(&read.read(), thread);
@@ -113,24 +115,24 @@ pub(in crate::ui) fn MessageShell(thread: ThreadId) -> Element {
     let on_key = move |event: Event<KeyboardData>| {
         let key = event.key().to_string();
         if shell.read().preview.is_some() {
-            crate::ui::reading::peek_key(shell, keys, &event);
+            mail_ui_reader::reading::peek_key(shell, keys, &event);
             return;
         }
         // Escape closes ⌘F's bar first, as in the first window.
         if key == "Escape" && shell.read().find.is_some() && shell.read().composing.is_none() {
-            crate::ui::reading::find::close(shell);
+            mail_ui_reader::reading::find::close(shell);
             return;
         }
         if shell.read().raw.is_some() {
             if key == "Escape" {
-                crate::ui::reading::close_raw(shell);
+                mail_ui_reader::reading::close_raw(shell);
             }
             return;
         }
         let typing = shell.read().composing.is_some();
         let heard = actions::heard(keys, &event, typing);
         let intent = intent(heard, Scope::Window);
-        if crate::ui::motion::key(
+        if mail_ui_kit::motion::key(
             &key,
             heard == Some(Heard::Standard(StandardAction::Undo)),
             typing,
@@ -140,28 +142,28 @@ pub(in crate::ui) fn MessageShell(thread: ThreadId) -> Element {
         }
         match intent {
             Some(Intent::Print) => {
-                if let Some(job) = crate::ui::print::job_for(Some(thread)) {
-                    crate::ui::print::print(job);
+                if let Some(job) = mail_ui_reader::print::job_for(Some(thread)) {
+                    mail_ui_reader::print::print(job);
                 }
                 return;
             }
             Some(Intent::Find) => {
-                let _ = crate::ui::reading::find::open(shell);
+                let _ = mail_ui_reader::reading::find::open(shell);
                 return;
             }
             Some(Intent::FindStep(step)) => {
-                crate::ui::reading::find::step(shell, step);
+                mail_ui_reader::reading::find::step(shell, step);
                 return;
             }
             _ => {}
         }
         match intent {
             Some(Intent::Zoom(step)) => {
-                crate::ui::reading::zoom(step);
+                mail_ui_reader::reading::zoom(step);
                 return;
             }
             Some(Intent::Raw(raw)) => {
-                crate::ui::reading::ask_raw(shell, thread, raw);
+                mail_ui_reader::reading::ask_raw(shell, thread, raw);
                 return;
             }
             _ => {}
@@ -170,7 +172,7 @@ pub(in crate::ui) fn MessageShell(thread: ThreadId) -> Element {
         let Some(Intent::Mail(action)) = intent else {
             return;
         };
-        let client = crate::ui::live::client();
+        let client = mail_ui_kit::live::client();
         match action {
             Shortcut::Back => {
                 if shell.read().composing.is_some() {
@@ -181,42 +183,42 @@ pub(in crate::ui) fn MessageShell(thread: ThreadId) -> Element {
                 on_thread(&client, shell, thread, action);
             }
             Shortcut::ToggleMute => {
-                crate::ui::picks::mute_all(&client, shell, &[thread]);
+                mail_ui_kit::picks::mute_all(&client, shell, &[thread]);
             }
             _ => {
                 // The same gesture the first window's keys make, over the one conversation
                 // there is: one undo, one toast.
                 let listed: Vec<ThreadSummary> =
                     conversation_of(&read.peek(), thread).into_iter().collect();
-                crate::ui::picks::act_on_picked(&client, shell, action, &listed);
+                mail_ui_kit::picks::act_on_picked(&client, shell, action, &listed);
             }
         }
     };
 
     rsx! {
         Frame { spaces,
-            style { {STYLE} }
+            style { {*STYLE} }
             div { class: "app message-window",
                 tabindex: "0",
-                onmounted: crate::ui::host::Host::app_mounted,
+                onmounted: mail_ui_kit::host::Host::app_mounted,
                 onkeydown: on_key,
                 if shell.read().preview.is_some() {
-                    crate::ui::reading::PeekView { shell }
+                    mail_ui_reader::reading::PeekView { shell }
                 }
                 if shell.read().raw.is_some() {
-                    crate::ui::reading::RawSheet { shell }
+                    mail_ui_reader::reading::RawSheet { shell }
                 }
                 div { class: "card",
                     section { class: "reader",
                         if let Some(note) = note {
                             InlineBanner { severity: Severity::Info, text: note }
                         }
-                        {reading_column(Some(thread), shell, ReaderIn::Window)}
-                        crate::ui::hover::LinkPill {}
+                        {reading_column(Some(thread), shell, ReaderIn::Window, compose::beside(shell))}
+                        mail_ui_kit::hover::LinkPill {}
                     }
                     SendPill { shell }
                 }
-                crate::ui::motion::Toast { shell }
+                mail_ui_kit::motion::Toast { shell }
             }
         }
     }

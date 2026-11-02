@@ -101,6 +101,7 @@ fn the_account_s_rows_and_the_blobs_only_it_used_go_and_shared_ones_stay() {
                     kept(acct_gone(), "g2@x", shared, &[]),
                 ],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     // The kept account names the shared blob only from inside its attachments' JSON.
@@ -110,6 +111,7 @@ fn the_account_s_rows_and_the_blobs_only_it_used_go_and_shared_ones_stay() {
             Import {
                 messages: vec![kept(acct_kept(), "k1@x", own, &[shared])],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     assert_eq!(files(dir.path()), 1, "the large blob is not a file");
@@ -157,6 +159,7 @@ fn an_account_that_is_not_there_changes_nothing() {
             Import {
                 messages: vec![kept(acct_kept(), "k1@x", own, &[])],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     store.remove_account(acct_gone()).unwrap();
@@ -183,6 +186,7 @@ fn a_blob_the_account_named_twice_goes_once() {
                     kept(acct_gone(), "b@x", second, &[twice]),
                 ],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     let freed = store.remove_account(acct_gone()).unwrap().unwrap();
@@ -212,6 +216,7 @@ fn a_blob_a_kept_draft_attaches_stays() {
             Import {
                 messages: vec![kept(acct_gone(), "g1@x", shared, &[])],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     let draft = Draft {
@@ -245,6 +250,7 @@ fn a_blob_a_kept_draft_attaches_stays() {
         .apply(
             acct_kept(),
             &patch(vec![Change::DraftUpsert(Box::new(draft))]),
+            chrono::Utc::now(),
         )
         .unwrap();
 

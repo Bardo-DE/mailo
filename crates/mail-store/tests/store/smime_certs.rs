@@ -163,6 +163,7 @@ fn a_draft_and_a_template_keep_what_they_ask_smime_to_do() {
         s.apply(
             account.clone(),
             &patch(vec![Change::DraftUpsert(Box::new(draft.clone()))]),
+            chrono::Utc::now(),
         )
         .unwrap();
         assert_eq!(s.draft(draft.id).unwrap().smime, Some(Mode::SignAndEncrypt));

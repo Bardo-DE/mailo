@@ -9,7 +9,7 @@ use crate::support::{account, now};
 use mail_core::sync;
 use mail_core::sync::report::{AccountReport, Hooks, PassEnd};
 use mail_domain::*;
-use mail_runtime::{AccountSecrets, ClientRegistry};
+use mail_secrets::{AccountSecrets, ClientRegistry};
 use mail_store::{SqliteStore, Store};
 use porter_core::SecretText;
 use porter_core::{Credential, SecretKey, SecretPurpose};
@@ -246,7 +246,7 @@ fn configured(
     store.put_caps(account(), &caps, now()).unwrap();
     store.put_folders(account(), folders).unwrap();
     let secrets = Arc::new(MemorySecrets::default());
-    mail_runtime::block_on(secrets.put(
+    mail_secrets::block_on(secrets.put(
         &SecretKey {
             account: account(),
             purpose: SecretPurpose::IncomingPassword,
@@ -582,7 +582,10 @@ fn an_account_whose_folders_are_labels_is_not_fetched_by_folder() {
     .unwrap_err()
     .to_string();
     assert!(refused.contains("labels"), "{refused}");
-    let paths = sync::mailboxes_by_account(&store).unwrap().remove(0).1;
+    let paths = sync::mailboxes_by_account(&store, &crate::support::accounts(&store))
+        .unwrap()
+        .remove(0)
+        .1;
     assert_eq!(
         paths,
         vec!["INBOX".to_owned()],
@@ -668,7 +671,10 @@ fn which_mailboxes_a_pass_fetches() {
         let mut caps = caps(ServerLabels::LocalOnly);
         caps.folders = FolderRoles(roles);
         let (store, _secrets) = configured(1, caps, listing);
-        let paths = sync::mailboxes_by_account(&store).unwrap().remove(0).1;
+        let paths = sync::mailboxes_by_account(&store, &crate::support::accounts(&store))
+            .unwrap()
+            .remove(0)
+            .1;
         assert!(paths.len() >= first.len(), "{row}: {paths:?}");
         assert_eq!(&paths[..first.len()], first, "{row}: first, in order");
         let mut tail = paths[first.len()..].to_vec();
@@ -685,7 +691,7 @@ fn which_mailboxes_a_pass_fetches() {
 /// why, and the account is not asked to sign in to receive.
 mod sending_apart {
     use super::*;
-    use mail_runtime::clients;
+    use mail_secrets::clients;
     use porter_core::EndpointUrl;
     use porter_ids::UnixSeconds;
     use porter_provider::{ClientEntry, Issuer, IssuerEndpoints};
@@ -760,7 +766,7 @@ mod sending_apart {
             granted: Default::default(),
         };
         for purpose in [SecretPurpose::IncomingPassword, SecretPurpose::OAuthRefresh] {
-            mail_runtime::block_on(secrets.put(
+            mail_secrets::block_on(secrets.put(
                 &SecretKey {
                     account: account(),
                     purpose,
@@ -818,6 +824,7 @@ mod sending_apart {
                     id: ChangeId::generate(),
                     changes: vec![Change::DraftUpsert(Box::new(draft.clone()))],
                 },
+                chrono::Utc::now(),
             )
             .unwrap();
         let post = mail_mime::posting(&draft, &identity, None, &[]).expect("it has a recipient");

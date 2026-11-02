@@ -7,8 +7,8 @@
 
 use ds::prelude::{Point, Px};
 use ds_harness::{Harness, Input};
-use mail_ui::launcher::{Badge, Launcher, Unread};
-use mail_ui::ui::copy;
+use mail_os::launcher::{Badge, Launcher, Unread};
+use mail_ui_model::copy;
 use std::sync::{Arc, Mutex};
 
 use super::drive::{Drive, Key, PRIMARY};
@@ -110,17 +110,22 @@ fn letters(store: &mail_core::SqliteStore) {
 fn open(counts: &Arc<Counts>) -> Window {
     let counts = Arc::clone(counts);
     Window::open_with(chrono::Utc::now(), letters, move |dir, contexts| {
-        let settings = mail_ui::settings::root_for(&dir.join("config"));
-        mail_ui::settings::change(&settings, |settings| {
+        let settings = mail_ui_model::settings::root_for(&dir.join("config"));
+        mail_ui_model::settings::change(&settings, |settings| {
             settings.reading.brand_logos = mail_core::bimi::Setting::On.into();
         })
         .expect("the setting is written");
         let cache = dir.join("cache");
-        let png = mail_runtime::bimi::draw(LOGO.as_bytes()).expect("the logo draws");
-        mail_runtime::bimi::remember(&cache, "brand.example", Some(&png), chrono::Utc::now())
-            .expect("the logo is cached");
+        let png = mail_core::fixtures::bimi::draw(LOGO.as_bytes()).expect("the logo draws");
+        mail_core::fixtures::bimi::remember(
+            &cache,
+            "brand.example",
+            Some(&png),
+            chrono::Utc::now(),
+        )
+        .expect("the logo is cached");
         contexts
-            .with(mail_ui::ui::native::BrandCache(cache))
+            .with(mail_ui_reader::brand::BrandCache(cache))
             .with(Launcher(counts as Arc<dyn Badge>))
     })
 }
@@ -327,9 +332,11 @@ fn a_one_time_code_is_offered_under_the_header_and_copied() {
             );
         },
         move |_, contexts| {
-            contexts.with(mail_ui::ui::native::SensitiveCopy::with_sink(move |text| {
-                sink.lock().unwrap().push(text.to_owned());
-            }))
+            contexts.with(mail_ui_kit::sensitive_copy::SensitiveCopy::with_sink(
+                move |text| {
+                    sink.lock().unwrap().push(text.to_owned());
+                },
+            ))
         },
     );
     const LINE: &str = ".reader-body .otp-code";

@@ -19,6 +19,16 @@ pub use session::{
 use mail_domain::{AccountPlan, AuthPlan, Incoming, Tls};
 use porter_provider::Issuer;
 
+/// What a push wrote, and what the server said to it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Pushed {
+    pub compiled: Compiled,
+    /// [`SieveOutcome::Installed`], [`SieveOutcome::Refused`] when another script is active and
+    /// `takeover` did not allow replacing it, or [`SieveOutcome::Removed`] when there was nothing
+    /// left to install.
+    pub outcome: SieveOutcome,
+}
+
 /// Where an account's ManageSieve server is expected.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Endpoint {

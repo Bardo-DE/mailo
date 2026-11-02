@@ -1,14 +1,6 @@
 //! Favourites, the places and labels.
 
-use super::super::motion::{drag, motion};
 use super::lit::{Landing, Under, lit};
-use super::tagged;
-use crate::ui::copy;
-use crate::ui::space::{Pinned, Space};
-use crate::ui::text::sender;
-use crate::ui::view::{
-    Place, Shell, SideList, Source, folder_of, is_label_place, is_vips, saved_of,
-};
 use dioxus::prelude::*;
 use ds::base::press::{PointerButton, Press};
 use ds::base::vocab::{Emphasis, RowState};
@@ -21,11 +13,18 @@ use ds::host::measure::MountedRef;
 use ds::prelude::*;
 use ds::root::common::Common;
 use ds::style::tokens::control_size::ControlSize;
-use ds::style::tokens::hex::{Colour, Hex};
 use ds::style::tokens::person::PersonSwatch;
-use mail_client::mailbox_filter::{for_role, pending_snooze};
 use mail_client::query::{self};
 use mail_domain::*;
+use mail_logic::mailbox_filter::{for_role, pending_snooze};
+use mail_ui_kit::common::tagged;
+use mail_ui_kit::motion::{drag, motion};
+use mail_ui_kit::space::{Pinned, Space};
+use mail_ui_kit::text::sender;
+use mail_ui_kit::view::{
+    Place, Shell, SideList, Source, folder_of, is_label_place, is_vips, saved_of,
+};
+use mail_ui_model::copy;
 
 /// The most pinned conversations Favourites shows: the most recently pinned. Every pinned
 /// conversation is in Pinned.
@@ -55,7 +54,7 @@ pub(super) fn pins_of(
     labels: &[(String, LabelId)],
     accounts: &[(String, porter_core::AccountId)],
 ) -> query::Pins {
-    let known = query::Known { labels, accounts };
+    let known = mail_logic::query::Known { labels, accounts };
     query::Pins {
         scope: space.payload.scope().filter(),
         pins: space
@@ -90,10 +89,10 @@ pub(super) fn titled(subject: &str) -> String {
     mail_domain::subject_or_none(subject).into_owned()
 }
 
-fn pin_filter(pin: &Pinned, known: &query::Known<'_>) -> Filter {
+fn pin_filter(pin: &Pinned, known: &mail_logic::query::Known<'_>) -> Filter {
     match pin {
         Pinned::Person { email, .. } => Filter::From(TextMatch::Contains(email.clone())),
-        Pinned::Search { query, .. } => query::parse_with(query, &chrono::Local, known),
+        Pinned::Search { query, .. } => mail_logic::query::parse_with(query, &chrono::Local, known),
     }
 }
 
@@ -115,17 +114,11 @@ pub(super) fn face(initial: char, index: usize) -> AvatarFace {
     }
 }
 
-/// A stored `#rrggbb` as quire's colour. A Space file hand-edited to something else draws in
-/// the first swatch rather than failing.
-pub(in crate::ui) fn hex_colour(text: &str) -> Colour {
-    Colour::Solid(Hex::parse(text).unwrap_or_else(|| PersonSwatch::nth(0).hex()))
-}
-
 /// A built-in place's glyph, found by what the place lists rather than by what it is called: the
 /// sidebar's and ⌘K's. The VIPs place by its key, since what it lists is whoever they are.
 pub(in crate::ui) fn place_icon(place: &Place) -> Icon {
     if is_vips(place) {
-        return crate::ui::vip::GLYPH;
+        return mail_ui_kit::vip::GLYPH;
     }
     let source = &place.source;
     let role = |role: MailboxRole| *source == Source::Mail(for_role(role));
@@ -299,7 +292,7 @@ fn PlaceRow(
         Some(Source::Mail(Filter::HasLabel(id))) => {
             // Read again once a colour is kept, so the row wears it.
             let _kept = kept();
-            let client = crate::ui::live::client();
+            let client = mail_ui_kit::live::client();
             super::label_editor::label_of(&client, *id)
         }
         _ => None,
@@ -324,7 +317,7 @@ fn PlaceRow(
         (Some(label), Some(at)) => rsx! {
             Menu::<&'static str> {
                 placement: MenuPlacement::Context,
-                anchor: crate::ui::menu::anchor_for(row_ref(), Some(at)),
+                anchor: mail_ui_kit::menu::anchor_for(row_ref(), Some(at)),
                 items: vec![MenuItem::new(copy::menus::EDIT_LABEL, copy::menus::EDIT_LABEL).with_image(MenuImage::Icon(Icon::Pen))],
                 common: Common {
                     aria_label: Some(copy::aria::actions_for(&label.name)),
@@ -390,7 +383,7 @@ fn PlaceRow(
 
 /// A place's part in a drag: outlined while a dragged row could land on it, lit under the
 /// pointer.
-fn drop_of(state: &super::super::motion::Motion, index: usize, accepts: bool) -> DropState {
+fn drop_of(state: &mail_ui_kit::motion::Motion, index: usize, accepts: bool) -> DropState {
     match &*state.drag.read() {
         drag::Drag::Live { target, .. } if accepts => lit(
             Landing::Possible,

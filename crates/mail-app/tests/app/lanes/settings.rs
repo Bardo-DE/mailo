@@ -15,7 +15,7 @@ const VIEW: Viewport = Viewport {
 
 /// The Settings window over `contexts`, on `page` (a sidebar entry's name).
 pub fn open_at(contexts: RootContexts, page: &str) -> Harness {
-    let printer = mail_ui::ui::native::Printer::with_dialog(|_, _| Ok(PrintOutcome::Cancelled));
+    let printer = mail_ui_reader::print::Printer::with_dialog(|_, _| Ok(PrintOutcome::Cancelled));
     let config = HarnessConfig::new(VIEW)
         .with_focus_fallback(FocusFallback::Ancestor)
         .with_net(ds_blitz::NetPolicy::Local)

@@ -100,10 +100,10 @@ jobs:
       - name: No silent discards
         run: ./scripts/check-discards.sh
 
-      # Every word the window shows lives in crates/mail-ui/src/ui/copy/, by kind: held by a
+      # Every word the window shows lives in crates/mail-ui-model/src/copy/, by kind: held by a
       # ratchet on the visible string literals still written elsewhere under ui/
       # (scripts/copy-literals.txt).
-      - name: The window's words are in ui/copy
+      - name: The window's words are in copy/
         run: ./scripts/check-copy.sh
 
       # The [patch] block is quire's fork block exactly (vello, anyrender, dioxus): checked against
@@ -116,7 +116,7 @@ jobs:
       - name: Portable build (no desktop extras)
         run: cargo check --workspace --no-default-features
 
-      # Each library crate alone with nothing on, and mail-mime with each crypto half alone: a
+      # Each library crate alone with nothing on, and mail-crypto with each half alone: a
       # `--workspace` check unifies the features `mail-app` turns on and would not notice a crate
       # that needs one of its own.
       - name: Every library crate builds with no features

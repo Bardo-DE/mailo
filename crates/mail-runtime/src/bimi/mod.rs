@@ -26,11 +26,12 @@ pub use cache::{Cached, cached, remember};
 pub use draw::{SIZE, draw};
 
 use crate::error::Logged;
-use crate::http::BodyError;
-use crate::lookup::{Miss, SystemDns};
 use chrono::{DateTime, Utc};
-use mail_mime::bimi::{self, BimiRecord, MarkProblem, vmc};
-use mail_mime::smime::Cert;
+use mail_crypto::smime::Cert;
+use mail_crypto::vmc::{self, MarkProblem};
+use mail_mime::bimi::{self, BimiRecord};
+use mail_net::http::BodyError;
+use mail_net::lookup::{Miss, SystemDns};
 use std::future::Future;
 use std::path::Path;
 use std::time::Duration;
@@ -64,20 +65,60 @@ impl Txt for SystemDns {
 ///
 /// A builder so a test can trust its own certificate and point names at a local listener.
 pub fn client_builder() -> reqwest::ClientBuilder {
-    crate::public::guarded(reqwest::Client::builder())
+    mail_net::public::guarded(reqwest::Client::builder())
         .timeout(PER_REQUEST)
         .connect_timeout(PER_REQUEST)
         .https_only(true)
         .redirect(reqwest::redirect::Policy::custom(|attempt| {
             if attempt.previous().len() >= REDIRECTS
                 || attempt.url().scheme() != "https"
-                || !crate::public::url_is_public(attempt.url())
+                || !mail_net::public::url_is_public(attempt.url())
             {
                 attempt.stop()
             } else {
                 attempt.follow()
             }
         }))
+}
+
+/// The resolver and the HTTP client a logo lookup asks with, built once per process.
+#[derive(Debug)]
+pub struct Shared {
+    pub dns: SystemDns,
+    pub http: reqwest::Client,
+}
+
+/// The process's [`Shared`], built on first use. Building reads the resolver's configuration
+/// and sets up TLS, which blocks, so a caller on a thread that must not wait runs this on one
+/// that may. One that could not be built is tried again next time, not remembered.
+pub fn shared() -> Option<&'static Shared> {
+    static SHARED: std::sync::OnceLock<Shared> = std::sync::OnceLock::new();
+    built_once(&SHARED, || {
+        let dns = match SystemDns::new() {
+            Ok(dns) => dns,
+            Err(e) => {
+                log::warn!("brand logos: no resolver: {e}");
+                return None;
+            }
+        };
+        let http = match client_builder().build() {
+            Ok(http) => http,
+            Err(e) => {
+                log::warn!("brand logos: no HTTP client: {e}");
+                return None;
+            }
+        };
+        Some(Shared { dns, http })
+    })
+}
+
+/// What is in `cell`, building it with `build` if nothing is yet.
+fn built_once<T>(cell: &std::sync::OnceLock<T>, build: impl FnOnce() -> Option<T>) -> Option<&T> {
+    if let Some(value) = cell.get() {
+        return Some(value);
+    }
+    let value = build()?;
+    Some(cell.get_or_init(|| value))
 }
 
 /// What a lookup is done with.
@@ -199,15 +240,15 @@ pub async fn find<D: Txt + Sync>(lookup: &Lookup<'_, D>, domain: &str) -> Result
         return Err(NoLogo::Declined);
     };
     let pem = fetch(lookup.http, &evidence, MAX_EVIDENCE).await?;
-    let certified = match bimi::verified_logo(&pem, &domain, lookup.anchors, lookup.now) {
+    let certified = match vmc::verified_logo(&pem, &domain, lookup.anchors, lookup.now) {
         Err(MarkProblem::NotForDomain) if !same => {
-            bimi::verified_logo(&pem, &org, lookup.anchors, lookup.now)
+            vmc::verified_logo(&pem, &org, lookup.anchors, lookup.now)
         }
         other => other,
     }
     .map_err(NoLogo::Evidence)?;
     let fetched = fetch(lookup.http, &location, vmc::MAX_SVG).await?;
-    if !bimi::same_logo(&fetched, &certified) {
+    if !vmc::same_logo(&fetched, &certified) {
         return Err(NoLogo::NotTheCertified);
     }
     Ok(certified)
@@ -239,7 +280,7 @@ fn answered(result: Result<Vec<String>, Miss>) -> Result<Vec<String>, NoLogo> {
 /// The body at `url`, at most `max` bytes. Anything but a 2xx is unreachable.
 async fn fetch(http: &reqwest::Client, url: &str, max: usize) -> Result<Vec<u8>, NoLogo> {
     let unreachable = |why: String| NoLogo::Unreachable(format!("{url}: {why}"));
-    if !reqwest::Url::parse(url).is_ok_and(|url| crate::public::url_is_public(&url)) {
+    if !reqwest::Url::parse(url).is_ok_and(|url| mail_net::public::url_is_public(&url)) {
         return Err(NoLogo::Refused(format!(
             "{url}: not on the public internet"
         )));
@@ -252,7 +293,7 @@ async fn fetch(http: &reqwest::Client, url: &str, max: usize) -> Result<Vec<u8>,
     if !response.status().is_success() {
         return Err(unreachable(response.status().to_string()));
     }
-    crate::http::body_up_to(response, max)
+    mail_net::http::body_up_to(response, max)
         .await
         .map_err(|e| match e {
             BodyError::TooLarge(_) => NoLogo::Refused(format!("{url}: larger than {max} bytes")),
@@ -285,7 +326,9 @@ pub fn normalise(domain: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::normalise;
+    use super::{built_once, normalise};
+    use std::cell::Cell;
+    use std::sync::OnceLock;
 
     #[test]
     fn only_a_dns_name_is_looked_up() {
@@ -306,5 +349,28 @@ mod tests {
         for (domain, want) in cases {
             assert_eq!(normalise(domain).as_deref(), *want, "{domain:?}");
         }
+    }
+
+    /// The second ask finds what the first built, and builds nothing.
+    #[test]
+    fn what_is_built_once_is_not_built_again() {
+        let cell = OnceLock::new();
+        let builds = Cell::new(0);
+        let build = || {
+            builds.set(builds.get() + 1);
+            Some(String::from("built"))
+        };
+        let first = built_once(&cell, build);
+        let second = built_once(&cell, build);
+        assert!(std::ptr::eq(first.unwrap(), second.unwrap()));
+        assert_eq!(builds.get(), 1);
+    }
+
+    /// A build that failed is tried again on the next ask, not remembered.
+    #[test]
+    fn a_failed_build_is_tried_again() {
+        let cell: OnceLock<u8> = OnceLock::new();
+        assert!(built_once(&cell, || None).is_none());
+        assert_eq!(built_once(&cell, || Some(7)), Some(&7));
     }
 }

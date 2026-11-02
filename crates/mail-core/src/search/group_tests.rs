@@ -1,16 +1,16 @@
 use mail_domain::ThreadId;
 use mail_store::MemoryStore;
 
-use super::super::ranking::{Affinity, SenderStats};
-use super::{Command, Top};
-use crate::search::run;
+use mail_logic::search::{Affinity, Command, MailHit, SenderStats, Top, run};
+
+use super::StoreSource;
 use crate::support_tests::{self as support, at};
 
 fn thread_of(n: u128) -> ThreadId {
     ThreadId::from_uuid(uuid::Uuid::from_u128(0x7000 + n))
 }
 
-fn shown(top: &Option<Top>, mail: &[super::MailHit]) -> Vec<ThreadId> {
+fn shown(top: &Option<Top>, mail: &[MailHit]) -> Vec<ThreadId> {
     let mut ids = Vec::new();
     if let Some(Top::Mail(hit)) = top {
         ids.push(hit.summary.id);
@@ -33,7 +33,13 @@ fn empty_query_is_actions_and_five_recent_threads() {
             label: "archive".to_owned(),
         },
     ];
-    let results = run("", &store, &Affinity::default(), &commands, at(10_000));
+    let results = run(
+        "",
+        &StoreSource(&store),
+        &Affinity::default(),
+        &commands,
+        at(10_000),
+    );
     assert_eq!(results.actions.len(), commands.len());
     assert!(results.people.is_empty());
     let ids = shown(&results.top, &results.mail);
@@ -71,7 +77,7 @@ fn caps_hold() {
             label: label.to_owned(),
         })
         .collect::<Vec<_>>();
-    let results = run("alpha", &store, &affinity, &commands, at(100));
+    let results = run("alpha", &StoreSource(&store), &affinity, &commands, at(100));
     assert_eq!(results.mail.len(), 6, "mail cap");
     assert_eq!(results.people.len(), 3, "people cap");
 }
@@ -85,7 +91,13 @@ fn top_hit_is_not_duplicated_in_mail() {
     let commands = vec![Command {
         label: "compose".to_owned(),
     }];
-    let results = run("invoice", &store, &Affinity::default(), &commands, at(10));
+    let results = run(
+        "invoice",
+        &StoreSource(&store),
+        &Affinity::default(),
+        &commands,
+        at(10),
+    );
     let Some(Top::Mail(top)) = &results.top else {
         panic!("the subject hit should be the top, got {:?}", results.top);
     };
@@ -119,7 +131,7 @@ fn a_query_that_is_a_command_opens_the_command() {
     }];
     let results = run(
         "compose",
-        &store,
+        &StoreSource(&store),
         &Affinity::default(),
         &commands,
         at(10_000),

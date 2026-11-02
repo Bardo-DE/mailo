@@ -5,6 +5,10 @@ use mail_domain::{Address, Body, ChangeId, Message, MessageKey, Patch, ReadState
 use mail_store::Store;
 
 /// Noon, 2026-09-28, and whole days from it.
+fn accounts_of(store: &SqliteStore) -> mail_logic::accounts::Accounts {
+    crate::gather::accounts(store, &Default::default()).unwrap()
+}
+
 fn day(n: i64) -> DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 9, 28, 12, 0, 0).unwrap() + TimeDelta::days(n)
 }
@@ -196,6 +200,7 @@ fn store(dir: &std::path::Path) -> SqliteStore {
                     id: ChangeId::generate(),
                     changes: vec![Change::MessageUpsert(Box::new(message(n, mailbox)))],
                 },
+                chrono::Utc::now(),
             )
             .unwrap();
         mail_store::testing::seed_remote_uid(&store, account(), folder, n as u32, id(n));
@@ -215,9 +220,18 @@ fn a_week_in_trash_is_counted_from_when_it_was_found_there() {
         trash: Keep::Week,
         spam: Keep::Always,
     };
-    assert!(sweep(&store, &policy, day(0)).is_empty(), "erased on sight");
-    assert!(sweep(&store, &policy, day(6)).is_empty(), "erased early");
-    assert_eq!(sweep(&store, &policy, day(7)), vec![id(1)]);
+    assert!(
+        sweep(&store, &accounts_of(&store), &policy, day(0)).is_empty(),
+        "erased on sight"
+    );
+    assert!(
+        sweep(&store, &accounts_of(&store), &policy, day(6)).is_empty(),
+        "erased early"
+    );
+    assert_eq!(
+        sweep(&store, &accounts_of(&store), &policy, day(7)),
+        vec![id(1)]
+    );
     assert!(store.message(id(1)).is_err(), "still here");
     assert!(store.message(id(2)).is_ok(), "Spam was erased");
     assert!(store.message(id(3)).is_ok(), "the inbox was erased");
@@ -249,17 +263,12 @@ fn deleting_now_erases_once_the_move_has_landed() {
     };
     mail_store::testing::seed_caps(&store, account(), &caps, chrono::Utc::now()).unwrap();
     // Message 1 was in Trash already; Delete moves message 3 there now.
-    assert!(sweep(&store, &policy, day(0)).is_empty());
-    let undo = crate::act::perform(
-        &store,
-        thread(3),
-        mail_domain::Op::Trash,
-        crate::when::Clock::H24,
-    )
-    .expect("moved to Trash");
+    assert!(sweep(&store, &accounts_of(&store), &policy, day(0)).is_empty());
+    let undo =
+        crate::act::perform(&store, thread(3), mail_domain::Op::Trash).expect("moved to Trash");
     mark_deleted(&store, &[undo], day(0));
     assert!(
-        sweep(&store, &policy, day(0)).is_empty(),
+        sweep(&store, &accounts_of(&store), &policy, day(0)).is_empty(),
         "erased before the move reached the server"
     );
     // The server took the move: nothing waits, and it holds the message in Trash.
@@ -271,10 +280,13 @@ fn deleting_now_erases_once_the_move_has_landed() {
     };
     store.remap(account(), &at("INBOX"), &at("Trash")).unwrap();
     assert!(
-        sweep(&store, &policy, day(0)).is_empty(),
+        sweep(&store, &accounts_of(&store), &policy, day(0)).is_empty(),
         "erased inside the Undo the Delete offered"
     );
-    assert_eq!(sweep(&store, &policy, day(1)), vec![id(3)]);
+    assert_eq!(
+        sweep(&store, &accounts_of(&store), &policy, day(1)),
+        vec![id(3)]
+    );
     assert!(
         store.message(id(1)).is_ok(),
         "what was there already went too"
@@ -292,7 +304,7 @@ fn a_message_that_leaves_trash_and_returns_between_sweeps_starts_again() {
         trash: Keep::Week,
         spam: Keep::Always,
     };
-    assert!(sweep(&store, &policy, day(0)).is_empty());
+    assert!(sweep(&store, &accounts_of(&store), &policy, day(0)).is_empty());
     let move_to = |role| {
         store
             .apply(
@@ -301,14 +313,18 @@ fn a_message_that_leaves_trash_and_returns_between_sweeps_starts_again() {
                     id: ChangeId::generate(),
                     changes: vec![mail_domain::Change::MessageMailbox(id(1), role)],
                 },
+                chrono::Utc::now(),
             )
             .unwrap();
     };
     move_to(MailboxRole::Inbox);
     move_to(MailboxRole::Trash);
     assert!(
-        sweep(&store, &policy, day(7)).is_empty(),
+        sweep(&store, &accounts_of(&store), &policy, day(7)).is_empty(),
         "it kept the time from before it left"
     );
-    assert_eq!(sweep(&store, &policy, day(14)), vec![id(1)]);
+    assert_eq!(
+        sweep(&store, &accounts_of(&store), &policy, day(14)),
+        vec![id(1)]
+    );
 }

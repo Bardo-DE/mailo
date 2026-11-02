@@ -1,16 +1,16 @@
 //! Lane 14: the Settings window beside the main one. Keyboard rebinds Archive, refusing a key
 //! another action holds, and the main window, open all along, archives on the new key at once
-//! and on the shipped one again after Reset; Accounts pushes an account's page, which Escape and
-//! ⌘[ come back from and whose Remove question Escape answers; Spaces are put in order by
+//! and on the shipped one again after Reset; Accounts shows an account's page beside the list,
+//! whose Remove question Escape answers; Spaces are put in order by
 //! dragging a row's grip; an account's page names it, pauses it and shows its servers without
 //! editing them; and every page keeps the button size rule.
 
 use ds::prelude::{Point, Px};
 use ds_harness::{Harness, Input};
-use mail_ui::ui::copy;
-use mail_ui::ui::keymap;
-use mail_ui::ui::space;
-use mail_ui::ui::view::Shortcut;
+use mail_ui_kit::keymap;
+use mail_ui_kit::space;
+use mail_ui_kit::view::Shortcut;
+use mail_ui_model::copy;
 
 use super::drive::{Drive, Key};
 use super::hands::{centre, click, scroll_to, type_text, until};
@@ -20,20 +20,14 @@ use super::window::{INBOX, Window, account, ms, row_of};
 /// Archive's row on the Keyboard page.
 const ARCHIVE: &str = "[*|data-action=Archive]";
 
-/// The account's row on the Accounts page, and its page's back button.
+/// The account's row on the Accounts page.
 fn account_row() -> String {
     format!("#accounts-pane-open-{}", account())
 }
-const BACK: &str = "#accounts-pane-back-detail";
 
-/// Whether only the account's page is drawn, its slide done.
+/// Whether an account's page is drawn beside the list: Remove Account… is its last part.
 fn at_account(settings: &Harness) -> bool {
-    settings.count(".ds-pane-stack-page") == 1 && settings.count(BACK) == 1
-}
-
-/// Whether only the list of accounts is drawn.
-fn at_accounts(settings: &Harness) -> bool {
-    settings.count(".ds-pane-stack-page") == 1 && settings.count(BACK) == 0
+    settings.count(".acct-actions button") == 1
 }
 
 /// The `n`th row (from 1) of the Spaces' own list, the one that can be reordered.
@@ -124,28 +118,14 @@ fn settings_rebinds_a_key_for_the_open_window_pushes_an_account_and_orders_the_s
         row_of(h, INBOX[1].1).is_none()
     });
 
-    // The account's row pushes its page, the keyboard on its back button; Escape and ⌘[ come
-    // back to the row; Escape on the Remove question answers it and stays on the page.
+    // The account's row shows its page beside the list; Escape on the Remove question answers
+    // it and stays on the page.
     window.in_settings(copy::titles::ACCOUNTS, |settings| {
         let row = account_row();
         until(settings, "the account is listed", |h| h.count(&row) == 1);
         sizes_hold(settings, copy::titles::ACCOUNTS);
         click(settings, &row);
-        until(settings, "its page is pushed", at_account);
-        until(settings, "the back button has the keyboard", |h| {
-            h.is_focused(BACK)
-        });
-        settings.key(Key::Escape);
-        until(settings, "Escape comes back", at_accounts);
-        until(settings, "the row has the keyboard", |h| h.is_focused(&row));
-        click(settings, &row);
-        until(settings, "its page is pushed again", |h| {
-            at_account(h) && h.is_focused(BACK)
-        });
-        settings.chord(&[Key::Super], Key::Char('['));
-        until(settings, "⌘[ comes back", at_accounts);
-        click(settings, &row);
-        until(settings, "its page is pushed a third time", at_account);
+        until(settings, "its page is shown", at_account);
         // Remove Account… is the page's last part, below the servers and the folders.
         scroll_to(settings, ".settings-scroll", ".acct-actions button");
         click(settings, ".acct-actions button");
@@ -154,7 +134,7 @@ fn settings_rebinds_a_key_for_the_open_window_pushes_an_account_and_orders_the_s
         settings.key(Key::Escape);
         until(settings, "Escape answers it", |h| h.count(".ds-alert") == 0);
         settings.advance(ms(400));
-        assert!(at_account(settings), "Escape went back past the page");
+        assert!(at_account(settings), "Escape left the page");
     });
 
     // Home's grip, dropped on Travel's row: Home goes last, the rows it passes making room.
@@ -209,7 +189,7 @@ fn settings_rebinds_a_key_for_the_open_window_pushes_an_account_and_orders_the_s
 /// `settings.toml`, and the next window opens with them.
 #[test]
 fn the_list_opens_the_way_it_was_left() {
-    use mail_ui::settings::{GroupByDate, LabelChips, Snippets, load, root_for, store};
+    use mail_ui_model::settings::{GroupByDate, LabelChips, Snippets, load, root_for, store};
     let options = format!("[aria-label=\"{}\"]", copy::aria::MORE);
     let mut window = Window::open(|_| {});
     window.click(&options);
@@ -243,9 +223,9 @@ fn the_list_opens_the_way_it_was_left() {
 fn check_for_mail_when_quit_starts_and_stops_the_login_item() {
     let mut window = Window::open(|_| {});
     let dirs = window.dirs();
-    let root = mail_ui::settings::root_for(&dirs.config);
-    let while_quit = move || mail_ui::settings::load(&root).sync.while_quit;
-    assert_eq!(while_quit(), mail_ui::settings::WhileQuit::Off);
+    let root = mail_ui_model::settings::root_for(&dirs.config);
+    let while_quit = move || mail_ui_model::settings::load(&root).sync.while_quit;
+    assert_eq!(while_quit(), mail_ui_model::settings::WhileQuit::Off);
     let switch = "[*|aria-label=\"Check for mail when quit\"][*|aria-checked]";
     let login = window.login_item();
     window.in_settings(copy::titles::GENERAL, |settings| {
@@ -261,7 +241,7 @@ fn check_for_mail_when_quit_starts_and_stops_the_login_item() {
             login.asked().len() == 1
         });
     });
-    assert_eq!(while_quit(), mail_ui::settings::WhileQuit::On);
+    assert_eq!(while_quit(), mail_ui_model::settings::WhileQuit::On);
     assert_eq!(window.login_asked(), ["register"]);
     window.in_settings(copy::titles::GENERAL, |settings| {
         until(settings, "the switch is drawn, on", |h| {
@@ -275,7 +255,7 @@ fn check_for_mail_when_quit_starts_and_stops_the_login_item() {
             login.asked().len() == 2
         });
     });
-    assert_eq!(while_quit(), mail_ui::settings::WhileQuit::Off);
+    assert_eq!(while_quit(), mail_ui_model::settings::WhileQuit::Off);
     assert_eq!(window.login_asked(), ["register", "unregister"]);
 }
 

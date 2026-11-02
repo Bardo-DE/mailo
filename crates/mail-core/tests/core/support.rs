@@ -5,7 +5,7 @@ use mail_domain::{
     AccountCaps, ArchiveMeans, Condstore, ConnectionBudget, ExpungeMeans, FolderRoles, MoveExt,
     ServerLabels, ServerThreads, Supported, WatchMode,
 };
-use mail_runtime::AccountSecrets;
+use mail_secrets::AccountSecrets;
 use mail_store::SqliteStore;
 use porter_core::{Credential, SecretKey, SecretPurpose, SecretText};
 use porter_secrets::MemorySecrets;
@@ -19,6 +19,11 @@ pub fn store() -> SqliteStore {
     let store = mail_store::testing::in_memory();
     mail_store::testing::seed_account(&store, account(), "me@example.test");
     store
+}
+
+/// Every account in `store`, with the person's choices at the defaults.
+pub fn accounts(store: &SqliteStore) -> mail_logic::accounts::Accounts {
+    mail_core::gather::accounts(store, &Default::default()).expect("the accounts read")
 }
 
 /// A plain IMAP server's capabilities: no labels, threads, extensions or pipelining, one
@@ -45,7 +50,7 @@ pub fn caps() -> AccountCaps {
 
 /// [`account`]'s incoming password, kept in `secrets`.
 pub fn with_password(secrets: &MemorySecrets, password: &str) {
-    mail_runtime::block_on(secrets.put(
+    mail_secrets::block_on(secrets.put(
         &SecretKey {
             account: account(),
             purpose: SecretPurpose::IncomingPassword,

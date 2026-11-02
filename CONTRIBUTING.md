@@ -7,16 +7,20 @@ so in the pull request rather than working around it.
 
 Effects live at the edges, and the layering encodes that:
 
-- `mail-domain`, `mail-mime`, `mail-proto` and `mail-pim` are pure. They reach no socket, clock,
+- `mail-domain`, `mail-mime`, `mail-crypto`, `mail-archive`, `mail-proto`, `mail-pim`, `mail-editor`, `mail-reader` and `mail-logic` are pure. They reach no socket, clock,
   disk, runtime or window. When one seems to need an effect, the effect belongs to the caller:
   `Op::apply` returns a `RemoteIntent` rather than performing one, and `Machine::feed` returns an
   `IoNeed` rather than satisfying it.
 - `mail-store` may touch the disk, and is the only crate that speaks SQL.
-- `mail-runtime` is the only crate that opens a socket, spawns a task or reads the clock.
+- `mail-net`, `mail-secrets`, `mail-runtime` and `mail-engine` are the crates that open a socket,
+  spawn a task or read the clock: `mail-net` is the wire (connections, TLS, DNS, HTTP) and
+  `mail-secrets` the credentials, and neither names `mail-store`; `mail-runtime` is the protocol
+  drivers over them, and `mail-engine` the engines and scheduler over the drivers (no driver names
+  an engine).
 - `mail-core` drives them and may use tokio, but has no window and no terminal in it.
 - `mail-client` is the one door to mail: logic only, no window, over `mail-core` and `mail-store`.
 - `mail-ui` draws the window over a `mail-client`; its dependencies name no `mail-core`,
-  `mail-store` or `mail-runtime`.
+  `mail-store`, `mail-net`, `mail-secrets`, `mail-runtime` or `mail-engine`.
 - `mail-app` is the program: it makes the client, hands it to the window, and holds the terminal
   (`cli`). The window and the terminal never name each other: a helper both want belongs in
   `mail-core`.
@@ -77,7 +81,7 @@ One `error.rs` per crate, built with `thiserror`, carrying the cause a caller ca
 field. Every error type implements `mail_domain::Retryable`, because the outbox must choose
 between backing off, asking for reauthentication and giving up.
 
-- No `anyhow` below `mail-runtime`.
+- No `anyhow` below `mail-net`, `mail-secrets`, `mail-runtime` and `mail-engine`.
 - No `unwrap()` or `expect()` outside tests unless a comment on the line proves the invariant.
 - `panic!` is for programmer error only. Malformed mail is never a panic: every byte from the
   network is hostile.
@@ -85,7 +89,7 @@ between backing off, asking for reauthentication and giving up.
 ## Time
 
 `now: DateTime<Utc>` is an argument. There is no `Clock` trait and no `Utc::now()` below
-`mail-runtime`, tests included: tests use fixed instants. `Duration` for configured intervals,
+`mail-net`, `mail-secrets`, `mail-runtime` and `mail-engine`, tests included: tests use fixed instants. `Duration` for configured intervals,
 `chrono::TimeDelta` only for arithmetic on `DateTime`.
 
 ## Naming
@@ -149,15 +153,16 @@ for s in scripts/check-*.sh; do bash "$s"; done
 ```
 
 - `check-boundary.sh`: the pure crates reach none of tokio, rusqlite, dioxus, reqwest, the
-  keyring or the bus; `mail-core` reaches nothing that draws; `mail-store` and `mail-runtime`
-  reach no anyview; `ui` and `cli` do not name each other. It also ratchets the lines in
-  `mail-app` that name a lower crate instead of `mail_core` (`scripts/app-lower-crate-uses.txt`)
-  and the `mail-core` code listed in `scripts/core-prose-allowlist.txt` and
+  keyring or the bus; `mail-core` reaches nothing that draws; `mail-store`, `mail-net`, `mail-secrets`,
+  `mail-runtime` and `mail-engine` reach no anyview, `mail-net` and `mail-secrets` reach no
+  `mail-store`, and no driver crate reaches `mail-engine`; `ui` and `cli` do not name each other. The app crates (`mail-app`, `mail-cli`, `mail-intents`, `mail-edge`) and the window's crates name
+  no store, runtime, engine or wire crate in their Cargo.toml, dev-dependencies included. It also ratchets
+  the `mail-core` code listed in `scripts/core-prose-allowlist.txt` and
   `scripts/core-result-string-allowlist.txt`.
 - `check-discards.sh`: in the library crates, a `let _ =`, `.ok()` or `unwrap_or_default()` with
   no comment on or above its line is counted against `scripts/discards.txt`. A fallible result
   is propagated, shown to the person, logged with `Logged::or_log`, or ignored with a reason.
-- `check-copy.sh`: visible string literals under `crates/mail-ui/src/ui` outside `ui/copy/` are
+- `check-copy.sh`: visible string literals under `crates/mail-ui/src/ui` outside `crates/mail-ui-model/src/copy/` are
   counted against `scripts/copy-literals.txt`.
 - `check-fork-patches.sh`: the `[patch.crates-io]` block matches quire's at the pinned rev.
 - `check-nodef.sh`: every library crate builds with no default features.
@@ -172,7 +177,7 @@ invariant or the reason, not the history of how the code got here, and no ticket
 behaviour, not another client's source: "Gmail answers `X`", pointing at a trace, not
 "taken from mbsync". A quirk without a trace is a rumour.
 
-Every word the window shows lives in `crates/mail-ui/src/ui/copy/`, one module per kind. Title
+Every word the window shows lives in `crates/mail-ui-model/src/copy/`, one module per kind. Title
 Case for buttons, menu items, tooltips, titles and accessible names; sentence case for sentences.
 Ellipsis is `…` and the apostrophe `’`. `docs/design-language.md` has the rest.
 

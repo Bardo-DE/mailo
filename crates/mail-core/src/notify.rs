@@ -14,10 +14,6 @@
 //! app's is. A one-time code in the message is never read into it, never offered on it and never
 //! copied on arrival: it shows in a message's open reader, and nowhere a locked screen can read.
 
-#[cfg(all(unix, not(target_os = "macos"), feature = "desktop"))]
-pub mod click;
-#[cfg(feature = "desktop")]
-pub mod desktop;
 pub mod floor;
 
 use crate::error::CoreError;
@@ -26,6 +22,7 @@ use crate::vip::Vips;
 use chrono::{DateTime, Utc};
 use mail_domain::ThreadId;
 use mail_domain::{MailboxRole, Message, MessageId, ReadState, Snooze};
+use mail_logic::own::Own;
 use mail_store::{SqliteStore, Store as _};
 use porter_core::AccountId;
 use std::collections::HashSet;
@@ -165,29 +162,6 @@ pub enum Quiet {
 pub enum Verdict {
     Announce,
     Quiet(Quiet),
-}
-
-/// The user's own addresses, across every account and identity, compared without case.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Own(Vec<String>);
-
-impl Own {
-    pub fn new<S: AsRef<str>>(addresses: impl IntoIterator<Item = S>) -> Self {
-        let mut all: Vec<String> = addresses
-            .into_iter()
-            .map(|a| a.as_ref().trim().to_ascii_lowercase())
-            .filter(|a| !a.is_empty())
-            .collect();
-        all.sort();
-        all.dedup();
-        Own(all)
-    }
-
-    pub fn includes(&self, email: &str) -> bool {
-        self.0
-            .binary_search(&email.trim().to_ascii_lowercase())
-            .is_ok()
-    }
 }
 
 /// Whether `message`, just stored, is worth interrupting someone for.
