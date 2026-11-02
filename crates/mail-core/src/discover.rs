@@ -20,6 +20,18 @@ use mail_logic::discover::{Failed, Found, Gap, classify, map};
 use porter_discover::{Dns, NotFound, Outcome, SearchOptions};
 use porter_http::Http;
 
+/// Record the clients that decide whether a personal Microsoft account (`outlook.com`,
+/// `hotmail.com`) can be signed in: it can when they hold a Microsoft client registered for
+/// personal accounts (`mail_secrets::clients::personal_microsoft_ready`). They are asked at each
+/// address, so a client set up while the program runs counts. None, as in every test, refuses a
+/// personal address and says why.
+pub fn judge_personal_microsoft_by(clients: Option<crate::OAuthClients>) {
+    mail_logic::discover::judge_personal_microsoft_by(clients.map(|clients| {
+        std::sync::Arc::new(move || clients.takes_personal_microsoft())
+            as std::sync::Arc<dyn Fn() -> bool + Send + Sync>
+    }));
+}
+
 impl crate::mail::DiscoverOps<'_> {
     /// Look the address up, over the network, at the handle's time.
     pub async fn lookup(&self, address: &str) -> Result<Found, CoreError> {
@@ -140,6 +152,7 @@ async fn find<H: Http, D: Dns>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mail_domain::presets;
     use mail_domain::{AuthPlan, Incoming, Outgoing, SaslMech, Tls, Username};
     use mail_logic::discover::Source;
     use porter_discover::{DnsFault, MxRecord, SrvRecord};
@@ -509,6 +522,43 @@ mod tests {
                 label: "Microsoft".to_owned()
             }
         );
+    }
+
+    /// With a client that signs personal accounts in, a personal address is set up as a personal
+    /// account instead of refused; a tenant's is unchanged.
+    #[tokio::test]
+    async fn a_personal_microsoft_mailbox_is_set_up_once_a_client_takes_it() {
+        let mut client = mail_secrets::clients::entry(Issuer::Microsoft, "client-id", None);
+        client.endpoints = Some(porter_provider::IssuerEndpoints {
+            authorize: porter_core::EndpointUrl::parse("https://login.example/common/authorize")
+                .unwrap(),
+            token: porter_core::EndpointUrl::parse("https://login.example/common/token").unwrap(),
+            revoke: None,
+        });
+        judge_personal_microsoft_by(Some(crate::OAuthClients::Given(
+            mail_secrets::clients::registry_of(vec![client]),
+        )));
+        let found = Net::default().found("me@outlook.com").await;
+        let tenant = Net::default().found("me@contoso.onmicrosoft.com").await;
+        judge_personal_microsoft_by(None);
+        let found = found.expect("a personal mailbox");
+        assert_eq!(
+            found.preset.plan.auth,
+            presets::microsoft_for(presets::MicrosoftAccount::Personal, "me@outlook.com", now())
+                .plan
+                .auth
+        );
+        assert_ne!(
+            found.preset.plan.incoming,
+            presets::microsoft_for(
+                presets::MicrosoftAccount::Organisation,
+                "me@outlook.com",
+                now()
+            )
+            .plan
+            .incoming
+        );
+        assert!(tenant.is_ok());
     }
 
     #[tokio::test]

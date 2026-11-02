@@ -23,6 +23,7 @@ use porter_core::{Family, ServiceEndpoint, Tls as Wire};
 use porter_discover::{Found as Servers, NotFound, Outcome, ProviderLead, Source as Via};
 use porter_ids::UrlScheme;
 use porter_provider::{DomainMatch, DomainName, Issuer, ProviderSpec};
+use std::sync::RwLock;
 
 /// Where a configuration came from, which is what the user is asked to trust.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -124,6 +125,29 @@ impl std::fmt::Display for Failed {
 
 impl std::error::Error for Failed {}
 
+/// Whether a client that signs personal Microsoft accounts in is set up, asked at each address.
+type PersonalOpen = std::sync::Arc<dyn Fn() -> bool + Send + Sync>;
+
+/// What the program's edge recorded ([`judge_personal_microsoft_by`]); none, as in every test,
+/// refuses a personal address.
+static PERSONAL_OPEN: RwLock<Option<PersonalOpen>> = RwLock::new(None);
+
+/// Record how to ask whether a personal Microsoft account (`outlook.com`, `hotmail.com`) can be
+/// signed in: it can when the installed clients hold a Microsoft client registered for personal
+/// accounts. It is asked at each address, so a client set up while the program runs counts. Until
+/// one does, a personal address is told why it is refused.
+pub fn judge_personal_microsoft_by(ask: Option<PersonalOpen>) {
+    *PERSONAL_OPEN.write().unwrap_or_else(|e| e.into_inner()) = ask;
+}
+
+fn personal_microsoft_open() -> bool {
+    PERSONAL_OPEN
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .as_ref()
+        .is_some_and(|ask| ask())
+}
+
 /// What a personal Microsoft mailbox is told: it no longer takes a password, and the client
 /// supports work and school Microsoft 365 mailboxes only.
 const PERSONAL_MICROSOFT: &str = "this is a personal Microsoft mailbox. Those no longer accept \
@@ -154,9 +178,9 @@ fn domain_of(address: &str) -> Option<DomainName> {
 ///
 /// Basic authentication was retired on personal Outlook.com on 2024-09-16, and recently created
 /// personal mailboxes are reported to have SMTP client authentication permanently off, failing
-/// even under OAuth. porter's `microsoft.toml` claims both through one multi-tenant client;
-/// mailo's preset signs in with the work and school scopes, so it says why it will not, rather
-/// than configure an account that cannot send.
+/// even under OAuth. porter's `microsoft.toml` claims both through one multi-tenant client; such
+/// an address is set up only where an installed client signs personal accounts in
+/// ([`personal_preset`]), and otherwise told why not, rather than configured to fail at sending.
 fn personal_microsoft(spec: &ProviderSpec, domain: &DomainName) -> bool {
     spec.auth.issuer == Some(Issuer::Microsoft)
         && !spec
@@ -193,7 +217,8 @@ pub fn microsoft_domain(address: &str) -> presets::MicrosoftAccount {
 /// (`<tenant>.onmicrosoft.com`). A domain that merely has an MX at a provider is not proved by
 /// its address and goes through discovery, which shows what it found and asks. Nor does a
 /// provider that signs in with a password: its hosts are shown for a yes first. A personal
-/// Microsoft domain is not here either, and discovery says why.
+/// Microsoft domain is not here either: discovery says why, or, where a client signs personal
+/// accounts in ([`judge_personal_microsoft_by`]), sets it up as a personal account.
 ///
 /// The address is kept exactly as typed; only the lookup folds case.
 pub fn known(address: &str, now: DateTime<Utc>) -> Option<Preset> {
@@ -223,14 +248,8 @@ fn from_provider(lead: &ProviderLead, address: &str, now: DateTime<Utc>) -> Resu
     };
     let personal = lead.via == DomainMatch::Domain
         && domain_of(address).is_some_and(|domain| personal_microsoft(spec, &domain));
-    if personal {
-        return Err(no_servers(
-            address,
-            Gap::PersonalMicrosoft,
-            PERSONAL_MICROSOFT,
-        ));
-    }
     let preset = match spec.auth.issuer {
+        _ if personal => personal_preset(address, now)?,
         Some(issuer) => presets::preset_for_issuer(issuer, address, now)
             .ok_or_else(|| no_servers(address, Gap::Nothing, "its mail is not read here"))?,
         None => from_file(spec, address, now)?,
@@ -325,7 +344,7 @@ fn from_servers(servers: &Servers, address: &str, now: DateTime<Utc>) -> Result<
     {
         return Ok(Found {
             source,
-            preset: guard(address, preset)?,
+            preset: guard(address, preset, now)?,
         });
     }
     let by = |family: Family| servers.endpoints.iter().find(|e| e.family == family);
@@ -423,8 +442,9 @@ pub fn oauth_issuer(servers: &Servers) -> Option<Issuer> {
         })
 }
 
-/// Refuse the managed-tenant preset for a personal Microsoft address, however it was reached.
-fn guard(address: &str, preset: Preset) -> Result<Preset, Failed> {
+/// Refuse the managed-tenant preset for a personal Microsoft address, however it was reached,
+/// unless a client signs personal accounts in: then the personal preset takes its place.
+fn guard(address: &str, preset: Preset, now: DateTime<Utc>) -> Result<Preset, Failed> {
     let tenant = matches!(
         preset.plan.auth,
         AuthPlan::OAuth {
@@ -433,14 +453,29 @@ fn guard(address: &str, preset: Preset) -> Result<Preset, Failed> {
         }
     );
     let personal = microsoft_domain(address) == presets::MicrosoftAccount::Personal;
-    match tenant && personal {
-        true => Err(no_servers(
-            address,
-            Gap::PersonalMicrosoft,
-            PERSONAL_MICROSOFT,
-        )),
-        false => Ok(preset),
+    if tenant && personal {
+        personal_preset(address, now)
+    } else {
+        Ok(preset)
     }
+}
+
+/// The personal Microsoft preset for `address`, or why there is none: no installed client signs
+/// personal accounts in.
+fn personal_preset(address: &str, now: DateTime<Utc>) -> Result<Preset, Failed> {
+    if personal_microsoft_open() {
+        Ok(presets::microsoft_for(
+            presets::MicrosoftAccount::Personal,
+            address,
+            now,
+        ))
+    } else {
+        Err(personal_refusal(address))
+    }
+}
+
+fn personal_refusal(address: &str) -> Failed {
+    no_servers(address, Gap::PersonalMicrosoft, PERSONAL_MICROSOFT)
 }
 
 /// A server declined, as the user is shown it: `IMAP host:port (STARTTLS)`.
