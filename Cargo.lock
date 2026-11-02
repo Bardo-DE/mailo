@@ -5357,6 +5357,7 @@ dependencies = [
  "mail-client",
  "mail-core",
  "mail-edge",
+ "mail-os",
  "mail-store",
  "mail-ui",
  "mailo-domain",

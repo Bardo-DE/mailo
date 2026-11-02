@@ -39,6 +39,8 @@ futures-util = { version = "0.3", default-features = false, features = ["std"] }
 
 [dev-dependencies]
 toml = "1"
+# The launcher's desktop id, which the entry, the manifest and the unit must share.
+mail-os.workspace = true
 # A provider over a store in a scratch directory, never the person's.
 tempfile = "3"
 mail-store = { workspace = true, features = ["testing"] }
