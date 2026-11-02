@@ -46,29 +46,64 @@ fn content_height(frame: &MountedData) -> Option<f32> {
 /// frame's right edge cuts what is left over instead.
 const LEAST: f32 = 0.4;
 
-/// The zoom `frame`'s document is drawn at for a person who asked for its text at `text` (the
-/// reader's text size, 1 for its own): `text`, unless the document would then be wider than the
-/// frame (a newsletter laid out for 800 px, its tables and pictures fixed at that width, in a
-/// narrower pane), when it is the frame's width over the document's own, so a larger text size
-/// grows a page only until it fills the frame, and a pane widened while the page is still read
-/// lets it grow back. The document's width is read in its own pixels, whatever zoom it is drawn
-/// at now, so a read taken before a new zoom has landed asks for the same one. `None` when it is
-/// not laid out.
-fn fitting(frame: &MountedData, text: f32) -> Option<f32> {
+/// How a frame's document is drawn: at `zoom`, with its lone table cells let go of their `width`
+/// when `relaxed` ([`RELAXED`]).
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(super) struct Drawn {
+    pub zoom: f32,
+    pub relaxed: bool,
+}
+
+/// What a browser does with a cell that is alone in its row and wider than the room its table
+/// has: its `width` is a wish, so the table is as wide as the room, not as the wish. Blitz holds
+/// the column to it, and a `<td width="960">` round a 480 px message pushes the message off
+/// centre and past the frame's edge. Written into a document ([`zoomed`]) only when such widths
+/// are what makes it wider than its frame ([`decide`]), so a table a sender sized to a wide pane
+/// with a cell is not narrowed to what that cell holds.
+const RELAXED: &str = "td:only-child, th:only-child { width: auto; }";
+
+/// How `frame`'s document is drawn for a person who asked for its text at `text` (the reader's
+/// text size, 1 for its own), given how it is `now`: at `text`, unless the document would then be
+/// wider than the frame (a newsletter laid out for 800 px, its tables and pictures fixed at that
+/// width, in a narrower pane), when it is the frame's width over the document's own, so a larger
+/// text size grows a page only until it fills the frame, and a pane widened while the page is
+/// still read lets it grow back. When the width is a cell's wish rather than what the page holds,
+/// the cells let go of it instead ([`RELAXED`]) and the page is read again. The document's width
+/// is read in its own pixels, whatever zoom it is drawn at now, so a read taken before a new
+/// zoom has landed asks for the same one. `None` when it is not laid out.
+fn fitting(frame: &MountedData, text: f32, now: Drawn) -> Option<Drawn> {
     let handle = frame.downcast::<NodeHandle>()?;
     let doc = handle.try_doc()?;
     let width = doc.get_node(handle.node_id())?.final_layout().size.width;
     let sub = doc.subdoc(handle.node_id())?;
     let inner = sub.inner();
-    let drawn = laid_width(&inner)?;
-    let own = inner
-        .root_element()
-        .primary_styles()
-        .map_or(drawn, |style| style.effective_zoom.unzoom(drawn));
+    let (boxes, held) = laid_width(&inner)?;
+    let unzoom = |drawn: f32| {
+        inner
+            .root_element()
+            .primary_styles()
+            .map_or(drawn, |style| style.effective_zoom.unzoom(drawn))
+    };
     if width <= 0.0 {
         return None;
     }
-    Some(fitted(own, width, text))
+    Some(decide(unzoom(boxes), unzoom(held), width, text, now))
+}
+
+/// [`fitting`]'s choice, from the widest box of the page (`boxes`) and the widest of what it holds
+/// (`held`, which leaves out the cells and tables sized by a wish), both in the page's own pixels.
+fn decide(boxes: f32, held: f32, width: f32, text: f32, now: Drawn) -> Drawn {
+    if !now.relaxed && boxes * text > width + 1.0 && held < boxes - 1.0 {
+        // Lay it out again with the cells let go before judging its width.
+        return Drawn {
+            zoom: text,
+            relaxed: true,
+        };
+    }
+    Drawn {
+        zoom: fitted(boxes, width, text),
+        relaxed: now.relaxed,
+    }
 }
 
 /// The zoom a document `own` pixels wide is drawn at in a frame `width` wide, its text asked for
@@ -81,13 +116,14 @@ fn fitted(own: f32, width: f32, text: f32) -> f32 {
     }
 }
 
-/// How wide `doc` is laid out, in its pixels as drawn: its widest box inside the frame's inset
+/// How wide `doc` is laid out, in its pixels as drawn, as its widest box and as the widest of
+/// what it holds ([`is_sized`] leaves out the boxes a wish sizes): its widest box inside the frame's inset
 /// (`mail_core::message`'s `mailo-inset`, the one element of `<body>`), and the insets of the
 /// body and the inset either side; a document with no inset, its widest box under `<body>`. The
 /// inset itself is a block as wide as the frame whatever it holds, so it is never the widest.
 /// Not where boxes end: Blitz starts a centred box that overflows at an offset that does not
 /// shrink with the zoom, where its width does. Read to a bound, as a page could be very large.
-fn laid_width(doc: &blitz_dom::BaseDocument) -> Option<f32> {
+fn laid_width(doc: &blitz_dom::BaseDocument) -> Option<(f32, f32)> {
     const BOXES: usize = 20_000;
     let root = doc.root_element();
     let body = child_named(doc, root, "body")?;
@@ -99,8 +135,9 @@ fn laid_width(doc: &blitz_dom::BaseDocument) -> Option<f32> {
                     .any(|name| name == "mailo-inset")
             })
     });
-    let insets = insets_of(body) + inset.map_or(0.0, insets_of);
+    let insets = insets_of(body, true) + inset.map_or(0.0, |inset| insets_of(inset, false));
     let mut widest = 0.0_f32;
+    let mut held = 0.0_f32;
     let mut stack: Vec<_> = inset.unwrap_or(body).children.to_vec();
     let mut seen = 0;
     while let Some(id) = stack.pop() {
@@ -115,10 +152,14 @@ fn laid_width(doc: &blitz_dom::BaseDocument) -> Option<f32> {
         else {
             continue;
         };
-        widest = widest.max(node.final_layout().size.width);
+        let wide = node.final_layout().size.width;
+        widest = widest.max(wide);
+        if is_sized(node) {
+            held = held.max(wide);
+        }
         stack.extend(node.children.iter().copied());
     }
-    Some(widest + insets)
+    Some((widest + insets, held + insets))
 }
 
 /// `parent`'s first child element named `name`.
@@ -137,41 +178,89 @@ fn child_named<'d>(
         })
 }
 
-/// `node`'s padding, border and margin, left and right together.
-fn insets_of(node: &blitz_dom::Node) -> f32 {
+/// Whether `node`'s own width says how wide the page is. A table's cells, rows and sections do not,
+/// and neither does a table with no width of its own: a browser sizes such a table to what it holds
+/// (at most the room it has) and takes a cell's `width` as a wish, not a floor, so a `<td
+/// width="960">` round a 480 px message is no 960 px page. Blitz draws that cell at 960, and its
+/// table with it, which is why they are left out here: what they hold is counted instead, and
+/// a table with a width of its own (`<table width="800">`, or a stylesheet's) still is.
+fn is_sized(node: &blitz_dom::Node) -> bool {
+    let Some(name) = node.element_data().map(|data| &*data.name.local) else {
+        return true;
+    };
+    match name {
+        "td" | "th" | "tr" | "tbody" | "thead" | "tfoot" | "colgroup" | "col" => false,
+        "table" => node
+            .primary_styles()
+            .is_none_or(|style| !style.get_position().width.is_auto()),
+        _ => true,
+    }
+}
+
+/// `node`'s padding, border and margin, left and right together; a margin the page left `auto`
+/// (a body of `margin: 0 auto` and a `max-width`, centred in the frame) is room around it, not
+/// width the page needs, so it is left out when `centred` allows.
+fn insets_of(node: &blitz_dom::Node, centred: bool) -> f32 {
     let outer = node.final_layout();
-    outer.padding.left
-        + outer.padding.right
-        + outer.border.left
-        + outer.border.right
-        + outer.margin.left
-        + outer.margin.right
+    let auto = |left: bool| {
+        centred
+            && node.primary_styles().is_some_and(|style| {
+                let margin = style.get_margin();
+                if left {
+                    margin.margin_left.is_auto()
+                } else {
+                    margin.margin_right.is_auto()
+                }
+            })
+    };
+    let margin = (if auto(true) { 0.0 } else { outer.margin.left })
+        + (if auto(false) { 0.0 } else { outer.margin.right });
+    outer.padding.left + outer.padding.right + outer.border.left + outer.border.right + margin
 }
 
 /// Keep `zoom` at the text size `text` where the page fits `frame`'s width, else at what fits,
 /// as Mail shrinks a message laid out wider than its pane rather than cut its right edge, while
 /// its pictures may still widen it.
-pub(super) fn shrink(frame: Rc<MountedData>, mut zoom: Signal<f32>, text: f32) -> Task {
+pub(super) fn shrink(
+    frame: Rc<MountedData>,
+    mut zoom: Signal<f32>,
+    mut relaxed: Signal<bool>,
+    text: f32,
+) -> Task {
     spawn(async move {
         for _ in 0..READS {
-            if let Some(next) = fitting(&frame, text)
-                && (next - *zoom.peek()).abs() >= 0.01
-            {
-                zoom.set(next);
+            let now = Drawn {
+                zoom: *zoom.peek(),
+                relaxed: *relaxed.peek(),
+            };
+            if let Some(next) = fitting(&frame, text, now) {
+                if next.relaxed != now.relaxed {
+                    relaxed.set(next.relaxed);
+                }
+                if (next.zoom - now.zoom).abs() >= 0.01 {
+                    zoom.set(next.zoom);
+                }
             }
             sleep(EVERY).await;
         }
     })
 }
 
-/// `html`, the frame's document, drawn at `zoom`: unchanged at 1.
-pub(super) fn zoomed(html: &str, zoom: f32) -> String {
-    if (zoom - 1.0).abs() < 0.001 {
+/// `html`, the frame's document, drawn at `zoom`, its lone cells let go of their widths when
+/// `relaxed`: unchanged at 1 and not relaxed.
+pub(super) fn zoomed(html: &str, zoom: f32, relaxed: bool) -> String {
+    let zoom = ((zoom - 1.0).abs() >= 0.001).then(|| format!("html {{ zoom: {zoom:.3}; }}"));
+    let rules: Vec<&str> = zoom
+        .as_deref()
+        .into_iter()
+        .chain(relaxed.then_some(RELAXED))
+        .collect();
+    if rules.is_empty() {
         return html.to_owned();
     }
     html.replacen(
         "</head>",
-        &format!("<style>html {{ zoom: {zoom:.3}; }}</style></head>"),
+        &format!("<style>{}</style></head>", rules.join(" ")),
         1,
     )
 }
@@ -192,20 +281,20 @@ pub(super) fn follow(frame: Rc<MountedData>, mut height: Signal<Option<f32>>) ->
 
 #[cfg(test)]
 mod tests {
-    use super::{LEAST, fitted, zoomed};
+    use super::{Drawn, LEAST, decide, fitted, zoomed};
 
     const PAGE: &str =
         "<!DOCTYPE html><html><head><style>p {}</style></head><body><p>Hi</p></body></html>";
 
     #[test]
     fn a_page_that_fits_is_its_own_size_and_a_wider_one_is_zoomed_after_its_sheets() {
-        assert_eq!(zoomed(PAGE, 1.0), PAGE);
+        assert_eq!(zoomed(PAGE, 1.0, false), PAGE);
         assert_eq!(
-            zoomed(PAGE, 0.6814),
+            zoomed(PAGE, 0.6814, false),
             "<!DOCTYPE html><html><head><style>p {}</style><style>html { zoom: 0.681; }</style>\
              </head><body><p>Hi</p></body></html>"
         );
-        assert!(zoomed(PAGE, 1.25).contains("<style>html { zoom: 1.250; }</style></head>"));
+        assert!(zoomed(PAGE, 1.25, false).contains("<style>html { zoom: 1.250; }</style></head>"));
     }
 
     /// The text size a person asked for, unless the page would then be wider than its frame:
@@ -226,5 +315,24 @@ mod tests {
             let got = fitted(own, width, text);
             assert!((got - want).abs() < 1e-4, "{case}: {got}");
         }
+    }
+
+    /// A cell's wish for width, not what the page holds, makes it wider than the frame: its cells
+    /// let go of it, and the page is judged again; what the page holds that is wider is shrunk.
+    #[test]
+    fn a_cell_s_wish_is_let_go_before_the_page_is_shrunk() {
+        let fresh = Drawn {
+            zoom: 1.0,
+            relaxed: false,
+        };
+        // 964 wide in boxes, 480 in what it holds, in a 700 frame.
+        let first = decide(964.0, 480.0, 700.0, 1.0, fresh);
+        assert_eq!((first.zoom, first.relaxed), (1.0, true));
+        // Laid out again, it is 480: the text size.
+        let then = decide(480.0, 480.0, 700.0, 1.0, first);
+        assert_eq!((then.zoom, then.relaxed), (1.0, true));
+        // Boxes as wide as what they hold (an 800 px table) are shrunk, not let go.
+        let wide = decide(836.0, 836.0, 700.0, 1.0, fresh);
+        assert!(!wide.relaxed && (wide.zoom - 700.0 / 836.0).abs() < 1e-4);
     }
 }
