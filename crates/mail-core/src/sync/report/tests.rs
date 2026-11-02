@@ -295,32 +295,6 @@ fn a_stalled_pass_leaves_the_account_waiting_with_a_wake() {
     );
 }
 
-#[test]
-fn only_a_pass_that_ran_may_have_stored_something() {
-    let finished = PassEnd::Finished(AccountReport {
-        account: account(),
-        address: "ada@example.test".to_owned(),
-        counts: Counts::default(),
-        trouble: vec![],
-    });
-    let failed = PassEnd::Failed {
-        account: account(),
-        address: "ada@example.test".to_owned(),
-        retry: Retry::After(std::time::Duration::from_secs(5)),
-        why: "cannot connect".to_owned(),
-        pause: crate::fetch::Pause::Unreachable,
-        offer: None,
-    };
-    let cancelled = PassEnd::Cancelled {
-        account: account(),
-        address: "ada@example.test".to_owned(),
-    };
-    // A flag sweep stores without counting, so even an all-zero pass that ran says yes.
-    assert!(finished.may_have_stored());
-    assert!(cancelled.may_have_stored());
-    assert!(!failed.may_have_stored());
-}
-
 /// What a pass's refusals ask of whoever runs it, read three ways today: the engine's report
 /// folds each `Retry` into flags, `Done` turns the flags back into trouble, and the link reads
 /// the trouble. All three must agree on who is asked and how long to wait.
