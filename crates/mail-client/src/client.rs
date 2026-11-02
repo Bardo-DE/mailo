@@ -29,7 +29,8 @@ use chrono::{DateTime, Utc};
 use mail_core::fetch::Event;
 use mail_core::mail::{Clock, SystemClock};
 use mail_domain::MailboxRef;
-use mail_store::{Committed, SqliteStore, Topics};
+use mail_runtime::Logged;
+use mail_store::{Checkpoint, Committed, SqliteStore, Topics};
 use parking_lot::{Condvar, Mutex};
 use porter_core::AccountId;
 use std::any::{Any, TypeId};
@@ -168,6 +169,10 @@ struct Registry {
     every: Vec<Weak<dyn Job>>,
 }
 
+/// How large the write-ahead log may be at start before it is cut down: the size the store
+/// caps it to once a checkpoint has run.
+const LOG_LARGE: u64 = 64 * 1024 * 1024;
+
 impl Client {
     /// The client over `store`, its threads started.
     pub fn open(store: Arc<SqliteStore>, config: ClientConfig) -> Client {
@@ -176,12 +181,9 @@ impl Client {
         let mut threads = Vec::new();
         for n in 0..readers(&shared.store) {
             let shared = shared.clone();
-            threads.push(spawn(&format!("mailo-read-{n}"), move || {
-                // These hold a reader for as long as a read takes: the last is left for threads
-                // that must not wait on one of them, the window's drawing first.
-                SqliteStore::mark_worker_thread();
-                shared.read();
-            }));
+            // These hold a reader for as long as a read takes, on the readers that are not kept
+            // for a thread that must not wait (`SqliteStore::reserve_reader_for_this_thread`).
+            threads.push(spawn(&format!("mailo-read-{n}"), move || shared.read()));
         }
         {
             let shared = shared.clone();
@@ -194,9 +196,23 @@ impl Client {
             threads.push(spawn("mailo-act", move || {
                 // Every command given is applied, even once the client is stopping: a change the
                 // person made is not dropped because the caller stopped the client after it.
+                // A job that panics leaves its ticket unanswered (what it held to answer with is
+                // dropped as it unwinds), which says it was not done, and the next job runs.
                 for job in asked {
-                    job(&shared.store);
+                    survive("a change", || job(&shared.store));
                 }
+            }));
+        }
+        // A log left large by an earlier run is cut down here, on a thread of the client's own
+        // rather than the caller's: `open` is called while the window is coming up, and a
+        // truncate waits for every reader to finish. The thread ends when it is done.
+        if shared.store.log_size() > LOG_LARGE {
+            let shared = shared.clone();
+            threads.push(spawn("mailo-log", move || {
+                shared
+                    .store
+                    .checkpoint(Checkpoint::Truncate)
+                    .or_log("the log could not be cut down at start");
             }));
         }
         threads.push(crate::clock::start(shared.clone()));
@@ -308,7 +324,9 @@ impl Client {
             });
             // A thread that has gone leaves the ticket unanswered, which says the command was
             // not done.
-            let _ = acts.send(job);
+            if acts.send(job).is_err() {
+                log::error!("a change was not made: the thread that makes them has stopped");
+            }
         }
         ticket
     }
@@ -520,12 +538,38 @@ impl Inner {
                 let _ = thread.join();
             }
         }
+        // What the last changes wrote is folded back into the database, once they have all been
+        // applied. Passive, because this runs on the quitting thread: it never waits on a reader
+        // something else still holds, and a log it leaves large is cut down at the next start.
+        self.shared
+            .store
+            .checkpoint(Checkpoint::Passive)
+            .or_log("the log could not be folded back at quit");
     }
 }
 
 /// How many threads read: one fewer than the store's readers, and at least one.
 fn readers(store: &SqliteStore) -> usize {
     store.reader_count().saturating_sub(1).max(1)
+}
+
+/// Run `work` for one of the client's threads, and say what it came to: `None` when it panicked,
+/// which is logged. A thread that lets a panic unwind is gone for good, and what it did for the
+/// client (applying the person's changes, hearing commits) stops without a word, so each pass of
+/// its loop is run through this and the next one goes on.
+pub(crate) fn survive<T>(what: &str, work: impl FnOnce() -> T) -> Option<T> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(work)) {
+        Ok(done) => Some(done),
+        Err(panicked) => {
+            let why = panicked
+                .downcast_ref::<&str>()
+                .map(|text| (*text).to_owned())
+                .or_else(|| panicked.downcast_ref::<String>().cloned())
+                .unwrap_or_else(|| "no reason given".to_owned());
+            log::error!("{what} panicked: {why}");
+            None
+        }
+    }
 }
 
 pub(crate) fn spawn(name: &str, run: impl FnOnce() + Send + 'static) -> JoinHandle<()> {
@@ -716,7 +760,7 @@ impl Shared {
                     Err(RecvTimeoutError::Disconnected) => return,
                 }
             }
-            self.invalidate(topics);
+            survive("marking what changed", || self.invalidate(topics));
         }
     }
 }
