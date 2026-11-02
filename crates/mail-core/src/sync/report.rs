@@ -11,11 +11,13 @@ use std::time::Duration;
 use mail_domain::{MessageId, Retry, Retryable};
 use mail_net::NetError;
 use mail_proto::ProtoError;
+use mail_runtime::pass::Verdict;
 use mail_runtime::{RuntimeError, SyncReport};
 use porter_core::AccountId;
 use tokio::sync::watch;
 
 use crate::fetch::Pause;
+pub use crate::fetch::Trouble;
 
 /// What one account's pass fetched and settled. [`SyncReport`] without its trouble, which is
 /// kept as [`Trouble`] so that each piece of it carries its decision.
@@ -38,20 +40,6 @@ pub struct Counts {
     pub ruled: Vec<(MessageId, Vec<String>)>,
     /// Arrived messages a rule asked to be told of, however quiet they would otherwise be.
     pub noted: Vec<MessageId>,
-}
-
-/// One thing that went wrong in a pass that otherwise ran, and what to do about it.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Trouble {
-    /// The mailbox it happened in. `None` for a step that belongs to the account, such as the
-    /// rules, the outbox or the folder list.
-    pub mailbox: Option<String>,
-    /// The decision: wait, ask the user to sign in, or give up on it.
-    pub retry: Retry,
-    /// What a person is told, as it has always been worded (the mailbox path is already in it
-    /// where there is one). `None` when the failure is classified but has nothing to add to a
-    /// line the same pass already said, such as an outbox that was refused its credential.
-    pub why: Option<String>,
 }
 
 /// What a pass found on one account that reached the server and ran.
@@ -288,24 +276,10 @@ impl Done {
 
     /// Record the refusals an engine's own report carries as flags.
     pub fn flags(&mut self, report: &SyncReport) {
-        if report.needs_reauth {
+        for retry in report.verdict.retries() {
             self.trouble.push(Trouble {
                 mailbox: None,
-                retry: Retry::NeedsReauth,
-                why: None,
-            });
-        }
-        if report.needs_grant {
-            self.trouble.push(Trouble {
-                mailbox: None,
-                retry: Retry::NeedsGrant,
-                why: None,
-            });
-        }
-        if let Some(wait) = report.hold {
-            self.trouble.push(Trouble {
-                mailbox: None,
-                retry: Retry::After(wait),
+                retry,
                 why: None,
             });
         }
@@ -355,13 +329,7 @@ pub(crate) fn needs_person(trouble: &[Trouble]) -> bool {
 
 /// The longest wait any of `trouble` asked for.
 pub(crate) fn hold(trouble: &[Trouble]) -> Option<Duration> {
-    trouble
-        .iter()
-        .filter_map(|t| match t.retry {
-            Retry::After(wait) => Some(wait),
-            _ => None,
-        })
-        .max()
+    Verdict::of(trouble.iter().map(|t| &t.retry)).hold
 }
 
 impl PassEnd {
@@ -369,18 +337,6 @@ impl PassEnd {
         match self {
             PassEnd::Finished(report) => report.account.clone(),
             PassEnd::Failed { account, .. } | PassEnd::Cancelled { account, .. } => account.clone(),
-        }
-    }
-
-    /// Whether the pass may have written to the store, so that a reader of it should look again.
-    ///
-    /// A pass that ran may have stored mail, flags or settled sends, and the counts do not say
-    /// all of that (a flag sweep is not counted), so any pass that ran says yes. One that could
-    /// not run at all stored nothing. A cancelled one may have stored part of what it began.
-    pub fn may_have_stored(&self) -> bool {
-        match self {
-            PassEnd::Finished(_) | PassEnd::Cancelled { .. } => true,
-            PassEnd::Failed { .. } => false,
         }
     }
 }

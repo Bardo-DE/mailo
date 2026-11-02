@@ -8,7 +8,7 @@ use crate::fixture::{IDENTITY, acct_account};
 use chrono::{DateTime, TimeDelta, TimeZone, Utc};
 use mail_domain::*;
 use mail_engine::AccountEngine;
-use mail_engine::engine::Schedule;
+use mail_engine::engine::Cadence;
 use mail_mime::posting;
 use mail_proto::{Backend, IoNeed, IoReady, Progress, ProtoOutcome};
 use mail_runtime::Woke;
@@ -220,9 +220,9 @@ async fn fixture(watch: WatchMode) -> Fixture {
         store.clone(),
         Arc::new(secrets),
     )
-    .with_schedule(Schedule {
+    .with_cadence(Cadence {
         outbox: Duration::from_millis(50),
-        ..Schedule::default()
+        ..Cadence::default()
     });
     Fixture {
         store,

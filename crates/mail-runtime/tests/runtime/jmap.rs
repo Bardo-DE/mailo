@@ -542,7 +542,7 @@ async fn a_refused_password_stops_the_pass_and_says_so() {
     s.engine = JmapEngine::new(acct_account(), plan, s.store.clone(), secrets).unwrap();
     let (_tx, mut cancel) = watch::channel(false);
     let report = whole(&mut s.engine, &mut cancel).await;
-    assert!(report.needs_reauth, "{report:?}");
+    assert!(report.verdict.reauth, "{report:?}");
 }
 
 /// "Delete forever" as the window does it: the deletion queued while the store still knows the
@@ -1239,7 +1239,7 @@ async fn a_jmap_send_the_server_cannot_take_now_stays_queued_and_holds_back_the_
     assert_eq!(report.outbox_settled, 0);
     assert!(report.needs_attention.is_empty(), "{report:?}");
     assert!(
-        report.hold.is_some(),
+        report.verdict.hold.is_some(),
         "the wait is the pass's too: {report:?}"
     );
     assert_eq!(waiting, ["first", "second"], "no row is lost");
