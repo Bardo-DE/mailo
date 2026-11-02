@@ -3,10 +3,10 @@
 use super::app::App;
 use super::fixtures::{dispatching, rebuild_into, seeded, work};
 use dioxus::prelude::*;
-use mail_core::SqliteStore;
+use mail_client::testing::SqliteStore;
 use std::sync::Arc;
 
-fn page_of(store: Arc<SqliteStore>, dirs: Option<crate::ui::appearance::WindowDirs>) -> String {
+fn page_of(store: Arc<SqliteStore>, dirs: Option<mail_ui_kit::appearance::WindowDirs>) -> String {
     let mut dom = VirtualDom::new(App).with_root_context(crate::ui::fixtures::client(&store));
     if let Some(dirs) = dirs {
         dom = dom.with_root_context(dirs);
@@ -80,14 +80,14 @@ async fn three_accounts_show_an_all_tile_and_the_microsoft_tile_filters() {
     assert!(
         page.contains(&format!(
             "aria-label=\"{}\"",
-            crate::ui::copy::aria::ADD_ACCOUNT
+            mail_ui_model::copy::aria::ADD_ACCOUNT
         )),
         "no +:\n{page}"
     );
 
     let tile = seen.one_in(
         "aria-label",
-        crate::ui::copy::aria::ACCOUNTS_IN_SPACE,
+        mail_ui_model::copy::aria::ACCOUNTS_IN_SPACE,
         "p.lai@corp.example",
     );
     let _ = super::fixtures::click(&mut dom, tile);
@@ -131,17 +131,19 @@ fn favourites_appear_once_a_conversation_is_pinned() {
     let (store, _dir) = seeded();
     let page = page_of(store.clone(), None);
     assert!(
-        !page.contains(crate::ui::copy::headers::FAVOURITES),
+        !page.contains(mail_ui_model::copy::headers::FAVOURITES),
         "Favourites with nothing pinned:\n{page}"
     );
     let hi = super::fixtures::thread_like(&store, "hi");
-    assert!(mail_core::snooze::pin(&store, hi, chrono::Utc::now()).unwrap_or(false));
+    assert!(
+        mail_client::testing::core::snooze::pin(&store, hi, chrono::Utc::now()).unwrap_or(false)
+    );
     let page = page_of(store.clone(), None);
     assert!(
-        page.contains(crate::ui::copy::headers::FAVOURITES),
+        page.contains(mail_ui_model::copy::headers::FAVOURITES),
         "no Favourites with a pinned conversation:\n{page}"
     );
-    let subject = mail_core::Store::thread(store.as_ref(), hi)
+    let subject = mail_client::testing::Store::thread(store.as_ref(), hi)
         .map(|thread| thread.summary.subject)
         .unwrap_or_default();
     assert!(
@@ -271,12 +273,12 @@ async fn follow(
 /// accounts, and not otherwise: not before one is scheduled, and not for another Space's.
 #[tokio::test]
 async fn scheduled_is_in_the_sidebar_only_while_a_send_waits_in_the_space() {
-    use mail_core::Store as _;
+    use mail_client::testing::Store as _;
     dispatching();
     let (store, _dir) = seeded();
     async fn sidebar(
-        store: &std::sync::Arc<mail_core::SqliteStore>,
-        spaces: crate::ui::space::Spaces,
+        store: &std::sync::Arc<mail_client::testing::SqliteStore>,
+        spaces: mail_ui_kit::space::Spaces,
     ) -> bool {
         let mut dom = VirtualDom::new(App)
             .with_root_context(crate::ui::fixtures::client(store))
@@ -300,7 +302,7 @@ async fn scheduled_is_in_the_sidebar_only_while_a_send_waits_in_the_space() {
     let mine = super::fixtures::acct_account();
     let theirs = mail_domain::id::new_account_id();
     let over = |account: &porter_core::AccountId| {
-        crate::ui::space::first_run(std::slice::from_ref(account))
+        mail_ui_kit::space::first_run(std::slice::from_ref(account))
     };
     assert!(
         !sidebar(&store, over(&mine)).await,
@@ -308,8 +310,15 @@ async fn scheduled_is_in_the_sidebar_only_while_a_send_waits_in_the_space() {
     );
 
     let now = chrono::Utc::now();
-    let draft = mail_core::compose::draft_new(&store, mine.clone(), &[], "Friday", "", now)
-        .unwrap_or_else(|why| panic!("{why}"));
+    let draft = mail_client::testing::core::compose::draft_new(
+        &store,
+        mine.clone(),
+        &[],
+        "Friday",
+        "",
+        now,
+    )
+    .unwrap_or_else(|why| panic!("{why}"));
     store
         .set_send_state(
             draft.id,
@@ -326,9 +335,9 @@ async fn scheduled_is_in_the_sidebar_only_while_a_send_waits_in_the_space() {
     // Another Space's: what the row is drawn from lists nothing there. Asked of the store, as
     // the window reaches a Space's accounts through effects whose order a test should not race.
     assert!(
-        crate::ui::compose::scheduled(
+        mail_ui_compose::compose::scheduled(
             &crate::ui::fixtures::client(&store),
-            &crate::ui::space::Scope::Accounts(vec![theirs])
+            &mail_ui_kit::space::Scope::Accounts(vec![theirs])
         )
         .is_empty(),
         "another Space's message would draw Scheduled"

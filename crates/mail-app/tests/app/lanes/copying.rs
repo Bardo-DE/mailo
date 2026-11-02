@@ -6,7 +6,7 @@
 use ds::base::press::PointerButton;
 use ds::prelude::{Point, Px};
 use ds_harness::Harness;
-use mail_ui::ui::copy;
+use mail_ui_model::copy;
 
 use super::drive::{Drive, Key, PRIMARY};
 use super::look::row;
@@ -14,7 +14,7 @@ use super::window::{Window, deliver, ms};
 
 /// A security notice laid out as a bulk sender's tool lays one out: `multipart/alternative`, its
 /// HTML a `<body style="margin:0;padding:0">` holding flush paragraphs and no centring table.
-const NOTICE: &str = include_str!("../../../../mail-core/tests/fixtures/flush-notice.eml");
+const NOTICE: &str = include_str!("../../../../mail-reader/tests/fixtures/flush-notice.eml");
 const NOTICE_SUBJECT: &str = "Please rotate a key you used";
 const PLAIN_SUBJECT: &str = "Plain words";
 /// The open message's frame.

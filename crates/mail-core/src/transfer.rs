@@ -1,10 +1,10 @@
-//! What the Import and Export sheets do, as functions of a store and a path.
+//! What Import and Export do, as functions of a store and a path.
 //!
 //! The work itself is [`crate::import`] and [`crate::export`], the same functions `mailo import`
 //! and `mailo export` run. This is what a front end asks while a person is still choosing: what a
 //! typed path holds ([`look`]), where imported mail can go ([`upload_folders`]), what an export
 //! would name its file ([`suggested`]) and how many messages a search means ([`selection_size`]).
-//! Every answer is a value; the sheet words it.
+//! Every answer is a value; the front end words it.
 
 use crate::error::CoreError;
 use crate::error::Logged;
@@ -166,6 +166,7 @@ pub fn upload_folders(store: &SqliteStore) -> Vec<Upload> {
 /// Nothing leaves here; sending the uploads is a sync's.
 pub fn import_into(
     store: &SqliteStore,
+    accounts: &mail_logic::accounts::Accounts,
     source: &Source,
     into: &Destination,
     now: DateTime<Utc>,
@@ -175,7 +176,7 @@ pub fn import_into(
         Destination::Local => Ok((import::into_local(store, source, now, progress)?, None)),
         Destination::Mailbox { account, folder } => {
             let (queued, total) =
-                import::queue_uploads(store, account, folder, source, now, progress)?;
+                import::queue_uploads(store, accounts, account, folder, source, now, progress)?;
             Ok((total, Some(queued)))
         }
     }

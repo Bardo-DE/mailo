@@ -3,15 +3,15 @@
 //! `launcher/unity.rs`.
 
 use chrono::{DateTime, TimeZone, Utc};
-use mail_app::session::unread;
+use mail_cli::session::unread;
 use mail_core::notify::Places;
-use mail_core::scope::Scope;
 use mail_core::snooze;
 use mail_core::{Arrival, absorb};
 use mail_core::{SqliteStore, Store};
 use mail_domain::id::account_id_from_uuid;
 use mail_domain::*;
-use mail_ui::launcher::Unread;
+use mail_logic::scope::Scope;
+use mail_os::launcher::Unread;
 use porter_core::AccountId;
 
 fn acct_work() -> AccountId {
@@ -55,7 +55,7 @@ fn seeded() -> (SqliteStore, tempfile::TempDir) {
     let dir = tempfile::tempdir().unwrap();
     let store = SqliteStore::in_memory(dir.path()).unwrap();
     for (account, address) in [(acct_work(), "me@work.test"), (acct_home(), "me@home.test")] {
-        mail_store::testing::seed_account(&store, account.clone(), address);
+        mail_core::fixtures::seed::seed_account(&store, account.clone(), address);
     }
     for id in ["w1", "w2", "w3"] {
         arrive(&store, acct_work(), id, "");
@@ -102,6 +102,7 @@ fn change(store: &SqliteStore, account: AccountId, change: Change) {
                 id: ChangeId::generate(),
                 changes: vec![change],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
 }

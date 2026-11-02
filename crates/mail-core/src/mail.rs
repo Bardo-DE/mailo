@@ -23,7 +23,7 @@
 use crate::environment::Environment;
 use crate::error::Logged;
 use chrono::{DateTime, Utc};
-use mail_runtime::{
+use mail_secrets::{
     AccountSecrets, ClientRegistry, KeyringSigningStore, SigningStore, platform_secrets,
 };
 use mail_store::SqliteStore;
@@ -74,14 +74,14 @@ impl Clock for FixedClock {
 /// A handle starts with none at hand ([`OAuthClients::default`]): every OAuth sign-in it starts
 /// stops at "needs a client id", and nothing reaches an issuer. The program hands it
 /// [`OAuthClients::here`], this installation's; a test hands it the clients it means to have
-/// (`mail_runtime::testing::fake_clients`), or none on purpose.
+/// (`mail_secrets::testing::fake_clients`), or none on purpose.
 #[derive(Debug, Clone)]
 pub enum OAuthClients {
     /// Exactly these.
     Given(ClientRegistry),
     /// Read from these files at each use, so a client a sign-in records, or one set up in porter's
     /// Settings while the program runs, is the next sign-in's and the next renewal's.
-    Files(mail_runtime::clients::Files),
+    Files(mail_secrets::clients::Files),
 }
 
 impl Default for OAuthClients {
@@ -96,7 +96,7 @@ impl OAuthClients {
     /// `oauth.json`. For the program's edge alone: a test that called it
     /// would sign in as mailo with whatever the machine it runs on has set up.
     pub fn here() -> Self {
-        OAuthClients::Files(mail_runtime::clients::Files::here())
+        OAuthClients::Files(mail_secrets::clients::Files::here())
     }
 
     /// The registry now. One that cannot be read is an error, never read as empty (that would
@@ -104,7 +104,7 @@ impl OAuthClients {
     pub fn load(&self) -> Result<ClientRegistry, crate::CoreError> {
         match self {
             OAuthClients::Given(clients) => Ok(clients.clone()),
-            OAuthClients::Files(files) => Ok(mail_runtime::clients::load(files)?),
+            OAuthClients::Files(files) => Ok(mail_secrets::clients::load(files)?),
         }
     }
 
@@ -127,7 +127,10 @@ pub struct Mail {
     clients: OAuthClients,
     clock: Arc<dyn Clock>,
     runtime: Handle,
-    junk: crate::junk::Policy,
+    junk: mail_logic::junk::Policy,
+    /// Where the person's syncing choices are kept ([`crate::offline`]); none, in a test, means
+    /// every account at the defaults.
+    config: Option<std::path::PathBuf>,
 }
 
 impl std::fmt::Debug for Mail {
@@ -151,19 +154,43 @@ impl Mail {
             clients: OAuthClients::default(),
             clock: Arc::new(SystemClock),
             runtime,
-            junk: crate::junk::Policy::default(),
+            junk: mail_logic::junk::Policy::default(),
+            config: None,
         }
     }
 
     /// With the junk filter behaving as `junk` says: the window's setting.
     #[must_use]
-    pub fn with_junk(mut self, junk: crate::junk::Policy) -> Self {
+    pub fn with_junk(mut self, junk: mail_logic::junk::Policy) -> Self {
         self.junk = junk;
         self
     }
 
+    /// With the person's syncing choices read from `offline.json` under `config`: the program's
+    /// config directory, which the edge knows and nothing below it asks for.
+    #[must_use]
+    pub fn with_config(mut self, config: Option<std::path::PathBuf>) -> Self {
+        self.config = config;
+        self
+    }
+
+    /// Where the person's syncing choices are kept, when the program said.
+    pub fn config_dir(&self) -> Option<&std::path::Path> {
+        self.config.as_deref()
+    }
+
+    /// The settings the accounts are read with, as they are on disk now.
+    pub fn settings(&self) -> mail_logic::accounts::Settings {
+        crate::gather::settings(self.config.as_deref(), self.junk)
+    }
+
+    /// Every account as a value, read now ([`crate::gather::accounts`]).
+    pub fn roster(&self) -> Result<mail_logic::accounts::Accounts, crate::CoreError> {
+        crate::gather::accounts(&self.store, &self.settings())
+    }
+
     /// How the junk filter behaves on what a sync brings.
-    pub fn junk(&self) -> crate::junk::Policy {
+    pub fn junk(&self) -> mail_logic::junk::Policy {
         self.junk
     }
 
@@ -367,15 +394,15 @@ mod tests {
         let none = ClientRegistry::default();
         assert_eq!(mail.clients().unwrap(), none);
         assert_eq!(mail.saved_clients(), none);
-        let fake = mail_runtime::testing::fake_clients();
+        let fake = mail_secrets::testing::fake_clients();
         let given = mail.clone().with_clients(fake.clone());
         assert_eq!(given.clients().unwrap(), fake);
         assert_eq!(given.saved_clients(), fake);
         // Files are read at each use, and a file that is not there is empty.
         let dir = tempfile::tempdir().unwrap();
-        let files = mail.with_oauth_clients(OAuthClients::Files(mail_runtime::clients::Files {
+        let files = mail.with_oauth_clients(OAuthClients::Files(mail_secrets::clients::Files {
             own: Some(dir.path().join("clients.toml")),
-            ..mail_runtime::clients::Files::default()
+            ..mail_secrets::clients::Files::default()
         }));
         assert_eq!(files.clients().unwrap(), none);
     }

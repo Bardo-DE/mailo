@@ -79,6 +79,7 @@ fn garbled_messages_held_whole_are_re_read_and_the_rest_are_left_alone() {
                         .map(|m| Change::MessageUpsert(Box::new(m.clone())))
                         .collect(),
                 },
+                chrono::Utc::now(),
             )
             .unwrap();
         (garbled.id, clean.id, headers_only.id)
@@ -96,7 +97,10 @@ fn garbled_messages_held_whole_are_re_read_and_the_rest_are_left_alone() {
         "only the garbled message whose bytes are here"
     );
 
-    assert_eq!(mail_runtime::reparse_queued(&store).unwrap(), 1);
+    assert_eq!(
+        mail_runtime::reparse_queued(&store, chrono::Utc::now()).unwrap(),
+        1
+    );
     let fixed = store.message(garbled).unwrap();
     assert_eq!(fixed.subject, "关于下周项目会议的安排");
     assert_eq!(fixed.from.name.as_deref(), Some("王小明"));
@@ -118,5 +122,8 @@ fn garbled_messages_held_whole_are_re_read_and_the_rest_are_left_alone() {
         "rewritten when its body arrives, not before"
     );
     assert!(store.reparse_queue().unwrap().is_empty(), "done once");
-    assert_eq!(mail_runtime::reparse_queued(&store).unwrap(), 0);
+    assert_eq!(
+        mail_runtime::reparse_queued(&store, chrono::Utc::now()).unwrap(),
+        0
+    );
 }

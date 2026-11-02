@@ -8,12 +8,12 @@
 //! runs no script, so there is no keep-focus script, no "nothing mounted" note and no debug probe.
 
 use super::{Opening, Shell, ShellRoot};
-use crate::ui::appearance::WindowDirs;
-use crate::ui::original::Original;
-use crate::ui::space::Spaces;
-use crate::ui::view::Appearance;
 use dioxus::prelude::*;
 use ds_blitz::{AppConfig, AppId, RootContexts};
+use mail_ui_kit::appearance::WindowDirs;
+use mail_ui_kit::original::Original;
+use mail_ui_kit::space::Spaces;
+use mail_ui_kit::view::Appearance;
 
 /// The main window's title, which the system's window lists show.
 const TITLE: &str = "mailo";
@@ -43,28 +43,28 @@ pub(super) fn run(opening: Opening) -> Result<(), ds_blitz::LaunchError> {
         found,
     } = opening;
     // What earlier runs' Open left in the temporary folder, cleared off the thread that draws.
-    std::thread::spawn(crate::ui::reading::sweep_left_open);
+    std::thread::spawn(mail_ui_reader::reading::sweep_left_open);
     // Where the settings are, for what the quit removes.
     let quit_root = dirs
         .as_ref()
-        .and_then(crate::ui::prefs::root_of)
-        .or_else(crate::settings::person_root);
+        .and_then(mail_ui_kit::prefs::root_of)
+        .or_else(mail_ui_model::settings::person_root);
     // Whether they are on is asked as each is said (`follow_up::speaking`), so Settings' switch
     // takes effect without a restart.
     // Which mailboxes, which sound and which accounts are muted are read as well, for the same
     // reason (`settings::Notices`).
     let notices = dirs.as_ref().map(|dirs| {
-        let desktop = mail_client::notify::desktop::Desktop::connect_in_window();
-        crate::ui::follow_up::Notices(std::sync::Arc::new(crate::settings::Notices::new(
+        let desktop = mail_os::desktop::connect_in_window();
+        mail_ui_kit::notices::Notices(std::sync::Arc::new(mail_ui_model::settings::Notices::new(
             Box::new(move |notification, sound| desktop.show_with(notification, sound)),
-            crate::ui::prefs::root_of(dirs),
+            mail_ui_kit::prefs::root_of(dirs),
         )))
     });
     // And the login item's switch, read as the window opens.
     let while_quit = dirs
         .as_ref()
-        .and_then(crate::ui::prefs::root_of)
-        .map(|root| crate::settings::load(&root).sync.while_quit);
+        .and_then(mail_ui_kit::prefs::root_of)
+        .map(|root| mail_ui_model::settings::load(&root).sync.while_quit);
     // The one client every window reads mail through, reaching the servers as the program does.
     let super::Program {
         client,
@@ -76,16 +76,15 @@ pub(super) fn run(opening: Opening) -> Result<(), ds_blitz::LaunchError> {
     // real ones, here and only here. A test's root (`contexts`) has none of them, and a window
     // without one reaches nothing (`add_account::DirectSignIns`, `pgp::seams`, Settings'
     // account page): no browser, no issuer, no keyring, no dialog.
-    let sign_ins =
-        crate::ui::add_account::DirectSignIns::real(client.clone(), client.net().oauth_clients());
-    let keys = crate::ui::pgp::Seams::real(&client);
-    let removals = crate::ui::settings_window::AccountSeams::real(&client);
+    let sign_ins = crate::ui::add_account::DirectSignIns::real(client.clone());
+    let keys = mail_ui_kit::pgp::Seams::real(&client);
+    let removals = crate::ui::settings::AccountSeams::real();
     // The keys the person chose, as the windows open: quire lays them over the system's keymap
     // for every window, so they are the keymap's own chords. A change made in Settings reaches
     // the running windows through `Keys::set_overrides` (`frame::use_followed_configuration`).
     let chosen = dirs
         .as_ref()
-        .map(|dirs| crate::ui::keymap::load(&dirs.config).overrides());
+        .map(|dirs| mail_ui_kit::keymap::load(&dirs.config).overrides());
     // How the app opens its main window again, from a thread that is not the window's.
     let app = ds_blitz::AppHandle::new();
     let stays = resident.stays;
@@ -118,11 +117,11 @@ pub(super) fn run(opening: Opening) -> Result<(), ds_blitz::LaunchError> {
         .with_context(icons)
         .with_context(found)
         // The count of the configuration files a window writes (key bindings, Spaces).
-        .with_context(crate::ui::configured::Configured::default())
+        .with_context(mail_ui_kit::configured::Configured::default())
         // And the page the Settings window shows next, which ⌘K and the composer turn it to.
-        .with_context(crate::ui::settings_window::SettingsAsked::default())
+        .with_context(mail_ui_kit::settings_at::SettingsAsked::default())
         // And who needs to sign in again, which only the first window knows and Settings shows.
-        .with_context(crate::ui::fetching::Needing::default());
+        .with_context(mail_ui_kit::need::Needing::default());
     let config = match chosen {
         Some(chosen) => config.with_keymap_overrides(chosen),
         None => config,
@@ -137,7 +136,7 @@ pub(super) fn run(opening: Opening) -> Result<(), ds_blitz::LaunchError> {
     // closes, which a dock would otherwise forget along with this window's connection. On macOS
     // the Dock tile is the app's, and the app is the one voice, on a thread of its own, whether
     // a window is open or not and whoever watches: no other process can badge it.
-    let config = match crate::launcher::platform() {
+    let config = match mail_os::launcher::platform() {
         Some(launcher) if stays => {
             if let Some(keep) = &resident.keep_badge {
                 keep(launcher.0);
@@ -153,17 +152,15 @@ pub(super) fn run(opening: Opening) -> Result<(), ds_blitz::LaunchError> {
     // the launched app has one; a test's window has none, so no test registers a login item.
     // Handed the switch as it stands once now, so an item made by a mailo since moved names the
     // program where it is.
-    let config = match crate::login_item::platform() {
+    let config = match mail_os::login_item::platform() {
         Some(items) => {
-            if while_quit == Some(crate::settings::WhileQuit::On) {
+            if while_quit == Some(mail_ui_model::settings::WhileQuit::On) {
                 let kept = items.clone();
                 // Off the thread that draws: `launchctl` and SMAppService take their time.
                 let started = std::thread::Builder::new()
                     .name("mailo-login-item".to_owned())
                     .spawn(move || {
-                        if let Err(why) =
-                            crate::login_item::apply(&*kept.0, crate::settings::WhileQuit::On)
-                        {
+                        if let Err(why) = mail_os::login_item::apply(&*kept.0, true) {
                             log::warn!("mail is not checked at login: {why}");
                         }
                     });
@@ -177,7 +174,7 @@ pub(super) fn run(opening: Opening) -> Result<(), ds_blitz::LaunchError> {
     };
     // Which application opens email links, and the system's question to make it mailo. Only an
     // installed mailo.app has one; a test's window has none, so no test changes the real handler.
-    let config = match crate::mail_handler::platform() {
+    let config = match mail_os::mail_handler::platform() {
         Some(handlers) => config.with_context(handlers),
         None => config,
     };
@@ -214,8 +211,10 @@ pub(super) fn run(opening: Opening) -> Result<(), ds_blitz::LaunchError> {
 /// No settings to ask, nothing removed.
 fn clean_up_at_quit(root: Option<&ds_settings::ConfigRoot>) {
     if let Some(root) = root {
-        crate::ui::downloads::unedited::remove_on_quit(
-            crate::settings::load(root).attachments.remove_unedited,
+        mail_ui_kit::downloads::unedited::remove_on_quit(
+            mail_ui_model::settings::load(root)
+                .attachments
+                .remove_unedited,
         );
     }
 }
@@ -223,8 +222,8 @@ fn clean_up_at_quit(root: Option<&ds_settings::ConfigRoot>) {
 #[cfg(test)]
 mod quit_tests {
     use super::clean_up_at_quit;
-    use crate::settings::RemoveUnedited;
-    use crate::ui::downloads::unedited;
+    use mail_ui_kit::downloads::unedited;
+    use mail_ui_model::settings::RemoveUnedited;
 
     /// The quit asks the settings under its root, and removes the recorded copies only under When
     /// Mailo Quits; with no settings to ask it removes nothing.
@@ -238,7 +237,7 @@ mod quit_tests {
         std::fs::create_dir_all(&root).expect("Open's folder");
         let config = scratch.path().join("config");
         std::fs::create_dir_all(&config).expect("the config folder");
-        let settings = crate::settings::root_for(&config);
+        let settings = mail_ui_model::settings::root_for(&config);
         let copy = root.join("plans.txt");
         std::fs::write(&copy, b"plans").expect("a copy");
         unedited::record(&root, &copy, mail_domain::MessageId::generate());
@@ -246,12 +245,14 @@ mod quit_tests {
         clean_up_at_quit(None);
         assert!(copy.exists(), "removed with no settings to ask");
         for setting in [RemoveUnedited::Never, RemoveUnedited::AfterMessageIsDeleted] {
-            crate::settings::change(&settings, |all| all.attachments.remove_unedited = setting)
-                .expect("the setting is written");
+            mail_ui_model::settings::change(&settings, |all| {
+                all.attachments.remove_unedited = setting
+            })
+            .expect("the setting is written");
             clean_up_at_quit(Some(&settings));
             assert!(copy.exists(), "removed at quit under {setting:?}");
         }
-        crate::settings::change(&settings, |all| {
+        mail_ui_model::settings::change(&settings, |all| {
             all.attachments.remove_unedited = RemoveUnedited::WhenMailoQuits;
         })
         .expect("the setting is written");
@@ -286,7 +287,7 @@ pub fn contexts(
         spaces,
         dirs,
         start,
-        crate::ui::fetching::Passer::idle().0,
+        mail_ui_kit::fetching::Passer::idle().0,
     )
 }
 
@@ -301,7 +302,7 @@ pub fn contexts_passing(
     start: crate::ui::ask::Open,
     pass: mail_client::fetch::Pass,
 ) -> RootContexts {
-    window_contexts(client, look, spaces, dirs, start).with(crate::ui::fetching::Passer(pass))
+    window_contexts(client, look, spaces, dirs, start).with(mail_ui_kit::fetching::Passer(pass))
 }
 
 /// [`contexts`] as the launched window has them: its passes go to the servers.
@@ -312,7 +313,7 @@ fn window_contexts(
     dirs: Option<WindowDirs>,
     start: crate::ui::ask::Open,
 ) -> RootContexts {
-    let looks = crate::ui::reading::looks();
+    let looks = mail_ui_kit::cache::looks();
     // The accounts and saved views read before the first window asks, so its first frame has its
     // places: kept for as long as the windows are, by their root.
     let primed = Primed {
@@ -331,7 +332,7 @@ fn window_contexts(
         .with(start)
         // The one cache of rendered bodies every reader and the warming share, and the one set
         // of per-message lookups they and the opened bodies come from.
-        .with(crate::ui::reading::frames(looks.clone()))
+        .with(mail_ui_kit::cache::frames(looks.clone()))
         .with(looks);
     if let Some(spaces) = spaces {
         contexts = contexts.with(spaces);

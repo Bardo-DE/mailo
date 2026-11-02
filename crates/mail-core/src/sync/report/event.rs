@@ -5,7 +5,7 @@
 //! Everything that turns one into the other is here, where a table can test it, and the window's
 //! runner only moves the results.
 
-use super::{PassEnd, Progress, Trouble as Found, hold, person_asked};
+use super::{PassEnd, Progress, hold, person_asked};
 use crate::fetch::{Count, Event, Pause, Step, Trouble};
 use mail_domain::Retry;
 use porter_core::AccountId;
@@ -44,38 +44,13 @@ fn stepped(progress: Progress) -> Event {
     Event::Stepped(step, count)
 }
 
-/// What a folder's failure says to a person, when the pass worded none: a classified failure
-/// has nothing to add to a line the same pass already said, but the link keeps one per folder.
-fn said(retry: &Retry, why: Option<&String>) -> String {
-    match (why, retry) {
-        (Some(why), _) => why.clone(),
-        (None, Retry::NeedsReauth) => "The sign-in was refused".to_owned(),
-        (None, Retry::NeedsGrant) => "Mail is no longer allowed to use this account".to_owned(),
-        (None, Retry::After(_)) => "The server asked to wait".to_owned(),
-        (None, Retry::Now) => "The connection dropped".to_owned(),
-        (None, Retry::Fatal(why)) => why.clone(),
-    }
-}
-
-/// A pass's trouble as the link keeps it.
-fn troubles(found: &[Found]) -> Vec<Trouble> {
-    found
-        .iter()
-        .map(|t| Trouble {
-            mailbox: t.mailbox.clone(),
-            retry: t.retry.clone(),
-            why: said(&t.retry, t.why.as_ref()),
-        })
-        .collect()
-}
-
 fn ended(end: PassEnd) -> Event {
     match end {
         PassEnd::Finished(report) => {
             if let Some(asked) = person_asked(&report.trouble) {
                 return Event::Failed {
                     retry: asked.retry.clone(),
-                    why: said(&asked.retry, asked.why.as_ref()),
+                    why: asked.said(),
                     pause: Pause::ServerBusy,
                 };
             }
@@ -86,7 +61,7 @@ fn ended(end: PassEnd) -> Event {
                     pause: Pause::Throttled,
                 },
                 None => Event::Finished {
-                    trouble: troubles(&report.trouble),
+                    trouble: report.trouble.into_iter().map(Trouble::worded).collect(),
                 },
             }
         }

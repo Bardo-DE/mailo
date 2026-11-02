@@ -70,7 +70,7 @@ fn a_sync_writing_while_the_window_reads_does_not_deadlock() {
         let (store, stop, reads) = (store.clone(), stop.clone(), reads.clone());
         std::thread::spawn(move || {
             while !stop.load(Ordering::SeqCst) {
-                // Exactly what the list pane does, plus what a badge does.
+                // Exactly what the list does, plus what a badge does.
                 let _ = store.threads(&query(Filter::All, 50), at(0)).unwrap();
                 let _ = store.count(&Filter::All, at(0)).unwrap();
                 reads.fetch_add(1, Ordering::SeqCst);
@@ -83,7 +83,11 @@ fn a_sync_writing_while_the_window_reads_does_not_deadlock() {
         std::thread::spawn(move || {
             for b in 0..20 {
                 store
-                    .ingest(acct_account(), ingest_of(&store, b * 50, 50))
+                    .ingest(
+                        acct_account(),
+                        ingest_of(&store, b * 50, 50),
+                        chrono::Utc::now(),
+                    )
                     .unwrap();
             }
         })
@@ -115,7 +119,11 @@ fn a_reader_is_not_starved_by_a_writer() {
     // window that stops repainting for the length of a sync.
     let store = store();
     store
-        .ingest(acct_account(), ingest_of(&store, 0, 200))
+        .ingest(
+            acct_account(),
+            ingest_of(&store, 0, 200),
+            chrono::Utc::now(),
+        )
         .unwrap();
 
     let stop = Arc::new(AtomicBool::new(false));
@@ -135,7 +143,11 @@ fn a_reader_is_not_starved_by_a_writer() {
         std::thread::spawn(move || {
             for b in 1..10 {
                 store
-                    .ingest(acct_account(), ingest_of(&store, b * 200, 200))
+                    .ingest(
+                        acct_account(),
+                        ingest_of(&store, b * 200, 200),
+                        chrono::Utc::now(),
+                    )
                     .unwrap();
             }
         })
@@ -159,7 +171,11 @@ fn two_writers_do_not_corrupt_the_mailbox() {
         std::thread::spawn(move || {
             for b in 0..10 {
                 store
-                    .ingest(acct_account(), ingest_of(&store, b * 20, 20))
+                    .ingest(
+                        acct_account(),
+                        ingest_of(&store, b * 20, 20),
+                        chrono::Utc::now(),
+                    )
                     .unwrap();
             }
         })
@@ -169,7 +185,11 @@ fn two_writers_do_not_corrupt_the_mailbox() {
         std::thread::spawn(move || {
             for b in 0..10 {
                 store
-                    .ingest(acct_account(), ingest_of(&store, 1_000 + b * 20, 20))
+                    .ingest(
+                        acct_account(),
+                        ingest_of(&store, 1_000 + b * 20, 20),
+                        chrono::Utc::now(),
+                    )
                     .unwrap();
             }
         })
@@ -279,6 +299,7 @@ mod a_reader_that_is_not_the_writer {
                     provider_threads: Vec::new(),
                     gone: vec![],
                 },
+                chrono::Utc::now(),
             )
             .unwrap();
 
@@ -489,7 +510,7 @@ mod a_reader_that_is_not_the_writer {
         // through the writer waited for whatever batch a sync was committing.
         let (store, _dir) = on_disk();
         store
-            .ingest(acct_account(), ingest_of(&store, 0, 1))
+            .ingest(acct_account(), ingest_of(&store, 0, 1), chrono::Utc::now())
             .unwrap();
         let listed = store.threads(&query(Filter::All, 1), Utc::now()).unwrap();
         let thread = listed.items[0].id;
@@ -554,7 +575,7 @@ mod a_reader_that_is_not_the_writer {
         // writer, sees what that write has not committed yet.
         let (store, _dir) = on_disk();
         store
-            .ingest(acct_account(), ingest_of(&store, 0, 1))
+            .ingest(acct_account(), ingest_of(&store, 0, 1), chrono::Utc::now())
             .unwrap();
         let db = store.raw_connection();
         db.execute_batch(
@@ -574,10 +595,11 @@ mod a_reader_that_is_not_the_writer {
     }
 }
 
-/// A worker's pinned read does not keep the thread that draws from reading: workers stay off the
-/// last reader, which every other thread waits on, however long a worker holds its own.
+/// No other thread's read keeps the thread the last reader is kept for from reading: not the
+/// client's workers holding a snapshot each, and not a sync pass reading while they do, which
+/// waits for one of theirs rather than taking the kept one.
 #[test]
-fn the_drawing_thread_never_waits_on_a_workers_pinned_read() {
+fn the_thread_the_last_reader_is_kept_for_never_waits_on_another_s_read() {
     use std::sync::mpsc::channel;
     let dir = tempfile::tempdir().unwrap();
     let store = Arc::new(SqliteStore::open(dir.path().join("mail.db"), dir.path()).unwrap());
@@ -591,7 +613,6 @@ fn the_drawing_thread_never_waits_on_a_workers_pinned_read() {
         .map(|_| {
             let (store, pinned, released) = (store.clone(), pinned.clone(), released.clone());
             std::thread::spawn(move || {
-                SqliteStore::mark_worker_thread();
                 store
                     .read_pinned(|| {
                         let _ = store.count(&Filter::All, at(0)).unwrap();
@@ -607,47 +628,43 @@ fn the_drawing_thread_never_waits_on_a_workers_pinned_read() {
         pinned_rx.recv_timeout(Duration::from_secs(5)).unwrap();
     }
 
-    // Another thread holds the last reader a moment, as a sync pass reads; the drawing thread
-    // arrives while it does and must wait for that, and for nothing else.
-    let (holding, holding_rx) = channel::<()>();
+    // A sync pass reads while every worker holds its reader, and holds what it gets.
     let (let_go, let_go_rx) = channel::<()>();
-    let other = {
+    let syncing = {
         let store = store.clone();
         std::thread::spawn(move || {
             store
                 .read_pinned(|| {
-                    holding.send(()).unwrap();
+                    let _ = store.count(&Filter::All, at(0)).unwrap();
                     let _ = let_go_rx.recv();
                 })
                 .unwrap();
         })
     };
-    holding_rx.recv_timeout(Duration::from_secs(5)).unwrap();
-    let (drew, drew_rx) = channel::<u64>();
-    let drawing = {
+    std::thread::sleep(Duration::from_millis(100));
+
+    let (read, read_rx) = channel::<u64>();
+    let kept = {
         let store = store.clone();
         std::thread::spawn(move || {
-            drew.send(store.count(&Filter::All, at(0)).unwrap())
+            SqliteStore::reserve_reader_for_this_thread();
+            read.send(store.count(&Filter::All, at(0)).unwrap())
                 .unwrap();
         })
     };
-    std::thread::sleep(Duration::from_millis(100));
-    let_go.send(()).unwrap();
-    let counted = drew_rx.recv_timeout(Duration::from_secs(5));
+    // Asked while every other read still holds its reader.
+    let counted = read_rx.recv_timeout(Duration::from_secs(5));
 
     for _ in &workers {
         let _ = release.send(());
     }
+    let _ = let_go.send(());
     for worker in workers {
         worker.join().unwrap();
     }
-    other.join().unwrap();
-    drawing.join().unwrap();
-    assert_eq!(
-        counted,
-        Ok(0),
-        "the read waited on a worker's pinned reader"
-    );
+    syncing.join().unwrap();
+    kept.join().unwrap();
+    assert_eq!(counted, Ok(0), "the read waited on another thread's reader");
 }
 
 /// An ingest larger than one chunk.
@@ -681,7 +698,9 @@ mod an_ingest_in_chunks {
             .iter()
             .map(|m| (m.remote.clone(), ReadState::Read, Star::Starred))
             .collect();
-        let patch = store.ingest(acct_account(), batch).unwrap();
+        let patch = store
+            .ingest(acct_account(), batch, chrono::Utc::now())
+            .unwrap();
 
         let total = total as u64;
         let chunk = INGEST_CHUNK as u64;
@@ -723,7 +742,9 @@ mod an_ingest_in_chunks {
                 .unwrap();
         });
         let batch = ingest_of(&store, 0, (INGEST_CHUNK + 50) as i64);
-        let error = store.ingest(acct_account(), batch).unwrap_err();
+        let error = store
+            .ingest(acct_account(), batch, chrono::Utc::now())
+            .unwrap_err();
         let written = error.written().expect("the error carries what was written");
         let upserts = written
             .changes
@@ -753,7 +774,9 @@ mod an_ingest_in_chunks {
         let total = INGEST_CHUNK + 50;
         let mut batch = ingest_of(&store, 0, total as i64);
         batch.validity = mail_domain::UidValidity::Reset;
-        store.ingest(acct_account(), batch).unwrap();
+        store
+            .ingest(acct_account(), batch, chrono::Utc::now())
+            .unwrap();
         assert_eq!(*seen.lock().unwrap(), vec![(total as u64, false)]);
     }
 
@@ -767,6 +790,7 @@ mod an_ingest_in_chunks {
                     cursor: Some(SyncCursor::Pop),
                     ..ingest("INBOX")
                 },
+                chrono::Utc::now(),
             )
             .unwrap();
         assert_eq!(
@@ -787,7 +811,7 @@ mod an_ingest_in_chunks {
 /// is the writer's own door.
 #[test]
 fn a_store_function_that_only_reads_never_takes_the_writer() {
-    const WRITES: [&str; 14] = [
+    const WRITES: [&str; 17] = [
         "INSERT ",
         "UPDATE ",
         "DELETE ",
@@ -799,8 +823,11 @@ fn a_store_function_that_only_reads_never_takes_the_writer() {
         ".execute",
         "execute_batch",
         "transaction(",
+        "new_unchecked(",
+        "settle_in(",
         ".touch(",
         "write_change",
+        "write_label",
         "VACUUM",
     ];
     let is_fn = |line: &str| {

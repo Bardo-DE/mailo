@@ -4,7 +4,7 @@
 //! show) and the few plain writes it makes by hand. What is drawn and must keep up with the store is
 //! a query ([`crate::Query`]) instead, read off the caller's thread and read again as it moves.
 
-use crate::Client;
+use crate::{CallError, Client};
 use chrono::{DateTime, Utc};
 use mail_domain::{
     CertFingerprint, Draft, DraftId, Filter, Fingerprint, Folder, InviteAnswer, Label, LabelId,
@@ -12,7 +12,7 @@ use mail_domain::{
     ThreadId, ThreadSummary, Vacation, View, ViewId,
 };
 use mail_store::{
-    Blobs, Contact, Group, GroupId, Offline, Origin, OutboxEntry, SenderRecord, Store, StoreError,
+    Blobs, Contact, Group, GroupId, Offline, Origin, OutboxEntry, SenderRecord, Store,
     StoredAccount,
 };
 use porter_core::AccountId;
@@ -38,66 +38,77 @@ impl Client {
     }
 
     /// What a search reads ([`mail_core::search::run`]).
-    pub fn source(&self) -> &dyn mail_core::search::Source {
-        self.store()
+    pub fn source(&self) -> mail_core::search::StoreSource<'_, mail_store::SqliteStore> {
+        mail_core::search::StoreSource(self.store())
     }
 }
 
 impl Stored<'_> {
-    pub fn identities(&self, account: AccountId) -> Result<Vec<mail_domain::Identity>, StoreError> {
-        self.0.store().identities(account)
+    /// The blob holding attachment `index` of `message` decoded, made from the message's own
+    /// bytes when it is not kept apart (`mail_core::attach::blob_of`). May decode a whole
+    /// message, so it is called where a read is, not where a frame is drawn.
+    pub fn attachment_blob(
+        &self,
+        message: &Message,
+        index: usize,
+    ) -> Result<mail_domain::BlobId, CallError> {
+        mail_core::attach::blob_of(self.0.store(), message, index).map_err(CallError::from)
+    }
+
+    pub fn identities(&self, account: AccountId) -> Result<Vec<mail_domain::Identity>, CallError> {
+        self.0.store().identities(account).map_err(CallError::from)
     }
 
     pub fn identity(
         &self,
         id: mail_domain::IdentityId,
-    ) -> Result<Option<mail_domain::Identity>, StoreError> {
-        self.0.store().identity(id)
+    ) -> Result<Option<mail_domain::Identity>, CallError> {
+        self.0.store().identity(id).map_err(CallError::from)
     }
 
-    pub fn account_prefs(
-        &self,
-        account: AccountId,
-    ) -> Result<mail_store::AccountPrefs, StoreError> {
-        self.0.store().account_prefs(account)
+    pub fn account_prefs(&self, account: AccountId) -> Result<mail_store::AccountPrefs, CallError> {
+        self.0
+            .store()
+            .account_prefs(account)
+            .map_err(CallError::from)
     }
 
     pub fn signature(
         &self,
         id: mail_domain::SignatureId,
-    ) -> Result<mail_domain::Signature, StoreError> {
-        self.0.store().signature(id)
+    ) -> Result<mail_domain::Signature, CallError> {
+        self.0.store().signature(id).map_err(CallError::from)
     }
 
-    pub fn followed_folders(&self) -> Result<Vec<mail_domain::MailboxRef>, StoreError> {
-        self.0.store().followed_folders()
+    pub fn followed_folders(&self) -> Result<Vec<mail_domain::MailboxRef>, CallError> {
+        self.0.store().followed_folders().map_err(CallError::from)
     }
 
     pub fn card(
         &self,
         id: &mail_store::CardId,
-    ) -> Result<Option<mail_store::PersonCard>, StoreError> {
-        self.0.store().card(id)
+    ) -> Result<Option<mail_store::PersonCard>, CallError> {
+        self.0.store().card(id).map_err(CallError::from)
     }
 
-    pub fn card_of(&self, address: &str) -> Result<Option<mail_store::PersonCard>, StoreError> {
-        self.0.store().card_of(address)
+    pub fn card_of(&self, address: &str) -> Result<Option<mail_store::PersonCard>, CallError> {
+        self.0.store().card_of(address).map_err(CallError::from)
     }
 
-    pub fn cards(&self) -> Result<Vec<mail_store::PersonCard>, StoreError> {
-        self.0.store().cards()
+    pub fn cards(&self) -> Result<Vec<mail_store::PersonCard>, CallError> {
+        self.0.store().cards().map_err(CallError::from)
     }
 
-    pub fn account(&self, id: AccountId) -> Result<Option<StoredAccount>, StoreError> {
-        self.0.store().account(id)
+    pub fn account(&self, id: AccountId) -> Result<Option<StoredAccount>, CallError> {
+        self.0.store().account(id).map_err(CallError::from)
     }
 
-    pub fn list_accounts(&self) -> Result<Vec<StoredAccount>, StoreError> {
-        self.0.store().list_accounts()
+    pub fn list_accounts(&self) -> Result<Vec<StoredAccount>, CallError> {
+        self.0.store().list_accounts().map_err(CallError::from)
     }
 
-    pub fn sender_history(&self) -> Result<Vec<SenderRecord>, StoreError> {
-        self.0.store().sender_history()
+    pub fn sender_history(&self) -> Result<Vec<SenderRecord>, CallError> {
+        self.0.store().sender_history().map_err(CallError::from)
     }
 
     /// What the account's server was last seen to support ([`mail_core::act::caps_here`]).
@@ -110,13 +121,21 @@ impl Stored<'_> {
         mail_core::sync::fresh::Pace::of(self.0.store(), account)
     }
 
-    pub fn folders(&self, account: AccountId) -> Result<Vec<Folder>, StoreError> {
-        self.0.store().folders(account)
+    pub fn folders(&self, account: AccountId) -> Result<Vec<Folder>, CallError> {
+        self.0.store().folders(account).map_err(CallError::from)
     }
 
-    /// Write the caller's own changes, atomically.
-    pub fn apply(&self, account: AccountId, patch: &Patch) -> Result<(), StoreError> {
-        self.0.store().apply(account, patch)
+    /// Write the caller's own changes, atomically, at `now`.
+    pub fn apply(
+        &self,
+        account: AccountId,
+        patch: &Patch,
+        now: DateTime<Utc>,
+    ) -> Result<(), CallError> {
+        self.0
+            .store()
+            .apply(account, patch, now)
+            .map_err(CallError::from)
     }
 
     pub fn put_vacation(
@@ -124,72 +143,84 @@ impl Stored<'_> {
         account: AccountId,
         vacation: Option<&Vacation>,
         now: DateTime<Utc>,
-    ) -> Result<(), StoreError> {
-        self.0.store().put_vacation(account, vacation, now)
+    ) -> Result<(), CallError> {
+        self.0
+            .store()
+            .put_vacation(account, vacation, now)
+            .map_err(CallError::from)
     }
 
-    pub fn put_view(&self, view: &View) -> Result<(), StoreError> {
-        self.0.store().put_view(view)
+    pub fn put_view(&self, view: &View) -> Result<(), CallError> {
+        self.0.store().put_view(view).map_err(CallError::from)
     }
 
-    pub fn thread(&self, id: ThreadId) -> Result<Thread, StoreError> {
-        self.0.store().thread(id)
+    pub fn thread(&self, id: ThreadId) -> Result<Thread, CallError> {
+        self.0.store().thread(id).map_err(CallError::from)
     }
 
     pub fn threads(
         &self,
         query: &Query,
         now: DateTime<Utc>,
-    ) -> Result<Page<ThreadSummary>, StoreError> {
-        self.0.store().threads(query, now)
+    ) -> Result<Page<ThreadSummary>, CallError> {
+        self.0.store().threads(query, now).map_err(CallError::from)
     }
 
-    pub fn count(&self, filter: &Filter, now: DateTime<Utc>) -> Result<u64, StoreError> {
-        self.0.store().count(filter, now)
+    pub fn count(&self, filter: &Filter, now: DateTime<Utc>) -> Result<u64, CallError> {
+        self.0.store().count(filter, now).map_err(CallError::from)
     }
 
-    pub fn message(&self, id: MessageId) -> Result<Message, StoreError> {
-        self.0.store().message(id)
+    pub fn message(&self, id: MessageId) -> Result<Message, CallError> {
+        self.0.store().message(id).map_err(CallError::from)
     }
 
-    pub fn placed(&self, message: MessageId) -> Result<Vec<Placed>, StoreError> {
-        self.0.store().placed(message)
+    pub fn placed(&self, message: MessageId) -> Result<Vec<Placed>, CallError> {
+        self.0.store().placed(message).map_err(CallError::from)
     }
 
-    pub fn draft(&self, id: DraftId) -> Result<Draft, StoreError> {
-        self.0.store().draft(id)
+    pub fn draft(&self, id: DraftId) -> Result<Draft, CallError> {
+        self.0.store().draft(id).map_err(CallError::from)
     }
 
-    pub fn drafts(&self, account: AccountId) -> Result<Vec<Draft>, StoreError> {
-        self.0.store().drafts(account)
+    pub fn drafts(&self, account: AccountId) -> Result<Vec<Draft>, CallError> {
+        self.0.store().drafts(account).map_err(CallError::from)
     }
 
     pub fn outbox_due(
         &self,
         account: AccountId,
         now: DateTime<Utc>,
-    ) -> Result<Vec<OutboxEntry>, StoreError> {
-        self.0.store().outbox_due(account, now)
+    ) -> Result<Vec<OutboxEntry>, CallError> {
+        self.0
+            .store()
+            .outbox_due(account, now)
+            .map_err(CallError::from)
     }
 
-    pub fn offline(&self, account: AccountId) -> Result<Offline, StoreError> {
-        self.0.store().offline(account)
+    pub fn offline(&self, account: AccountId) -> Result<Offline, CallError> {
+        self.0.store().offline(account).map_err(CallError::from)
     }
 
     pub fn set_account_description(
         &self,
         account: AccountId,
         description: Option<&str>,
-    ) -> Result<(), StoreError> {
-        self.0.store().set_account_description(account, description)
+    ) -> Result<(), CallError> {
+        self.0
+            .store()
+            .set_account_description(account, description)
+            .map_err(CallError::from)
     }
 
     pub fn set_account_syncing(
         &self,
         account: AccountId,
         syncing: mail_store::Syncing,
-    ) -> Result<(), StoreError> {
-        self.0.store().set_account_syncing(account, syncing)
+    ) -> Result<(), CallError> {
+        self.0
+            .store()
+            .set_account_syncing(account, syncing)
+            .map_err(CallError::from)
     }
 
     /// Keep `account`'s labels on its server as keywords, or here alone.
@@ -197,10 +228,11 @@ impl Stored<'_> {
         &self,
         account: AccountId,
         keeps: bool,
-    ) -> Result<(), StoreError> {
+    ) -> Result<(), CallError> {
         self.0
             .store()
             .set_account_keeps_labels(account, keeps, chrono::Utc::now())
+            .map_err(CallError::from)
     }
 
     pub fn set_folder_role(
@@ -208,40 +240,49 @@ impl Stored<'_> {
         account: AccountId,
         role: mail_domain::MailboxRole,
         path: Option<&str>,
-    ) -> Result<(), StoreError> {
-        self.0.store().set_folder_role(account, role, path)
+    ) -> Result<(), CallError> {
+        self.0
+            .store()
+            .set_folder_role(account, role, path)
+            .map_err(CallError::from)
     }
 
-    pub fn vacation(&self, account: AccountId) -> Result<Option<Vacation>, StoreError> {
-        self.0.store().vacation(account)
+    pub fn vacation(&self, account: AccountId) -> Result<Option<Vacation>, CallError> {
+        self.0.store().vacation(account).map_err(CallError::from)
     }
 
-    pub fn rules(&self, account: AccountId) -> Result<Vec<Rule>, StoreError> {
-        self.0.store().rules(account)
+    pub fn rules(&self, account: AccountId) -> Result<Vec<Rule>, CallError> {
+        self.0.store().rules(account).map_err(CallError::from)
     }
 
-    pub fn labels(&self, account: AccountId) -> Result<Vec<Label>, StoreError> {
-        self.0.store().labels(account)
+    pub fn labels(&self, account: AccountId) -> Result<Vec<Label>, CallError> {
+        self.0.store().labels(account).map_err(CallError::from)
     }
 
-    pub fn create_label(&self, account: AccountId, name: &str) -> Result<LabelId, StoreError> {
-        self.0.store().create_label(account, name)
+    pub fn create_label(&self, account: AccountId, name: &str) -> Result<LabelId, CallError> {
+        self.0
+            .store()
+            .create_label(account, name)
+            .map_err(CallError::from)
     }
 
-    pub fn delete_view(&self, id: ViewId) -> Result<(), StoreError> {
-        self.0.store().delete_view(id)
+    pub fn delete_view(&self, id: ViewId) -> Result<(), CallError> {
+        self.0.store().delete_view(id).map_err(CallError::from)
     }
 
-    pub fn contacts(&self) -> Result<Vec<Contact>, StoreError> {
-        self.0.store().contacts()
+    pub fn contacts(&self) -> Result<Vec<Contact>, CallError> {
+        self.0.store().contacts().map_err(CallError::from)
     }
 
-    pub fn contact(&self, address: &str) -> Result<Option<Contact>, StoreError> {
-        self.0.store().contact(address)
+    pub fn contact(&self, address: &str) -> Result<Option<Contact>, CallError> {
+        self.0.store().contact(address).map_err(CallError::from)
     }
 
-    pub fn contacts_matching(&self, typed: &str, k: usize) -> Result<Vec<Contact>, StoreError> {
-        self.0.store().contacts_matching(typed, k)
+    pub fn contacts_matching(&self, typed: &str, k: usize) -> Result<Vec<Contact>, CallError> {
+        self.0
+            .store()
+            .contacts_matching(typed, k)
+            .map_err(CallError::from)
     }
 
     pub fn put_contact(
@@ -249,46 +290,55 @@ impl Stored<'_> {
         address: &str,
         name: Option<&str>,
         origin: &Origin,
-    ) -> Result<Contact, StoreError> {
-        self.0.store().put_contact(address, name, origin)
+    ) -> Result<Contact, CallError> {
+        self.0
+            .store()
+            .put_contact(address, name, origin)
+            .map_err(CallError::from)
     }
 
-    pub fn groups(&self) -> Result<Vec<Group>, StoreError> {
-        self.0.store().groups()
+    pub fn groups(&self) -> Result<Vec<Group>, CallError> {
+        self.0.store().groups().map_err(CallError::from)
     }
 
-    pub fn group(&self, id: &GroupId) -> Result<Option<Group>, StoreError> {
-        self.0.store().group(id)
+    pub fn group(&self, id: &GroupId) -> Result<Option<Group>, CallError> {
+        self.0.store().group(id).map_err(CallError::from)
     }
 
-    pub fn put_group(&self, group: &Group) -> Result<(), StoreError> {
-        self.0.store().put_group(group)
+    pub fn put_group(&self, group: &Group) -> Result<(), CallError> {
+        self.0.store().put_group(group).map_err(CallError::from)
     }
 
-    pub fn pgp_keys(&self) -> Result<Vec<PgpKey>, StoreError> {
-        self.0.store().pgp_keys()
+    pub fn pgp_keys(&self) -> Result<Vec<PgpKey>, CallError> {
+        self.0.store().pgp_keys().map_err(CallError::from)
     }
 
-    pub fn pgp_key(&self, fingerprint: Fingerprint) -> Result<Option<PgpKey>, StoreError> {
-        self.0.store().pgp_key(fingerprint)
+    pub fn pgp_key(&self, fingerprint: Fingerprint) -> Result<Option<PgpKey>, CallError> {
+        self.0.store().pgp_key(fingerprint).map_err(CallError::from)
     }
 
-    pub fn smime_certs(&self) -> Result<Vec<SmimeCert>, StoreError> {
-        self.0.store().smime_certs()
+    pub fn smime_certs(&self) -> Result<Vec<SmimeCert>, CallError> {
+        self.0.store().smime_certs().map_err(CallError::from)
     }
 
-    pub fn smime_cert(
-        &self,
-        fingerprint: CertFingerprint,
-    ) -> Result<Option<SmimeCert>, StoreError> {
-        self.0.store().smime_cert(fingerprint)
+    pub fn smime_cert(&self, fingerprint: CertFingerprint) -> Result<Option<SmimeCert>, CallError> {
+        self.0
+            .store()
+            .smime_cert(fingerprint)
+            .map_err(CallError::from)
     }
 
-    pub fn receipt_answer(&self, message: MessageId) -> Result<Option<ReceiptAnswer>, StoreError> {
-        self.0.store().receipt_answer(message)
+    pub fn receipt_answer(&self, message: MessageId) -> Result<Option<ReceiptAnswer>, CallError> {
+        self.0
+            .store()
+            .receipt_answer(message)
+            .map_err(CallError::from)
     }
 
-    pub fn invite_answer(&self, message: MessageId) -> Result<Option<InviteAnswer>, StoreError> {
-        self.0.store().invite_answer(message)
+    pub fn invite_answer(&self, message: MessageId) -> Result<Option<InviteAnswer>, CallError> {
+        self.0
+            .store()
+            .invite_answer(message)
+            .map_err(CallError::from)
     }
 }

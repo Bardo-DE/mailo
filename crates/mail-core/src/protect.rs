@@ -17,7 +17,7 @@ use crate::smime::Smime;
 use chrono::{DateTime, Utc};
 use mail_domain::*;
 use mail_mime::Parsed;
-use mail_runtime::SigningStore;
+use mail_secrets::SigningStore;
 use mail_store::SqliteStore;
 
 /// One way of protecting a message: OpenPGP, or S/MIME.
@@ -113,14 +113,10 @@ pub trait Seal {
         Ok(())
     }
 
-    /// `frozen` before it is protected, whatever the draft asks. Defaults to as it is: only
-    /// OpenPGP adds a header to every message.
-    fn prepare(
-        _store: &SqliteStore,
-        _identity: &Identity,
-        frozen: Vec<u8>,
-    ) -> Result<Vec<u8>, Self::Error> {
-        Ok(frozen)
+    /// A header field every message gets before it is protected, whatever the draft asks, as
+    /// whole lines. Defaults to none: only OpenPGP adds one (the sender's Autocrypt key).
+    fn header(_store: &SqliteStore, _identity: &Identity) -> Result<Option<Vec<u8>>, Self::Error> {
+        Ok(None)
     }
 
     /// `draft` asked of this scheme, and everything sending it needs, or `None` when it asks
@@ -184,30 +180,95 @@ pub trait Seal {
         Self::ready(store, draft, identity, now).map(drop)
     }
 
-    /// `frozen` — the bytes built for the wire — [prepared](Seal::prepare), then signed and
-    /// encrypted as the draft asks of this scheme.
-    fn outgoing(
+    /// What `draft` needs of this scheme to be protected as it asks, with its keys found and
+    /// the signing secret unlocked: the keyring and the passphrase prompt are used here, and
+    /// only here. [`Keyed::seal`] then protects bytes with no store and no prompt.
+    fn keyed(
         store: &SqliteStore,
         secrets: &dyn SigningStore,
         ask: Ask<'_>,
         draft: &Draft,
         identity: &Identity,
-        frozen: Vec<u8>,
         now: DateTime<Utc>,
-    ) -> Result<Vec<u8>, Self::Error>
+    ) -> Result<Keyed<Self>, Self::Error>
     where
         Self: Sized,
     {
-        let bytes = Self::prepare(store, identity, frozen)?;
+        let header = Self::header(store, identity)?;
         let Some(Ready { mode, own, to }) = Self::ready(store, draft, identity, now)? else {
-            return Ok(bytes);
+            return Ok(Keyed {
+                header,
+                asked: None,
+            });
         };
         let signer = if mode.signs() {
             Some(Self::signer(store, secrets, &own, ask)?)
         } else {
             None
         };
-        Self::seal(&bytes, mode, signer.as_ref(), to, &own, now)
+        Ok(Keyed {
+            header,
+            asked: Some(Asked {
+                mode,
+                signer,
+                to,
+                own,
+            }),
+        })
+    }
+}
+
+/// What a scheme does to the bytes of one message: its header, and what it was asked.
+pub struct Keyed<S: Seal> {
+    header: Option<Vec<u8>>,
+    asked: Option<Asked<S>>,
+}
+
+struct Asked<S: Seal> {
+    mode: Mode,
+    signer: Option<S::Signer>,
+    to: Vec<(String, S::Cert)>,
+    own: S::Own,
+}
+
+impl<S: Seal> std::fmt::Debug for Keyed<S> {
+    /// The keys are not printed: only what was asked.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Keyed")
+            .field("mode", &self.asked.as_ref().map(|asked| asked.mode))
+            .finish_non_exhaustive()
+    }
+}
+
+impl<S: Seal> Keyed<S> {
+    /// `frozen` — the bytes built for the wire — with the header added, then signed and
+    /// encrypted as the draft asked of this scheme.
+    ///
+    /// Everything it needs was found by [`Seal::keyed`]; the only thing drawn here is the
+    /// randomness sealing needs.
+    pub fn seal(self, frozen: Vec<u8>, now: DateTime<Utc>) -> Result<Vec<u8>, S::Error> {
+        let bytes = match &self.header {
+            Some(field) => mail_crypto::openpgp::with_field(&frozen, field),
+            None => frozen,
+        };
+        let Some(Asked {
+            mode,
+            signer,
+            to,
+            own,
+        }) = self.asked
+        else {
+            return Ok(bytes);
+        };
+        S::seal(&bytes, mode, signer.as_ref(), to, &own, now)
+    }
+
+    /// Nothing asked of this scheme and nothing added by it.
+    pub fn idle() -> Self {
+        Keyed {
+            header: None,
+            asked: None,
+        }
     }
 }
 

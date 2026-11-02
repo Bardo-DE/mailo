@@ -3,7 +3,7 @@
 
 use super::access::access;
 use super::run::Run;
-use super::{AccountSecrets, ClientRegistry, configured, pass_error};
+use super::{AccountSecrets, ClientRegistry, Configured, connected_one, pass_error};
 use crate::error::CoreError;
 use mail_domain::{Filter, LabelId};
 use mail_runtime::Searched;
@@ -23,11 +23,12 @@ impl crate::mail::SyncOps<'_> {
     ) -> Result<Searched, CoreError> {
         let mail = self.0;
         let registry = mail.clients()?;
+        let account = connected_one(&mail.roster()?, &account).ok_or(CoreError::AccountGone)?;
         search_server_with(
             mail.store(),
             mail.secrets(),
             &registry,
-            account,
+            &account,
             filter,
             labels,
             mail.now(),
@@ -41,21 +42,18 @@ pub async fn search_server_with(
     store: &Arc<SqliteStore>,
     secrets: Arc<dyn AccountSecrets>,
     registry: &ClientRegistry,
-    account: AccountId,
+    account: &Configured,
     filter: &Filter,
     labels: &[(LabelId, String)],
     now: chrono::DateTime<chrono::Utc>,
 ) -> Result<Searched, CoreError> {
-    let account = configured(store)?
-        .into_iter()
-        .find(|a| a.id == account)
-        .ok_or(CoreError::AccountGone)?;
     let run = Run {
         store,
         secrets,
         registry,
         now,
-        account: &account,
+        account,
+        wanted: Default::default(),
     };
     access(&account.plan.incoming)
         .search(&run, filter, labels)

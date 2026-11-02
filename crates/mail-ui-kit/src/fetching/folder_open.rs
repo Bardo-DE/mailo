@@ -1,0 +1,54 @@
+//! Opening a server folder's place: what fetches it.
+//!
+//! A pass fetches the folders the user follows; one opened from "Show all" is fetched by nobody
+//! until it is opened. So choosing a folder fetches it now (`fetching::Fetching::open_folder`
+//! decides when, and keeps where each folder stands). What does the fetching is a context,
+//! [`Fetcher`], so a test can count what the window asks for without a server.
+
+use mail_client::Client;
+/// Fetch one folder now: the signature of [`mail_client::SyncOps::folder_now`].
+pub use mail_client::fetch::FetchFolder as Fetch;
+use std::sync::Arc;
+
+/// What fetches a folder. The real one unless a test provided its own.
+#[derive(Clone)]
+pub struct Fetcher(pub Fetch);
+
+impl Fetcher {
+    /// The server, through [`mail_client::SyncOps::folder_now`].
+    #[cfg(not(any(test, feature = "testing")))]
+    pub fn server(client: &Client) -> Self {
+        // The client keeps this closure (it is one of its seams), so it holds the client weakly:
+        // a strong clone here would keep the client's threads running for good.
+        let client = client.downgrade();
+        Self(Arc::new(move |_, account, path, _now| {
+            let client = client
+                .upgrade()
+                .ok_or_else(|| mail_ui_model::copy::errors::WINDOW_CLOSED.to_owned())?;
+            client
+                .net()
+                .folder_now(account, path)
+                .map_err(crate::remedy::told)
+        }))
+    }
+
+    /// Not in a test: `folder_now` reads the keyring and opens a socket, and a test that forgot
+    /// to provide its own fetcher must fail in words rather than reach either.
+    #[cfg(any(test, feature = "testing"))]
+    pub fn server(_: &Client) -> Self {
+        Self(Arc::new(|_, _, path, _| {
+            Err(format!(
+                "a test opened {path} without providing a Fetcher; the real one reaches the server"
+            ))
+        }))
+    }
+}
+
+impl std::fmt::Debug for Fetcher {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Fetcher(..)")
+    }
+}
+
+#[cfg(test)]
+mod tests;

@@ -1,0 +1,54 @@
+[package]
+name = "mail-ui-list"
+# The list: the pane of conversations, its rows and pages, the search across its header and the
+# saved-view sheet, below the window.
+publish = false
+version = "0.1.0"
+autobins = false
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "mailo's list: conversations drawn with quire, below the window"
+repository = "https://github.com/PoHsuanLai/mailo"
+authors = ["Po Hsuan Lai <pohsuanlai0208@gmail.com>"]
+
+[features]
+# Test-only exports the window's own tests reach: off in the program.
+testing = []
+
+[dependencies]
+porter-core.workspace = true
+mail-domain.workspace = true
+mail-logic.workspace = true
+# Everything the window knows of mail: values read, commands made, servers asked, all through the
+# one client. No `mail-core`, `mail-store` or `mail-runtime`: a store is not something the window
+# can name. `desktop` names the desktop's notification service, which the window speaks to itself.
+mail-client = { workspace = true, features = ["desktop"] }
+# What the window knows and says without drawing: the settings files, its words, what is picked.
+mail-ui-model.workspace = true
+# The window below its parts: its shell state, hooks, motion and shared controls.
+mail-ui-kit.workspace = true
+mail-proto.workspace = true
+# What the window logs; the program installs the one logger it goes through.
+log.workspace = true
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "time", "net", "io-util", "sync"] }
+chrono.workspace = true
+# The renderer is quire's `ds-blitz` (Blitz, drawn with wgpu); dioxus itself brings none.
+dioxus = { version = "0.7" }
+# chordkit, the keymap core quire resolves keys with. The rev quire pins, so one chordkit is built.
+chordkit = { git = "https://github.com/PoHsuanLai/chordkit.git", rev = "99eec9ddd03ee345b669fcc7954ed44590724290" }
+# quire, the shared design system, pinned as the desktop manifest pins it.
+ds = { git = "https://github.com/PoHsuanLai/quire.git", rev = "e19728b7ee9e369d360c646bf5e7ed559bc3d6f9" }  # e19728b7 (v0.3.58; forks blitz 841386a7, blitz-kit fd08b468)
+
+[dev-dependencies]
+# The values a test starts from (`mail_domain::testing`): the program never has them.
+mail-domain = { workspace = true, features = ["testing"] }
+mail-client = { workspace = true, features = ["testing"] }
+mail-ui-kit = { workspace = true, features = ["testing"] }
+uuid = { workspace = true }
+# `re:/pattern/`. Already in the tree.
+regex = "1"
+dioxus-ssr = "0.7"
+
+[lints]
+workspace = true

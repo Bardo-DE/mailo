@@ -32,14 +32,14 @@ pub mod auth {
 }
 pub mod bimi {
     pub use mail_core::bimi::{
-        Cached, Lookup, Setting, SystemDns, anchors, brand_logo, cached, client_builder, domain_of,
-        load,
+        Cached, Lookup, Setting, Shared, SystemDns, anchors, brand_logo, cached, client_builder,
+        domain_of, load, shared,
     };
 }
 pub mod compose {
     pub use mail_core::compose::{
-        ATTACHMENT_BUDGET, Answer, Fit, Leaves, Myself, PictureSize, Quote, Redirected, Said,
-        SendError, SendLimit, Weight, Written, doc_of, fit, shows_inline,
+        ATTACHMENT_BUDGET, Answer, Fit, Leaves, Myself, Quote, Redirected, Said, SendError,
+        SendLimit, Weight, Written, doc_of, fit, shows_inline,
     };
     pub mod addresses {
         pub use mail_core::compose::addresses::{join_addresses, parse_addresses};
@@ -62,31 +62,17 @@ pub mod contacts {
     }
 }
 pub mod discover {
-    pub use mail_core::discover::{
-        Failed, Found, Looked, claimed_by, known, settle, typed, typed_domain,
-    };
+    pub use mail_core::discover::{Looked, settle, typed, typed_domain};
+    pub use mail_logic::discover::{Failed, Found, Gap, Source, claimed_by, known};
     pub mod providers {
-        pub use mail_core::discover::providers::set;
+        pub use mail_logic::discover::providers::set;
     }
-}
-pub mod rich_text {
-    pub use mail_core::rich_text::{
-        Action, Align, Caret, Check, Doc, ImageRef, InputEvent, Item, Layout, Mark, Marks, Nest,
-        Node, Object, Op, ParaKind, Person, Pos, Presence, Range, Run, SNIPPET, Session, Table,
-        TextColor, TextSize, align_at, apply, apply_all, catalog, filter, grapheme_len, indent,
-        joins_cc, marks_at_start, missing_attachment, node_len, nodes_from_blocks,
-        nodes_from_plain, plain_to_flowed, quote, runs_text, settled, step_size, tab, to_flowed,
-        to_html, turn_into,
-    };
 }
 pub mod export {
     pub use mail_core::export::{Exported, RawHead, Target, usual};
 }
 pub mod folder {
     pub use mail_core::folder::Refusal;
-}
-pub mod follow_up {
-    pub use mail_core::follow_up::{CHOICES, due, returned_words};
 }
 pub mod formats {
     pub use mail_core::formats::{Writer, writer_named, writers};
@@ -98,9 +84,9 @@ pub mod invite {
     pub use mail_core::invite::{Answered, repeats_words, say_when};
 }
 pub mod ipc {
-    pub use mail_core::ipc::agent;
+    pub use mail_agent::ipc::agent;
     pub mod watching {
-        pub use mail_core::ipc::watching::running;
+        pub use mail_agent::ipc::watching::running;
     }
 }
 pub mod mail {
@@ -108,9 +94,8 @@ pub mod mail {
 }
 pub mod message {
     pub use mail_core::message::{
-        Bodies, FIRST_PAGE, FOUND_CURRENT, FOUND_MARK, FrameBody, Frames, INLINE_BYTES, Invited,
-        Key, Looks, Offer, Opening, Prefer, Protection, Receipt, Scheme, Sealed, Sent, Tried,
-        ahead,
+        Bodies, FIRST_PAGE, Frames, INLINE_BYTES, Invited, Key, Looks, Offer, Opening, Protection,
+        Receipt, Scheme, Sealed, Sent, Tried, ahead,
     };
 }
 pub mod notify {
@@ -119,7 +104,15 @@ pub mod notify {
     };
     #[cfg(feature = "desktop")]
     pub mod desktop {
-        pub use mail_core::notify::desktop::Desktop;
+        /// What the app hands the macOS notification centre's banners through, and the click it
+        /// hears back.
+        #[cfg(target_os = "macos")]
+        pub use mail_agent::notify::desktop::heard;
+        pub use mail_agent::notify::desktop::{Desktop, Launch};
+    }
+    #[cfg(all(feature = "desktop", target_os = "macos"))]
+    pub mod banner {
+        pub use mail_agent::notify::banner::{Banner, Click, Posts, Pressed};
     }
 }
 pub mod offline {
@@ -127,17 +120,11 @@ pub mod offline {
         Every, FILE_NAME, Keep, Kept, Remove, Window, change, damage, load, said, save,
     };
 }
-pub mod password {
-    pub use mail_core::password::Password;
-}
 pub mod pgp {
     pub use mail_core::pgp::{Ask, PgpError, Protected, WithSecret, no_passphrase};
     pub mod keys {
         pub use mail_core::pgp::keys::export_public;
     }
-}
-pub mod mailbox_filter {
-    pub use mail_core::mailbox_filter::{for_role, pending_snooze, pin_op, role_of, unread_in};
 }
 pub mod attachment_image {
     pub use mail_core::attachment_image::{
@@ -148,10 +135,10 @@ pub mod html_document {
     pub use mail_core::html_document::{LABELS, Pictures, Printed, write_file_into};
 }
 pub mod profile {
-    pub use mail_core::profile::{Profile, ProfileId};
+    pub use mail_logic::profile::{Profile, ProfileId};
 }
 pub mod provider {
-    pub use mail_core::provider::{Provider, provider, service_name};
+    pub use mail_logic::provider::{Provider, provider, service_name};
     pub mod icon {
         pub use mail_core::provider::icon::{Loaded, missing, refresh};
     }
@@ -165,10 +152,9 @@ pub mod remote_image {
 pub mod rules {
     pub use mail_core::rules::ListedRule;
     pub mod manage {
-        pub use mail_core::rules::manage::{
-            ConditionError, Draft, SaveError, Sending, Step, read_condition,
-        };
+        pub use mail_core::rules::manage::{Draft, SaveError, Sending, Step};
         pub use mail_domain::rule::DEFAULT_REPLY_DAYS;
+        pub use mail_logic::rules::condition::{ConditionError, read_condition};
     }
     pub mod server {
         pub use mail_core::rules::server::{
@@ -183,12 +169,9 @@ pub mod rules {
 pub mod schedule {
     pub use mail_core::schedule::{Daemon, Lost, Schedule, Timing, probe};
 }
-pub mod scope {
-    pub use mail_core::scope::Scope;
-}
 pub mod search {
     // `run` reads what it is handed: a caller has only the client's (`Client::source`).
-    pub use mail_core::search::{
+    pub use mail_logic::search::{
         ActionHit, Affinity, Command, Find, Found, Highlight, MOST_FOUND, PersonHit, Results,
         SenderStats, Source, Step, Top, find_in, first, list_highlight, match_list, parse, run,
         search_list, snippet,
@@ -202,9 +185,6 @@ pub mod smime {
     pub mod certs {
         pub use mail_core::smime::certs::export;
     }
-}
-pub mod snooze {
-    pub use mail_core::snooze::snooze_until;
 }
 pub mod sync {
     pub use mail_core::sync::Configured;
@@ -221,12 +201,6 @@ pub mod sync {
 pub mod transfer {
     pub use mail_core::transfer::{IoCause, Refusal, Seen, expand_here, look, suggested};
 }
-pub mod trust {
-    pub use mail_core::trust::{Destination, destination, spoof};
-}
-pub mod undo {
-    pub use mail_core::undo::{Resend, Undo, UndoHandle, UndoStack, reverse_folder, said_of};
-}
 pub mod unsubscribe {
     pub use mail_core::unsubscribe::{Found, Outcome, client};
 }
@@ -238,18 +212,12 @@ pub mod conversation {
         says_for_all, scoped, scoped_unread_filter, step, threading_of, turns_off, unread_filter,
     };
 }
-pub mod saved_search {
-    pub use mail_core::saved_search::{Draft, Refusal, written};
-}
 pub mod wanted {
-    pub use mail_core::wanted::{ask_first, claim};
-}
-pub mod when {
-    pub use mail_core::when::{Clock, Stamp, listed, stamp, time_of_day, upcoming};
+    pub use mail_core::wanted::{Claim, Wanted};
 }
 pub use mail_core::Storage;
 pub mod junk {
-    pub use mail_core::junk::{Filtering, Heed, Order, Policy, Treat};
+    pub use mail_logic::junk::{Filtering, Heed, Order, Policy, Treat};
 }
 pub use mail_core::Logged;
 pub use mail_core::RelayRefused;

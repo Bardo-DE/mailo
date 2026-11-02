@@ -1,0 +1,10 @@
+# A decision here is a function of its arguments. The time and any fresh id arrive as values, so
+# a clock or a random id drawn inside the crate is a lint error under the gate's `-D warnings`.
+# (A Cargo feature cannot say this: chrono's `clock` feature is unified across the workspace.)
+disallowed-methods = [
+    { path = "chrono::Utc::now", reason = "the caller hands the time in" },
+    { path = "chrono::Local::now", reason = "the caller hands the time in" },
+    { path = "std::time::SystemTime::now", reason = "the caller hands the time in" },
+    { path = "std::time::Instant::now", reason = "the caller hands the time in" },
+    { path = "uuid::Uuid::new_v4", reason = "the caller hands the ids in" },
+]

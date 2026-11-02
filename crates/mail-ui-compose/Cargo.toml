@@ -1,0 +1,75 @@
+[package]
+name = "mail-ui-compose"
+# The composer: a message being written, and the draft's life from the first key to the send.
+publish = false
+version = "0.1.0"
+autobins = false
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "mailo's composer: a message written with quire, below the window"
+repository = "https://github.com/PoHsuanLai/mailo"
+authors = ["Po Hsuan Lai <pohsuanlai0208@gmail.com>"]
+
+[features]
+# Test-only exports the window's own tests reach: off in the program.
+testing = []
+
+[dependencies]
+porter-core.workspace = true
+mail-domain.workspace = true
+mail-logic.workspace = true
+# Everything the window knows of mail: values read, commands made, servers asked, all through the
+# one client. No `mail-core`, `mail-store` or `mail-runtime`: a store is not something the window
+# can name. `desktop` names the desktop's notification service, which the window speaks to itself.
+mail-client = { workspace = true, features = ["desktop"] }
+# What the window knows and says without drawing: the settings files, its words, what is picked.
+mail-ui-model.workspace = true
+# The window below its parts: its shell state, hooks, motion and shared controls.
+mail-ui-kit.workspace = true
+mail-mime.workspace = true
+mail-reader.workspace = true
+# What the window logs; the program installs the one logger it goes through.
+log.workspace = true
+# The runtime the composer's sends and saves run on.
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "time", "net", "io-util", "sync"] }
+chrono.workspace = true
+# The renderer is quire's `ds-blitz` (Blitz, drawn with wgpu); dioxus itself brings none.
+dioxus = { version = "0.7" }
+# quire, the shared design system (github.com/PoHsuanLai/quire), pinned as the desktop manifest pins
+# it: the `.git` URL and the release's full rev, the release named after it. The same spelling as
+# every other consumer (anyview, porter), or cargo holds two quires that no [patch] unifies.
+# To try an unreleased quire, put a `[patch]` naming a checkout in a `.cargo/config.toml` in the
+# work directory above the checkouts (cargo reads it from parent directories), never in this repo:
+# its own `.cargo/config.toml`, if any, holds build settings only.
+# chordkit, the keymap core quire resolves keys with (actions, chords with a `Primary` modifier, the
+# display). quire re-exports only `StandardAction`; mailo names `Action`, `AppAction`, `Context` and
+# `Chord` as well. The rev quire pins (`docs/workspace-deps.toml`), so one chordkit is built.
+chordkit = { git = "https://github.com/PoHsuanLai/chordkit.git", rev = "99eec9ddd03ee345b669fcc7954ed44590724290" }
+ds = { git = "https://github.com/PoHsuanLai/quire.git", rev = "e19728b7ee9e369d360c646bf5e7ed559bc3d6f9" }  # e19728b7 (v0.3.58; forks blitz 841386a7, blitz-kit fd08b468)
+# The window: quire's Blitz host (the window, its fonts, focus, clipboard, PDF output), and
+# `print`: the system's print dialog for a PDF (the desktop portal on Linux, else the PDF opened
+# in the viewer); `spell`: the composer's spelling, against the system's Hunspell dictionaries
+# (none is bundled); `pdf` also rasterises a PDF attachment's first page (`PdfFileThumb`).
+ds-blitz = { git = "https://github.com/PoHsuanLai/quire.git", rev = "e19728b7ee9e369d360c646bf5e7ed559bc3d6f9", features = ["pdf", "print", "spell"] }  # e19728b7 (v0.3.58; forks blitz 841386a7, blitz-kit fd08b468)
+base64 = "0.22"
+# The composer's document: the editor model the body is written in.
+mail-editor.workspace = true
+serde.workspace = true
+unicode-segmentation = "1.13"
+# The pasted picture's pixels written out as PNG, the one form the body's picture is stored in.
+# Already in the lock through blitz-dom and arboard.
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+[dev-dependencies]
+# The values a test starts from (`mail_domain::testing`): the program never has them.
+mail-domain = { workspace = true, features = ["testing"] }
+# A test's double at a seam keeping what a server gave in the window's store
+# (`Client::store_for_test`): the program never has it.
+mail-client = { workspace = true, features = ["testing"] }
+# The doubles the kit's hooks are driven with (a host that records its asks, a dialog that answers).
+mail-ui-kit = { workspace = true, features = ["testing"] }
+tempfile = "3"
+
+[lints]
+workspace = true

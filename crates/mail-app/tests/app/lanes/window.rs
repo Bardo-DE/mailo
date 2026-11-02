@@ -16,9 +16,12 @@ use ds_blitz::{FocusFallback, PrintOutcome, RootContexts};
 use ds_harness::{Clock, Harness, HarnessConfig, Viewport};
 use mail_core::SqliteStore;
 use mail_core::notify::{Notification, Notifier};
-use mail_ui::ui::appearance::WindowDirs;
-use mail_ui::ui::native::Configured;
-use mail_ui::ui::native::{Browse, DialogAsk, Dialogs, Fetch, Original, SaveDir, WallClock};
+use mail_ui_kit::appearance::WindowDirs;
+use mail_ui_kit::clock::WallClock;
+use mail_ui_kit::configured::Configured;
+use mail_ui_kit::files::SaveDir;
+use mail_ui_kit::original::{Browse, Fetch, Original};
+use mail_ui_kit::pick::{Ask as DialogAsk, Dialogs};
 use std::path::PathBuf;
 
 pub use super::look::{panel_row, panel_settled, parsed, queued, row_of};
@@ -79,10 +82,10 @@ impl Browse for Opened {
 /// the file.
 pub type Launched = Arc<Mutex<Vec<(&'static str, PathBuf)>>>;
 
-fn file_opener(launched: &Launched) -> mail_ui::ui::native::FileOpener {
+fn file_opener(launched: &Launched) -> mail_ui_kit::downloads::Opener {
     let opened = Arc::clone(launched);
     let revealed = Arc::clone(launched);
-    mail_ui::ui::native::FileOpener::new(
+    mail_ui_kit::downloads::Opener::new(
         move |path| {
             held(&opened).push(("open", path.to_owned()));
             Ok(())
@@ -122,10 +125,10 @@ impl LoginItem {
     }
 }
 
-impl mail_ui::login_item::LoginItem for LoginItem {
-    fn register(&self) -> Result<mail_ui::login_item::Registered, String> {
+impl mail_os::login_item::LoginItem for LoginItem {
+    fn register(&self) -> Result<mail_os::login_item::Registered, String> {
         held(&self.0).push("register");
-        Ok(mail_ui::login_item::Registered::Done)
+        Ok(mail_os::login_item::Registered::Done)
     }
 
     fn unregister(&self) -> Result<(), String> {
@@ -199,7 +202,7 @@ impl Shared {
     fn contexts(&self) -> RootContexts {
         mail_ui::ui::native::contexts(
             self.clients.open(Arc::clone(&self.store)),
-            mail_ui::ui::view::Appearance::default(),
+            mail_ui_kit::view::Appearance::default(),
             None,
             Some(self.dirs.clone()),
             mail_ui::ui::ask::Open::raise(),
@@ -207,7 +210,7 @@ impl Shared {
         .with(self.configured.clone())
         .with(self.dialogs.clone())
         .with(self.saves.clone())
-        .with(mail_ui::login_item::LoginItems(self.login.clone()))
+        .with(mail_os::login_item::LoginItems(self.login.clone()))
     }
 }
 
@@ -275,7 +278,7 @@ impl Window {
                     + chrono::TimeDelta::seconds(jumped.load(Ordering::Relaxed))
             }
         });
-        let printer = mail_ui::ui::native::Printer::with_dialog({
+        let printer = mail_ui_reader::print::Printer::with_dialog({
             let printed = Arc::clone(&printed);
             move |pdf, title| {
                 held(&printed).push((pdf.to_vec(), title.to_owned()));

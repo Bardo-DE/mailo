@@ -120,8 +120,12 @@ fn holding(messages: impl IntoIterator<Item = Message>) -> Both {
     let b = Both::new();
     for message in messages {
         let upsert = patch(vec![Change::MessageUpsert(Box::new(message))]);
-        b.sqlite.apply(acct_account(), &upsert).unwrap();
-        b.memory.apply(acct_account(), &upsert).unwrap();
+        b.sqlite
+            .apply(acct_account(), &upsert, chrono::Utc::now())
+            .unwrap();
+        b.memory
+            .apply(acct_account(), &upsert, chrono::Utc::now())
+            .unwrap();
     }
     b
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write the composer's emoji table, crates/mail-app/src/emoji/table.txt.
+"""Write the composer's emoji table, crates/mail-ui-compose/src/emoji/table.txt.
 
 Inputs, both Unicode data under the Unicode License v3 (SPDX Unicode-3.0, allowed by deny.toml):
 
@@ -9,7 +9,7 @@ Inputs, both Unicode data under the Unicode License v3 (SPDX Unicode-3.0, allowe
                    cldr-annotations-full/annotations/en/annotations.json
                    CLDR's English keywords
 
-Usage: scripts/emoji-table.py emoji-test.txt annotations.json > crates/mail-app/src/emoji/table.txt
+Usage: scripts/emoji-table.py emoji-test.txt annotations.json > crates/mail-ui-compose/src/emoji/table.txt
 
 Kept: fully-qualified emoji up to Emoji 15.0 (what a system colour emoji font can be expected to
 draw), without skin-tone sequences and without the Component group. A keyword already a word of

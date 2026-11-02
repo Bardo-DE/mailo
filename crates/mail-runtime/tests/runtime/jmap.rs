@@ -11,7 +11,8 @@ use chrono::{DateTime, TimeZone, Utc};
 use jmap_fake::{Fake, PASSWORD, USER};
 use mail_domain::id::account_id_from_uuid;
 use mail_domain::*;
-use mail_runtime::{AccountSecrets, JmapEngine, Searched, SyncReport, Woke};
+use mail_runtime::{JmapEngine, Searched, SyncReport, Woke};
+use mail_secrets::AccountSecrets;
 use mail_store::{SqliteStore, Store};
 use porter_core::SecretText;
 use porter_core::{AccountId, Credential, SecretKey, SecretPurpose};
@@ -55,7 +56,7 @@ async fn setup() -> Setup {
         SecretPurpose::IncomingPassword,
         SecretPurpose::OutgoingPassword,
     ] {
-        mail_runtime::block_on(secrets.put(
+        mail_secrets::block_on(secrets.put(
             &SecretKey {
                 account: acct_account(),
                 purpose,
@@ -75,30 +76,48 @@ async fn setup() -> Setup {
 
 async fn pass(setup: &mut Setup) -> SyncReport {
     let (_tx, mut cancel) = watch::channel(false);
-    let report = setup
-        .engine
-        .pass(&mut cancel, now(), &mut |_, _, _| {})
-        .await
-        .unwrap();
+    let report = whole(&mut setup.engine, &mut cancel).await;
     assert!(report.needs_attention.is_empty(), "{report:?}");
     report
+}
+
+/// A whole pass, with nothing done to what arrived before the outbox drains.
+async fn whole(engine: &mut JmapEngine, cancel: &mut mail_runtime::Cancel) -> SyncReport {
+    let midway = engine.pass_until_outbox(cancel, now()).await.unwrap();
+    engine.outbox(cancel, now(), midway).await
 }
 
 /// A pass whose arrivals are all called junk, as the junk filter would: each is sent to Spam
 /// before the outbox drains.
 async fn pass_calling_arrivals_junk(setup: &mut Setup) -> SyncReport {
     let (_tx, mut cancel) = watch::channel(false);
-    let mut call_junk = |store: &SqliteStore, caps: &AccountCaps, arrived: &[MessageId]| {
-        for id in arrived {
-            let message = store.message(*id).unwrap();
-            mail_store::rules::perform(store, caps, &Op::Spam, &message, now()).unwrap();
-        }
-    };
-    let report = setup
+    let midway = setup
         .engine
-        .pass(&mut cancel, now(), &mut call_junk)
+        .pass_until_outbox(&mut cancel, now())
         .await
         .unwrap();
+    let caps = midway.caps.clone().expect("the mailboxes are known by now");
+    for id in &midway.report.arrived {
+        let message = setup.store.message(*id).unwrap();
+        let thread = setup.store.thread(message.thread).unwrap();
+        let messages: Vec<Message> = thread
+            .messages
+            .iter()
+            .map(|id| setup.store.message(*id).unwrap())
+            .collect();
+        let applied = Op::Spam.apply(
+            &Target::Messages(vec![message.id]),
+            &thread,
+            &messages,
+            &caps,
+            now(),
+        );
+        setup
+            .store
+            .commit(&applied.into_commit(message.account.clone(), now(), true))
+            .unwrap();
+    }
+    let report = setup.engine.outbox(&mut cancel, now(), midway).await;
     assert!(report.needs_attention.is_empty(), "{report:?}");
     report
 }
@@ -284,6 +303,7 @@ async fn a_flag_changed_here_reaches_the_server_as_a_patch() {
                 id: ChangeId::generate(),
                 changes: vec![Change::MessageStar(hello.id, Star::Starred)],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     s.store
@@ -356,7 +376,9 @@ async fn a_copy_to_a_folder_adds_the_mailbox_and_keeps_the_rest() {
         &caps,
         now(),
     );
-    s.store.apply(acct_account(), &applied.forward).unwrap();
+    s.store
+        .apply(acct_account(), &applied.forward, chrono::Utc::now())
+        .unwrap();
     s.store
         .enqueue(
             acct_account(),
@@ -508,7 +530,7 @@ async fn a_push_with_a_new_state_wakes_the_watch() {
 async fn a_refused_password_stops_the_pass_and_says_so() {
     let mut s = setup().await;
     let secrets: Arc<dyn AccountSecrets> = Arc::new(MemorySecrets::default());
-    mail_runtime::block_on(secrets.put(
+    mail_secrets::block_on(secrets.put(
         &SecretKey {
             account: acct_account(),
             purpose: SecretPurpose::IncomingPassword,
@@ -519,12 +541,8 @@ async fn a_refused_password_stops_the_pass_and_says_so() {
     let plan = presets::jmap(USER, &s.fake.session_url(), HttpAuth::Basic).plan;
     s.engine = JmapEngine::new(acct_account(), plan, s.store.clone(), secrets).unwrap();
     let (_tx, mut cancel) = watch::channel(false);
-    let report = s
-        .engine
-        .pass(&mut cancel, now(), &mut |_, _, _| {})
-        .await
-        .unwrap();
-    assert!(report.needs_reauth, "{report:?}");
+    let report = whole(&mut s.engine, &mut cancel).await;
+    assert!(report.verdict.reauth, "{report:?}");
 }
 
 /// "Delete forever" as the window does it: the deletion queued while the store still knows the
@@ -554,7 +572,9 @@ fn delete_forever(store: &SqliteStore, message: &Message) {
         )
         .unwrap()
         .expect("queued");
-    store.apply(acct_account(), &applied.forward).unwrap();
+    store
+        .apply(acct_account(), &applied.forward, chrono::Utc::now())
+        .unwrap();
 }
 
 fn all() -> MailboxRef {
@@ -622,11 +642,7 @@ async fn an_email_filed_elsewhere_meanwhile_is_not_destroyed_and_comes_back() {
         .touch(&trashed, |email| email.mailboxes = vec!["mbI".to_owned()]);
 
     let (_tx, mut cancel) = watch::channel(false);
-    let report = s
-        .engine
-        .pass(&mut cancel, now(), &mut |_, _, _| {})
-        .await
-        .unwrap();
+    let report = whole(&mut s.engine, &mut cancel).await;
     assert!(
         report
             .needs_attention
@@ -787,6 +803,7 @@ async fn a_draft_kept_twice_leaves_one_copy_in_drafts_and_dropping_it_leaves_non
                     id: ChangeId::generate(),
                     changes: vec![Change::DraftUpsert(Box::new(draft))],
                 },
+                chrono::Utc::now(),
             )
             .unwrap();
     };
@@ -901,6 +918,7 @@ fn move_to(store: &SqliteStore, message: &Message, folder: &str) {
                         id: ChangeId::generate(),
                         changes: vec![Change::LabelUpsert(label.clone())],
                     },
+                    chrono::Utc::now(),
                 )
                 .unwrap();
             label.id
@@ -922,7 +940,9 @@ fn move_to(store: &SqliteStore, message: &Message, folder: &str) {
         )
         .unwrap()
         .expect("queued");
-    store.apply(acct_account(), &applied.forward).unwrap();
+    store
+        .apply(acct_account(), &applied.forward, chrono::Utc::now())
+        .unwrap();
 }
 
 /// A mailbox with no role, added to the fake's list.
@@ -1023,11 +1043,7 @@ async fn moving_to_a_folder_the_server_does_not_have_is_refused_for_good() {
     let lists = s.fake.calls("Mailbox/get").len();
 
     let (_tx, mut cancel) = watch::channel(false);
-    let report = s
-        .engine
-        .pass(&mut cancel, now(), &mut |_, _, _| {})
-        .await
-        .unwrap();
+    let report = whole(&mut s.engine, &mut cancel).await;
     assert!(
         report
             .needs_attention
@@ -1112,4 +1128,147 @@ async fn a_vacation_reply_is_the_account_s_vacation_response_switched_on_and_off
     let set = s.fake.state.lock().unwrap().vacation.clone().unwrap();
     assert_eq!(set["isEnabled"], false);
     assert_eq!(s.fake.calls("VacationResponse/set").len(), 2);
+}
+
+/// `subject`, written as a draft and queued to be sent, as pressing send leaves it.
+fn queued_send(s: &Setup, identity: IdentityId, subject: &str) -> DraftId {
+    let draft = Draft {
+        id: DraftId::generate(),
+        account: acct_account(),
+        identity,
+        to: vec![Address::new("ada@example.test")],
+        cc: Vec::new(),
+        bcc: Vec::new(),
+        subject: subject.to_owned(),
+        in_reply_to: None,
+        forward_of: None,
+        text: "here\r\n".to_owned(),
+        html: None,
+        attachments: Vec::new(),
+        receipt: ReceiptRequest::Unrequested,
+        openpgp: None,
+        smime: None,
+        priority: Priority::Normal,
+        delivery: DeliveryReport::Unrequested,
+        automatic: false,
+        state: SendState::Editing,
+        updated: now(),
+    };
+    s.store
+        .apply(
+            acct_account(),
+            &Patch {
+                id: ChangeId::generate(),
+                changes: vec![Change::DraftUpsert(Box::new(draft.clone()))],
+            },
+            chrono::Utc::now(),
+        )
+        .unwrap();
+    let frozen = format!(
+        "From: {USER}\r\nTo: ada@example.test\r\nSubject: {subject}\r\n\
+         Message-ID: <{subject}@example.test>\r\nDate: Mon, 01 Sep 2026 10:00:00 +0000\r\n\r\nhere\r\n"
+    );
+    let raw = s.store.blobs().put(frozen.as_bytes()).unwrap();
+    s.store
+        .enqueue(
+            acct_account(),
+            RemoteIntent::Send {
+                draft: draft.id,
+                raw,
+                mail_from: USER.to_owned(),
+                rcpt_to: vec!["ada@example.test".to_owned()],
+                delivery: DeliveryReport::Unrequested,
+            },
+            &Patch {
+                id: ChangeId::generate(),
+                changes: vec![],
+            },
+            now(),
+        )
+        .unwrap()
+        .expect("a submission is always queued");
+    s.store
+        .set_send_state(draft.id, &SendState::Queued, now())
+        .unwrap();
+    draft.id
+}
+
+/// What a pass did to two queued sends when the server answers a submission with `kind`: the
+/// report, the first draft's state, the second's, and the subjects still in the outbox.
+async fn refused_sends(kind: &str) -> (SyncReport, SendState, SendState, Vec<String>, usize) {
+    let mut s = setup().await;
+    pass(&mut s).await;
+    let identity = IdentityId::generate();
+    mail_store::testing::seed_identity_for(&s.store, identity, acct_account(), USER, Some("Me"));
+    let first = queued_send(&s, identity, "first");
+    let second = queued_send(&s, identity, "second");
+    s.fake.state.lock().unwrap().refuse_submission =
+        Some((kind.to_owned(), "the server's reason".to_owned()));
+    let (_tx, mut cancel) = watch::channel(false);
+    let report = whole(&mut s.engine, &mut cancel).await;
+    let waiting = s
+        .store
+        .outbox_due(
+            acct_account(),
+            now() + chrono::TimeDelta::try_days(365).unwrap(),
+        )
+        .unwrap()
+        .into_iter()
+        .filter_map(|entry| match entry.op {
+            ProtoOp::Submit { draft, .. } => s.store.draft(draft).ok().map(|d| d.subject),
+            _ => None,
+        })
+        .collect();
+    let tried = s.fake.calls("EmailSubmission/set").len();
+    (
+        report,
+        s.store.draft(first).unwrap().state,
+        s.store.draft(second).unwrap().state,
+        waiting,
+        tried,
+    )
+}
+
+/// A submission the server is unable to take for now keeps its row and says the draft is
+/// retrying; the pass hears of the wait, as JMAP's sending shares the account's credential; and
+/// the send behind it is not tried.
+#[tokio::test]
+async fn a_jmap_send_the_server_cannot_take_now_stays_queued_and_holds_back_the_next() {
+    let (report, first, second, waiting, tried) = refused_sends("serverFail").await;
+    assert_eq!(report.submitted, 0);
+    assert_eq!(report.outbox_settled, 0);
+    assert!(report.needs_attention.is_empty(), "{report:?}");
+    assert!(
+        report.verdict.hold.is_some(),
+        "the wait is the pass's too: {report:?}"
+    );
+    assert_eq!(waiting, ["first", "second"], "no row is lost");
+    assert_eq!(report.still_queued, 2);
+    match first {
+        SendState::Failed { retry, .. } => assert!(!matches!(retry, Retry::Fatal(_)), "{retry:?}"),
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(second, SendState::Queued, "the next did not overtake");
+    assert_eq!(tried, 1);
+}
+
+/// A submission the server refuses for good is dropped with its reason, said to the person, and
+/// the send behind it waits for the next pass.
+#[tokio::test]
+async fn a_jmap_send_refused_for_good_is_dropped_with_its_reason() {
+    let (report, first, second, waiting, tried) = refused_sends("forbiddenFrom").await;
+    assert_eq!(report.submitted, 0);
+    assert_eq!(report.needs_attention.len(), 1, "{report:?}");
+    assert!(report.needs_attention[0].contains("the server's reason"));
+    assert_eq!(waiting, ["second"]);
+    assert_eq!(report.still_queued, 1);
+    match first {
+        SendState::Failed { retry, reason } => {
+            assert!(matches!(retry, Retry::Fatal(_)), "{retry:?}");
+            assert!(reason.contains("the server's reason"), "{reason}");
+        }
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(second, SendState::Queued);
+    assert_eq!(tried, 1);
 }

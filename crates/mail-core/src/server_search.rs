@@ -9,7 +9,7 @@
 //! `mailo/settings.toml`; `server-search.json` before it), and off unless turned on.
 //!
 //! What a server is asked is the line exactly as the store is asked it, parsed by the same
-//! [`crate::query::parse_with`], except that `label:` resolves against the one account being
+//! [`mail_logic::query::parse_with`], except that `label:` resolves against the one account being
 //! searched — a label is a name on one server — and a `re:/…/` pattern, which no server
 //! matches, is said rather than dropped. Each protocol's translation is `mail_proto::search`'s;
 //! the engines are `mail_runtime`'s ([`crate::SyncOps::search_server`]).
@@ -21,7 +21,7 @@ use mail_runtime::{Searched, Unsaid};
 use porter_core::AccountId;
 use std::path::Path;
 
-/// Whether a search shown in the list is asked of the server without the button being pressed.
+/// Whether a search shown in the list is asked of the server without being asked for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Automatic {
@@ -50,7 +50,7 @@ pub fn load(dir: &Path) -> Automatic {
 /// `Err` when a part of it no server can match: a `re:/…/` pattern, which is matched here over
 /// what the store holds. An invalid pattern is that too: it matches nothing anywhere.
 ///
-/// Parsed with the names the store parses with ([`crate::query::Known`]): `label:` against this
+/// Parsed with the names the store parses with ([`mail_logic::query::Known`]): `label:` against this
 /// account's `labels`, and `account:` against every account's address (`accounts`), which a
 /// server is told of as it is any account's clause. `is:vip` is asked as the VIPs' addresses
 /// (`vips`), each the address alone: the list is the store's, which a server cannot read.
@@ -60,16 +60,17 @@ pub fn filter_of(
     accounts: &[(String, AccountId)],
     vips: &crate::vip::Vips,
 ) -> Result<Filter, Unsaid> {
-    let extracted = crate::search::extract(input).map_err(|why| Unsaid(vec![why.to_string()]))?;
+    let extracted =
+        mail_logic::search::extract(input).map_err(|why| Unsaid(vec![why.to_string()]))?;
     if let Some(pattern) = &extracted.regex {
         return Err(Unsaid(vec![format!(
             "re:/{}/ (a pattern is matched on this computer, not by a server)",
             pattern.as_str()
         )]));
     }
-    let known = crate::query::Known { labels, accounts };
+    let known = mail_logic::query::Known { labels, accounts };
     Ok(with_vips(
-        crate::query::parse_with(&extracted.rest, &chrono::Local, &known),
+        mail_logic::query::parse_with(&extracted.rest, &chrono::Local, &known),
         vips,
     ))
 }

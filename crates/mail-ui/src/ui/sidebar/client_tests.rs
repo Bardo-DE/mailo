@@ -3,11 +3,11 @@
 
 use super::super::app::App;
 use crate::ui::fixtures::empty;
-use crate::ui::space::{Mail, built};
 use dioxus::prelude::*;
 use ds::prelude::SpaceLook;
+use mail_client::testing::seed::{seed_account, seed_label};
 use mail_domain::{LabelId, LabelOrigin};
-use mail_store::testing::{seed_account, seed_label};
+use mail_ui_kit::space::{Mail, built};
 use porter_core::AccountId;
 use std::time::{Duration, Instant};
 
@@ -39,7 +39,7 @@ fn window(
     shown: Vec<AccountId>,
 ) -> (
     VirtualDom,
-    std::sync::Arc<mail_core::SqliteStore>,
+    std::sync::Arc<mail_client::testing::SqliteStore>,
     tempfile::TempDir,
 ) {
     let (store, dir) = empty();

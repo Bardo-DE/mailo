@@ -64,40 +64,14 @@ impl SqliteStore {
     pub(super) fn write_pgp_key(&self, key: PgpKey) -> Result<PgpKey, StoreError> {
         let db = self.touch(Topics::KEYS);
         let tx = db.unchecked_transaction()?;
-        let held = tx
-            .query_row(
-                &format!("SELECT {KEY_COLUMNS} FROM pgp_keys WHERE fingerprint = ?1"),
-                params![key.fingerprint.to_string()],
-                |row| Ok(read_key(row)),
-            )
-            .optional()?
-            .transpose()?;
-        let merged = match held {
-            Some(held) => held.merged(key),
-            None => key,
-        };
-        tx.execute(
-            &format!(
-                "INSERT OR REPLACE INTO pgp_keys ({KEY_COLUMNS})
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)"
-            ),
-            params![
-                merged.fingerprint.to_string(),
-                to_json("PgpKey.key_ids", &merged.key_ids)?,
-                to_json("PgpKey.user_ids", &merged.user_ids)?,
-                to_json("PgpKey.emails", &merged.emails)?,
-                merged.key,
-                to_json("KeySource", &merged.source)?,
-                from_time(merged.first_seen),
-                from_time(merged.last_seen),
-                to_json("KeyTrust", &merged.trust)?,
-                to_json("SecretHeld", &merged.secret)?,
-                merged.created.map(from_time),
-                merged.expires.map(from_time),
-            ],
-        )?;
+        let merged = put_key(&tx, key)?;
         tx.commit()?;
         Ok(merged)
+    }
+
+    /// [`Self::write_pgp_key`], inside a transaction the caller holds.
+    pub(super) fn write_pgp_key_in(&self, key: PgpKey) -> Result<PgpKey, StoreError> {
+        put_key(&self.touch(Topics::KEYS), key)
     }
 
     pub(super) fn write_pgp_trust(
@@ -198,6 +172,43 @@ impl SqliteStore {
         )?;
         Ok(())
     }
+}
+
+/// Merge `key` into what is held for its fingerprint and write it, on `db` as it stands.
+fn put_key(db: &rusqlite::Connection, key: PgpKey) -> Result<PgpKey, StoreError> {
+    let held = db
+        .query_row(
+            &format!("SELECT {KEY_COLUMNS} FROM pgp_keys WHERE fingerprint = ?1"),
+            params![key.fingerprint.to_string()],
+            |row| Ok(read_key(row)),
+        )
+        .optional()?
+        .transpose()?;
+    let merged = match held {
+        Some(held) => held.merged(key),
+        None => key,
+    };
+    db.execute(
+        &format!(
+            "INSERT OR REPLACE INTO pgp_keys ({KEY_COLUMNS})
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)"
+        ),
+        params![
+            merged.fingerprint.to_string(),
+            to_json("PgpKey.key_ids", &merged.key_ids)?,
+            to_json("PgpKey.user_ids", &merged.user_ids)?,
+            to_json("PgpKey.emails", &merged.emails)?,
+            merged.key,
+            to_json("KeySource", &merged.source)?,
+            from_time(merged.first_seen),
+            from_time(merged.last_seen),
+            to_json("KeyTrust", &merged.trust)?,
+            to_json("SecretHeld", &merged.secret)?,
+            merged.created.map(from_time),
+            merged.expires.map(from_time),
+        ],
+    )?;
+    Ok(merged)
 }
 
 fn read_key(row: &rusqlite::Row<'_>) -> Result<PgpKey, StoreError> {
