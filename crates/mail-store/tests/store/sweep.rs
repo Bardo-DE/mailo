@@ -80,7 +80,7 @@ fn later() -> chrono::DateTime<Utc> {
 
 /// Two sweeps a day apart, the second's, after the first has seen what is unnamed: what it takes
 /// is only what both saw.
-fn sweep_twice(store: &SqliteStore) -> mail_store::Swept {
+fn sweep_twice(store: &SqliteStore) -> mail_store::BlobsSwept {
     let first = store.sweep_blobs(later()).unwrap();
     assert_eq!(
         (first.blobs, first.files),

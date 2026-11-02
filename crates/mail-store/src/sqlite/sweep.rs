@@ -54,7 +54,7 @@ const MARKER: &str = ".swept";
 
 /// What a sweep took back.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct Swept {
+pub struct BlobsSwept {
     /// Blob rows deleted.
     pub blobs: u64,
     /// Their size, in bytes.
@@ -68,7 +68,7 @@ pub struct Swept {
 impl SqliteStore {
     /// Sweep the blobs at most once a day, whichever process asks: `None` when one ran within the
     /// day before `now`. Takes the time a sweep ran from a marker beside the blobs.
-    pub fn sweep_blobs_daily(&self, now: DateTime<Utc>) -> Result<Option<Swept>, StoreError> {
+    pub fn sweep_blobs_daily(&self, now: DateTime<Utc>) -> Result<Option<BlobsSwept>, StoreError> {
         let marker = self.files().root().join(MARKER);
         let at = SystemTime::from(now);
         let recent = std::fs::metadata(&marker)
@@ -91,7 +91,7 @@ impl SqliteStore {
     ///
     /// Reads under no lock but a reader's, and holds the writer only to delete rows and move their
     /// files aside; the files are deleted after, with it let go of.
-    pub fn sweep_blobs(&self, now: DateTime<Utc>) -> Result<Swept, StoreError> {
+    pub fn sweep_blobs(&self, now: DateTime<Utc>) -> Result<BlobsSwept, StoreError> {
         // As SQLite writes `datetime('now')`, which is what a row's time is, so the two compare as
         // text.
         let cutoff: String = self.reader().query_row(
@@ -99,7 +99,7 @@ impl SqliteStore {
             [(now - BLOB_GRACE).timestamp()],
             |r| r.get(0),
         )?;
-        let mut swept = Swept::default();
+        let mut swept = BlobsSwept::default();
 
         // Unused for a while, and then not named by anything.
         let mut unused: BTreeMap<String, (i64, Option<String>)> = BTreeMap::new();
