@@ -19,8 +19,8 @@ authors = ["Po Hsuan Lai <pohsuanlai0208@gmail.com>"]
 mail-client.workspace = true
 mail-domain.workspace = true
 mail-logic.workspace = true
-ds-core = { git = "https://github.com/PoHsuanLai/quire.git", rev = "2b3d8aff2c4808016822c5c3ec6c1ae03be51f78" }  # 2b3d8aff (v0.3.58 + scroll-together; forks blitz 841386a7, blitz-kit 5b5380d0)
-ds-settings = { git = "https://github.com/PoHsuanLai/quire.git", rev = "2b3d8aff2c4808016822c5c3ec6c1ae03be51f78" }  # 2b3d8aff (v0.3.58 + scroll-together; forks blitz 841386a7, blitz-kit 5b5380d0)
+ds-core = { git = "https://github.com/PoHsuanLai/quire.git", rev = "39f34fc1a5aec73240010b3c7643844f6e05713b" }  # 39f34fc1 (v0.3.58 + scroll-together; forks blitz 841386a7, blitz-kit 5b5380d0)
+ds-settings = { git = "https://github.com/PoHsuanLai/quire.git", rev = "39f34fc1a5aec73240010b3c7643844f6e05713b" }  # 39f34fc1 (v0.3.58 + scroll-together; forks blitz 841386a7, blitz-kit 5b5380d0)
 serde.workspace = true
 mail-reader.workspace = true
 # Porter's account service, hosted in this process for the Add account window

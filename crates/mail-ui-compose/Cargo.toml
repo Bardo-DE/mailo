@@ -46,12 +46,12 @@ dioxus = { version = "0.7" }
 # display). quire re-exports only `StandardAction`; mailo names `Action`, `AppAction`, `Context` and
 # `Chord` as well. The rev quire pins (`docs/workspace-deps.toml`), so one chordkit is built.
 chordkit = { git = "https://github.com/PoHsuanLai/chordkit.git", rev = "99eec9ddd03ee345b669fcc7954ed44590724290" }
-ds = { git = "https://github.com/PoHsuanLai/quire.git", rev = "2b3d8aff2c4808016822c5c3ec6c1ae03be51f78" }  # 2b3d8aff (v0.3.58 + scroll-together; forks blitz 841386a7, blitz-kit 5b5380d0)
+ds = { git = "https://github.com/PoHsuanLai/quire.git", rev = "39f34fc1a5aec73240010b3c7643844f6e05713b" }  # 39f34fc1 (v0.3.58 + scroll-together; forks blitz 841386a7, blitz-kit 5b5380d0)
 # The window: quire's Blitz host (the window, its fonts, focus, clipboard, PDF output), and
 # `print`: the system's print dialog for a PDF (the desktop portal on Linux, else the PDF opened
 # in the viewer); `spell`: the composer's spelling, against the system's Hunspell dictionaries
 # (none is bundled); `pdf` also rasterises a PDF attachment's first page (`PdfFileThumb`).
-ds-blitz = { git = "https://github.com/PoHsuanLai/quire.git", rev = "2b3d8aff2c4808016822c5c3ec6c1ae03be51f78", features = ["pdf", "print", "spell"] }  # 2b3d8aff (v0.3.58 + scroll-together; forks blitz 841386a7, blitz-kit 5b5380d0)
+ds-blitz = { git = "https://github.com/PoHsuanLai/quire.git", rev = "39f34fc1a5aec73240010b3c7643844f6e05713b", features = ["pdf", "print", "spell"] }  # 39f34fc1 (v0.3.58 + scroll-together; forks blitz 841386a7, blitz-kit 5b5380d0)
 base64 = "0.22"
 # The composer's document: the editor model the body is written in.
 mail-editor.workspace = true
