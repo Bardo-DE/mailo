@@ -26,7 +26,12 @@ fn make_the_rule(settings: &mut Harness, store: &SqliteStore) {
     let from = format!("input{}", labelled(copy::fields::FROM));
     let save = labelled(copy::aria::SAVE_RULE);
     let add = labelled(copy::aria::ADD_ACTION);
-    click(settings, &labelled(copy::controls::NEW_RULE));
+    let row = format!("#rules-pane-open-{}", super::window::account());
+    until(settings, "the account is listed", |h| h.count(&row) == 1);
+    click(settings, &row);
+    let new = labelled(copy::controls::NEW_RULE);
+    until(settings, "the account's rules open", |h| h.count(&new) == 1);
+    click(settings, &new);
     until(settings, "the rule's page opens", |h| h.count(&from) == 1);
     click(settings, &format!("input{}", labelled(copy::fields::NAME)));
     type_text(settings, "Edsger");
