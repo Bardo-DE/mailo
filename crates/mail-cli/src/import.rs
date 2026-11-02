@@ -26,12 +26,13 @@ pub fn run(
             Ok(said(&total, into))
         }
         Destination::Mailbox { account, folder } => {
+            let mail = mail_edge::mail(store);
+            let accounts = mail.roster().map_err(super::remedy::error)?;
             let (id, total) =
-                import::queue_uploads(store, account, folder, &source, now, &mut tell)
+                import::queue_uploads(store, &accounts, account, folder, &source, now, &mut tell)
                     .map_err(super::remedy::error)?;
             let mut out = said(&total, into);
             // Sent now, so the user sees it go; whatever fails stays queued for the next sync.
-            let mail = mail_edge::mail(store);
             let report =
                 mail_edge::block_on(mail.sync().drain(id)).map_err(super::remedy::error)?;
             out.push_str(&format!("{} uploaded\n", report.appended));

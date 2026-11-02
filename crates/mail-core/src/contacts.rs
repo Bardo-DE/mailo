@@ -33,6 +33,7 @@ impl crate::mail::ContactOps<'_> {
         let mail = self.0;
         sync(
             mail.store(),
+            &mail.roster()?,
             url,
             account,
             user,
@@ -255,12 +256,13 @@ struct SignIn<'a> {
 /// secrets it is given: the handle's, or a test's.
 async fn sync(
     store: &SqliteStore,
+    accounts: &mail_logic::accounts::Accounts,
     url: Option<&str>,
     account: Option<&str>,
     user: Option<&str>,
     sign_in: &SignIn<'_>,
 ) -> Result<Synced, CoreError> {
-    let accounts = crate::sync::configured(store)?;
+    let accounts = crate::sync::connected(accounts);
     let http = carddav::client()?;
     let mut synced = Vec::new();
 

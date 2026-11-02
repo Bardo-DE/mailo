@@ -352,13 +352,14 @@ fn watching(store: Arc<SqliteStore>, secrets: Arc<MemorySecrets>, graph: &str) -
     let said = heard.clone();
     let (stop, cancel) = watch::channel(false);
     let graph = graph.to_owned();
+    let accounts = configured(&store);
     let done = std::thread::spawn(move || {
         crate::blocking::block_on(live::listen_at(
             store,
             secrets,
             &mail_secrets::testing::fake_clients(),
             &graph,
-            account(),
+            &accounts,
             Watch {
                 cancel,
                 hold: None,
@@ -782,10 +783,10 @@ async fn a_relay_that_forgot_the_key_is_registered_with_again() {
 #[test]
 fn a_graph_account_without_a_relay_is_polled() {
     let store = store(None);
-    assert!(live::pushing(&store).is_empty());
+    assert!(live::pushing(&store, &crate::support::accounts(&store)).is_empty());
     assert_eq!(graph_push::relay(&store, account()), None);
     // Polled at its interval, as before.
-    let intervals = mail_core::sync::due::intervals(&store);
+    let intervals = mail_core::sync::due::intervals(&crate::support::accounts(&store));
     assert_eq!(intervals, [(account(), Duration::from_secs(60))]);
     // A watch asked of it anyway says there is nothing to wait on, and for good.
     let (_stop, cancel) = watch::channel(false);
@@ -794,7 +795,7 @@ fn a_graph_account_without_a_relay_is_polled() {
         secrets(),
         &mail_secrets::testing::fake_clients(),
         "http://127.0.0.1:9/v1.0/subscriptions",
-        account(),
+        &configured(&store),
         Watch {
             cancel,
             hold: None,
@@ -807,16 +808,19 @@ fn a_graph_account_without_a_relay_is_polled() {
 
     // A relay set makes it pushed to; cleared, polled again.
     graph_push::set_relay(&store, account(), "https://relay.example.test/").unwrap();
-    assert_eq!(live::pushing(&store), [account()]);
+    assert_eq!(
+        live::pushing(&store, &crate::support::accounts(&store)),
+        [account()]
+    );
     assert_eq!(
         graph_push::relay(&store, account()).as_deref(),
         Some("https://relay.example.test")
     );
     graph_push::set_relay(&store, account(), "  ").unwrap();
-    assert!(live::pushing(&store).is_empty());
+    assert!(live::pushing(&store, &crate::support::accounts(&store)).is_empty());
     // An address that cannot be a relay's is refused, and the setting stays as it was.
     assert!(graph_push::set_relay(&store, account(), "http://relay.example.test").is_err());
-    assert!(live::pushing(&store).is_empty());
+    assert!(live::pushing(&store, &crate::support::accounts(&store)).is_empty());
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -830,13 +834,14 @@ async fn an_unreachable_relay_is_a_loss_the_scheduler_waits_out_while_polling() 
     let store = store(Some(&format!("http://127.0.0.1:{port}")));
     let (_stop, cancel) = watch::channel(false);
     let secrets = secrets();
+    let accounts = configured(&store);
     let lost = tokio::task::spawn_blocking(move || {
         crate::blocking::block_on(live::listen_at(
             store,
             secrets,
             &mail_secrets::testing::fake_clients(),
             &graph_at,
-            account(),
+            &accounts,
             Watch {
                 cancel,
                 hold: None,
@@ -849,4 +854,10 @@ async fn an_unreachable_relay_is_a_loss_the_scheduler_waits_out_while_polling() 
     .unwrap()
     .unwrap_err();
     assert!(matches!(lost.retry, Retry::After(_)), "{lost:?}");
+}
+
+/// The one account, as a pass runs it.
+fn configured(store: &SqliteStore) -> mail_core::sync::Configured {
+    mail_core::sync::Configured::of(crate::support::accounts(store).get(&account()).unwrap())
+        .expect("the account has connected")
 }

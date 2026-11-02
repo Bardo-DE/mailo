@@ -90,24 +90,6 @@ pub enum Change {
     Link(AccountId, Link),
     /// The account is gone, with its link and anything running for it.
     Gone(AccountId),
-    /// A pass may have written something the window shows, so a reader should look again. A pass
-    /// that stored nothing says nothing: a refused or unreachable account must not redraw.
-    Stored,
-}
-
-/// Whether a pass that ended may have written to the store.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Stored {
-    Maybe,
-    Nothing,
-}
-
-/// How a pass ended, as the link hears it.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Passed {
-    /// The one event the link hears when the pass is over.
-    pub event: Event,
-    pub stored: Stored,
 }
 
 /// What the host is asked to run a pass with.
@@ -166,7 +148,7 @@ pub trait Host {
     }
 
     /// Run one pass over `call.account`, saying where it is on `call.progress`.
-    fn pass(&self, call: PassCall) -> Local<'_, Passed>;
+    fn pass(&self, call: PassCall) -> Local<'_, Event>;
 
     /// Hold one connection to `call.account` and say what it hears on `call.heard`, until
     /// `call.stop` or the connection is lost.
@@ -536,13 +518,9 @@ async fn run_pass(running: Running<'_>) {
             }
         }
     };
-    let (passed, ()) = tokio::join!(running, forward);
+    let (ended, ()) = tokio::join!(running, forward);
     if generations.current(&account, generation) {
-        tell(&tx, Note::Event(account, passed.event));
-    }
-    // What a pass stored is what the list reads, cancelled or not.
-    if passed.stored == Stored::Maybe {
-        host.changed(Change::Stored);
+        tell(&tx, Note::Event(account, ended));
     }
     drop(cancel);
 }

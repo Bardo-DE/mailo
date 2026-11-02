@@ -605,14 +605,11 @@ impl Host for Scripted {
         }
     }
 
-    fn pass(&self, call: PassCall) -> Local<'_, Passed> {
+    fn pass(&self, call: PassCall) -> Local<'_, Event> {
         Box::pin(async move {
             self.passes.borrow_mut().push(call.account.clone());
             let _ = call.progress.send(Event::Stepped(Step::Flags, None));
-            Passed {
-                event: self.ending.borrow().clone(),
-                stored: Stored::Maybe,
-            }
+            self.ending.borrow().clone()
         })
     }
 
@@ -664,9 +661,7 @@ async fn a_press_runs_one_pass_that_reports_and_ends() {
         tx.send(Note::Event(acct_account(), Event::Start(Trigger::Manual)))
             .unwrap();
         eventually("a link settled current after a pass", || {
-            host.runs() == 1
-                && matches!(host.link(&acct_account()), Some(Link::Current { .. }))
-                && host.changes.borrow().contains(&Change::Stored)
+            host.runs() == 1 && matches!(host.link(&acct_account()), Some(Link::Current { .. }))
         })
         .await;
     };
@@ -701,7 +696,6 @@ async fn a_start_while_a_pass_runs_is_not_a_second_pass() {
         }
         eventually("the pass ended", || {
             matches!(host.link(&acct_account()), Some(Link::Current { .. }))
-                && host.changes.borrow().contains(&Change::Stored)
         })
         .await;
         tokio::time::sleep(Duration::from_millis(50)).await;

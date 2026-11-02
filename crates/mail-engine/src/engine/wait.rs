@@ -48,7 +48,7 @@ impl<B: Backend> AccountEngine<B> {
         let (store, account, every) = (
             self.store.clone(),
             self.account.clone(),
-            self.schedule.outbox,
+            self.cadence.outbox,
         );
         let alarm = || due_alarm(store.clone(), account.clone(), started, every);
         let learning = self.notifies() == Notify::Unasked;

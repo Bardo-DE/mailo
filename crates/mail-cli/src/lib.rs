@@ -1836,7 +1836,10 @@ pub fn run(mail: &Mail, command: &Command) -> Result<String, String> {
             }
         }
         Command::Invite(command) => invite::run(store, command, now, clock).map_err(remedy::error),
-        Command::Rules(rules) => rules::run(store, rules, now).map_err(remedy::error),
+        Command::Rules(rules) => {
+            rules::run(store, &mail.roster().map_err(remedy::error)?, rules, now)
+                .map_err(remedy::error)
+        }
         Command::Vacation(vacation) => {
             mail_edge::block_on(rules::run_vacation(mail, vacation)).map_err(remedy::error)
         }
@@ -1868,24 +1871,21 @@ pub fn run(mail: &Mail, command: &Command) -> Result<String, String> {
         Command::AccountList => mail_edge::block_on(mail.accounts().list())
             .map(|accounts| account::listed(&accounts))
             .map_err(remedy::error),
-        Command::AccountRemove { address, consent } => account::remove(
-            mail,
-            mail_core::config::config_dir().as_deref(),
-            address,
-            *consent,
-        ),
+        Command::AccountRemove { address, consent } => account::remove(mail, address, *consent),
         Command::FolderList { account } => {
             let id = account
                 .as_deref()
                 .map(|address| account_named(store, address))
                 .transpose()?;
-            mail_core::folder::list(store, id)
+            let accounts = mail.roster().map_err(remedy::error)?;
+            mail_core::folder::list(store, &accounts, id)
                 .map(|accounts| folder::listing(&accounts))
                 .map_err(remedy::error)
         }
         Command::Folder { account, work } => {
             let id = account_named(store, account)?;
-            mail_core::folder::change(store, id, work.clone(), now)
+            let accounts = mail.roster().map_err(remedy::error)?;
+            mail_core::folder::change(store, &accounts, id, work.clone(), now)
                 .map(|_| folder::said(work, account))
                 .map_err(|e| e.to_string())
         }

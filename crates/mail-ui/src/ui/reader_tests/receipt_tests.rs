@@ -97,6 +97,7 @@ fn put(store: &SqliteStore, headers: &str, held: Held) -> (ThreadId, MessageId) 
                 provider_threads: Vec::new(),
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     (store.message(id).unwrap().thread, id)

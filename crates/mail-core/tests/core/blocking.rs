@@ -30,7 +30,10 @@ pub fn run_with(
     now: chrono::DateTime<chrono::Utc>,
     hooks: Hooks<'_>,
 ) -> Result<Vec<PassEnd>, CoreError> {
-    block_on(sync::run_with(store, secrets, registry, now, hooks))
+    let accounts = crate::support::accounts(&store);
+    block_on(sync::run_with(
+        store, secrets, registry, &accounts, now, hooks,
+    ))
 }
 
 pub fn folder_now_with(
@@ -41,8 +44,9 @@ pub fn folder_now_with(
     path: &str,
     now: chrono::DateTime<chrono::Utc>,
 ) -> Result<PassEnd, CoreError> {
+    let accounts = crate::support::accounts(&store);
     block_on(sync::folder_now_with(
-        store, secrets, registry, account, path, now,
+        store, secrets, registry, &accounts, account, path, now,
     ))
 }
 
@@ -54,8 +58,9 @@ pub fn fetch_part_with(
     section: &mail_domain::Section,
     now: chrono::DateTime<chrono::Utc>,
 ) -> Result<(), CoreError> {
+    let accounts = crate::support::accounts(store);
     block_on(sync::fetch_part_with(
-        store, secrets, registry, message, section, now,
+        store, secrets, registry, &accounts, message, section, now,
     ))
 }
 
@@ -66,8 +71,9 @@ pub fn fetch_body_with(
     message: MessageId,
     now: chrono::DateTime<chrono::Utc>,
 ) -> Result<(), (mail_domain::Retry, String)> {
+    let accounts = crate::support::accounts(&store);
     block_on(sync::fetch_body_with(
-        store, secrets, registry, message, now,
+        store, secrets, registry, &accounts, message, now,
     ))
 }
 
@@ -79,7 +85,8 @@ pub fn listen_with(
     watch: live::Watch,
     heard: &dyn Fn(live::Heard),
 ) -> Result<(), live::Lost> {
+    let accounts = crate::support::accounts(&store);
     block_on(live::listen_with(
-        store, secrets, registry, account, watch, heard,
+        store, secrets, registry, &accounts, account, watch, heard,
     ))
 }

@@ -1,6 +1,6 @@
 //! Which accounts a timed pass in the window syncs.
 //!
-//! The window wakes at the shortest interval any account asks for, [`super::poll_interval`]. A
+//! The window wakes at the shortest interval any account asks for, [`mail_logic::accounts::Accounts::poll_interval`]. A
 //! wake syncs only the accounts whose own interval has passed: one Graph account polls every
 //! fifteen seconds, and the IMAP accounts beside it want a pass every five minutes. A pass the user asks for is
 //! not a wake and still syncs them all, through [`SyncOps::run`](crate::SyncOps).
@@ -10,27 +10,17 @@
 //! a server, so a person's Sync reaches it; its interval is [`MANUALLY`], which no timer reaches
 //! and the scheduler starts no pass at, the first one included.
 
-use crate::error::{CoreError, Logged};
-use std::collections::HashMap;
-use std::time::{Duration, Instant};
+use crate::error::CoreError;
+use std::time::Duration;
 
-use crate::offline::{Every, Kept};
+use crate::offline::Every;
 use mail_domain::WatchMode;
-use mail_store::SqliteStore;
+use mail_logic::accounts::Accounts;
 use porter_core::AccountId;
 
 pub use mail_engine::schedule::MANUALLY;
 
-/// What an account that offers IDLE is polled at, since no connection is held open for it.
-pub const IDLE: Duration = Duration::from_secs(300);
-
-/// How often one account wants a pass.
-pub fn every(watch: &WatchMode) -> Duration {
-    match watch {
-        WatchMode::Poll { every } => *every,
-        WatchMode::Idle => IDLE,
-    }
-}
+pub use mail_logic::accounts::{IDLE, every};
 
 /// How often one account is checked, given what the person chose: the server's own interval on
 /// [`Every::Automatic`], the minutes chosen, or [`MANUALLY`].
@@ -44,50 +34,17 @@ pub fn chosen(watch: &WatchMode, chose: Every) -> Duration {
     }
 }
 
-/// Each account with a server, and how often it wants a pass, as the setting in the user's config
-/// directory chooses ([`intervals_with`]).
-pub fn intervals(store: &SqliteStore) -> Vec<(AccountId, Duration)> {
-    intervals_with(store, &crate::offline::load_default())
-}
-
-/// Each account with a server, and how often it wants a pass, as `kept` chooses.
+/// Each account with a server, and how often it wants a pass, as the person chose.
 ///
 /// An account that keeps its mail here is left out: it has nothing to fetch, so it is never due.
-/// Nor is one whose syncing is paused ([`super::paused`]).
-pub fn intervals_with(store: &SqliteStore, kept: &Kept) -> Vec<(AccountId, Duration)> {
-    super::configured(store)
-        .or_log_default("the accounts could not be read")
-        .into_iter()
-        .filter(|account| account.plan.incoming.caps().has_server)
-        .filter(|account| !super::paused(store, account.id.clone()))
-        .map(|account| {
-            let wants = chosen(&account.caps.watch, kept.every_of(&account.id));
-            (account.id, wants)
+/// Nor is one whose syncing is paused, or one nothing has connected for yet.
+pub fn intervals(accounts: &Accounts) -> Vec<(AccountId, Duration)> {
+    accounts
+        .syncing()
+        .filter_map(|account| {
+            let caps = account.caps.as_ref()?;
+            Some((account.id.clone(), chosen(&caps.watch, account.prefs.every)))
         })
-        .collect()
-}
-
-/// The accounts whose own interval has passed since their last pass, and any never synced, but
-/// for one checked [`MANUALLY`], which no wake is for.
-///
-/// `last` is when each account's last pass started, which is the moment its interval counts
-/// from. Kept by the window in memory rather than in the store: a window just opened syncs every
-/// account once anyway, and a pass that failed still counts, or a server that is down would be
-/// asked again at every wake rather than at its own interval.
-pub fn due(
-    intervals: &[(AccountId, Duration)],
-    last: &HashMap<AccountId, Instant>,
-    now: Instant,
-) -> Vec<AccountId> {
-    intervals
-        .iter()
-        .filter(|(account, every)| {
-            *every != MANUALLY
-                && last
-                    .get(account)
-                    .is_none_or(|at| now.saturating_duration_since(*at) >= *every)
-        })
-        .map(|(account, _)| account.clone())
         .collect()
 }
 
@@ -101,17 +58,14 @@ impl crate::mail::SyncOps<'_> {
     ) -> Result<Vec<super::report::PassEnd>, CoreError> {
         let mail = self.0;
         let registry = mail.clients()?;
-        super::run_all(
-            mail.store().clone(),
+        let accounts = super::pick(&mail.roster()?, &|account| due.contains(&account));
+        super::pass_over(
+            mail.store(),
             mail.secrets(),
             &registry,
             mail.now(),
             super::Mode::Once,
-            &super::Scope {
-                due: &|account| due.contains(&account),
-                kept: &crate::offline::load_default(),
-                junk: mail.junk(),
-            },
+            accounts,
             hooks,
         )
         .await
@@ -123,62 +77,11 @@ mod tests {
     use super::*;
     use mail_domain::id::account_id_from_uuid;
 
-    fn acct_graph() -> AccountId {
-        account_id_from_uuid(uuid::uuid!("00000000-0000-4000-8000-0000000000e1"))
-    }
     fn acct_imap() -> AccountId {
         account_id_from_uuid(uuid::uuid!("00000000-0000-4000-8000-0000000000e2"))
     }
-    fn acct_pushed() -> AccountId {
-        account_id_from_uuid(uuid::uuid!("00000000-0000-4000-8000-0000000000e3"))
-    }
     fn acct_new() -> AccountId {
         account_id_from_uuid(uuid::uuid!("00000000-0000-4000-8000-0000000000e4"))
-    }
-
-    #[test]
-    fn each_account_is_due_at_its_own_interval() {
-        let intervals = [
-            (
-                acct_graph(),
-                every(&WatchMode::Poll {
-                    every: mail_domain::presets::GRAPH_POLL_EVERY,
-                }),
-            ),
-            (acct_imap(), every(&WatchMode::Poll { every: secs(300) })),
-            (acct_pushed(), every(&WatchMode::Idle)),
-            (acct_new(), secs(300)),
-        ];
-        let start = Instant::now();
-        // Every account but `acct_new()` last synced at `start`; `acct_new()` never has.
-        let last: HashMap<AccountId, Instant> = [acct_graph(), acct_imap(), acct_pushed()]
-            .into_iter()
-            .map(|account| (account, start))
-            .collect();
-        let table: [(u64, &[AccountId]); 6] = [
-            (0, &[acct_new()]),
-            (14, &[acct_new()]),
-            (15, &[acct_graph(), acct_new()]),
-            (120, &[acct_graph(), acct_new()]),
-            (299, &[acct_graph(), acct_new()]),
-            (300, &[acct_graph(), acct_imap(), acct_pushed(), acct_new()]),
-        ];
-        for (elapsed, expected) in table {
-            assert_eq!(
-                due(&intervals, &last, start + secs(elapsed)),
-                expected,
-                "{elapsed} s after the last pass"
-            );
-        }
-    }
-
-    #[test]
-    fn a_window_just_opened_syncs_every_account() {
-        let intervals = [(acct_graph(), secs(15)), (acct_imap(), secs(300))];
-        assert_eq!(
-            due(&intervals, &HashMap::new(), Instant::now()),
-            [acct_graph(), acct_imap()]
-        );
     }
 
     /// What the account page offers, as the interval the scheduler is handed.
@@ -201,35 +104,6 @@ mod tests {
         }
     }
 
-    /// One checked manually is never due, not even before its first pass; the others beside it
-    /// are due as they always were.
-    #[test]
-    fn an_account_checked_manually_is_never_due() {
-        let intervals = [
-            (acct_graph(), chosen(&WatchMode::Idle, Every::Manually)),
-            (acct_imap(), chosen(&WatchMode::Idle, Every::Minutes(15))),
-            (acct_new(), chosen(&WatchMode::Idle, Every::Manually)),
-        ];
-        let start = Instant::now();
-        let last: HashMap<AccountId, Instant> = [acct_graph(), acct_imap()]
-            .into_iter()
-            .map(|account| (account, start))
-            .collect();
-        let table: [(u64, &[AccountId]); 4] = [
-            (0, &[]),
-            (899, &[]),
-            (900, &[acct_imap()]),
-            (365 * 24 * 3600, &[acct_imap()]),
-        ];
-        for (elapsed, expected) in table {
-            assert_eq!(
-                due(&intervals, &last, start + secs(elapsed)),
-                expected,
-                "{elapsed} s after the last pass"
-            );
-        }
-    }
-
     #[test]
     fn an_account_that_offers_idle_is_polled_every_five_minutes() {
         assert_eq!(every(&WatchMode::Idle), secs(300));
@@ -238,7 +112,7 @@ mod tests {
     #[test]
     fn a_paused_account_is_never_due() {
         let store = mail_store::testing::in_memory();
-        let now = chrono::Utc::now();
+        let now = chrono::DateTime::UNIX_EPOCH;
         for (id, address) in [
             (acct_imap(), "ada@example.test"),
             (acct_new(), "bo@example.test"),
@@ -260,17 +134,19 @@ mod tests {
         store
             .set_account_syncing(acct_imap(), mail_store::Syncing::Paused)
             .unwrap();
-        let listed: Vec<AccountId> = intervals(&store).into_iter().map(|(id, _)| id).collect();
+        let at = |store: &mail_store::SqliteStore| {
+            intervals(&crate::gather::accounts(store, &Default::default()).unwrap())
+        };
+        let listed: Vec<AccountId> = at(&store).into_iter().map(|(id, _)| id).collect();
         assert_eq!(
             listed,
             [acct_new()],
             "the paused account is not on the timetable"
         );
-        assert!(due(&intervals(&store), &HashMap::new(), Instant::now()) == [acct_new()]);
         store
             .set_account_syncing(acct_imap(), mail_store::Syncing::On)
             .unwrap();
-        assert_eq!(intervals(&store).len(), 2, "and is again once it syncs");
+        assert_eq!(at(&store).len(), 2, "and is again once it syncs");
     }
 
     fn secs(n: u64) -> Duration {

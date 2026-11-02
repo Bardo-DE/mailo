@@ -262,7 +262,7 @@ pub(in crate::ui) fn work() -> Work {
                 email: "ci@example.com".to_owned(),
             },
         ],
-        profile: mail_client::testing::core::profile::ProfileId::default(),
+        profile: mail_client::profile::ProfileId::default(),
     };
     let spaces = space::built(vec![("Work".to_owned(), work, mail)], 0);
     space::save(
@@ -349,6 +349,7 @@ fn ensure_label(store: &SqliteStore, account: AccountId, name: &str) -> LabelId 
                     origin: LabelOrigin::User,
                 })],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     id
@@ -481,6 +482,7 @@ fn ingest(
                 provider_threads: Vec::new(),
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
 }

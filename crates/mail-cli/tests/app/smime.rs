@@ -128,7 +128,7 @@ fn import_bea(store: &SqliteStore, secrets: &MapSigningStore) {
 
 /// Store `raw` as a message that arrived in the inbox, the way a sync does, and return it.
 fn arrive(store: &SqliteStore, raw: Vec<u8>) -> Message {
-    let ingest = mail_core::assemble(
+    let assembly = mail_core::assemble(
         store,
         acct_account(),
         MailboxRef {
@@ -146,8 +146,8 @@ fn arrive(store: &SqliteStore, raw: Vec<u8>) -> Message {
         now(),
     )
     .unwrap();
-    let id = ingest.messages[0].message.id;
-    store.ingest(acct_account(), ingest).unwrap();
+    let id = assembly.ingest.messages[0].message.id;
+    assembly.write(store, acct_account(), now()).unwrap();
     store.message(id).unwrap()
 }
 

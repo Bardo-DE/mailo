@@ -2,7 +2,7 @@
 //!
 //! A rule's condition is written in the search language — `from:bank.example subject:statement`
 //! means here what it means in `mailo search` — and its actions are flags. Rules run on each
-//! sync over mail that arrived in the inbox (`mail_store::rules::at_arrival`), and on demand
+//! sync over mail that arrived in the inbox (`crate::arrival`), and on demand
 //! with `rules run`. Where the account's server takes Sieve, `mailo sieve push` puts the ones
 //! it can run there too; see [`server`].
 
@@ -15,6 +15,7 @@ pub mod speak;
 use crate::error::CoreError;
 use chrono::{DateTime, Utc};
 use mail_domain::{AfterMatch, Filter, LabelId, Rule, RuleAction, RuleId, RuleState};
+use mail_logic::accounts::Accounts;
 use mail_store::{SqliteStore, Store};
 
 /// What `mailo rules …` asked for.
@@ -51,10 +52,10 @@ pub enum RulesCmd {
 
 /// The one account a command means: the one named, or the only one there is.
 pub(crate) fn pick(
-    store: &SqliteStore,
+    accounts: &Accounts,
     named: Option<&str>,
 ) -> Result<crate::sync::Configured, CoreError> {
-    let mut accounts = crate::sync::configured(store)?;
+    let mut accounts = crate::sync::connected(accounts);
     match named {
         Some(address) => {
             let at = accounts
@@ -123,6 +124,7 @@ pub enum RulesDone {
 /// Run a rules command. `progress` hears of each batch a `Run` looks at, as it goes.
 pub fn run(
     store: &SqliteStore,
+    accounts: &Accounts,
     command: &RulesCmd,
     now: DateTime<Utc>,
     progress: &mut dyn FnMut(RunProgress),
@@ -130,8 +132,8 @@ pub fn run(
     match command {
         RulesCmd::List { account } => {
             let accounts = match account {
-                Some(_) => vec![pick(store, account.as_deref())?],
-                None => crate::sync::configured(store)?,
+                Some(_) => vec![pick(accounts, account.as_deref())?],
+                None => crate::sync::connected(accounts),
             };
             let mut listed = Vec::new();
             for account in accounts {
@@ -167,7 +169,7 @@ pub fn run(
             actions,
             after,
         } => {
-            let account = pick(store, account.as_deref())?;
+            let account = pick(accounts, account.as_deref())?;
             let index: Vec<(String, LabelId)> = store
                 .labels(account.id.clone())?
                 .into_iter()
@@ -201,7 +203,7 @@ pub fn run(
             })
         }
         RulesCmd::Remove { name, account } => {
-            let (account, rule) = named_rule(store, name, account.as_deref())?;
+            let (account, rule) = named_rule(store, accounts, name, account.as_deref())?;
             store.delete_rule(rule.id)?;
             Ok(RulesDone::Removed {
                 name: name.clone(),
@@ -213,7 +215,7 @@ pub fn run(
             account,
             state,
         } => {
-            let (_, rule) = named_rule(store, name, account.as_deref())?;
+            let (_, rule) = named_rule(store, accounts, name, account.as_deref())?;
             store.put_rule(&Rule {
                 state: *state,
                 ..rule
@@ -229,21 +231,29 @@ pub fn run(
             folder,
             batch,
         } => {
-            let (account, rule) = named_rule(store, name, account.as_deref())?;
+            let (account, rule) = named_rule(store, accounts, name, account.as_deref())?;
             let within = folder.as_ref().map_or(Filter::All, |path| {
                 Filter::InFolder(mail_domain::MailboxRef {
                     account: account.id.clone(),
                     path: path.clone(),
                 })
             });
-            let caps = crate::act::caps_here(store, account.id, now);
-            let ran =
-                mail_store::rules::run_now(store, &caps, &rule, &within, *batch, now, &mut |b| {
+            let caps = crate::act::caps_here(store, account.id.clone(), now);
+            let ran = crate::arrival::run_now(
+                store,
+                accounts.has_server(&account.id),
+                &caps,
+                &rule,
+                &within,
+                *batch,
+                now,
+                &mut |b| {
                     progress(RunProgress {
                         examined: b.examined,
                         matched: b.acted.len(),
                     });
-                })?;
+                },
+            )?;
             Ok(RulesDone::Ran {
                 name: name.clone(),
                 examined: ran.examined,
@@ -256,10 +266,11 @@ pub fn run(
 
 fn named_rule(
     store: &SqliteStore,
+    accounts: &Accounts,
     name: &str,
     account: Option<&str>,
 ) -> Result<(crate::sync::Configured, Rule), CoreError> {
-    let account = pick(store, account)?;
+    let account = pick(accounts, account)?;
     let rule = store
         .rules(account.id.clone())?
         .into_iter()

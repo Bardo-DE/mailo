@@ -191,7 +191,14 @@ mod erase {
     impl EraseCalls<'_> {
         /// `mail_core::erase::sweep`.
         pub fn sweep(&self, policy: &Policy, now: DateTime<Utc>) -> Vec<MessageId> {
-            mail_core::erase::sweep(self.0.store(), policy, now)
+            if policy.idle() {
+                return Vec::new();
+            }
+            let accounts = mail_core::Logged::or_log_default(
+                self.0.net().roster(),
+                "the accounts could not be read",
+            );
+            mail_core::erase::sweep(self.0.store(), &accounts, policy, now)
         }
     }
 }

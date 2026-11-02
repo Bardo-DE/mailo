@@ -192,6 +192,8 @@ pub struct Redirected {
     pub account: AccountId,
     /// The id its outbox entry is keyed by. No draft has it.
     pub draft: DraftId,
+    /// When it was redirected.
+    pub at: DateTime<Utc>,
 }
 
 /// Redirect `message` to `to`: queue the original, unchanged, beneath a `Resent-` block
@@ -256,31 +258,25 @@ pub fn redirect(
         },
     )?;
     let raw = store.blobs().put(&post.message)?;
-    let queued = store.enqueue(
+    // The entry's `next_attempt`: the outbox hands nothing out before it, so until then the
+    // redirect can be withdrawn.
+    let commit = super::freeze::unattached(
         account.clone(),
-        RemoteIntent::Send {
-            draft: id,
-            raw,
-            mail_from: post.mail_from,
-            rcpt_to: post.rcpt_to.clone(),
-            delivery: post.delivery,
-        },
-        // Nothing to undo: the outbox cannot take back bytes once they are on the wire.
-        &Patch {
-            id: ChangeId::generate(),
-            changes: Vec::new(),
-        },
-        // The entry's `next_attempt`: the outbox hands nothing out before it, so until then the
-        // redirect can be withdrawn.
+        id,
+        (&post, raw),
         now + grace,
-    )?;
-    if queued.is_none() {
-        return Err(CoreError::SubmissionNotQueued);
+        super::freeze::Ids::generate(),
+    );
+    match store.commit(&commit) {
+        Ok(_) => {}
+        Err(mail_store::StoreError::NotQueued) => return Err(CoreError::SubmissionNotQueued),
+        Err(other) => return Err(other.into()),
     }
     Ok(Redirected {
         to: post.rcpt_to,
         account,
         draft: id,
+        at: now,
     })
 }
 
@@ -295,6 +291,7 @@ pub fn withdraw_redirect(store: &SqliteStore, redirected: &Redirected) -> Result
             id: ChangeId::generate(),
             changes: vec![Change::DraftDelete(redirected.draft)],
         },
+        redirected.at,
     )?;
     Ok(())
 }

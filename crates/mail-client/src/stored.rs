@@ -38,8 +38,8 @@ impl Client {
     }
 
     /// What a search reads ([`mail_core::search::run`]).
-    pub fn source(&self) -> &dyn mail_core::search::Source {
-        self.store()
+    pub fn source(&self) -> mail_core::search::StoreSource<'_, mail_store::SqliteStore> {
+        mail_core::search::StoreSource(self.store())
     }
 }
 
@@ -125,11 +125,16 @@ impl Stored<'_> {
         self.0.store().folders(account).map_err(CallError::from)
     }
 
-    /// Write the caller's own changes, atomically.
-    pub fn apply(&self, account: AccountId, patch: &Patch) -> Result<(), CallError> {
+    /// Write the caller's own changes, atomically, at `now`.
+    pub fn apply(
+        &self,
+        account: AccountId,
+        patch: &Patch,
+        now: DateTime<Utc>,
+    ) -> Result<(), CallError> {
         self.0
             .store()
-            .apply(account, patch)
+            .apply(account, patch, now)
             .map_err(CallError::from)
     }
 

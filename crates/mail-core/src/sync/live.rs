@@ -31,9 +31,9 @@
 use super::access::{Access, Wait, access};
 use super::report::Failure;
 use super::run::Run;
-use super::{Configured, configured};
-use crate::error::Logged;
+use super::{Configured, connected_one};
 use mail_domain::*;
+use mail_logic::accounts::Accounts;
 use mail_runtime::graph::push::SUBSCRIPTIONS;
 use mail_runtime::{Cancel, RuntimeError, Woke};
 use mail_secrets::{AccountSecrets, ClientRegistry};
@@ -97,31 +97,24 @@ pub use mail_engine::schedule::Hold;
 /// be: see the table above.
 ///
 /// A Graph account is not here: whether it is pushed to is a setting the store holds, which
-/// [`pushing_with`] reads ([`super::graph_push::relayed`]).
+/// [`pushing`] reads ([`super::graph_push::relayed`]).
 pub fn pushes(account: &Configured) -> bool {
     account.plan.incoming.caps().pushes
         && matches!(account.caps.watch, WatchMode::Idle)
         && account.every == crate::offline::Every::Automatic
 }
 
-/// Every account that can be waited on, as the store describes them now and the setting in the
-/// user's config directory chooses ([`pushing_with`]).
-pub fn pushing(store: &SqliteStore) -> Vec<AccountId> {
-    pushing_with(store, &crate::offline::load_default())
-}
-
-/// Every account that can be waited on, as the store describes them now and `kept` chooses.
-pub fn pushing_with(store: &SqliteStore, kept: &crate::offline::Kept) -> Vec<AccountId> {
-    configured(store)
-        .or_log_default("the accounts could not be read")
-        .into_iter()
-        .map(|account| super::kept_as(account, kept))
+/// Every account that can be waited on, as `accounts` describe them: the ones that push, and the
+/// Graph accounts the person set a relay for, that are not paused.
+pub fn pushing(store: &SqliteStore, accounts: &Accounts) -> Vec<AccountId> {
+    accounts
+        .syncing()
+        .filter_map(super::Configured::of)
         .filter(|account| {
             pushes(account)
                 || (account.every == crate::offline::Every::Automatic
                     && super::graph_push::relayed(store, account))
         })
-        .filter(|account| !super::paused(store, account.id.clone()))
         .map(|account| account.id)
         .collect()
 }
@@ -141,10 +134,12 @@ impl crate::mail::SyncOps<'_> {
     ) -> Result<(), Lost> {
         let mail = self.0;
         let registry = mail.clients().map_err(|e| unsupported(&e.to_string()))?;
+        let accounts = mail.roster().map_err(|e| unsupported(&e.to_string()))?;
         listen_with(
             mail.store().clone(),
             mail.secrets(),
             &registry,
+            &accounts,
             account,
             Watch {
                 cancel,
@@ -172,16 +167,19 @@ pub async fn listen_with(
     store: Arc<SqliteStore>,
     secrets: Arc<dyn AccountSecrets>,
     registry: &ClientRegistry,
+    accounts: &Accounts,
     account: AccountId,
     watch: Watch,
     heard: &dyn Fn(Heard),
 ) -> Result<(), Lost> {
+    let account = connected_one(accounts, &account)
+        .ok_or_else(|| unsupported("that account is no longer configured"))?;
     listen_at(
         store,
         secrets,
         registry,
         SUBSCRIPTIONS,
-        account,
+        &account,
         watch,
         heard,
     )
@@ -195,22 +193,17 @@ pub async fn listen_at(
     secrets: Arc<dyn AccountSecrets>,
     registry: &ClientRegistry,
     subscriptions: &str,
-    account: AccountId,
+    account: &Configured,
     watch: Watch,
     heard: &dyn Fn(Heard),
 ) -> Result<(), Lost> {
-    let account = configured(&store)
-        .map_err(|why| unsupported(&why.to_string()))?
-        .into_iter()
-        .find(|one| one.id == account)
-        .ok_or_else(|| unsupported("that account is no longer configured"))?;
     let run = Run {
         store: &store,
         secrets,
         registry,
         // The wall clock, because a watch outlives any `now` it could be handed.
         now: chrono::Utc::now(),
-        account: &account,
+        account,
     };
     listen_on(
         access(&account.plan.incoming),
@@ -324,7 +317,8 @@ mod tests {
         let caps = caps();
         mail_store::testing::seed_account_plan(&store, account(), "ada@example.test", &plan, None);
         mail_store::testing::seed_caps(&store, account(), &caps, caps.observed_at).unwrap();
-        let one = configured(&store).unwrap().remove(0);
+        let accounts = crate::gather::accounts(&store, &Default::default()).unwrap();
+        let one = connected_one(&accounts, &account()).unwrap();
         (store, one)
     }
 

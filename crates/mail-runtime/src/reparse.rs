@@ -6,6 +6,7 @@
 
 use crate::RuntimeError;
 use crate::error::Logged;
+use chrono::{DateTime, Utc};
 use mail_domain::{Change, ChangeId, Message, MessageId, Patch};
 use mail_store::{SqliteStore, Store};
 
@@ -18,7 +19,7 @@ use mail_store::{SqliteStore, Store};
 ///
 /// A message whose bytes are gone or no longer parse leaves the queue unchanged: another try
 /// would get the same answer, and a queue that never empties is a cost on every start.
-pub fn reparse_queued(store: &SqliteStore) -> Result<usize, RuntimeError> {
+pub fn reparse_queued(store: &SqliteStore, now: DateTime<Utc>) -> Result<usize, RuntimeError> {
     let mut rewritten = 0;
     for id in store.reparse_queue()? {
         if let Some(message) = reparsed(store, id) {
@@ -28,6 +29,7 @@ pub fn reparse_queued(store: &SqliteStore) -> Result<usize, RuntimeError> {
                     id: ChangeId::generate(),
                     changes: vec![Change::MessageUpsert(Box::new(message))],
                 },
+                now,
             )?;
             rewritten += 1;
         }

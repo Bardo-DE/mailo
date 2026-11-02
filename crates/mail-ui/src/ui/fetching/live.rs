@@ -70,7 +70,7 @@ impl Listener {
                     why: "a test watched without providing a Listener".to_owned(),
                 })
             }),
-            pushers: Arc::new(|_| Vec::new()),
+            pushers: Arc::new(|_, _| Vec::new()),
             daemon: Arc::new(|| Daemon::Absent),
             first: Duration::ZERO,
             retry: RETRY_NOW,

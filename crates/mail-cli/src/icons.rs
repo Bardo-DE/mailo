@@ -1,7 +1,7 @@
 //! `icons refresh`: one line per provider, what landed.
 
-use mail_core::provider::Provider;
 use mail_core::provider::icon::{IconError, file_stem};
+use mail_logic::provider::Provider;
 use std::fmt::Write as _;
 
 /// What `mailo icons refresh` prints. Failures are a line here; the caller logs them.

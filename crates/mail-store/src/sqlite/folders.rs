@@ -7,8 +7,8 @@ use crate::StoreError;
 use crate::changes::Topics;
 use mail_domain::folder::{layered, renamed};
 use mail_domain::{
-    Change, Folder, FolderContents, FolderWork, LabelId, LabelOrigin, MailboxRef, MessageId,
-    ProtoOp, ThreadId,
+    Folder, FolderContents, FolderWork, LabelId, LabelOrigin, MailboxRef, MessageId, ProtoOp,
+    ThreadId,
 };
 use porter_core::AccountId;
 use rusqlite::params;
@@ -285,7 +285,7 @@ impl SqliteStore {
                 .prepare_cached("SELECT count(*) FROM remote_map WHERE message = ?1")?
                 .query_row(params![message.to_string()], |r| r.get(0))?;
             if remaining == 0
-                && let Some(thread) = self.write_change(&Change::MessageDelete(message))?
+                && let Some(thread) = self.delete_message(message)?
             {
                 self.refresh_summary(thread)?;
             }

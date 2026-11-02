@@ -105,10 +105,15 @@ fn the_blobs_of_a_deleted_message_go_with_their_files_and_a_kept_message_keeps_i
             Import {
                 messages: vec![doomed, kept("kept@x", kept_raw, &[])],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     store
-        .apply(account(), &patch(vec![Change::MessageDelete(doomed_id)]))
+        .apply(
+            account(),
+            &patch(vec![Change::MessageDelete(doomed_id)]),
+            chrono::Utc::now(),
+        )
         .unwrap();
 
     // Not yet an hour: it may be about to be named again.
@@ -173,6 +178,7 @@ fn a_blob_a_draft_or_a_queued_send_names_survives_and_one_nothing_names_does_not
         .apply(
             account(),
             &patch(vec![Change::DraftUpsert(Box::new(draft))]),
+            chrono::Utc::now(),
         )
         .unwrap();
     store
@@ -267,6 +273,7 @@ fn a_file_a_row_names_is_kept_however_old() {
             Import {
                 messages: vec![kept("named@x", held_file, &[])],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     age_all(&store);
@@ -315,6 +322,7 @@ fn a_blob_named_again_without_a_put_between_two_sweeps_survives() {
             Import {
                 messages: vec![kept("restored@x", id, &[])],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     store.sweep_blobs(later() + Duration::hours(25)).unwrap();

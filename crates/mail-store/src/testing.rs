@@ -378,6 +378,7 @@ pub fn edit_messages(store: &SqliteStore, mut edit: impl FnMut(&mut mail_domain:
                     id: ChangeId::generate(),
                     changes: vec![Change::MessageUpsert(Box::new(message))],
                 },
+                chrono::Utc::now(),
             )
             .expect("write the edited message back");
     }
@@ -560,6 +561,8 @@ pub fn downgrade_to_before_reparse(db_path: &std::path::Path) {
              ALTER TABLE drafts DROP COLUMN openpgp;
              DROP TABLE smime_certs;
              ALTER TABLE drafts DROP COLUMN smime;
+             DROP INDEX outbox_forward;
+             ALTER TABLE outbox DROP COLUMN forward_id;
              ALTER TABLE outbox DROP COLUMN messages;
              DROP TRIGGER unplaced_found_ins;
              DROP TRIGGER unplaced_found_upd;

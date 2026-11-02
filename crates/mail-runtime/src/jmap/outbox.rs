@@ -9,11 +9,12 @@
 //! Trash or Junk — and is checked against the server's own view before it is asked for.
 
 use super::{Client, JmapEngine, email_ids};
+use crate::sending::{self, Login, Outcome, Then};
 use crate::{RuntimeError, SyncReport};
 use chrono::{DateTime, Utc};
 use mail_domain::{
     BlobId, DeliveryReport, JmapEmailId, JmapMailboxId, MailboxRef, MailboxRole, ProtoOp,
-    RemoteRef, Retry, Retryable, SendState, SystemFlag,
+    RemoteRef, SendState, SystemFlag,
 };
 use mail_proto::jmap::{
     self, CORE, Dsn, EmailSummary, Filed, Identity, Ids, MAIL, Mailboxes, SUBMISSION, SetResult,
@@ -64,7 +65,7 @@ impl JmapEngine {
                 ProtoOp::Submit { draft, .. } => Some(*draft),
                 _ => None,
             };
-            let upload = match &entry.op {
+            let mut upload = match &entry.op {
                 ProtoOp::Append {
                     mailbox,
                     flags,
@@ -76,69 +77,70 @@ impl JmapEngine {
             if let Some(draft) = draft {
                 self.mark_draft(draft, SendState::Sending, now);
             }
-            match self.run(entry.op, draft.map(|_| now)).await {
+            let attempted = entry.op.clone();
+            let mut accepted = None;
+            let settled = match self.run(entry.op, draft.map(|_| now)).await {
                 Ok(outcome) => {
-                    self.store.outbox_settle(id, Settle::Ok, now)?;
-                    if let (
-                        Some(upload),
-                        ProtoOutcome::Appended {
-                            remote: Some(remote),
+                    accepted = Some(outcome);
+                    sending::settle(&attempted, Login::Shared, Outcome::Accepted, now)
+                }
+                Err(e) => {
+                    self.forget_if_stale(&e);
+                    sending::settle(
+                        &attempted,
+                        Login::Shared,
+                        // A JMAP operation is one request: nothing is done in part.
+                        Outcome::Refused {
+                            error: &e,
+                            done: Vec::new(),
+                            said: String::new(),
                         },
-                    ) = (upload, &outcome)
-                    {
-                        report.appended += 1;
-                        if let Err(e) = self.keep_appended(upload, remote.clone(), now) {
-                            report.needs_attention.push(format!(
-                                "uploaded, but not kept here until the next sync: {e}"
-                            ));
+                        now,
+                    )
+                }
+            };
+            if let Some(heard) = &settled.heard {
+                report.saw(heard);
+            }
+            report.needs_attention.extend(settled.notes.iter().cloned());
+            for step in &settled.then {
+                match step {
+                    Then::SettleRow(row) => self.store.outbox_settle(id, row.clone(), now)?,
+                    Then::KeepUpload => {
+                        if let (
+                            Some(upload),
+                            Some(ProtoOutcome::Appended {
+                                remote: Some(remote),
+                            }),
+                        ) = (upload.take(), accepted.take())
+                        {
+                            report.appended += 1;
+                            if let Err(e) = self.keep_appended(upload, remote, now) {
+                                report.needs_attention.push(format!(
+                                    "uploaded, but not kept here until the next sync: {e}"
+                                ));
+                            }
                         }
                     }
-                    if let Some(draft) = draft {
-                        self.mark_draft(
-                            draft,
-                            SendState::Sent {
-                                at: now,
-                                message: None,
-                            },
-                            now,
-                        );
-                        report.submitted += 1;
+                    // The server files the copy of what it sends, and a sync reads it back.
+                    Then::KeepSentCopy => {}
+                    Then::Mark(draft, mark) => {
+                        self.mark_draft(*draft, mark.clone().state(None), now);
+                    }
+                    Then::DropDraftCopies(draft) => {
                         // Its copy in Drafts goes, at the next drain. Sent whatever becomes of it.
-                        if let Err(e) = self.drop_draft_copies(draft, now) {
+                        if let Err(e) = self.drop_draft_copies(*draft, now) {
                             report.needs_attention.push(format!(
                                 "sent, but its draft may still be in Drafts on the server: {e}"
                             ));
                         }
                     }
-                    report.outbox_settled += 1;
                 }
-                Err(e) => {
-                    self.forget_if_stale(&e);
-                    let retry = e.retry();
-                    if retry.needs_person() || matches!(retry, Retry::Fatal(_)) {
-                        report.needs_attention.push(e.to_string());
-                    }
-                    report.saw(&retry);
-                    if let Some(draft) = draft {
-                        self.mark_draft(
-                            draft,
-                            SendState::Failed {
-                                reason: e.to_string(),
-                                retry: retry.clone(),
-                            },
-                            now,
-                        );
-                    }
-                    self.store.outbox_settle(
-                        id,
-                        Settle::Failed {
-                            reason: e.to_string(),
-                            retry,
-                        },
-                        now,
-                    )?;
-                    break;
-                }
+            }
+            report.submitted += usize::from(settled.submitted);
+            report.outbox_settled += usize::from(settled.settled);
+            if settled.halt {
+                break;
             }
         }
         report.still_queued = self
@@ -153,8 +155,7 @@ impl JmapEngine {
     }
 
     fn mark_draft(&self, draft: mail_domain::DraftId, state: SendState, now: DateTime<Utc>) {
-        // As in `AccountEngine::mark_draft`: a draft deleted while queued is nobody's concern.
-        crate::pass::note_state(self.store.set_send_state(draft, &state, now));
+        crate::sending::mark_draft(&*self.store, draft, state, now);
     }
 
     /// Queue the removal of a sent draft's copies from the server's Drafts mailbox

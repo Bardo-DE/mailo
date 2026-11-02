@@ -62,11 +62,10 @@ pub mod contacts {
     }
 }
 pub mod discover {
-    pub use mail_core::discover::{
-        Failed, Found, Looked, claimed_by, known, settle, typed, typed_domain,
-    };
+    pub use mail_core::discover::{Looked, settle, typed, typed_domain};
+    pub use mail_logic::discover::{Failed, Found, Gap, Source, claimed_by, known};
     pub mod providers {
-        pub use mail_core::discover::providers::set;
+        pub use mail_logic::discover::providers::set;
     }
 }
 pub mod export {
@@ -136,10 +135,10 @@ pub mod html_document {
     pub use mail_core::html_document::{LABELS, Pictures, Printed, write_file_into};
 }
 pub mod profile {
-    pub use mail_core::profile::{Profile, ProfileId};
+    pub use mail_logic::profile::{Profile, ProfileId};
 }
 pub mod provider {
-    pub use mail_core::provider::{Provider, provider, service_name};
+    pub use mail_logic::provider::{Provider, provider, service_name};
     pub mod icon {
         pub use mail_core::provider::icon::{Loaded, missing, refresh};
     }
@@ -153,10 +152,9 @@ pub mod remote_image {
 pub mod rules {
     pub use mail_core::rules::ListedRule;
     pub mod manage {
-        pub use mail_core::rules::manage::{
-            ConditionError, Draft, SaveError, Sending, Step, read_condition,
-        };
+        pub use mail_core::rules::manage::{Draft, SaveError, Sending, Step};
         pub use mail_domain::rule::DEFAULT_REPLY_DAYS;
+        pub use mail_logic::rules::condition::{ConditionError, read_condition};
     }
     pub mod server {
         pub use mail_core::rules::server::{
@@ -173,7 +171,7 @@ pub mod schedule {
 }
 pub mod search {
     // `run` reads what it is handed: a caller has only the client's (`Client::source`).
-    pub use mail_core::search::{
+    pub use mail_logic::search::{
         ActionHit, Affinity, Command, Find, Found, Highlight, MOST_FOUND, PersonHit, Results,
         SenderStats, Source, Step, Top, find_in, first, list_highlight, match_list, parse, run,
         search_list, snippet,
@@ -219,7 +217,7 @@ pub mod wanted {
 }
 pub use mail_core::Storage;
 pub mod junk {
-    pub use mail_core::junk::{Filtering, Heed, Order, Policy, Treat};
+    pub use mail_logic::junk::{Filtering, Heed, Order, Policy, Treat};
 }
 pub use mail_core::Logged;
 pub use mail_core::RelayRefused;

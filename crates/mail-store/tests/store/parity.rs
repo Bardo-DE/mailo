@@ -293,8 +293,12 @@ fn build(specs: &[Spec]) -> Both {
             origin: LabelOrigin::User,
         };
         let patch = patch(vec![Change::LabelUpsert(label)]);
-        sqlite.apply(acct_account(), &patch).unwrap();
-        memory.apply(acct_account(), &patch).unwrap();
+        sqlite
+            .apply(acct_account(), &patch, chrono::Utc::now())
+            .unwrap();
+        memory
+            .apply(acct_account(), &patch, chrono::Utc::now())
+            .unwrap();
     }
 
     let mut held: Vec<(Message, &Spec)> = Vec::new();
@@ -367,8 +371,12 @@ fn build(specs: &[Spec]) -> Both {
             ..message(0)
         };
         let patch = patch(vec![Change::MessageUpsert(Box::new(message.clone()))]);
-        sqlite.apply(acct_account(), &patch).unwrap();
-        memory.apply(acct_account(), &patch).unwrap();
+        sqlite
+            .apply(acct_account(), &patch, chrono::Utc::now())
+            .unwrap();
+        memory
+            .apply(acct_account(), &patch, chrono::Utc::now())
+            .unwrap();
         if s.vip {
             sqlite.put_vip(&message.from.email, None).unwrap();
             memory.put_vip(&message.from.email, None).unwrap();
@@ -412,8 +420,12 @@ fn build(specs: &[Spec]) -> Both {
             provider_threads: Vec::new(),
             gone: Vec::new(),
         };
-        sqlite.ingest(acct_account(), ingest.clone()).unwrap();
-        memory.ingest(acct_account(), ingest).unwrap();
+        sqlite
+            .ingest(acct_account(), ingest.clone(), chrono::Utc::now())
+            .unwrap();
+        memory
+            .ingest(acct_account(), ingest, chrono::Utc::now())
+            .unwrap();
     }
 
     // Copies and moves queued and not yet confirmed, as the window or a rule queues them: the op
@@ -441,7 +453,9 @@ fn build(specs: &[Spec]) -> Both {
                 &caps(),
                 now(),
             );
-            store.apply(acct_account(), &applied.forward).unwrap();
+            store
+                .apply(acct_account(), &applied.forward, chrono::Utc::now())
+                .unwrap();
             if let Some(intent) = applied.remote {
                 store
                     .enqueue(acct_account(), intent, &applied.inverse, now())
