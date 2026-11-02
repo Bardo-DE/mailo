@@ -18,7 +18,7 @@ use crate::ui::fixtures::{
     FakePointer, INSIDE_THE_SHELL, Seen, chord, click, dispatching, empty, listed_subjects,
     menu_names, open_row_menu, pick_named, pointer, rebuild_into, row_named,
 };
-use crate::ui::folder_open::Fetcher;
+use mail_ui_kit::fetching::folder_open::Fetcher;
 use mail_ui_kit::move_to::{destinations, folder_label, items};
 use mail_ui_kit::view::folder_filter;
 
@@ -92,6 +92,7 @@ fn store() -> (Arc<SqliteStore>, tempfile::TempDir, Vec<ThreadId>) {
                     origin: LabelOrigin::User,
                 })],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     let threads = [(1, "Q3 plan draft"), (2, "Budget for the Q3 plan")]
@@ -155,7 +156,9 @@ fn deliver(store: &SqliteStore, uid: u32, subject: &str) -> ThreadId {
         provider_threads: Vec::new(),
         gone: vec![],
     };
-    store.ingest(acct_imap(), ingest).unwrap();
+    store
+        .ingest(acct_imap(), ingest, chrono::Utc::now())
+        .unwrap();
     thread
 }
 

@@ -17,7 +17,7 @@ use std::sync::Arc;
 thread_local! {
     /// The Settings windows the page last drawn asked for: the composer's bar sends a key to
     /// make to the sending account's page in Settings.
-    static ASKED: std::cell::RefCell<Arc<crate::ui::settings_window::tests::Asked>> =
+    static ASKED: std::cell::RefCell<Arc<crate::ui::settings_tests::window::Asked>> =
         std::cell::RefCell::new(Arc::default());
 }
 
@@ -59,7 +59,7 @@ fn window(store: Arc<SqliteStore>, draft: Draft, secrets: Arc<MapSigningStore>) 
         .with_root_context(crate::ui::kit_tests::pgp_tests::seams_with(secrets))
         .with_root_context(mail_ui_kit::settings_at::SettingsWindows(ASKED.with(
             |asked| {
-                let fresh = Arc::new(crate::ui::settings_window::tests::Asked::default());
+                let fresh = Arc::new(crate::ui::settings_tests::window::Asked::default());
                 *asked.borrow_mut() = fresh.clone();
                 fresh
             },

@@ -32,7 +32,9 @@ fn deliver(store: &dyn Store, m: &Message, remote: RemoteRef) {
         raw: BlobId::generate(),
         message: m.clone(),
     });
-    store.ingest(acct_account(), batch).unwrap();
+    store
+        .ingest(acct_account(), batch, chrono::Utc::now())
+        .unwrap();
 }
 
 /// The server says `remote` has gone from its mailbox.
@@ -42,7 +44,9 @@ fn gone(store: &dyn Store, remote: RemoteRef) {
     };
     let mut batch = ingest(path);
     batch.gone.push(remote);
-    store.ingest(acct_account(), batch).unwrap();
+    store
+        .ingest(acct_account(), batch, chrono::Utc::now())
+        .unwrap();
 }
 
 fn listed(store: &dyn Store, filter: Filter) -> BTreeSet<ThreadId> {
@@ -331,7 +335,9 @@ fn a_move_made_here_and_not_yet_sent_is_not_undone_by_the_server() {
         let id = MessageId::from_uuid(uuid::Uuid::from_u128(1));
         deliver(store, &message(1, MailboxRole::Inbox), imap("INBOX", 1));
         let filed = patch(vec![Change::MessageMailbox(id, MailboxRole::Archive)]);
-        store.apply(acct_account(), &filed).unwrap();
+        store
+            .apply(acct_account(), &filed, chrono::Utc::now())
+            .unwrap();
         store
             .enqueue(
                 acct_account(),
@@ -376,7 +382,9 @@ fn act(store: &dyn Store, op: Op, n: u128) {
         &caps,
         at(1),
     );
-    store.apply(acct_account(), &applied.forward).unwrap();
+    store
+        .apply(acct_account(), &applied.forward, chrono::Utc::now())
+        .unwrap();
     let intent = applied.remote.expect("a server with folders is told");
     store
         .enqueue(acct_account(), intent, &applied.inverse, at(1))
@@ -408,6 +416,7 @@ fn moved_out_and_back(store: &dyn Store) -> Views {
                 color: None,
                 origin: LabelOrigin::Provider,
             })]),
+            chrono::Utc::now(),
         )
         .unwrap();
     deliver(store, &message(1, MailboxRole::Inbox), imap("INBOX", 1));
@@ -482,6 +491,7 @@ fn label_named(store: &dyn Store, path: &str) -> LabelId {
                 color: None,
                 origin: LabelOrigin::Provider,
             })]),
+            chrono::Utc::now(),
         )
         .unwrap();
     id

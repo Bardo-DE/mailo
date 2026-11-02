@@ -55,7 +55,7 @@ pub(super) fn run(opening: Opening) -> Result<(), ds_blitz::LaunchError> {
     // reason (`settings::Notices`).
     let notices = dirs.as_ref().map(|dirs| {
         let desktop = mail_os::desktop::connect_in_window();
-        crate::ui::follow_up::Notices(std::sync::Arc::new(mail_ui_model::settings::Notices::new(
+        mail_ui_kit::notices::Notices(std::sync::Arc::new(mail_ui_model::settings::Notices::new(
             Box::new(move |notification, sound| desktop.show_with(notification, sound)),
             mail_ui_kit::prefs::root_of(dirs),
         )))
@@ -78,7 +78,7 @@ pub(super) fn run(opening: Opening) -> Result<(), ds_blitz::LaunchError> {
     // account page): no browser, no issuer, no keyring, no dialog.
     let sign_ins = crate::ui::add_account::DirectSignIns::real(client.clone());
     let keys = mail_ui_kit::pgp::Seams::real(&client);
-    let removals = crate::ui::settings_window::AccountSeams::real();
+    let removals = crate::ui::settings::AccountSeams::real();
     // The keys the person chose, as the windows open: quire lays them over the system's keymap
     // for every window, so they are the keymap's own chords. A change made in Settings reaches
     // the running windows through `Keys::set_overrides` (`frame::use_followed_configuration`).
@@ -287,7 +287,7 @@ pub fn contexts(
         spaces,
         dirs,
         start,
-        crate::ui::fetching::Passer::idle().0,
+        mail_ui_kit::fetching::Passer::idle().0,
     )
 }
 
@@ -302,7 +302,7 @@ pub fn contexts_passing(
     start: crate::ui::ask::Open,
     pass: mail_client::fetch::Pass,
 ) -> RootContexts {
-    window_contexts(client, look, spaces, dirs, start).with(crate::ui::fetching::Passer(pass))
+    window_contexts(client, look, spaces, dirs, start).with(mail_ui_kit::fetching::Passer(pass))
 }
 
 /// [`contexts`] as the launched window has them: its passes go to the servers.

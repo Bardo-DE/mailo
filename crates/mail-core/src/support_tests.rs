@@ -61,6 +61,7 @@ pub fn remember(store: &MemoryStore, n: u128, subject: &str, body: &str, secs: i
                 id: ChangeId::generate(),
                 changes: vec![Change::MessageUpsert(Box::new(message))],
             },
+            chrono::Utc::now(),
         )
         .expect("memory apply");
 }
@@ -129,6 +130,7 @@ pub fn sqlite_with(rows: &[(&str, &str, i64)]) -> SqliteStore {
                     id: ChangeId::generate(),
                     changes: vec![Change::MessageUpsert(Box::new(message))],
                 },
+                chrono::Utc::now(),
             )
             .expect("sqlite apply");
     }

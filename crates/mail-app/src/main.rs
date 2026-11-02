@@ -144,7 +144,7 @@ fn main() {
     // Messages an older parser misread are re-read from their stored bytes, once, here — the
     // one place every command and the window pass through. Usually an empty queue and one
     // query. A failure is reported and does not stop the command: the mail is still readable.
-    if let Err(e) = mail_core::upkeep::reparse_queued(&store) {
+    if let Err(e) = mail_core::upkeep::reparse_queued(&store, std::time::SystemTime::now().into()) {
         eprintln!("could not re-read stored headers: {e}");
     }
     // Plain drafts kept before every draft's text was flowed text are made so, once.

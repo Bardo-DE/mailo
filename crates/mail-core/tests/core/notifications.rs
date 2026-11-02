@@ -175,6 +175,7 @@ fn stored_as(
                 id: ChangeId::generate(),
                 changes: vec![Change::MessageUpsert(Box::new(message))],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     id

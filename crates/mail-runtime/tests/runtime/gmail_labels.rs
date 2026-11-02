@@ -148,6 +148,7 @@ fn a_label_on_the_wire_becomes_a_label_you_can_search_for() {
                 provider_threads: Vec::new(),
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
 
@@ -165,7 +166,9 @@ fn a_label_on_the_wire_becomes_a_label_you_can_search_for() {
         "the survey carried no labels: {ingest:?}"
     );
 
-    store.ingest(acct_account(), ingest).unwrap();
+    store
+        .ingest(acct_account(), ingest, chrono::Utc::now())
+        .unwrap();
 
     // And it is findable by the thing the user typed.
     let travel = store

@@ -23,6 +23,7 @@ testing = []
 
 [dependencies]
 porter-core.workspace = true
+porter-provider.workspace = true
 mail-domain.workspace = true
 mail-logic.workspace = true
 # Everything the window knows of mail: values read, commands made, servers asked, all through the

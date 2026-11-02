@@ -296,6 +296,7 @@ fn a_delete_that_takes_mail_is_asked_first_and_offers_no_undo() {
                 provider_threads: Vec::new(),
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     let asked = perform(

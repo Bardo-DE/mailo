@@ -265,7 +265,9 @@ fn an_operation_whose_messages_are_all_gone_has_nothing_to_send() {
         // Deleted on another device: gone from the only mailbox that held it, so gone here.
         let mut batch = ingest("INBOX");
         batch.gone.push(imap("INBOX", 10));
-        store.ingest(acct_account(), batch).unwrap();
+        store
+            .ingest(acct_account(), batch, chrono::Utc::now())
+            .unwrap();
         let dispatch = store.outbox_dispatch(moved).unwrap();
         store.outbox_settle(moved, Settle::Ok, at(1)).unwrap();
         (
@@ -324,7 +326,9 @@ fn queue_undoable(
     forward: Change,
     undo: Change,
 ) -> OutboxId {
-    store.apply(acct_account(), &patch(vec![forward])).unwrap();
+    store
+        .apply(acct_account(), &patch(vec![forward]), chrono::Utc::now())
+        .unwrap();
     store
         .enqueue(acct_account(), intent, &patch(vec![undo]), at(0))
         .unwrap()
@@ -578,7 +582,9 @@ fn a_refusal_after_part_was_done_puts_back_only_the_rest() {
             Change::MessageStar(m.id, Star::Starred),
             Change::MessageMailbox(n.id, MailboxRole::Trash),
         ]);
-        store.apply(acct_account(), &forward).unwrap();
+        store
+            .apply(acct_account(), &forward, chrono::Utc::now())
+            .unwrap();
         let id = store
             .enqueue(
                 acct_account(),
@@ -643,7 +649,9 @@ fn a_held_thread_id_follows_its_message_and_goes_with_its_address() {
     batch
         .provider_threads
         .push((imap("INBOX", 5), "thr-1".to_owned()));
-    store.ingest(acct_account(), batch).unwrap();
+    store
+        .ingest(acct_account(), batch, chrono::Utc::now())
+        .unwrap();
     let joined = |store: &SqliteStore| {
         store
             .thread_by_provider_thread(acct_account(), "thr-1")
@@ -673,7 +681,9 @@ fn a_held_thread_id_follows_its_message_and_goes_with_its_address() {
     // The mailbox is renumbered: nothing held for it names anything.
     let mut reset = ingest("Archive");
     reset.validity = UidValidity::Reset;
-    store.ingest(acct_account(), reset).unwrap();
+    store
+        .ingest(acct_account(), reset, chrono::Utc::now())
+        .unwrap();
     assert_eq!(
         store
             .provider_thread_of(acct_account(), &imap("Archive", 9))

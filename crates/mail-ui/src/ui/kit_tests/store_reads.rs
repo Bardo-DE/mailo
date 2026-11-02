@@ -6,15 +6,27 @@
 #[test]
 fn the_files_that_draw_ask_the_store_nothing() {
     let files = [
-        ("list.rs", include_str!("../list.rs")),
+        (
+            "list.rs",
+            include_str!("../../../../mail-ui-list/src/list.rs"),
+        ),
         ("window/root.rs", include_str!("../window/root.rs")),
-        ("fetching/mod.rs", include_str!("../fetching/mod.rs")),
+        (
+            "fetching/mod.rs",
+            include_str!("../../../../mail-ui-kit/src/fetching/mod.rs"),
+        ),
         (
             "menus/mod.rs",
             include_str!("../../../../mail-ui-kit/src/menus/mod.rs"),
         ),
-        ("views.rs", include_str!("../views.rs")),
-        ("organise.rs", include_str!("../organise.rs")),
+        (
+            "views.rs",
+            include_str!("../../../../mail-ui-list/src/views.rs"),
+        ),
+        (
+            "organise.rs",
+            include_str!("../../../../mail-ui-list/src/organise.rs"),
+        ),
         (
             "reading/mod.rs",
             include_str!("../../../../mail-ui-reader/src/reading/mod.rs"),

@@ -15,8 +15,7 @@ use crate::mail::{Mail, SyncOps};
 use crate::notify::{Notifier, Whom};
 use chrono::{DateTime, Utc};
 use mail_engine::schedule::{
-    Change, Daemon, End, Host, ListenCall, Local, Lost, Note, PassCall, Passed, Schedule,
-    Scheduler, Stored,
+    Change, Daemon, End, Host, ListenCall, Local, Lost, Note, PassCall, Schedule, Scheduler,
 };
 use mail_logic::junk::Policy;
 use porter_core::AccountId;
@@ -296,7 +295,7 @@ impl Host for Watching<'_> {
         false
     }
 
-    fn pass(&self, call: PassCall) -> Local<'_, Passed> {
+    fn pass(&self, call: PassCall) -> Local<'_, crate::fetch::Event> {
         Box::pin(async move {
             let PassCall {
                 account,
@@ -317,14 +316,10 @@ impl Host for Watching<'_> {
             };
             let mail = self.mail_now();
             let done = survive(mail.sync().run_due(std::slice::from_ref(&account), hooks)).await;
-            let mut stored = Stored::Nothing;
             match &done {
                 Ok(ends) => {
                     for end in ends {
                         told(end, self.announce, started, self.tell);
-                        if end.may_have_stored() {
-                            stored = Stored::Maybe;
-                        }
                         self.ends.borrow_mut().insert(end.account(), end.clone());
                     }
                 }
@@ -332,10 +327,7 @@ impl Host for Watching<'_> {
                     why: why.to_string(),
                 }),
             }
-            Passed {
-                event: outcome(done, account),
-                stored,
-            }
+            outcome(done, account)
         })
     }
 

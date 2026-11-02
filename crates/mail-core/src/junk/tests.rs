@@ -1,8 +1,31 @@
 use super::*;
 use crate::support_tests::{account, at, caps};
+use chrono::{DateTime, Utc};
 use mail_domain::testing::message;
-use mail_domain::{Address, Change, ChangeId, Patch};
-use mail_logic::junk::{ENOUGH, Heed, JUNK_LABEL, Treat};
+use mail_domain::{
+    AccountCaps, Address, Body, Change, ChangeId, MailboxRole, Membership, MessageId, Op, Patch,
+};
+use mail_logic::junk::{ENOUGH, Filtering, Heed, JUNK_LABEL, Policy, Treat};
+use mail_store::Store;
+use porter_core::AccountId;
+
+/// What judging a pass's arrivals did.
+struct Sifted {
+    junk: Vec<MessageId>,
+}
+
+/// Judge `arrived` as `policy` says, with the account's rules, as a pass does.
+fn sift(
+    store: &SqliteStore,
+    account: AccountId,
+    caps: &AccountCaps,
+    arrived: &[MessageId],
+    policy: &Policy,
+    now: DateTime<Utc>,
+) -> Result<Sifted, CoreError> {
+    let ran = crate::arrival::arrive(store, &account, true, caps, arrived, *policy, now)?;
+    Ok(Sifted { junk: ran.junk })
+}
 
 /// The policy the person's settings give by default: the filter switched on.
 fn on() -> Policy {
@@ -24,6 +47,7 @@ fn stored(store: &SqliteStore, mut message: Message, raw: &[u8]) -> Message {
                 id: ChangeId::generate(),
                 changes: vec![Change::MessageUpsert(Box::new(message.clone()))],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     message
@@ -285,6 +309,7 @@ fn mail_whose_body_has_not_come_is_not_judged() {
                 id: ChangeId::generate(),
                 changes: vec![Change::MessageUpsert(Box::new(arriving.clone()))],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     let sifted = sift(&store, account(), &caps(), &[arriving.id], &on(), at(1000)).unwrap();
@@ -331,13 +356,24 @@ fn taking_the_junk_label_off_teaches_not_spam() {
         message(500, "promo@prizes.example", "Hello", SPAMMY),
         b"",
     );
-    let label = mail_store::rules::label_named(
-        &store,
-        account(),
-        JUNK_LABEL,
-        mail_domain::LabelOrigin::User,
-    )
-    .unwrap();
+    let label = mail_domain::Label {
+        id: mail_domain::LabelId::generate(),
+        account: account(),
+        name: JUNK_LABEL.to_owned(),
+        color: None,
+        origin: mail_domain::LabelOrigin::User,
+    };
+    store
+        .apply(
+            account(),
+            &Patch {
+                id: ChangeId::generate(),
+                changes: vec![Change::LabelUpsert(label.clone())],
+            },
+            chrono::Utc::now(),
+        )
+        .unwrap();
+    let label = label.id;
     crate::act::perform(&store, arriving.thread, Op::Label(label, Membership::In)).unwrap();
     let before = counts();
     let off =

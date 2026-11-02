@@ -839,6 +839,7 @@ fn seed_conversation(store: &SqliteStore) -> mail_domain::ThreadId {
                 id: ChangeId::generate(),
                 changes: vec![Change::MessageUpsert(Box::new(message))],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     thread

@@ -90,8 +90,14 @@ impl Attachment {
     pub fn blob(&self) -> Option<BlobId> {
         match self.content {
             PartContent::Held(blob) => Some(blob),
-            PartContent::Remote { .. } => None,
+            PartContent::Inside { .. } | PartContent::Remote { .. } => None,
         }
+    }
+
+    /// Whether its bytes can be had without the server: stored as a blob of their own, or inside
+    /// the message's raw bytes.
+    pub fn is_here(&self) -> bool {
+        !matches!(self.content, PartContent::Remote { .. })
     }
 }
 
@@ -103,6 +109,10 @@ impl Attachment {
 pub enum PartContent {
     /// Stored locally.
     Held(BlobId),
+    /// Not stored apart: it is the `index`th attachment of the message's raw bytes, as
+    /// `mail-mime` reads them, and is decoded from there when it is wanted. Costs nothing on disk
+    /// beyond the message itself.
+    Inside { index: u32 },
     /// Still on the server, as this IMAP section of the message (`"2"`, `"1.3"`). Fetched when
     /// it is opened or saved, and by a sync only for an account kept offline.
     Remote { section: Section },
@@ -121,6 +131,10 @@ struct AttachmentRow {
     blob: Option<BlobId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     remote_section: Option<String>,
+    /// The part's place among the message's attachments, when it is kept only inside the raw
+    /// message. Rows written before this have none, and read as they did.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    in_raw: Option<u32>,
     inline: Inline,
 }
 
@@ -128,6 +142,9 @@ impl From<AttachmentRow> for Attachment {
     fn from(row: AttachmentRow) -> Self {
         let content = match (row.blob, row.remote_section) {
             (Some(blob), _) => PartContent::Held(blob),
+            (None, _) if row.in_raw.is_some() => PartContent::Inside {
+                index: row.in_raw.unwrap_or_default(),
+            },
             // A section that is not one is read as the empty one, like a row with neither: a
             // row that no longer parses would take its whole message with it.
             (None, Some(section)) => PartContent::Remote {
@@ -151,9 +168,10 @@ impl From<AttachmentRow> for Attachment {
 
 impl From<Attachment> for AttachmentRow {
     fn from(a: Attachment) -> Self {
-        let (blob, remote_section) = match a.content {
-            PartContent::Held(blob) => (Some(blob), None),
-            PartContent::Remote { section } => (None, Some(section.into())),
+        let (blob, remote_section, in_raw) = match a.content {
+            PartContent::Held(blob) => (Some(blob), None, None),
+            PartContent::Inside { index } => (None, None, Some(index)),
+            PartContent::Remote { section } => (None, Some(section.into()), None),
         };
         AttachmentRow {
             name: a.name,
@@ -161,6 +179,7 @@ impl From<Attachment> for AttachmentRow {
             size: a.size,
             blob,
             remote_section,
+            in_raw,
             inline: a.inline,
         }
     }

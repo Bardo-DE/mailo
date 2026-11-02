@@ -1063,31 +1063,18 @@ async fn pass_on<B: mail_proto::Backend>(
         one_mailbox(engine, mailbox, account.keep, cancel, now, &mut done, emit).await?;
     }
 
-    // Rules, over what arrived in any folder this pass, before the drain so that what they
-    // queue leaves in the same pass. After the bodies, so a rule about words in the body finds
-    // them for every message the pass had room to fetch. The junk filter before them or after,
-    // as the person chose: whichever goes second sees only what the first left in the inbox.
-    let junk = account.junk;
-    if junk.order == mail_logic::junk::Order::BeforeRules {
-        sift(engine, account.id.clone(), &junk, &mut done, now);
-    }
-    match engine.run_rules(&done.counts.arrived, now) {
-        Ok(ran) => {
-            done.counts.ruled.extend(ran.acted);
-            // Forwards and replies are queued before the drain, so they leave in this pass.
-            let noted = crate::rules::speak::carry_out(
-                engine.store(),
-                &ran.left,
-                mail_logic::rules::guard::Occasion::Arrival,
-                now,
-            );
-            done.counts.noted.extend(noted);
-        }
-        Err(e) => done.trouble(None, e.retry(), format!("rules: {e}")),
-    }
-    if junk.order == mail_logic::junk::Order::AfterRules {
-        sift(engine, account.id.clone(), &junk, &mut done, now);
-    }
+    // The junk filter and the rules, over what arrived in any folder this pass, before the drain
+    // so that what they queue leaves in the same pass. After the bodies, so a rule about words in
+    // the body finds them for every message the pass had room to fetch.
+    let arrived = done.counts.arrived.clone();
+    arrival(
+        engine.store(),
+        account,
+        engine.caps(),
+        &arrived,
+        now,
+        &mut done,
+    );
 
     say(emit, Progress::Sending);
     let drained = engine
@@ -1121,30 +1108,47 @@ async fn pass_on<B: mail_proto::Backend>(
     Ok(done)
 }
 
-/// Run the junk filter over what the pass brought. A filter that cannot read its counts says
-/// so and the pass goes on: unjudged mail in the inbox is what there was before the filter.
-fn sift<B: mail_proto::Backend>(
-    engine: &AccountEngine<B>,
-    account: AccountId,
-    policy: &mail_logic::junk::Policy,
-    done: &mut Done,
+/// Act on what a pass brought, as the person's settings say: the junk filter, their rules and the
+/// conversations they muted, then what the rules asked of the client (forwards, replies, a
+/// notification). One step for every protocol, between the last fetch and the outbox drain.
+///
+/// A failure of it says so and the pass goes on: unjudged mail in the inbox is what there was
+/// before the filter.
+fn arrival(
+    store: &SqliteStore,
+    account: &Configured,
+    caps: &mail_domain::AccountCaps,
+    arrived: &[mail_domain::MessageId],
     now: chrono::DateTime<chrono::Utc>,
+    done: &mut Done,
 ) {
-    if let Err(e) = crate::junk::sift(
-        engine.store(),
-        account,
-        engine.caps(),
-        &done.counts.arrived,
-        policy,
+    let has_server = account.plan.incoming.caps().has_server;
+    match crate::arrival::arrive(
+        store,
+        &account.id,
+        has_server,
+        caps,
+        arrived,
+        account.junk,
         now,
     ) {
-        junk_failed(done, e);
+        Ok(ran) => {
+            done.counts.ruled.extend(ran.acted);
+            // Forwards and replies are queued before the drain, so they leave in this pass.
+            let noted = crate::rules::speak::carry_out(
+                store,
+                &ran.effects,
+                mail_logic::rules::guard::Occasion::Arrival,
+                now,
+            );
+            done.counts.noted.extend(noted);
+        }
+        Err(e) => done.trouble(
+            None,
+            mail_domain::Retry::Now,
+            format!("rules and the junk filter: {e}"),
+        ),
     }
-}
-
-/// Say that the junk filter failed, without failing the pass.
-fn junk_failed(done: &mut Done, why: CoreError) {
-    done.trouble(None, mail_domain::Retry::Now, format!("junk filter: {why}"));
 }
 
 /// Most headers one mailbox takes in one pass. The rest wait for the next pass, behind the

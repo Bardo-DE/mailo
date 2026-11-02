@@ -226,6 +226,22 @@ pub fn count(store: &SqliteStore, table: &str) -> i64 {
         .unwrap_or_else(|why| panic!("count the rows of {table}: {why}"))
 }
 
+/// The bytes of all the blobs, and of those that are some message's raw bytes.
+pub fn blob_bytes(store: &SqliteStore) -> (i64, i64) {
+    let db = store.connection();
+    let total = db
+        .query_row("SELECT coalesce(sum(size),0) FROM blobs", [], |r| r.get(0))
+        .expect("sum the blobs");
+    let raw = db
+        .query_row(
+            "SELECT coalesce(sum(size),0) FROM blobs WHERE id IN (SELECT body_raw FROM messages)",
+            [],
+            |r| r.get(0),
+        )
+        .expect("sum the raw messages");
+    (total, raw)
+}
+
 /// Say every stored message was stored when it is dated, or, with `Some(at)`, at `at`: a test's
 /// messages are all stored now, and it asks about ages in the past.
 pub fn set_stored_at(store: &SqliteStore, at: Option<chrono::DateTime<chrono::Utc>>) {
@@ -362,6 +378,7 @@ pub fn edit_messages(store: &SqliteStore, mut edit: impl FnMut(&mut mail_domain:
                     id: ChangeId::generate(),
                     changes: vec![Change::MessageUpsert(Box::new(message))],
                 },
+                chrono::Utc::now(),
             )
             .expect("write the edited message back");
     }
@@ -544,6 +561,8 @@ pub fn downgrade_to_before_reparse(db_path: &std::path::Path) {
              ALTER TABLE drafts DROP COLUMN openpgp;
              DROP TABLE smime_certs;
              ALTER TABLE drafts DROP COLUMN smime;
+             DROP INDEX outbox_forward;
+             ALTER TABLE outbox DROP COLUMN forward_id;
              ALTER TABLE outbox DROP COLUMN messages;
              DROP TRIGGER unplaced_found_ins;
              DROP TRIGGER unplaced_found_upd;

@@ -752,6 +752,7 @@ async fn archived_then_trashed(
                 id: ChangeId::generate(),
                 changes: vec![Change::MessageMailbox(message, MailboxRole::Trash)],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     it.store
@@ -1140,6 +1141,7 @@ fn queue_applied(
                 id: ChangeId::generate(),
                 changes: forward,
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     store

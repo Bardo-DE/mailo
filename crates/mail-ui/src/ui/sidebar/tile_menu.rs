@@ -3,13 +3,13 @@
 //! tile's menu is Sync Now, for every account the Space shows. What the rows are is data
 //! ([`items`]); [`TileMenu`] draws them at the press and does the pick.
 
-use crate::ui::fetching::Fetching;
 use crate::ui::reauth::Reauth;
 use dioxus::prelude::*;
 use ds::components::menus::item::item::MenuItem;
 use ds::host::measure::Anchor;
 use ds::prelude::*;
 use ds::root::common::Common;
+use mail_ui_kit::fetching::Fetching;
 use mail_ui_kit::space::{Handle, Member, with_member};
 use mail_ui_kit::view::Shell;
 use mail_ui_model::copy;
@@ -90,8 +90,8 @@ pub(super) fn TileMenu(
 /// Do what `pick` asks of `account`'s tile (`None` for All).
 fn picked(pick: Pick, mut shell: Signal<Shell>, handle: Handle, account: Option<AccountId>) {
     match (pick, account) {
-        (Pick::SyncNow, None) => crate::ui::fetching::sync_now(&shell.peek()),
-        (Pick::SyncNow, Some(id)) => crate::ui::fetching::sync_account(id),
+        (Pick::SyncNow, None) => mail_ui_kit::fetching::sync_now(&shell.peek()),
+        (Pick::SyncNow, Some(id)) => mail_ui_kit::fetching::sync_account(id),
         (Pick::SignInAgain, Some(id)) => {
             if let Some(reauth) = try_consume_context::<Reauth>() {
                 reauth.ask_again(&[id]);

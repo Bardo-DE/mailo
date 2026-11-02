@@ -45,7 +45,7 @@ pub struct MemoryStore {
 /// A message that could not be read, and when it was last tried.
 type Tried = (mail_domain::RemoteRef, DateTime<Utc>);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Inner {
     /// Accounts that have appeared in a write. `enqueue` refuses a resolved operation for an
     /// account that was never written, the way the SQL foreign key would.
@@ -66,6 +66,8 @@ struct Inner {
     unplaced: BTreeMap<(AccountId, MessageId), crate::dispatch::Unplaced>,
     labels: BTreeMap<LabelId, Label>,
     drafts: BTreeMap<DraftId, Draft>,
+    /// A composer's reminder for each draft until its message has left, as `follow_up_held` holds.
+    follow_up_held: BTreeMap<DraftId, crate::FollowUpHold>,
     templates: BTreeMap<TemplateId, Template>,
     /// Saved views, by id, each with its place among them.
     views: BTreeMap<mail_domain::ViewId, (i64, mail_domain::View)>,
@@ -108,6 +110,12 @@ struct Inner {
     groups: BTreeMap<crate::GroupId, crate::Group>,
     /// People's cards, by id.
     cards: BTreeMap<crate::CardId, crate::PersonCard>,
+    /// What the junk filter learned each message as, with the words it was learned from.
+    junk_learned: BTreeMap<MessageId, (AccountId, mail_domain::Judged, Vec<String>)>,
+    /// Each word of an account's junk filter: in how many spam and how many good messages.
+    junk_words: BTreeMap<(AccountId, String), (u64, u64)>,
+    /// Each account's messages learned as spam and as not spam.
+    junk_totals: BTreeMap<AccountId, (u64, u64)>,
     /// OpenPGP public keys, by fingerprint.
     pgp_keys: BTreeMap<mail_domain::Fingerprint, mail_domain::PgpKey>,
     /// Autocrypt peer state, by lower-cased address.
@@ -141,6 +149,8 @@ struct OutboxRow {
     /// The messages it is about, addressed again when it is sent. Empty when it names none.
     messages: Vec<MessageId>,
     undo: Patch,
+    /// The act that queued it: the id of the patch it applied.
+    forward: Option<mail_domain::UndoId>,
     attempts: u32,
     next_attempt: DateTime<Utc>,
 }
@@ -166,6 +176,7 @@ impl Default for Inner {
             unplaced: BTreeMap::new(),
             labels: BTreeMap::new(),
             drafts: BTreeMap::new(),
+            follow_up_held: BTreeMap::new(),
             templates: BTreeMap::new(),
             views: BTreeMap::new(),
             opened: BTreeMap::new(),
@@ -191,6 +202,9 @@ impl Default for Inner {
             books: BTreeMap::new(),
             groups: BTreeMap::new(),
             cards: BTreeMap::new(),
+            junk_learned: BTreeMap::new(),
+            junk_words: BTreeMap::new(),
+            junk_totals: BTreeMap::new(),
             pgp_keys: BTreeMap::new(),
             autocrypt: BTreeMap::new(),
             smime_certs: BTreeMap::new(),
@@ -202,6 +216,26 @@ impl MemoryStore {
     /// An empty store.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// What `account`'s junk filter knows of `words`, as `SqliteStore::junk_counts` answers.
+    pub fn junk_counts(&self, account: AccountId, words: &[String]) -> mail_domain::JunkCounts {
+        let inner = self.inner.borrow();
+        // An account the filter has learned nothing for has no counts.
+        let (spam, ham) = inner.junk_totals.get(&account).copied().unwrap_or_default();
+        let mut seen = Vec::new();
+        for word in words {
+            if let Some((s, h)) = inner.junk_words.get(&(account.clone(), word.clone()))
+                && !seen.iter().any(|(w, _, _): &(String, u64, u64)| w == word)
+            {
+                seen.push((word.clone(), *s, *h));
+            }
+        }
+        mail_domain::JunkCounts {
+            spam,
+            ham,
+            words: seen,
+        }
     }
 }
 
@@ -526,6 +560,14 @@ impl Store for MemoryStore {
         Ok(inner.placed_of(message))
     }
 
+    fn placing(&self, message: MessageId) -> Result<mail_domain::Placing, StoreError> {
+        let inner = self.inner.borrow();
+        if !inner.messages.contains_key(&message) {
+            return Err(StoreError::NoMessage(message));
+        }
+        Ok(inner.placing_of(message))
+    }
+
     fn unplaced_into(
         &self,
         account: AccountId,
@@ -736,7 +778,12 @@ impl Store for MemoryStore {
         Ok(message)
     }
 
-    fn apply(&self, account: AccountId, patch: &Patch) -> Result<(), StoreError> {
+    fn apply(
+        &self,
+        account: AccountId,
+        patch: &Patch,
+        _now: DateTime<Utc>,
+    ) -> Result<(), StoreError> {
         let mut inner = self.inner.borrow_mut();
         inner.accounts.insert(account);
         for change in &patch.changes {
@@ -745,19 +792,31 @@ impl Store for MemoryStore {
         Ok(())
     }
 
-    fn ingest(&self, account: AccountId, ingest: Ingest) -> Result<Patch, StoreError> {
-        self.inner.borrow_mut().ingest(account, &ingest)
+    fn ingest_with(
+        &self,
+        account: AccountId,
+        ingest: Ingest,
+        rows: &[mail_domain::Row],
+        now: DateTime<Utc>,
+    ) -> Result<crate::Ingested, StoreError> {
+        self.inner.borrow_mut().ingest(account, &ingest, rows, now)
     }
 
     fn refile(
         &self,
         account: AccountId,
         filed: &[(RemoteRef, mail_domain::MailboxRole)],
+        _now: DateTime<Utc>,
     ) -> Result<Patch, StoreError> {
         self.inner.borrow_mut().refile(account, filed)
     }
 
-    fn import(&self, account: AccountId, import: mail_domain::Import) -> Result<Patch, StoreError> {
+    fn import(
+        &self,
+        account: AccountId,
+        import: mail_domain::Import,
+        _now: DateTime<Utc>,
+    ) -> Result<Patch, StoreError> {
         self.inner.borrow_mut().import(account, &import)
     }
 
@@ -772,7 +831,23 @@ impl Store for MemoryStore {
         undo: &Patch,
         now: DateTime<Utc>,
     ) -> Result<Option<OutboxId>, StoreError> {
-        self.inner.borrow_mut().enqueue(account, &intent, undo, now)
+        self.inner
+            .borrow_mut()
+            .enqueue(account, &intent, undo, None, now)
+    }
+
+    fn commit(
+        &self,
+        commit: &mail_domain::Commit,
+    ) -> Result<mail_domain::commit::Written, StoreError> {
+        let mut inner = self.inner.borrow_mut();
+        // Whole or not at all, as the SQL transaction is: what a failure leaves is what was held.
+        let before = inner.clone();
+        let written = inner.commit(commit);
+        if written.is_err() {
+            *inner = before;
+        }
+        written
     }
 
     fn outbox_due(
@@ -1203,24 +1278,34 @@ impl Inner {
             .get(&held.account)
             .map(|caps| caps.folders.clone())
             .unwrap_or_default();
-        let moving: Vec<String> = self
-            .pending
-            .iter()
-            .filter(|row| row.message == message)
-            .filter_map(|row| match self.outbox.get(&row.outbox).map(|o| &o.op) {
-                Some(ProtoOp::File { folder, .. }) => Some(folder.clone()),
-                _ => None,
-            })
-            .collect();
-        let mut copying: Vec<String> = self
-            .pending
-            .iter()
-            .filter(|row| row.message == message)
-            .filter_map(|row| match self.outbox.get(&row.outbox).map(|o| &o.op) {
-                Some(ProtoOp::Copy { folder, .. }) => Some(folder.clone()),
-                _ => None,
-            })
-            .collect();
+        self.placing_of(message).placed(held.mailbox, &roles)
+    }
+
+    /// Kept in step with `sqlite/placed.rs`, which the parity proptest holds it to.
+    fn placing_of(&self, message: MessageId) -> mail_domain::Placing {
+        let Some(held) = self.messages.get(&message) else {
+            return mail_domain::Placing::default();
+        };
+        let queued = |wanted: fn(&ProtoOp) -> Option<&String>| -> Vec<String> {
+            self.pending
+                .iter()
+                .filter(|row| row.message == message)
+                .filter_map(|row| {
+                    self.outbox
+                        .get(&row.outbox)
+                        .and_then(|o| wanted(&o.op))
+                        .cloned()
+                })
+                .collect()
+        };
+        let moving = queued(|op| match op {
+            ProtoOp::File { folder, .. } => Some(folder),
+            _ => None,
+        });
+        let mut copying = queued(|op| match op {
+            ProtoOp::Copy { folder, .. } => Some(folder),
+            _ => None,
+        });
         copying.sort_unstable();
         copying.dedup();
         let mut paths: Vec<&str> = self
@@ -1235,9 +1320,12 @@ impl Inner {
             account: held.account.clone(),
             path: path.to_owned(),
         };
-        let addresses = paths.into_iter().map(folder).collect();
-        let copying = copying.iter().map(|path| folder(path)).collect();
-        mail_domain::Placed::of_message_copied(held.mailbox, addresses, &roles, &moving, copying)
+        mail_domain::Placing {
+            addresses: paths.into_iter().map(folder).collect(),
+            moving,
+            copying: copying.iter().map(|path| folder(path)).collect(),
+            unplaced: self.unplaced.contains_key(&(held.account.clone(), message)),
+        }
     }
 
     fn summary_of(&self, id: ThreadId) -> Option<ThreadSummary> {
@@ -1411,7 +1499,13 @@ impl Inner {
     }
 
     /// Server truth, then still-pending local changes on the threads that moved.
-    fn ingest(&mut self, account: AccountId, ingest: &Ingest) -> Result<Patch, StoreError> {
+    fn ingest(
+        &mut self,
+        account: AccountId,
+        ingest: &Ingest,
+        rows: &[mail_domain::Row],
+        now: DateTime<Utc>,
+    ) -> Result<crate::Ingested, StoreError> {
         self.accounts.insert(account.clone());
         let mut changes = Vec::new();
         let mut touched = BTreeSet::new();
@@ -1449,6 +1543,16 @@ impl Inner {
             self.learn_fetched(account.clone(), id, &fetched.message);
             if let Some(thread) = self.thread_of(id) {
                 touched.insert(thread);
+            }
+        }
+
+        // What the messages taught about keys, once they are written; a lesson that cannot be
+        // kept costs the mail nothing.
+        let mut keys_changed = false;
+        for row in rows {
+            match self.write_row(row, now) {
+                Ok(changed) => keys_changed |= changed,
+                Err(why) => log::warn!("what a message taught about a key was not kept: {why}"),
             }
         }
 
@@ -1535,9 +1639,12 @@ impl Inner {
                 .insert((account, ingest.mailbox.path.clone()), cursor.clone());
         }
 
-        Ok(Patch {
-            id: ChangeId::generate(),
-            changes,
+        Ok(crate::Ingested {
+            patch: Patch {
+                id: ChangeId::generate(),
+                changes,
+            },
+            keys_changed,
         })
     }
 
@@ -1716,6 +1823,7 @@ impl Inner {
         account: AccountId,
         intent: &RemoteIntent,
         undo: &Patch,
+        forward: Option<mail_domain::UndoId>,
         now: DateTime<Utc>,
     ) -> Result<Option<OutboxId>, StoreError> {
         let Some(op) = self.resolve_intent(account.clone(), intent)? else {
@@ -1767,6 +1875,7 @@ impl Inner {
                 op,
                 messages,
                 undo: undo.clone(),
+                forward,
                 attempts,
                 next_attempt,
             },
@@ -1782,6 +1891,223 @@ impl Inner {
             });
         }
         Ok(Some(id))
+    }
+
+    /// [`Store::commit`], without the undoing of a failure.
+    fn commit(
+        &mut self,
+        commit: &mail_domain::Commit,
+    ) -> Result<mail_domain::commit::Written, StoreError> {
+        use mail_domain::{Expect, Resolve, Row, Unplaced};
+        let mut queued: Vec<Option<OutboxId>> = vec![None; commit.queue.len()];
+        for row in &commit.rows {
+            if let Row::Expect(Expect::Draft {
+                draft,
+                updated,
+                state,
+            }) = row
+                && !self
+                    .drafts
+                    .get(draft)
+                    .is_some_and(|now| now.updated == *updated && now.state == *state)
+            {
+                return Err(StoreError::Stale);
+            }
+        }
+        for when in [Resolve::BeforeForward, Resolve::AfterForward] {
+            if when == Resolve::AfterForward {
+                self.accounts.insert(commit.account.clone());
+                for change in &commit.forward.changes {
+                    self.write_change(change)?;
+                }
+            }
+            for (at, queue) in commit.queue.iter().enumerate() {
+                if queue.resolve != when {
+                    continue;
+                }
+                let id = self.enqueue(
+                    commit.account.clone(),
+                    &queue.intent,
+                    &queue.undo,
+                    queue.id,
+                    commit.at,
+                )?;
+                if id.is_none() && queue.unplaced == Unplaced::Rollback {
+                    return Err(StoreError::NotQueued);
+                }
+                queued[at] = id;
+            }
+        }
+        let mut keys_changed = false;
+        for row in &commit.rows {
+            keys_changed |= self.write_row(row, commit.at)?;
+        }
+        Ok(mail_domain::commit::Written {
+            queued,
+            keys_changed,
+        })
+    }
+
+    /// One [`mail_domain::Row`], as `SqliteStore::write_row` writes it. Whether it changed the
+    /// keys or certificates held.
+    fn write_row(&mut self, row: &mail_domain::Row, at: DateTime<Utc>) -> Result<bool, StoreError> {
+        use mail_domain::Row;
+        match row {
+            Row::JunkTaught {
+                account,
+                message,
+                words,
+                judged,
+            } => {
+                self.junk_learn(account.clone(), *message, words, *judged);
+            }
+            Row::JunkForgotten {
+                message, judged, ..
+            } => {
+                self.junk_forget(*message, *judged);
+            }
+            Row::Withdrawn { forward, inverse } => {
+                self.withdraw(*forward, inverse, at)?;
+            }
+            Row::SendState { draft, state, at } => {
+                let draft = self
+                    .drafts
+                    .get_mut(draft)
+                    .ok_or(StoreError::NoDraft(*draft))?;
+                draft.state = state.clone();
+                draft.updated = *at;
+            }
+            Row::FollowUpHeld {
+                draft,
+                account,
+                message_id,
+                thread,
+                due,
+                set,
+            } => {
+                self.follow_up_held.insert(
+                    *draft,
+                    crate::FollowUpHold {
+                        draft: *draft,
+                        account: account.clone(),
+                        message_id: message_id.clone(),
+                        thread: *thread,
+                        at: *due,
+                        set: *set,
+                    },
+                );
+            }
+            Row::FollowUpReleased { draft } => {
+                self.follow_up_held.remove(draft);
+            }
+            Row::KeyLearned(taught) => {
+                return crate::learned::learn(self, taught);
+            }
+            Row::Expect(_) => {}
+        }
+        Ok(false)
+    }
+
+    /// As `SqliteStore::withdraw_in`.
+    fn withdraw(
+        &mut self,
+        forward: mail_domain::UndoId,
+        inverse: &Patch,
+        now: DateTime<Utc>,
+    ) -> Result<(), StoreError> {
+        let Some(id) = self
+            .outbox
+            .iter()
+            .find(|(_, row)| {
+                row.attempts == 0
+                    && match row.forward {
+                        Some(named) => named == forward,
+                        None => &row.undo == inverse,
+                    }
+            })
+            .map(|(id, _)| *id)
+        else {
+            return Ok(());
+        };
+        self.outbox_settle(
+            id,
+            Settle::Failed {
+                reason: "taken back before it was sent".to_owned(),
+                retry: Retry::Fatal("taken back".to_owned()),
+            },
+            now,
+        )
+    }
+
+    /// As `SqliteStore::junk_learn`.
+    fn junk_learn(
+        &mut self,
+        account: AccountId,
+        message: MessageId,
+        words: &[String],
+        judged: mail_domain::Judged,
+    ) {
+        use mail_domain::Judged;
+        let prior = self.junk_learned.get(&message).cloned();
+        if prior.as_ref().is_some_and(|(_, said, _)| *said == judged) {
+            return;
+        }
+        if let Some((_, said, taught)) = prior {
+            self.junk_take_back(&account, &taught, said);
+        }
+        let totals = self.junk_totals.entry(account.clone()).or_default();
+        match judged {
+            Judged::Spam => totals.0 += 1,
+            Judged::Ham => totals.1 += 1,
+        }
+        for word in words {
+            let counts = self
+                .junk_words
+                .entry((account.clone(), word.clone()))
+                .or_default();
+            match judged {
+                Judged::Spam => counts.0 += 1,
+                Judged::Ham => counts.1 += 1,
+            }
+        }
+        self.junk_learned
+            .insert(message, (account, judged, words.to_vec()));
+    }
+
+    /// As `SqliteStore::junk_forget`.
+    fn junk_forget(&mut self, message: MessageId, judged: mail_domain::Judged) {
+        let Some((account, said, taught)) = self.junk_learned.get(&message).cloned() else {
+            return;
+        };
+        if said != judged {
+            return;
+        }
+        self.junk_take_back(&account, &taught, judged);
+        self.junk_learned.remove(&message);
+    }
+
+    fn junk_take_back(
+        &mut self,
+        account: &AccountId,
+        words: &[String],
+        judged: mail_domain::Judged,
+    ) {
+        use mail_domain::Judged;
+        let down = |n: &mut u64| *n = n.saturating_sub(1);
+        if let Some(totals) = self.junk_totals.get_mut(account) {
+            match judged {
+                Judged::Spam => down(&mut totals.0),
+                Judged::Ham => down(&mut totals.1),
+            }
+        }
+        for word in words {
+            if let Some(counts) = self.junk_words.get_mut(&(account.clone(), word.clone())) {
+                match judged {
+                    Judged::Spam => down(&mut counts.0),
+                    Judged::Ham => down(&mut counts.1),
+                }
+            }
+        }
     }
 
     fn resolve_intent(
@@ -1929,6 +2255,7 @@ impl Inner {
                 account: row.account.clone(),
                 op,
                 undo: row.undo.clone(),
+                forward: row.forward,
                 attempts: row.attempts,
                 next_attempt: row.next_attempt,
             });
@@ -2205,4 +2532,43 @@ fn backoff(attempts: u32) -> TimeDelta {
 fn reauth_delay() -> TimeDelta {
     TimeDelta::try_hours(24)
         .unwrap_or_else(|| TimeDelta::try_seconds(24 * 3600).unwrap_or(TimeDelta::zero()))
+}
+
+impl crate::learned::Held for Inner {
+    fn autocrypt_peer(
+        &mut self,
+        address: &str,
+    ) -> Result<Option<mail_domain::AutocryptPeer>, StoreError> {
+        Ok(Inner::autocrypt_peer(self, address))
+    }
+
+    fn put_autocrypt_peer(&mut self, peer: &mail_domain::AutocryptPeer) -> Result<(), StoreError> {
+        Inner::put_autocrypt_peer(self, peer);
+        Ok(())
+    }
+
+    fn pgp_key(
+        &mut self,
+        fingerprint: mail_domain::Fingerprint,
+    ) -> Result<Option<mail_domain::PgpKey>, StoreError> {
+        Ok(self.pgp_keys.get(&fingerprint).cloned())
+    }
+
+    fn put_pgp_key(&mut self, key: mail_domain::PgpKey) -> Result<mail_domain::PgpKey, StoreError> {
+        Ok(Inner::put_pgp_key(self, key))
+    }
+
+    fn smime_cert(
+        &mut self,
+        fingerprint: mail_domain::CertFingerprint,
+    ) -> Result<Option<mail_domain::SmimeCert>, StoreError> {
+        Ok(self.smime_certs.get(&fingerprint).cloned())
+    }
+
+    fn put_smime_cert(
+        &mut self,
+        cert: mail_domain::SmimeCert,
+    ) -> Result<mail_domain::SmimeCert, StoreError> {
+        Ok(Inner::put_smime_cert(self, cert))
+    }
 }

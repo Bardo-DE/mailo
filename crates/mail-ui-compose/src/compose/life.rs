@@ -471,36 +471,28 @@ pub(crate) fn queue_reminding(
     remind: Option<DateTime<Utc>>,
     now: DateTime<Utc>,
 ) -> Result<DateTime<Utc>, mail_client::compose::SendError> {
+    // The reminder is held in the commit that queues the send, so the two stand or fall together.
     let queue = |leaves, now| {
         client
             .compose()
-            .queue_sized(secrets, ask, draft, leaves, pictures, now)
+            .queue_reminding(secrets, ask, (draft, pictures), (leaves, remind), now)
     };
-    let (queued, post, due) = match leaves {
+    let due = match leaves {
         // Right away is the grace period and Undo.
         Leaves::Now => {
             let due = now + grace;
-            let (queued, post) = queue(Leaves::Now, due)?;
-            (queued, post, due)
+            queue(Leaves::Now, due)?;
+            due
         }
         Leaves::At(at) => {
-            let (queued, post) = queue(Leaves::At(at), now)?;
-            (queued, post, at)
+            queue(Leaves::At(at), now)?;
+            at
         }
     };
     match pictures {
         PictureSize::Actual => ledger(client).queued_at().remove(&draft),
         size => ledger(client).queued_at().insert(draft, size),
     };
-    // The send is queued whatever becomes of the reminder: one that could not be kept is said
-    // where the window says what it could not do, and is no reason to take back mail the outbox
-    // already holds.
-    if let Err(why) = client
-        .follow_up()
-        .after_queue(&queued, &post.message, remind, due)
-    {
-        log::warn!("the reminder for {draft} was not kept: {why}");
-    }
     Ok(due)
 }
 

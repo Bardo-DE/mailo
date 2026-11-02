@@ -3,7 +3,6 @@
 //! the folders its messages are in.
 
 use super::super::app::App;
-use super::super::folder_open::Fetcher;
 use super::folder_tests::{acct_imap, folder};
 use crate::ui::fixtures::settle_quiet;
 use crate::ui::fixtures::{Seen, click, dispatching, empty, rebuild_into};
@@ -14,6 +13,7 @@ use mail_client::testing::core::fetch::FolderFetch;
 use mail_client::testing::core::sync::report::{AccountReport, Counts, PassEnd};
 use mail_client::testing::{SqliteStore, Store};
 use mail_domain::*;
+use mail_ui_kit::fetching::folder_open::Fetcher;
 use mail_ui_kit::motion::belongs;
 use mail_ui_kit::view::{Shell, folder_of, places_with};
 use porter_core::AccountId;
@@ -141,7 +141,7 @@ fn deliver(
         raw,
         message,
     });
-    store.ingest(account, ingest).unwrap();
+    store.ingest(account, ingest, chrono::Utc::now()).unwrap();
     thread
 }
 
@@ -178,7 +178,7 @@ fn window(store: Arc<SqliteStore>, fetcher: Fetcher) -> (VirtualDom, Seen) {
 /// Where the on-demand fetch of `path` on the account stands, as the window's fetching has it.
 fn folder_state(dom: &mut VirtualDom, path: &str) -> FolderFetch {
     dom.in_scope(ScopeId::APP, || {
-        consume_context::<super::super::fetching::Fetching>().folder(acct_imap(), path)
+        consume_context::<mail_ui_kit::fetching::Fetching>().folder(acct_imap(), path)
     })
 }
 
@@ -404,7 +404,7 @@ fn an_op_in_a_folder_place_keeps_the_row_while_its_mail_is_still_there() {
     // Once the server has moved it and a sync has seen it go, it is out of the folder.
     let mut gone = batch(acct_imap(), PROJECTS);
     gone.gone.push(remote(PROJECTS, 1));
-    store.ingest(acct_imap(), gone).unwrap();
+    store.ingest(acct_imap(), gone, chrono::Utc::now()).unwrap();
     assert!(
         !belongs(
             &crate::ui::fixtures::client(&store),

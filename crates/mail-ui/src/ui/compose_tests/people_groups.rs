@@ -2,7 +2,7 @@
 //! choosing it puts each member on the message once.
 
 use super::*;
-use crate::ui::contacts::tests::{ADDED, HEARD, WRITTEN, the_book};
+use crate::ui::settings_tests::contacts::{ADDED, HEARD, WRITTEN, the_book};
 use mail_client::testing::Store;
 use mail_client::testing::core::contacts::{Group, GroupHome, GroupId};
 use mail_ui_compose::compose::page::Float;

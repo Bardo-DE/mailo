@@ -142,6 +142,7 @@ fn fts5vocab_row_accepts_the_external_content_index() {
                 id: ChangeId::generate(),
                 changes: vec![Change::MessageUpsert(Box::new(message))],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
 
@@ -211,6 +212,7 @@ fn nested_connection_access_does_not_deadlock() {
                 id: ChangeId::generate(),
                 changes: vec![Change::MessageUpsert(Box::new(message))],
             },
+            chrono::Utc::now(),
         )
         .expect("a nested take of the connection must not hang");
 

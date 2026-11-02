@@ -315,7 +315,7 @@ mod tests {
         let one = Trouble {
             mailbox: None,
             retry: Retry::Now,
-            why: "x".into(),
+            why: Some("x".into()),
         };
         Link::Current {
             at,

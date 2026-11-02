@@ -160,6 +160,7 @@ fn message(store: &SqliteStore, stored: Stored<'_>) -> MessageId {
                 provider_threads: vec![],
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     id

@@ -30,7 +30,7 @@ pub mod wanted;
 pub use assemble::{Absorbed, Arrival, Destination, absorb, absorb_counted, absorb_into, assemble};
 pub use drive::{Cancel, drive, drive_within};
 pub use error::{Logged, RuntimeError};
-pub use jmap::JmapEngine;
+pub use jmap::{JmapEngine, Midway};
 pub use pass::{IDLE_REARM, SyncReport, Woke};
 pub use reparse::reparse_queued;
 pub use search::{SERVER_HITS, Searched, ServerHits, Unsaid};

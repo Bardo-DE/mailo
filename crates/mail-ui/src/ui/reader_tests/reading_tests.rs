@@ -418,6 +418,7 @@ fn add_as(
                 provider_threads: Vec::new(),
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
 }

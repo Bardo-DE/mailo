@@ -46,7 +46,9 @@ fn deliver(store: &dyn Store, m: &Message, remote: RemoteRef) {
         raw: BlobId::generate(),
         message: m.clone(),
     });
-    store.ingest(acct_account(), batch).unwrap();
+    store
+        .ingest(acct_account(), batch, chrono::Utc::now())
+        .unwrap();
 }
 
 /// What the window does for "Delete forever": the op applied to the thread, the deletion queued
@@ -71,7 +73,9 @@ fn delete_forever(store: &dyn Store, m: &Message) -> Option<OutboxId> {
             .enqueue(acct_account(), intent, &applied.inverse, at(1))
             .unwrap()
     });
-    store.apply(acct_account(), &applied.forward).unwrap();
+    store
+        .apply(acct_account(), &applied.forward, chrono::Utc::now())
+        .unwrap();
     queued
 }
 
@@ -122,7 +126,9 @@ fn a_confirmed_deletion_keeps_the_address_until_a_sync_no_longer_finds_it() {
         let settled = store.remote_refs(&mailbox("Trash")).unwrap();
         let mut sweep = ingest("Trash");
         sweep.gone = vec![imap("Trash", 10)];
-        store.ingest(acct_account(), sweep).unwrap();
+        store
+            .ingest(acct_account(), sweep, chrono::Utc::now())
+            .unwrap();
         (
             settled,
             store.remote_refs(&mailbox("Trash")).unwrap(),
@@ -219,7 +225,9 @@ fn a_move_to_trash_still_queued_takes_the_deletion_with_it() {
             )
             .unwrap()
             .expect("queued");
-        store.apply(acct_account(), &trashed.forward).unwrap();
+        store
+            .apply(acct_account(), &trashed.forward, chrono::Utc::now())
+            .unwrap();
         let second = delete_forever(store, &m).expect("queued");
 
         let move_sent = store.outbox_dispatch(first).unwrap();
@@ -277,7 +285,9 @@ fn a_renumbered_or_deleted_trash_forgets_what_it_kept() {
         delete_forever(store, &n).expect("queued");
         let mut reset = ingest("Trash");
         reset.validity = UidValidity::Reset;
-        store.ingest(acct_account(), reset).unwrap();
+        store
+            .ingest(acct_account(), reset, chrono::Utc::now())
+            .unwrap();
         (
             store.remote_refs(&mailbox("Trash")).unwrap(),
             store.remote_refs(&mailbox("Junk")).unwrap(),

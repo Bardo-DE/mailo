@@ -7,9 +7,9 @@
 
 use chrono::{DateTime, Utc};
 use mail_domain::{
-    AccountCaps, AccountPlan, BlobId, Condstore, FetchSince, Incoming, MailboxRef, MailboxRole,
-    MessageId, Outgoing, PartTree, ProtoOp, RemoteRef, Resync, Retry, Retryable, SendState,
-    SyncCursor, SystemFlag, Tls, UidValidity, WatchMode,
+    AccountCaps, AccountPlan, BlobId, Condstore, FetchSince, MailboxRef, MailboxRole, MessageId,
+    Outgoing, PartTree, ProtoOp, RemoteRef, Resync, Retry, Retryable, SendState, SyncCursor,
+    SystemFlag, Tls, UidValidity, WatchMode,
 };
 use mail_mime::Posting;
 use mail_net::Failure;
@@ -18,7 +18,8 @@ use mail_proto::backend::SmtpBackend;
 use mail_proto::{Authentication, Backend, Moved, ProtoOutcome, SignIn, Submission};
 use mail_runtime::error::Logged;
 use mail_runtime::error::refused_fresh;
-use mail_runtime::pass::{OUTBOX_LOOK, first_stored, given_up, note_state};
+use mail_runtime::pass::{OUTBOX_LOOK, first_stored, given_up};
+use mail_runtime::sending::{self, Login, Outcome, SentCopy, Then};
 use mail_runtime::{Cancel, RuntimeError, SyncReport, drive, drive_within};
 use mail_secrets::AccountSecrets;
 use mail_secrets::tokens::{AfterRefusal, Token, TokenSource};
@@ -27,11 +28,17 @@ use porter_core::{AccountId, Credential, SecretKey, SecretPurpose};
 use std::sync::Arc;
 use std::time::Duration;
 
+mod decide;
 mod partial;
 mod quota;
 mod search;
 mod split;
 pub(crate) mod wait;
+
+use decide::{
+    Backlog, MailboxState, Survey, Wanted, all_held, bodies_wanted, due, header_batch,
+    headers_wanted, held_mark, may_have_found_nothing, resting_since, sized, survey_kind,
+};
 
 /// Bodies are fetched smallest band first.
 ///
@@ -109,17 +116,6 @@ fn by_band(wanted: &mut [(RemoteRef, u64)]) {
     wanted.sort_by_key(|(_, size)| BANDS.iter().position(|&band| *size <= band));
 }
 
-/// Who files the copy of a message an account submits; see `AccountEngine::sent_copy`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum SentCopy {
-    /// The server does, and a sync reads it back.
-    Server,
-    /// This client does, in the local Sent: the account has no mailbox for it.
-    Here,
-    /// This client uploads it to the server's Sent mailbox at this path.
-    Upload(String),
-}
-
 /// How often each part of a sync runs.
 ///
 /// Three intervals, not one, because a sync pass is three different questions and only the
@@ -128,7 +124,7 @@ enum SentCopy {
 /// message was read, starred or deleted somewhere else. That is not an edge case; it is every
 /// user with a phone.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Schedule {
+pub struct Cadence {
     /// New mail: IDLE where offered, otherwise this interval.
     pub watch: Duration,
     /// Flag changes: a `CHANGEDSINCE` sweep where CONDSTORE is usable, else a full flag fetch.
@@ -143,7 +139,7 @@ pub struct Schedule {
     pub outbox: Duration,
 }
 
-impl Default for Schedule {
+impl Default for Cadence {
     fn default() -> Self {
         Self {
             watch: Duration::from_secs(300),
@@ -164,7 +160,7 @@ pub struct AccountEngine<B: Backend> {
     backend: B,
     store: Arc<SqliteStore>,
     secrets: Arc<dyn AccountSecrets>,
-    schedule: Schedule,
+    cadence: Cadence,
     /// Where [`Outgoing::Graph`] posts. Graph's own address, except under test.
     graph_url: String,
     /// Keeps an OAuth account's tokens fresh between and within passes. `None` for a password
@@ -309,7 +305,7 @@ impl<B: Backend> AccountEngine<B> {
             backend,
             store,
             secrets,
-            schedule: Schedule::default(),
+            cadence: Cadence::default(),
             graph_url: mail_runtime::graph::SEND_MAIL.to_owned(),
             tokens: None,
             graph: None,
@@ -356,6 +352,9 @@ impl<B: Backend> AccountEngine<B> {
     }
 
     /// Every address the last survey found, with a size where one is known.
+    ///
+    /// The backend's own memory of it: a sync takes it from [`Self::survey`] as a value, and
+    /// only a body pass, which runs on its own later, reads it from here.
     fn surveyed(&self) -> Vec<(RemoteRef, u64)> {
         match &self.graph {
             Some(reader) => reader.surveyed(),
@@ -417,8 +416,8 @@ impl<B: Backend> AccountEngine<B> {
     }
 
     /// Override the default intervals.
-    pub fn with_schedule(mut self, schedule: Schedule) -> Self {
-        self.schedule = schedule;
+    pub fn with_cadence(mut self, cadence: Cadence) -> Self {
+        self.cadence = cadence;
         self
     }
 
@@ -918,39 +917,9 @@ impl<B: Backend> AccountEngine<B> {
         })
     }
 
-    /// Who files the copy of a message this account submits.
-    ///
-    /// SMTP says only that a message was accepted (RFC 6409), so whether a Sent copy exists
-    /// afterwards depends on the pairing of servers, and each has one answer:
-    ///
-    /// - Graph's `sendMail`, JMAP's `EmailSubmission` and a Gmail or Microsoft SMTP server file
-    ///   it themselves, and a sync reads it back from Sent. Keeping one here too would list the
-    ///   message twice.
-    /// - An IMAP account on any other SMTP server has a Sent mailbox and nobody filing into it,
-    ///   so the client uploads the copy there (`APPEND`, RFC 3501 §6.3.11) when the server's
-    ///   `SPECIAL-USE` listing names one (RFC 6154), or, with none, a folder at the top has a
-    ///   name every client takes for Sent (`Sent`, `Sent Items`: `mail_proto`'s folder roles).
-    ///   With neither, uploading to a guessed path is how a message lands somewhere nobody
-    ///   looks, so the copy is kept here.
-    /// - A POP3 or local account has no Sent mailbox at all, whichever server sends for it, so
-    ///   the copy is kept here: Graph's lands in a Sent Items a POP3 sync never reads.
+    /// Who files the copy of a message this account submits ([`sending::sent_copy`]).
     fn sent_copy(&self) -> SentCopy {
-        match (&self.plan.incoming, &self.plan.outgoing) {
-            (_, Outgoing::Jmap | Outgoing::Nowhere)
-            | (Incoming::Jmap { .. } | Incoming::Graph, _) => SentCopy::Server,
-            (Incoming::Pop3 { .. } | Incoming::Local, _) => SentCopy::Here,
-            (Incoming::Imap { .. }, Outgoing::Graph) => SentCopy::Server,
-            (Incoming::Imap { .. }, Outgoing::Smtp { host, .. }) => {
-                if mail_domain::presets::files_sent_itself(host) {
-                    SentCopy::Server
-                } else {
-                    match self.folder_for(MailboxRole::Sent) {
-                        Some(path) => SentCopy::Upload(path),
-                        None => SentCopy::Here,
-                    }
-                }
-            }
-        }
+        sending::sent_copy(&self.plan, self.folder_for(MailboxRole::Sent))
     }
 
     /// Keep what was just submitted as `raw`, dated `at`, as [`Self::sent_copy`] says: kept
@@ -1094,18 +1063,17 @@ impl<B: Backend> AccountEngine<B> {
                 ProtoOp::Submit { draft, .. } => Some(*draft),
                 _ => None,
             };
-            // Sending apart from receiving (`mail_runtime::sending`): what a submission's failure asks
-            // for is its own row's, not the account's.
-            let tells_the_pass = mail_runtime::sending::tells_the_pass(&entry.op);
+            // What the settlement reads, since the operation is consumed by the attempt.
+            let attempted = entry.op.clone();
             // What a submission sent, and to whom, for the account that files its own copy of it.
             let copy = self.sent_copy();
-            let submitted = match &entry.op {
+            let mut submitted = match &entry.op {
                 ProtoOp::Submit { raw, rcpt_to, .. } if copy != SentCopy::Server => {
                     Some((*raw, rcpt_to.clone()))
                 }
                 _ => None,
             };
-            let upload = match &entry.op {
+            let mut upload = match &entry.op {
                 ProtoOp::Append {
                     mailbox,
                     flags,
@@ -1129,10 +1097,11 @@ impl<B: Backend> AccountEngine<B> {
             };
             let mut progress = partial::Progress::default();
             // Stamped with the same instant the draft records as `Sent { at }`, so the two agree.
-            match self
+            let attempt = self
                 .run_per_mailbox(entry.op, cancel, draft.map(|_| now), &mut progress)
-                .await
-            {
+                .await;
+            let mut accepted = None;
+            let settled = match attempt {
                 Ok(outcome) => {
                     // Before the settle, so the next entry, addressed as it is reached, finds
                     // the message where the move put it.
@@ -1143,24 +1112,55 @@ impl<B: Backend> AccountEngine<B> {
                         ProtoOutcome::Copied(copied) => self.copied(copied)?,
                         _ => {}
                     }
-                    self.store.outbox_settle(id, Settle::Ok, now)?;
-                    if let (Some(upload), ProtoOutcome::Appended { remote }) = (upload, outcome) {
-                        report.appended += 1;
-                        // The upload happened whatever this says. Failing the drain over the
-                        // local copy would report as lost a message the server now holds.
-                        if let Err(e) = self.keep_appended(upload, remote, now) {
-                            report.needs_attention.push(format!(
-                                "uploaded, but not kept here until the next sync: {e}"
-                            ));
+                    accepted = Some(outcome);
+                    sending::settle(&attempted, Login::Apart, Outcome::Accepted, now)
+                }
+                Err(RuntimeError::Cancelled) => return Ok((report, false)),
+                Err(e) => {
+                    // Refused after part of it was done: only the rest is undone.
+                    let done = partial::done(&held, &progress, into.as_deref());
+                    let said = partial::said(&progress, into.as_deref(), &e);
+                    sending::settle(
+                        &attempted,
+                        Login::Apart,
+                        Outcome::Refused {
+                            error: &e,
+                            done,
+                            said,
+                        },
+                        now,
+                    )
+                }
+            };
+            if let Some(heard) = &settled.heard {
+                report.saw(heard);
+            }
+            report.needs_attention.extend(settled.notes.iter().cloned());
+            let mut kept = None;
+            for step in &settled.then {
+                match step {
+                    Then::SettleRow(row) => self.store.outbox_settle(id, row.clone(), now)?,
+                    Then::KeepUpload => {
+                        if let (Some(upload), Some(ProtoOutcome::Appended { remote })) =
+                            (upload.take(), accepted.take())
+                        {
+                            report.appended += 1;
+                            // The upload happened whatever this says. Failing the drain over the
+                            // local copy would report as lost a message the server now holds.
+                            if let Err(e) = self.keep_appended(upload, remote, now) {
+                                report.needs_attention.push(format!(
+                                    "uploaded, but not kept here until the next sync: {e}"
+                                ));
+                            }
                         }
                     }
-                    if let Some(draft) = draft {
+                    Then::KeepSentCopy => {
                         // SMTP reports that the message was accepted, not where a copy was
                         // filed. Gmail files it in Sent itself and a sync finds it there, so
                         // `message: None` until then, and so for a copy this client uploads.
                         // A POP3 account has no Sent folder at all: the copy is kept here,
                         // now, or nowhere.
-                        let message = match submitted {
+                        kept = match submitted.take() {
                             Some((raw, rcpt_to)) => match self.keep_sent(&copy, raw, &rcpt_to, now)
                             {
                                 Ok(kept) => kept,
@@ -1176,73 +1176,29 @@ impl<B: Backend> AccountEngine<B> {
                             None => None,
                         };
                         copy_queued |= matches!(copy, SentCopy::Upload(_));
-                        self.mark_draft(draft, SendState::Sent { at: now, message }, now);
-                        report.submitted += 1;
+                    }
+                    Then::Mark(draft, mark) => {
+                        self.mark_draft(*draft, mark.clone().state(kept), now);
+                    }
+                    Then::DropDraftCopies(draft) => {
                         // Sent, so its copy in Drafts on the server goes, in this drain as the
                         // Sent copy does. Sent whatever becomes of that, as above.
-                        match self.drop_draft_copies(draft, now) {
+                        match self.drop_draft_copies(*draft, now) {
                             Ok(queued) => copy_queued |= queued,
                             Err(e) => report.needs_attention.push(format!(
                                 "sent, but its draft may still be in Drafts on the server: {e}"
                             )),
                         }
                     }
-                    report.outbox_settled += 1;
                 }
-                Err(RuntimeError::Cancelled) => return Ok((report, false)),
-                Err(e) => {
-                    let retry = match tells_the_pass {
-                        true => e.retry(),
-                        false => mail_runtime::sending::settles(&e),
-                    };
-                    if tells_the_pass {
-                        report.saw(&retry);
-                    }
-                    // Refused after part of it was done: only the rest is undone.
-                    let done = match retry {
-                        Retry::Fatal(_) => partial::done(&held, &progress, into.as_deref()),
-                        _ => Vec::new(),
-                    };
-                    if !done.is_empty() {
-                        report
-                            .needs_attention
-                            .push(partial::said(&progress, into.as_deref(), &e));
-                        self.store.outbox_settle(id, Settle::InPart { done }, now)?;
-                        halted = true;
-                        break;
-                    }
-                    // Said as the error is, whatever the row does with it: a send the server
-                    // refused for good, or refused the protocol for, is worth a note.
-                    if (tells_the_pass && retry.needs_person())
-                        || matches!(e.retry(), Retry::Fatal(_))
-                    {
-                        report.needs_attention.push(e.to_string());
-                    }
-                    if let Some(draft) = draft {
-                        // Carries the retry, so the composer can say "retrying" rather than
-                        // "failed" for something the outbox has not given up on.
-                        self.mark_draft(
-                            draft,
-                            SendState::Failed {
-                                reason: e.to_string(),
-                                retry: retry.clone(),
-                            },
-                            now,
-                        );
-                    }
-                    self.store.outbox_settle(
-                        id,
-                        Settle::Failed {
-                            reason: e.to_string(),
-                            retry,
-                        },
-                        now,
-                    )?;
-                    // Stop at the first failure rather than racing ahead: a later operation on
-                    // the same thread would otherwise overtake the one that just failed.
-                    halted = true;
-                    break;
-                }
+            }
+            report.submitted += usize::from(settled.submitted);
+            report.outbox_settled += usize::from(settled.settled);
+            if settled.halt {
+                // Stop at the first failure rather than racing ahead: a later operation on
+                // the same thread would otherwise overtake the one that just failed.
+                halted = true;
+                break;
             }
         }
         // Whatever is left, however it got there: a failure that backed off, or an entry whose
@@ -1380,7 +1336,7 @@ impl<B: Backend> AccountEngine<B> {
     /// Failing here would leave the outbox entry settled and the pass reporting an error about
     /// something nobody is waiting on.
     fn mark_draft(&self, draft: mail_domain::DraftId, state: SendState, now: DateTime<Utc>) {
-        note_state(self.store.set_send_state(draft, &state, now));
+        sending::mark_draft(&*self.store, draft, state, now);
     }
 
     /// Ask the server what it supports, and write down the answer.
@@ -1504,15 +1460,10 @@ impl<B: Backend> AccountEngine<B> {
         draft: mail_domain::DraftId,
         now: DateTime<Utc>,
     ) -> Result<bool, RuntimeError> {
-        // A Graph account reads through `self.graph`, and keeps no copy there.
-        if !self.plan.incoming.caps().writes_mailboxes || self.graph.is_some() {
-            return Ok(false);
-        }
-        // Nor does Gmail ([`mail_runtime::server_drafts::keeps_copies`]), whose EXPUNGE may archive.
-        if !mail_runtime::server_drafts::keeps_copies(self.caps()) {
-            return Ok(false);
-        }
-        let Some(path) = self.folder_for(MailboxRole::Drafts) else {
+        // Where the server keeps drafts, if it does: not a Graph account's, nor Gmail's.
+        let Some(path) =
+            mail_runtime::server_drafts::drafts_folder(&self.plan.incoming, self.caps())
+        else {
             return Ok(false);
         };
         let draft = match self.store.draft(draft) {
@@ -1627,25 +1578,6 @@ impl<B: Backend> AccountEngine<B> {
             })
     }
 
-    /// Run the account's rules over what a pass stored for the first time.
-    ///
-    /// `arrived` is [`SyncReport::arrived`], so each message meets the rules once, when it first
-    /// appears. Their actions are applied here and queued for the server with what the server
-    /// was last seen to support; the outbox drain that ends the pass sends them.
-    pub fn run_rules(
-        &self,
-        arrived: &[MessageId],
-        now: DateTime<Utc>,
-    ) -> Result<mail_store::rules::Ran, RuntimeError> {
-        Ok(mail_store::rules::at_arrival(
-            self.store.as_ref(),
-            self.account.clone(),
-            self.caps(),
-            arrived,
-            now,
-        )?)
-    }
-
     /// A first or incremental sync: survey, then headers, then bodies smallest band first.
     ///
     /// Headers before bodies is not only about speed. On POP3 `RETR` sets the seen flag and
@@ -1666,21 +1598,22 @@ impl<B: Backend> AccountEngine<B> {
         // Ask only for what arrived since everything listed was last held, unless a whole
         // listing is due. A whole one on every pass was the mailbox's every UID and flag, every
         // few minutes, for every followed mailbox, however large and however quiet.
-        let resumed_from = self.resume_point(mailbox, now)?;
-        let mut resumed = resumed_from.is_some();
-        let mut ingest = self.survey(mailbox, resumed_from.clone(), cancel).await?;
-        if let (Some(from), Some(fresh)) = (
-            &resumed_from,
-            ingest.as_ref().and_then(|ingest| ingest.cursor.as_ref()),
-        ) && UidValidity::between(Some(from), fresh) == UidValidity::Reset
-        {
+        let state = self.mailbox_state(mailbox)?;
+        let mut survey = survey_kind(&state, self.cadence.expunges, now);
+        let mut surveyed = self.survey(mailbox, &survey, cancel).await?;
+        if survey.redo(
+            surveyed
+                .ingest
+                .as_ref()
+                .and_then(|ingest| ingest.cursor.as_ref()),
+        ) {
             // The server numbers this mailbox afresh: where the survey resumed from means
             // nothing in it, and every UID held is a different message. Only a whole listing
             // can say what is there.
-            resumed = false;
-            ingest = self.survey(mailbox, None, cancel).await?;
+            survey = Survey::Whole;
+            surveyed = self.survey(mailbox, &survey, cancel).await?;
         }
-        let held_before = self.store.cursor(mailbox)?;
+        let Surveyed { ingest, listed } = surveyed;
         let mut held: Option<std::collections::HashSet<RemoteRef>> = None;
         if let Some(mut ingest) = ingest {
             let fresh = ingest.cursor.clone();
@@ -1689,23 +1622,19 @@ impl<B: Backend> AccountEngine<B> {
             // runtime's job, and getting it wrong means every stored UID addresses a different
             // message than we think it does.
             if let Some(fresh) = &fresh {
-                ingest.validity = UidValidity::between(held_before.as_ref(), fresh);
+                ingest.validity = UidValidity::between(state.cursor.as_ref(), fresh);
             }
             // A survey that found nothing we do not hold, and left the cursor where it was, has
-            // nothing to write. The server answers a request for what is past the last UID with
-            // the last message it has, held already, so "nothing" is not an empty answer.
+            // nothing to write.
             let mut nothing = false;
-            if resumed && fresh == held_before {
+            if may_have_found_nothing(&survey, &fresh, &state.cursor) {
                 let refs: std::collections::HashSet<RemoteRef> =
                     self.store.remote_refs(mailbox)?.into_iter().collect();
-                nothing = self
-                    .surveyed()
-                    .iter()
-                    .all(|(remote, _)| refs.contains(remote));
+                nothing = all_held(&listed, &refs);
                 held = Some(refs);
             }
             if !nothing {
-                self.store.ingest(self.account.clone(), *ingest)?;
+                self.store.ingest(self.account.clone(), *ingest, now)?;
             }
         }
 
@@ -1715,7 +1644,7 @@ impl<B: Backend> AccountEngine<B> {
         //
         // The ordering decision lives here rather than in the backend, because it is a product
         // judgement about what the user sees first, not a protocol fact.
-        let mut wanted = self.surveyed();
+        let mut wanted = listed;
         if wanted.is_empty() {
             // A protocol that cannot enumerate up front: fall back to what we already hold,
             // which the store hands back newest first.
@@ -1723,11 +1652,9 @@ impl<B: Backend> AccountEngine<B> {
             (wanted, first) = self.unfetched(mailbox, budget as u32, now)?;
             by_band(&mut wanted[first..]);
         } else {
-            // Minus what is already mapped. The survey is *everything on the server*, which is
-            // the right answer to "what exists" and the wrong one to "what should I fetch": it
-            // re-downloaded every header in the mailbox on every pass. On the maildrop this was
-            // measured against that is 2372 `TOP` commands every five minutes, against a campus
-            // server, for mail already on disk.
+            // Minus what is already mapped: re-downloading every header in the mailbox on every
+            // pass was 2372 `TOP` commands every five minutes, against a campus server, for mail
+            // already on disk.
             //
             // A message whose header is stored but whose body is not is *not* wanted here;
             // `fetch_bodies` asks `unfetched` for those, which is the question it answers.
@@ -1739,23 +1666,14 @@ impl<B: Backend> AccountEngine<B> {
             // for again now, and fail the same way.
             let resting: std::collections::HashSet<RemoteRef> = self
                 .store
-                .unreadable_since(mailbox, now - UNREADABLE_RETRY)?
+                .unreadable_since(mailbox, resting_since(now))?
                 .into_iter()
                 .collect();
-            wanted.retain(|(remote, _)| !held.contains(remote) && !resting.contains(remote));
-            // The survey is in server order, oldest first: POP3 message numbers and IMAP UIDs
-            // both count up as mail arrives. Nothing else is known before the headers are.
-            wanted.reverse();
-            by_band(&mut wanted);
+            wanted = headers_wanted(wanted, &held, &resting);
         }
 
         for band in BANDS {
-            let batch: Vec<RemoteRef> = wanted
-                .iter()
-                .filter(|(_, size)| *size <= band)
-                .take(budget.saturating_sub(report.headers_fetched))
-                .map(|(remote, _)| remote.clone())
-                .collect();
+            let batch = header_batch(&wanted, band, budget.saturating_sub(report.headers_fetched));
             if batch.is_empty() {
                 continue;
             }
@@ -1818,91 +1736,48 @@ impl<B: Backend> AccountEngine<B> {
         Ok(report)
     }
 
-    /// Where the next survey of `mailbox` may start from, rather than at the beginning: the
-    /// state up to which everything the server listed is held ([`Store::held_through`]).
-    ///
-    /// Nothing when there is no such state, when the server numbered the mailbox afresh since,
-    /// or when the listing for deletions is due: a whole listing is what gives the pass a full
-    /// picture of what the server holds, so one is made on that schedule and not on every pass.
-    fn resume_point(
-        &self,
-        mailbox: &MailboxRef,
-        now: DateTime<Utc>,
-    ) -> Result<Option<SyncCursor>, RuntimeError> {
-        let Some(
-            held @ SyncCursor::Imap {
-                uidvalidity,
-                uidnext,
-                ..
-            },
-        ) = self.store.held_through(mailbox)?
-        else {
-            return Ok(None);
-        };
-        // A zero is the server not saying; resuming from it would name nothing.
-        if uidvalidity == 0 || uidnext == 0 {
-            return Ok(None);
-        }
-        let stored = self.store.cursor(mailbox)?;
-        if UidValidity::between(stored.as_ref(), &held) == UidValidity::Reset {
-            return Ok(None);
-        }
-        if due(
-            self.store.swept(mailbox)?.expunges,
-            self.schedule.expunges,
-            now,
-        ) {
-            return Ok(None);
-        }
-        Ok(Some(held))
+    /// What the store holds of `mailbox` that a survey of it is decided over.
+    fn mailbox_state(&self, mailbox: &MailboxRef) -> Result<MailboxState, RuntimeError> {
+        Ok(MailboxState {
+            held_through: self.store.held_through(mailbox)?,
+            cursor: self.store.cursor(mailbox)?,
+            expunges_swept: self.store.swept(mailbox)?.expunges,
+        })
     }
 
-    /// Ask `mailbox` what it holds: from `from` on, or all of it.
+    /// Ask `mailbox` what it holds, the way `survey` says, and take what the backend listed.
     async fn survey(
         &mut self,
         mailbox: &MailboxRef,
-        from: Option<SyncCursor>,
+        survey: &Survey,
         cancel: &mut Cancel,
-    ) -> Result<Option<Box<mail_domain::Ingest>>, RuntimeError> {
-        let since = match from {
-            Some(cursor) => FetchSince::After { cursor },
-            None => FetchSince::Beginning,
-        };
+    ) -> Result<Surveyed, RuntimeError> {
         let outcome = self
             .run(
                 ProtoOp::FetchEnvelopes {
                     mailbox: mailbox.clone(),
-                    since,
+                    since: survey.since(),
                 },
                 cancel,
             )
             .await?;
-        Ok(match outcome {
-            ProtoOutcome::Ingested(ingest) => Some(ingest),
-            _ => None,
+        Ok(Surveyed {
+            ingest: match outcome {
+                ProtoOutcome::Ingested(ingest) => Some(ingest),
+                _ => None,
+            },
+            listed: self.surveyed(),
         })
     }
 
     /// Everything the last survey listed is held now: the next one need only ask for what comes
     /// after it. Only where the server numbers messages the way an IMAP server does.
     fn mark_held(&self, mailbox: &MailboxRef) -> Result<(), RuntimeError> {
-        let Some(SyncCursor::Imap {
-            uidvalidity,
-            uidnext,
-            ..
-        }) = self.store.cursor(mailbox)?
-        else {
-            return Ok(());
-        };
         // The cursor here is the one the survey just wrote, or the one a pass that found nothing
-        // new left alone; neither has moved on since, so what it names is what was listed. No
-        // modseq: this is a place to start listing from, and the sweep owns that.
-        let through = SyncCursor::Imap {
-            uidvalidity,
-            uidnext,
-            modseq: None,
-        };
-        if self.store.held_through(mailbox)?.as_ref() != Some(&through) {
+        // new left alone; neither has moved on since, so what it names is what was listed.
+        let cursor = self.store.cursor(mailbox)?;
+        let held = self.store.held_through(mailbox)?;
+        if let Some(through) = held_mark(&cursor, &held) {
             self.store.mark_held_through(mailbox, &through)?;
         }
         Ok(())
@@ -1984,6 +1859,7 @@ impl<B: Backend> AccountEngine<B> {
                     provider_threads: Vec::new(),
                     gone: Vec::new(),
                 },
+                now,
             );
             if let Err(cause) = flags {
                 // The messages are stored; only their flags are not. Say so, so they are
@@ -2057,6 +1933,7 @@ impl<B: Backend> AccountEngine<B> {
                     provider_threads: Vec::new(),
                     gone: Vec::new(),
                 },
+                now,
             )?;
             ingest.validity = UidValidity::Same;
         }
@@ -2101,7 +1978,7 @@ impl<B: Backend> AccountEngine<B> {
             && ingest.gone.is_empty()
             && ingest.cursor == self.store.cursor(mailbox)?;
         if !nothing {
-            self.store.ingest(self.account.clone(), ingest)?;
+            self.store.ingest(self.account.clone(), ingest, now)?;
         }
         Ok(report)
     }
@@ -2511,7 +2388,7 @@ impl<B: Backend> AccountEngine<B> {
         // remembered was always nothing, so every pass swept everything.
         let swept = self.store.swept(mailbox)?;
 
-        if due(swept.flags, self.schedule.flags, now) {
+        if due(swept.flags, self.cadence.flags, now) {
             // No modseq means a full flag fetch: either the server has no CONDSTORE, or its
             // HIGHESTMODSEQ was seen not to advance, which Dovecot 2.0.18 did while EXISTS
             // climbed. Trusting a frozen modseq would mean never seeing another flag change.
@@ -2527,7 +2404,7 @@ impl<B: Backend> AccountEngine<B> {
                 .await
             {
                 Ok(ProtoOutcome::Ingested(ingest)) => {
-                    self.store.ingest(self.account.clone(), *ingest)?;
+                    self.store.ingest(self.account.clone(), *ingest, now)?;
                     self.store.mark_flags_swept(mailbox, now)?;
                 }
                 Ok(_) => self.store.mark_flags_swept(mailbox, now)?,
@@ -2536,7 +2413,7 @@ impl<B: Backend> AccountEngine<B> {
             }
         }
 
-        if due(swept.expunges, self.schedule.expunges, now) {
+        if due(swept.expunges, self.cadence.expunges, now) {
             let since = self.resync_from(mailbox);
             match self
                 .run(
@@ -2573,7 +2450,7 @@ impl<B: Backend> AccountEngine<B> {
                             _ => false,
                         })
                         .collect();
-                    self.store.ingest(self.account.clone(), *ingest)?;
+                    self.store.ingest(self.account.clone(), *ingest, now)?;
                     self.store.mark_expunges_swept(mailbox, now)?;
                 }
                 Ok(ProtoOutcome::Ingested(mut ingest)) => {
@@ -2581,7 +2458,7 @@ impl<B: Backend> AccountEngine<B> {
                     // knowledge, so the diff happens here — and without it `gone` was always
                     // empty and a message deleted on another device never disappeared.
                     ingest.gone = self.vanished(mailbox)?;
-                    self.store.ingest(self.account.clone(), *ingest)?;
+                    self.store.ingest(self.account.clone(), *ingest, now)?;
                     self.store.mark_expunges_swept(mailbox, now)?;
                 }
                 Ok(_) => self.store.mark_expunges_swept(mailbox, now)?,
@@ -2685,35 +2562,27 @@ impl<B: Backend> AccountEngine<B> {
         limit: u32,
         now: DateTime<Utc>,
     ) -> Result<(Vec<(RemoteRef, u64)>, usize), RuntimeError> {
-        // Sizes from this session's survey. A message it did not cover — no survey yet, or a
-        // protocol that cannot take one — is "size unknown" and sorts into the last band.
-        let mut sizes: std::collections::HashMap<RemoteRef, u64> =
-            self.surveyed().into_iter().collect();
-        // Those that could not be read when last asked for are left out, and are left out
-        // before the limit is applied: one that stays unread would otherwise keep a place in
-        // every pass's allowance for ever, and a mailbox of them would fetch nothing.
+        // Those that could not be read when last asked for.
         let resting: std::collections::HashSet<RemoteRef> = self
             .store
-            .unreadable_since(mailbox, now - UNREADABLE_RETRY)?
+            .unreadable_since(mailbox, resting_since(now))?
             .into_iter()
             .collect();
-        let asked = limit.saturating_add(u32::try_from(resting.len()).unwrap_or(u32::MAX));
-        let (mut order, mut first) = mail_runtime::wanted::backlog(
-            &self.wanted,
-            self.store.as_ref(),
-            mailbox,
-            self.since,
-            asked,
-        )?;
-        first -= order[..first]
-            .iter()
-            .filter(|r| resting.contains(*r))
-            .count();
-        order.retain(|remote| !resting.contains(remote));
-        order.truncate(limit as usize);
-        first = first.min(order.len());
-        // A survey that began where the last one ended did not list the older messages, whose
+        let wanted = self.wanted()?;
+        let asked = decide::backlog_asked(limit, &resting);
+        let backlog = Backlog {
+            hinted: self
+                .store
+                .unfetched_in_threads(mailbox, &wanted.asked, asked)?,
+            rest: self.store.unfetched_in(mailbox, self.since, asked)?,
+        };
+        let (order, first) = bodies_wanted(backlog, &wanted, &resting, limit);
+        // Sizes from this session's survey. A message it did not cover — no survey yet, or a
+        // protocol that cannot take one — is "size unknown" and sorts into the last band. A
+        // survey that began where the last one ended did not list the older messages, whose
         // sizes the store kept when it did.
+        let mut sizes: std::collections::HashMap<RemoteRef, u64> =
+            self.surveyed().into_iter().collect();
         let unlisted: Vec<RemoteRef> = order
             .iter()
             .filter(|remote| !sizes.contains_key(*remote))
@@ -2723,14 +2592,26 @@ impl<B: Backend> AccountEngine<B> {
             self.store
                 .server_sizes_at(self.account.clone(), &unlisted)?,
         );
-        let order = order
-            .into_iter()
-            .map(|remote| {
-                let size = sizes.get(&remote).copied().unwrap_or(u64::MAX);
-                (remote, size)
-            })
-            .collect();
-        Ok((order, first))
+        Ok((sized(order, &sizes), first))
+    }
+
+    /// What the window is showing and fetching for itself: the one read of what it asked.
+    fn wanted(&self) -> Result<Wanted, RuntimeError> {
+        let mut taken = Vec::new();
+        for message in self.wanted.claimed() {
+            // A claim is the window's, made in whatever store it reads: one this store does not
+            // hold — gone since, or never here — is not this pass's to leave out, and must not
+            // fail it.
+            match self.store.remotes_of(message) {
+                Ok(remotes) => taken.extend(remotes),
+                Err(mail_store::StoreError::NoMessage(_)) => {}
+                Err(e) => return Err(e.into()),
+            }
+        }
+        Ok(Wanted {
+            asked: self.wanted.first(),
+            taken,
+        })
     }
 
     /// The account's stored credential, refreshed if it is close to expiring.
@@ -2806,21 +2687,6 @@ async fn cancelled(cancel: &mut Cancel) {
     }
 }
 
-/// Whether a periodic task is due.
-///
-/// Never having run counts as due, so a fresh account sweeps once immediately rather than
-/// waiting out a full interval before it can show a flag change.
-fn due(last: Option<DateTime<Utc>>, every: Duration, now: DateTime<Utc>) -> bool {
-    let Some(last) = last else {
-        return true;
-    };
-    match chrono::TimeDelta::from_std(every) {
-        Ok(delta) => now - last >= delta,
-        // An interval too large for TimeDelta is not a reason to sweep constantly.
-        Err(_) => false,
-    }
-}
-
 /// Adapts a [`Backend`] to [`mail_proto::Machine`] so one drive loop serves both.
 struct BackendMachine<'a, B: Backend> {
     backend: &'a mut B,
@@ -2842,6 +2708,13 @@ impl<B: Backend> mail_proto::Machine for BackendMachine<'_, B> {
     fn feed(&mut self, ready: mail_proto::IoReady) -> mail_proto::Progress<ProtoOutcome> {
         self.backend.feed(ready)
     }
+}
+
+/// What a survey brought back: what to write, and every address it listed with a size where one
+/// is known.
+struct Surveyed {
+    ingest: Option<Box<mail_domain::Ingest>>,
+    listed: Vec<(RemoteRef, u64)>,
 }
 
 /// What a header fetch heard the server say about each message beside its headers: the parts
@@ -2945,7 +2818,7 @@ mod tests {
 
     #[test]
     fn the_three_intervals_are_ordered_by_what_they_cost() {
-        let s = Schedule::default();
+        let s = Cadence::default();
         assert!(
             s.flags < s.watch,
             "flag changes must be noticed sooner than a poll interval: reading mail on a phone \

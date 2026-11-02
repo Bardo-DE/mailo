@@ -48,6 +48,7 @@ fn label(store: &SqliteStore, name: &str) -> Label {
         .apply(
             acct_account(),
             &patch(vec![Change::LabelUpsert(label.clone())]),
+            chrono::Utc::now(),
         )
         .unwrap();
     label
@@ -81,6 +82,7 @@ fn a_message_that_moves_takes_its_thread_with_it() {
         .apply(
             acct_account(),
             &patch(vec![Change::MessageMailbox(m.id, MailboxRole::Archive)]),
+            chrono::Utc::now(),
         )
         .unwrap();
     assert_eq!(mailboxes_of(&store, m.thread), ["archive"]);
@@ -97,6 +99,7 @@ fn a_label_gained_and_lost_comes_and_goes() {
         .apply(
             acct_account(),
             &patch(vec![Change::MessageLabel(m.id, work.id, Membership::In)]),
+            chrono::Utc::now(),
         )
         .unwrap();
     assert_eq!(labels_of(&store, m.thread), [work.id.to_string()]);
@@ -105,6 +108,7 @@ fn a_label_gained_and_lost_comes_and_goes() {
         .apply(
             acct_account(),
             &patch(vec![Change::MessageLabel(m.id, work.id, Membership::Out)]),
+            chrono::Utc::now(),
         )
         .unwrap();
     assert!(labels_of(&store, m.thread).is_empty());
@@ -119,10 +123,15 @@ fn a_thread_that_is_deleted_leaves_no_rows_behind() {
         .apply(
             acct_account(),
             &patch(vec![Change::MessageLabel(m.id, work.id, Membership::In)]),
+            chrono::Utc::now(),
         )
         .unwrap();
     store
-        .apply(acct_account(), &patch(vec![Change::MessageDelete(m.id)]))
+        .apply(
+            acct_account(),
+            &patch(vec![Change::MessageDelete(m.id)]),
+            chrono::Utc::now(),
+        )
         .unwrap();
 
     assert!(mailboxes_of(&store, m.thread).is_empty());
@@ -154,6 +163,7 @@ fn a_summary_that_changed_only_in_its_read_state_leaves_its_rows_alone() {
         .apply(
             acct_account(),
             &patch(vec![Change::MessageRead(m.id, ReadState::Read)]),
+            chrono::Utc::now(),
         )
         .unwrap();
     assert_eq!(put_in(), 0, "a read flag rewrote the membership rows");
@@ -162,6 +172,7 @@ fn a_summary_that_changed_only_in_its_read_state_leaves_its_rows_alone() {
         .apply(
             acct_account(),
             &patch(vec![Change::MessageMailbox(m.id, MailboxRole::Archive)]),
+            chrono::Utc::now(),
         )
         .unwrap();
     assert_eq!(put_in(), 1, "a move did not write the new row");
@@ -201,7 +212,9 @@ fn lists_and_counts_are_what_the_summaries_json_says_on_a_mixed_store() {
             changes.push(Change::MessageMailbox(m.id, MailboxRole::Archive));
         }
         if !changes.is_empty() {
-            store.apply(acct_account(), &patch(changes)).unwrap();
+            store
+                .apply(acct_account(), &patch(changes), chrono::Utc::now())
+                .unwrap();
         }
     }
 

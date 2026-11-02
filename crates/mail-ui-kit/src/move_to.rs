@@ -101,6 +101,7 @@ pub fn folder_label(client: &Client, account: AccountId, path: &str) -> Result<L
                 id: ChangeId::generate(),
                 changes: vec![Change::LabelUpsert(label.clone())],
             },
+            chrono::Utc::now(),
         )
         .map_err(|e| e.to_string())?;
     Ok(label.id)

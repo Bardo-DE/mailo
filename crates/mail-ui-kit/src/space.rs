@@ -295,3 +295,13 @@ pub fn kept(saved: &ds_settings::Saved) {
 
 #[cfg(test)]
 mod tests;
+
+/// `accounts` with `account` switched: out when the Space shows it, in when it does not.
+pub fn toggled(accounts: &[AccountId], account: AccountId) -> Vec<AccountId> {
+    let member = if accounts.contains(&account) {
+        Member::Out
+    } else {
+        Member::In
+    };
+    with_member(accounts, account, member)
+}

@@ -310,5 +310,5 @@ async fn a_server_that_cannot_describe_the_message_sends_it_whole() {
     assert_eq!(*it.asked.lock().unwrap(), ["structure", "whole"]);
     let message = the_message(&it.store);
     assert_eq!(message.attachments[0].name, "report.pdf");
-    assert!(message.attachments[0].blob().is_some(), "held, as before");
+    assert!(message.attachments[0].is_here(), "held, as before");
 }

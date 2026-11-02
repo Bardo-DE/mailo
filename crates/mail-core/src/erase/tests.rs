@@ -200,6 +200,7 @@ fn store(dir: &std::path::Path) -> SqliteStore {
                     id: ChangeId::generate(),
                     changes: vec![Change::MessageUpsert(Box::new(message(n, mailbox)))],
                 },
+                chrono::Utc::now(),
             )
             .unwrap();
         mail_store::testing::seed_remote_uid(&store, account(), folder, n as u32, id(n));
@@ -312,6 +313,7 @@ fn a_message_that_leaves_trash_and_returns_between_sweeps_starts_again() {
                     id: ChangeId::generate(),
                     changes: vec![mail_domain::Change::MessageMailbox(id(1), role)],
                 },
+                chrono::Utc::now(),
             )
             .unwrap();
     };

@@ -20,8 +20,8 @@ use chrono::{DateTime, Utc};
 pub use mail_core::fetch::{Event, FolderFetch, Link, Trigger};
 use mail_core::fetch::{FolderEffect, FolderEvent};
 use mail_core::schedule::{
-    self, Change, Daemon, End, Heard, Hold, Host, ListenCall, Local, Lost, Note, PassCall, Passed,
-    Schedule, Scheduler, Stop, Stored, Timing,
+    self, Change, Daemon, End, Heard, Hold, Host, ListenCall, Local, Lost, Note, PassCall,
+    Schedule, Scheduler, Stop, Timing,
 };
 use mail_core::sync::report::{Hooks, Offer, PassEnd, Progress, outcome};
 use mail_domain::{MailboxRef, Retry};
@@ -349,15 +349,6 @@ pub fn offer_of(done: &Result<Vec<PassEnd>, String>, account: &AccountId) -> Opt
     })
 }
 
-/// Whether a pass that ended like this may have written something.
-///
-/// A pass that ran, or was cancelled part-way, may have: counts do not say everything it writes
-/// (flags are not counted). One that never got to run, or whose whole run failed, has not.
-pub fn may_have_stored(done: &Result<Vec<PassEnd>, String>) -> bool {
-    done.as_ref()
-        .is_ok_and(|ends| ends.iter().any(PassEnd::may_have_stored))
-}
-
 /// The client, as the scheduler's host.
 struct ClientHost {
     shared: Arc<Shared>,
@@ -407,7 +398,7 @@ impl Host for ClientHost {
         self.shared.wanted.clone()
     }
 
-    fn pass(&self, call: PassCall) -> Local<'_, Passed> {
+    fn pass(&self, call: PassCall) -> Local<'_, Event> {
         let store = self.shared.store_arc();
         let pass = self.fetcher().seams.pass.clone();
         let announcing = self.fetcher().seams.announce.clone();
@@ -452,15 +443,10 @@ impl Host for ClientHost {
                     }
                 });
             }
-            let stored = if may_have_stored(&done) {
-                Stored::Maybe
-            } else {
-                Stored::Nothing
-            };
-            Passed {
-                event: outcome(done, account),
-                stored,
-            }
+            // What the pass stored reaches the client as the store's own commits; a client that
+            // reads on its caller's thread hears them now.
+            self.shared.stored();
+            outcome(done, account)
         })
     }
 
@@ -499,8 +485,6 @@ impl Host for ClientHost {
                 fetched.offers.remove(&account);
                 fetched.folders.retain(|(one, _), _| *one != account);
             }),
-            // What a pass stored reaches the client as the store's own commits.
-            Change::Stored => self.shared.stored(),
         }
     }
 }

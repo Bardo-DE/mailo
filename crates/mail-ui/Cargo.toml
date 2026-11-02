@@ -44,6 +44,12 @@ mail-ui-kit.workspace = true
 mail-ui-reader.workspace = true
 # The composer: a message being written, beside the reader and below the window.
 mail-ui-compose.workspace = true
+# The list: its pane, rows, pages, search header and saved-view sheet, beside the reader and the
+# composer and below the window.
+mail-ui-list.workspace = true
+# Settings: its window of pages, the rules and the address book's page, beside the other parts and
+# below the window.
+mail-ui-settings.workspace = true
 # The OpenPGP and S/MIME halves are features of the library; this crate uses both.
 mail-mime.workspace = true
 mail-reader.workspace = true
@@ -129,6 +135,8 @@ mail-ui = { path = ".", features = ["testing"] }
 mail-ui-kit = { workspace = true, features = ["testing"] }
 mail-ui-reader = { workspace = true, features = ["testing"] }
 mail-ui-compose = { workspace = true, features = ["testing"] }
+mail-ui-list = { workspace = true, features = ["testing"] }
+mail-ui-settings = { workspace = true, features = ["testing"] }
 # The values a test starts from (`mail_domain::testing`): the program never has them.
 mail-domain = { workspace = true, features = ["testing"] }
 # The store a test seeds and the doubles it swaps in (`mail_client::testing`), and the client's

@@ -10,6 +10,8 @@ mod fixture;
 mod jmap_fake;
 
 mod assemble;
+mod assembly_pins;
+mod attachment_footprint;
 mod bimi;
 mod carddav;
 mod cjk_search;
@@ -25,6 +27,7 @@ mod live_smtp;
 mod part_flood_ingest;
 mod pgp_learn;
 mod reparse;
+mod settling;
 mod sieve;
 mod two_accounts;
 mod unsubscribe;

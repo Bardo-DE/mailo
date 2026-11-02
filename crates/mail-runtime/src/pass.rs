@@ -38,6 +38,83 @@ pub enum Woke {
     Interval,
 }
 
+/// What the refusals a pass met ask of whoever runs it next: the one reading of a [`Retry`] that
+/// the engine's report, the trouble a pass is told in and the link all share.
+///
+/// `Retry::Now` and `Retry::Fatal` are decided within the pass — reconnect, or give up on that
+/// operation — and leave nothing for the caller to schedule, so they are not here.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct Verdict {
+    /// The server rejected the credential, on any account in this pass.
+    ///
+    /// Something has to *act* on it: a rejected password retried every five minutes is two
+    /// hundred and eighty failed logins a day against the user's own mail server, which is how
+    /// an account gets locked. A poll loop must stop on this and wait for the user, not back off
+    /// and continue.
+    pub reauth: bool,
+    /// The desktop's account service no longer lets Mail use the account (`Retry::NeedsGrant`):
+    /// stopped on as `reauth` is, and asked of the person as allowing, not signing in.
+    pub grant: bool,
+    /// The longest wait a server asked for during this pass, where one asked.
+    ///
+    /// A rate limit is the one refusal whose entire remedy is doing nothing, and hammering
+    /// through it lengthens the lockout — so the number the server named (or the hour
+    /// `Retry::After` supplies when it names none) has to outlive the pass that saw it. Kept
+    /// apart from `reauth` because they call for opposite things: stop and ask the user, versus
+    /// come back later unaided.
+    pub hold: Option<std::time::Duration>,
+}
+
+impl Verdict {
+    /// What `retries` ask, all together.
+    pub fn of<'a>(retries: impl IntoIterator<Item = &'a Retry>) -> Self {
+        let mut verdict = Self::default();
+        for retry in retries {
+            verdict.saw(retry);
+        }
+        verdict
+    }
+
+    /// Fold one operation's verdict in.
+    pub fn saw(&mut self, retry: &Retry) {
+        match retry {
+            Retry::NeedsReauth => self.reauth = true,
+            Retry::NeedsGrant => self.grant = true,
+            // The longest wait anyone asked for. Ordinary backoffs land here too, at a minute or
+            // so, and are absorbed by the caller's own interval; a rate limit is an hour and is
+            // not. Both mean the same thing to a scheduler, so neither needs a special case.
+            Retry::After(wait) => self.hold = Some(self.hold.map_or(*wait, |had| had.max(*wait))),
+            Retry::Now | Retry::Fatal(_) => {}
+        }
+    }
+
+    /// Fold in the verdict of the pass that followed this one.
+    pub fn absorb(&mut self, later: Verdict) {
+        self.reauth |= later.reauth;
+        self.grant |= later.grant;
+        self.hold = match (self.hold, later.hold) {
+            (Some(a), Some(b)) => Some(a.max(b)),
+            (a, b) => a.or(b),
+        };
+    }
+
+    /// What is asked, as the retries that ask it: the sign-in first, then the grant, then the
+    /// wait.
+    pub fn retries(&self) -> Vec<Retry> {
+        let mut asked = Vec::new();
+        if self.reauth {
+            asked.push(Retry::NeedsReauth);
+        }
+        if self.grant {
+            asked.push(Retry::NeedsGrant);
+        }
+        if let Some(wait) = self.hold {
+            asked.push(Retry::After(wait));
+        }
+        asked
+    }
+}
+
 /// What a sync pass did, for the caller to log or show.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct SyncReport {
@@ -58,24 +135,8 @@ pub struct SyncReport {
     /// warnings that matter. But it is not *nothing* either — someone who has just run `send`
     /// and then `sync` will otherwise read "0 sent" as success and believe their mail has gone.
     pub still_queued: usize,
-    /// The server rejected the credential, on any account in this pass.
-    ///
-    /// Separate from `needs_attention`, which is prose for a person, because something has to
-    /// *act* on it: a rejected password retried every five minutes is two hundred and eighty
-    /// failed logins a day against the user's own mail server, which is how an account gets
-    /// locked. A poll loop must stop on this and wait for the user, not back off and continue.
-    pub needs_reauth: bool,
-    /// The desktop's account service no longer lets Mail use the account (`Retry::NeedsGrant`):
-    /// stopped on as `needs_reauth` is, and asked of the person as allowing, not signing in.
-    pub needs_grant: bool,
-    /// The longest wait a server asked for during this pass, where one asked.
-    ///
-    /// A rate limit is the one refusal whose entire remedy is doing nothing, and hammering
-    /// through it lengthens the lockout — so the number the server named (or the hour
-    /// `Retry::After` supplies when it names none) has to outlive the pass that saw it. Kept
-    /// apart from `needs_reauth` because they call for opposite things: stop and ask the user,
-    /// versus come back later unaided.
-    pub hold: Option<std::time::Duration>,
+    /// What the refusals this pass met ask of whoever runs it next.
+    pub verdict: Verdict,
     /// Messages this pass stored for the first time, in the order they were stored.
     ///
     /// Identities, not copies: by the time anyone reads this the same pass has applied the
@@ -165,30 +226,13 @@ impl SyncReport {
         self.appended += later.appended;
         self.needs_attention.extend(later.needs_attention);
         self.still_queued = later.still_queued;
-        self.needs_reauth |= later.needs_reauth;
-        self.needs_grant |= later.needs_grant;
-        self.hold = match (self.hold, later.hold) {
-            (Some(a), Some(b)) => Some(a.max(b)),
-            (a, b) => a.or(b),
-        };
+        self.verdict.absorb(later.verdict);
     }
 
-    /// Fold one operation's verdict into the pass.
-    ///
-    /// The two facts a caller has to *act* on, gathered in one place so the several sites that
-    /// see a `Retry` cannot disagree about which ones matter. `Retry::Now` and `Retry::Fatal`
-    /// are decided within the pass — reconnect, or give up on that operation — and leave nothing
-    /// for the caller to schedule.
+    /// Fold one operation's verdict into the pass: the several sites that see a `Retry` cannot
+    /// disagree about which ones matter.
     pub fn saw(&mut self, retry: &Retry) {
-        match retry {
-            Retry::NeedsReauth => self.needs_reauth = true,
-            Retry::NeedsGrant => self.needs_grant = true,
-            // The longest wait anyone asked for. Ordinary backoffs land here too, at a minute or
-            // so, and are absorbed by the caller's own interval; a rate limit is an hour and is
-            // not. Both mean the same thing to a scheduler, so neither needs a special case.
-            Retry::After(wait) => self.hold = Some(self.hold.map_or(*wait, |had| had.max(*wait))),
-            Retry::Now | Retry::Fatal(_) => {}
-        }
+        self.verdict.saw(retry);
     }
 }
 

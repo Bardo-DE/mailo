@@ -83,6 +83,14 @@ pub fn use_desk(today: Signal<Today>, spaces: Signal<Spaces>, dirs: Option<Windo
         );
     });
     use_context_provider(|| mail_ui_kit::queued::ShowQueued(queued));
+    // What the list's row menu asks of a stored draft.
+    let delete = use_callback(|(shell, draft)| super::delete_stored_draft(shell, draft));
+    let cancel_sending =
+        use_callback(|(shell, draft)| super::cancel_scheduled(shell, draft).is_ok());
+    use_context_provider(|| mail_ui_kit::queued::DraftActs {
+        delete,
+        cancel_sending,
+    });
     desk
 }
 

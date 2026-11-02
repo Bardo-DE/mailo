@@ -120,6 +120,7 @@ fn world_opening(opener: Opener) -> (Provider, Arc<SqliteStore>, tempfile::TempD
                     id: ChangeId::generate(),
                     changes: vec![upsert],
                 },
+                chrono::Utc::now(),
             )
             .expect("apply");
         // Where the server keeps it, so that what is done here has a server half to queue.
@@ -367,6 +368,7 @@ fn a_label_is_put_on_and_taken_off_by_name_and_only_when_it_exists() {
                 id: ChangeId::generate(),
                 changes: vec![Change::LabelUpsert(label.clone())],
             },
+            chrono::Utc::now(),
         )
         .expect("label");
     let outcome = provider

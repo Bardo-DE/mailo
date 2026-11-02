@@ -73,8 +73,8 @@ fn ten_thousand_parts_cost_ten_thousand_blobs_and_no_more() {
 
     let message = mail_store::testing::count(&store, "messages");
     assert_eq!(message, 1, "one message, however many parts it has");
-    // One blob per distinct part, plus the raw message.
-    assert_eq!(blob_rows(&store), 10_001);
+    // The parts are places in the raw message, which is the one blob.
+    assert_eq!(blob_rows(&store), 1);
     // Measured at about 0.4s; this catches a change of complexity, not a slow machine.
     assert!(
         elapsed.as_secs() < 5,
@@ -91,8 +91,8 @@ fn ten_thousand_identical_parts_cost_one_blob_and_each_is_reachable() {
     ingest(&store, flood(10_000, false));
     assert_eq!(
         blob_rows(&store),
-        2,
-        "one blob: the raw message and one shared part, not ten thousand copies"
+        1,
+        "one blob: the raw message, and no copy of any part"
     );
 
     // Cheapness must not have cost correctness: each of the ten thousand is a separate
@@ -106,8 +106,8 @@ fn ten_thousand_identical_parts_cost_one_blob_and_each_is_reachable() {
         "reachable: the last"
     );
     assert_eq!(
-        message.attachments[0].blob(),
-        message.attachments[9_999].blob(),
-        "reachable: identical bytes share a blob"
+        message.attachments[9_999].content,
+        mail_domain::PartContent::Inside { index: 9_999 },
+        "reachable: each part is its place in the message"
     );
 }

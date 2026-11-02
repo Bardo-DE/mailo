@@ -1,52 +1,55 @@
 //! What a rule asks that only a running client can do: forward a message, answer it from a
 //! template, or say it arrived ([`RuleAction::speaks`]).
 //!
-//! The store runs the rules and leaves these to its caller (`mail_store::rules::Ran::left`), so
-//! that it never builds mail or raises a notification itself. A sync pass carries them out
-//! before its outbox drain, so what they send leaves in the same pass.
+//! The arrival fold decides which rules fire and leaves these to its caller
+//! ([`mail_logic::arrival::Arrival::effects`]), so that it never builds mail or raises a
+//! notification itself. A sync pass carries them out before its outbox drain, so what they send
+//! leaves in the same pass.
 
 use super::guard;
 use crate::compose::Leaves;
 use crate::error::{CoreError, Logged};
 use chrono::{DateTime, Utc};
 use mail_domain::{Address, MessageId, ReplyScope, RuleAction};
+use mail_logic::arrival::{ArrivalEffect, DraftRequest};
 use mail_logic::own::Own;
 use mail_logic::rules::guard::Occasion;
-use mail_store::rules::Left;
 use mail_store::{SqliteStore, Store};
 
-/// Carry out `left`, in order, and return the messages a rule asked to hear of, once each, for
+/// Carry out `effects`, in order, and return the messages a rule asked to hear of, once each, for
 /// the pass's notifications to say. A forward or reply that cannot be made — a template since
 /// deleted, an account with no server to send from — is logged and the rest go on: one rule's
 /// trouble is no reason to keep another's mail back. A forward or reply the guard refuses
 /// ([`guard::guard`]) is not made, and is not an error.
 pub fn carry_out(
     store: &SqliteStore,
-    left: &[Left],
+    effects: &[ArrivalEffect],
     occasion: Occasion,
     now: DateTime<Utc>,
 ) -> Vec<MessageId> {
     let mut noted = Vec::new();
-    if left.is_empty() {
+    if effects.is_empty() {
         return noted;
     }
     let own = crate::notify::own_addresses(store).or_log_default("the user's addresses");
-    for one in left {
-        match &one.action {
-            RuleAction::Notify => {
-                if !noted.contains(&one.message) {
-                    noted.push(one.message);
+    for effect in effects {
+        match effect {
+            ArrivalEffect::Notice(message) => {
+                if !noted.contains(message) {
+                    noted.push(*message);
                 }
             }
-            RuleAction::Forward(to) => {
-                forward(store, one, to, &own, occasion, now)
-                    .or_log("a rule could not forward a message");
-            }
-            RuleAction::Reply(template) => {
-                reply(store, one, template, &own, occasion, now)
-                    .or_log("a rule could not reply to a message");
-            }
-            _ => {}
+            ArrivalEffect::RuleSend(one) => match &one.action {
+                RuleAction::Forward(to) => {
+                    forward(store, one, to, &own, occasion, now)
+                        .or_log("a rule could not forward a message");
+                }
+                RuleAction::Reply(template) => {
+                    reply(store, one, template, &own, occasion, now)
+                        .or_log("a rule could not reply to a message");
+                }
+                _ => {}
+            },
         }
     }
     noted
@@ -66,7 +69,7 @@ fn send(
 
 fn forward(
     store: &SqliteStore,
-    one: &Left,
+    one: &DraftRequest,
     to: &str,
     own: &Own,
     occasion: Occasion,
@@ -91,7 +94,7 @@ fn forward(
 
 fn reply(
     store: &SqliteStore,
-    one: &Left,
+    one: &DraftRequest,
     template: &str,
     own: &Own,
     occasion: Occasion,
@@ -121,14 +124,17 @@ mod tests {
 
     const PERSON: &str = "Return-Path: <a@b.c>\r\n\r\nShall we?";
 
-    fn left(message: MessageId, action: RuleAction, made: DateTime<Utc>) -> Left {
-        Left {
+    fn left(message: MessageId, action: RuleAction, made: DateTime<Utc>) -> ArrivalEffect {
+        if action == RuleAction::Notify {
+            return ArrivalEffect::Notice(message);
+        }
+        ArrivalEffect::RuleSend(DraftRequest {
             message,
             action,
             rule: RuleId::from_uuid(uuid::Uuid::from_u128(77)),
             made,
             reply_days: 4,
-        }
+        })
     }
 
     fn queued(store: &SqliteStore) -> usize {
@@ -150,6 +156,7 @@ mod tests {
                         ReadState::Unread,
                     )],
                 },
+                now,
             )
             .unwrap();
         let kept =

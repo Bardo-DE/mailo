@@ -26,12 +26,16 @@ const ALLOWED: &[(&str, &str)] = &[
         "reads a typed vacation instant",
     ),
     (
-        "mail-ui/src/ui/rules/away.rs",
+        "mail-ui-settings/src/rules/away.rs",
         "writes a kept instant back into a field that reads it again",
     ),
     (
         "mail-store/src/sqlite/accounts.rs",
         "reads SQLite's own datetime text",
+    ),
+    (
+        "mail-store/src/sqlite/write.rs",
+        "writes SQLite's own datetime text, for the caller's clock",
     ),
     (
         "mail-proto/src/automatic_replies.rs",

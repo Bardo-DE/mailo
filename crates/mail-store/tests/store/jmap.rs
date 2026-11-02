@@ -53,6 +53,7 @@ fn deliver(store: &dyn Store, m: &Message, remote: RemoteRef) {
                 provider_threads: Vec::new(),
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
 }
@@ -97,7 +98,11 @@ fn the_server_refiles_a_message_moved_elsewhere() {
         deliver(store, &message(1, MailboxRole::Inbox), jmap("M1"));
         let before = role(store, 1);
         let moved = store
-            .refile(acct_account(), &[(jmap("M1"), MailboxRole::Archive)])
+            .refile(
+                acct_account(),
+                &[(jmap("M1"), MailboxRole::Archive)],
+                chrono::Utc::now(),
+            )
             .unwrap();
         let after = role(store, 1);
         // Already filed so, and an address nobody holds: nothing to change.
@@ -108,6 +113,7 @@ fn the_server_refiles_a_message_moved_elsewhere() {
                     (jmap("M1"), MailboxRole::Archive),
                     (jmap("unknown"), MailboxRole::Trash),
                 ],
+                chrono::Utc::now(),
             )
             .unwrap();
         (before, moved.changes, after, again.changes)
@@ -132,7 +138,9 @@ fn a_local_move_the_server_has_not_seen_survives_refiling() {
         // Trashed here and queued; the server still says Inbox until the outbox drains.
         let forward = patch(vec![Change::MessageMailbox(id, MailboxRole::Trash)]);
         let undo = patch(vec![Change::MessageMailbox(id, MailboxRole::Inbox)]);
-        store.apply(acct_account(), &forward).unwrap();
+        store
+            .apply(acct_account(), &forward, chrono::Utc::now())
+            .unwrap();
         store
             .enqueue(
                 acct_account(),
@@ -145,7 +153,11 @@ fn a_local_move_the_server_has_not_seen_survives_refiling() {
             )
             .unwrap();
         store
-            .refile(acct_account(), &[(jmap("M1"), MailboxRole::Archive)])
+            .refile(
+                acct_account(),
+                &[(jmap("M1"), MailboxRole::Archive)],
+                chrono::Utc::now(),
+            )
             .unwrap();
         let queued: Vec<ProtoOp> = store
             .outbox_due(acct_account(), at(10))
@@ -187,6 +199,7 @@ fn an_email_gone_from_the_account_is_gone_from_here() {
                     provider_threads: Vec::new(),
                     gone: vec![jmap("M1")],
                 },
+                chrono::Utc::now(),
             )
             .unwrap();
         (

@@ -6,13 +6,18 @@
 
 use super::SqliteStore;
 use crate::{Store, StoreError};
-use mail_domain::{MailboxRef, MessageId, Placed};
+use mail_domain::{MailboxRef, MessageId, Placed, Placing};
 use rusqlite::params;
 
 impl SqliteStore {
     pub(super) fn load_placed(&self, message: MessageId) -> Result<Vec<Placed>, StoreError> {
         let held = self.message(message)?;
         let roles = self.folder_roles(held.account.clone())?;
+        Ok(self.load_placing(message)?.placed(held.mailbox, &roles))
+    }
+
+    pub(super) fn load_placing(&self, message: MessageId) -> Result<Placing, StoreError> {
+        let held = self.message(message)?;
         let db = self.reader();
         let mut stmt = db.prepare_cached(
             "SELECT DISTINCT mailbox FROM remote_map WHERE message = ?1 ORDER BY mailbox",
@@ -43,12 +48,11 @@ impl SqliteStore {
         };
         let addresses = paths.into_iter().map(folder).collect();
         let copying = copying.into_iter().map(folder).collect();
-        Ok(Placed::of_message_copied(
-            held.mailbox,
+        Ok(Placing {
             addresses,
-            &roles,
-            &moving,
+            moving,
             copying,
-        ))
+            unplaced: self.is_unplaced(held.account.clone(), message)?,
+        })
     }
 }

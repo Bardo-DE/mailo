@@ -4,6 +4,7 @@
 
 use dioxus::prelude::*;
 use ds::prelude::Icon;
+use ds_blitz::WindowLife;
 use mail_domain::ThreadId;
 use std::sync::Arc;
 
@@ -63,3 +64,9 @@ pub fn menu_item(keymap: &chordkit::Keymap) -> crate::menu::MenuItem {
 
 /// The menu row's key.
 pub const OPEN_KEY: &str = "open-window";
+
+/// Whether a window opened earlier is one to raise rather than open again. The Settings and
+/// Add Account windows ask the same question.
+pub fn raise(life: Option<WindowLife>) -> bool {
+    matches!(life, Some(WindowLife::Opening | WindowLife::Open))
+}

@@ -268,6 +268,7 @@ fn fill(store: &SqliteStore) {
                     provider_threads: Vec::new(),
                     gone: vec![],
                 },
+                chrono::Utc::now(),
             )
             .unwrap();
     }

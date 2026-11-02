@@ -9,16 +9,16 @@
 use crate::error::CoreError;
 use chrono::{DateTime, TimeDelta, Utc};
 use mail_domain::Message;
+use mail_logic::arrival::DraftRequest;
 use mail_logic::own::Own;
 use mail_logic::rules::guard::{Occasion, Refusal, Sends, headers_allow, timely};
 use mail_store::SqliteStore;
-use mail_store::rules::Left;
 
 /// Whether the rule behind `left` may send for `message`, and, for a Reply, that it has now
 /// answered the sender. The one function every automatic send goes through.
 pub fn guard(
     store: &SqliteStore,
-    left: &Left,
+    left: &DraftRequest,
     message: &Message,
     own: &Own,
     occasion: Occasion,
@@ -71,7 +71,7 @@ mod tests {
         use mail_domain::Star;
         let store = mail_store::testing::in_memory();
         let now = at(10 * 86_400);
-        let left = Left {
+        let left = DraftRequest {
             message: mail_domain::MessageId::generate(),
             action: RuleAction::Forward("friend@example.test".to_owned()),
             rule: mail_domain::RuleId::generate(),

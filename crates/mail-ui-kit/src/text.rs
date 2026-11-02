@@ -40,9 +40,9 @@ pub fn attachment_rows(message: &Message) -> Vec<AttachmentRow> {
         .iter()
         .enumerate()
         .map(|(index, a)| {
-            let kept = match a.blob() {
-                Some(_) => Kept::Here,
-                None => Kept::OnServer,
+            let kept = match a.is_here() {
+                true => Kept::Here,
+                false => Kept::OnServer,
             };
             let size = match kept {
                 Kept::Here | Kept::Opened => mail_client::attach::human_size(a.size),
