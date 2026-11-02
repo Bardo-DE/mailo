@@ -306,6 +306,25 @@ mod compose {
             )
         }
 
+        /// `mail_core::compose::queue_reminding`.
+        pub fn queue_reminding(
+            &self,
+            secrets: &dyn mail_secrets::SigningStore,
+            ask: mail_core::pgp::Ask<'_>,
+            (draft, pictures): (DraftId, mail_logic::picture::PictureSize),
+            (leaves, remind): (Leaves, Option<DateTime<Utc>>),
+            now: DateTime<Utc>,
+        ) -> Result<(Draft, mail_mime::Posting), SendError> {
+            mail_core::compose::queue_reminding(
+                self.0.store(),
+                secrets,
+                ask,
+                (draft, pictures),
+                (leaves, remind),
+                now,
+            )
+        }
+
         /// `mail_core::compose::withdraw_redirect`.
         pub fn withdraw_redirect(&self, redirected: &Redirected) -> Result<(), CallError> {
             mail_core::compose::withdraw_redirect(self.0.store(), redirected)

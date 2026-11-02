@@ -25,6 +25,7 @@ mod live_smtp;
 mod part_flood_ingest;
 mod pgp_learn;
 mod reparse;
+mod settling;
 mod sieve;
 mod two_accounts;
 mod unsubscribe;

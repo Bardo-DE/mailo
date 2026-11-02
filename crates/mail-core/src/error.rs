@@ -340,6 +340,8 @@ pub enum CoreError {
     AlreadySent,
     #[error("the submission could not be queued")]
     SubmissionNotQueued,
+    #[error("that draft kept changing while it was being sent")]
+    DraftChanging,
     /// A recipient the box could not read as an address.
     #[error(transparent)]
     Address(#[from] mail_domain::ParseAddressError),

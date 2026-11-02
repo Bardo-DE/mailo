@@ -1120,3 +1120,145 @@ async fn a_vacation_reply_is_the_account_s_vacation_response_switched_on_and_off
     assert_eq!(set["isEnabled"], false);
     assert_eq!(s.fake.calls("VacationResponse/set").len(), 2);
 }
+
+/// `subject`, written as a draft and queued to be sent, as pressing send leaves it.
+fn queued_send(s: &Setup, identity: IdentityId, subject: &str) -> DraftId {
+    let draft = Draft {
+        id: DraftId::generate(),
+        account: acct_account(),
+        identity,
+        to: vec![Address::new("ada@example.test")],
+        cc: Vec::new(),
+        bcc: Vec::new(),
+        subject: subject.to_owned(),
+        in_reply_to: None,
+        forward_of: None,
+        text: "here\r\n".to_owned(),
+        html: None,
+        attachments: Vec::new(),
+        receipt: ReceiptRequest::Unrequested,
+        openpgp: None,
+        smime: None,
+        priority: Priority::Normal,
+        delivery: DeliveryReport::Unrequested,
+        automatic: false,
+        state: SendState::Editing,
+        updated: now(),
+    };
+    s.store
+        .apply(
+            acct_account(),
+            &Patch {
+                id: ChangeId::generate(),
+                changes: vec![Change::DraftUpsert(Box::new(draft.clone()))],
+            },
+        )
+        .unwrap();
+    let frozen = format!(
+        "From: {USER}\r\nTo: ada@example.test\r\nSubject: {subject}\r\n\
+         Message-ID: <{subject}@example.test>\r\nDate: Mon, 01 Sep 2026 10:00:00 +0000\r\n\r\nhere\r\n"
+    );
+    let raw = s.store.blobs().put(frozen.as_bytes()).unwrap();
+    s.store
+        .enqueue(
+            acct_account(),
+            RemoteIntent::Send {
+                draft: draft.id,
+                raw,
+                mail_from: USER.to_owned(),
+                rcpt_to: vec!["ada@example.test".to_owned()],
+                delivery: DeliveryReport::Unrequested,
+            },
+            &Patch {
+                id: ChangeId::generate(),
+                changes: vec![],
+            },
+            now(),
+        )
+        .unwrap()
+        .expect("a submission is always queued");
+    s.store
+        .set_send_state(draft.id, &SendState::Queued, now())
+        .unwrap();
+    draft.id
+}
+
+/// What a pass did to two queued sends when the server answers a submission with `kind`: the
+/// report, the first draft's state, the second's, and the subjects still in the outbox.
+async fn refused_sends(kind: &str) -> (SyncReport, SendState, SendState, Vec<String>, usize) {
+    let mut s = setup().await;
+    pass(&mut s).await;
+    let identity = IdentityId::generate();
+    mail_store::testing::seed_identity_for(&s.store, identity, acct_account(), USER, Some("Me"));
+    let first = queued_send(&s, identity, "first");
+    let second = queued_send(&s, identity, "second");
+    s.fake.state.lock().unwrap().refuse_submission =
+        Some((kind.to_owned(), "the server's reason".to_owned()));
+    let (_tx, mut cancel) = watch::channel(false);
+    let report = whole(&mut s.engine, &mut cancel).await;
+    let waiting = s
+        .store
+        .outbox_due(
+            acct_account(),
+            now() + chrono::TimeDelta::try_days(365).unwrap(),
+        )
+        .unwrap()
+        .into_iter()
+        .filter_map(|entry| match entry.op {
+            ProtoOp::Submit { draft, .. } => s.store.draft(draft).ok().map(|d| d.subject),
+            _ => None,
+        })
+        .collect();
+    let tried = s.fake.calls("EmailSubmission/set").len();
+    (
+        report,
+        s.store.draft(first).unwrap().state,
+        s.store.draft(second).unwrap().state,
+        waiting,
+        tried,
+    )
+}
+
+/// A submission the server is unable to take for now keeps its row and says the draft is
+/// retrying; the pass hears of the wait, as JMAP's sending shares the account's credential; and
+/// the send behind it is not tried.
+#[tokio::test]
+async fn a_jmap_send_the_server_cannot_take_now_stays_queued_and_holds_back_the_next() {
+    let (report, first, second, waiting, tried) = refused_sends("serverFail").await;
+    assert_eq!(report.submitted, 0);
+    assert_eq!(report.outbox_settled, 0);
+    assert!(report.needs_attention.is_empty(), "{report:?}");
+    assert!(
+        report.hold.is_some(),
+        "the wait is the pass's too: {report:?}"
+    );
+    assert_eq!(waiting, ["first", "second"], "no row is lost");
+    assert_eq!(report.still_queued, 2);
+    match first {
+        SendState::Failed { retry, .. } => assert!(!matches!(retry, Retry::Fatal(_)), "{retry:?}"),
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(second, SendState::Queued, "the next did not overtake");
+    assert_eq!(tried, 1);
+}
+
+/// A submission the server refuses for good is dropped with its reason, said to the person, and
+/// the send behind it waits for the next pass.
+#[tokio::test]
+async fn a_jmap_send_refused_for_good_is_dropped_with_its_reason() {
+    let (report, first, second, waiting, tried) = refused_sends("forbiddenFrom").await;
+    assert_eq!(report.submitted, 0);
+    assert_eq!(report.needs_attention.len(), 1, "{report:?}");
+    assert!(report.needs_attention[0].contains("the server's reason"));
+    assert_eq!(waiting, ["second"]);
+    assert_eq!(report.still_queued, 1);
+    match first {
+        SendState::Failed { retry, reason } => {
+            assert!(matches!(retry, Retry::Fatal(_)), "{retry:?}");
+            assert!(reason.contains("the server's reason"), "{reason}");
+        }
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(second, SendState::Queued);
+    assert_eq!(tried, 1);
+}

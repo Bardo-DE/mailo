@@ -247,3 +247,42 @@ fn acquaintance(store: &SqliteStore, address: &str) -> mail_logic::junk::Acquain
             .is_some_and(|contact| contact.written.count > 0),
     }
 }
+
+/// What pressing send on `draft` is decided over: the draft as it stands, the identity it sends
+/// as, the message it answers and each attachment's bytes, pictures made as small as `pictures`
+/// says. Reads only; a draft that cannot be sent at all says so first
+/// ([`crate::compose::freeze::admits`]), before anything else is looked for.
+pub fn sending(
+    store: &SqliteStore,
+    draft: mail_domain::DraftId,
+    pictures: mail_logic::picture::PictureSize,
+) -> Result<crate::compose::freeze::Snapshot, CoreError> {
+    let draft = store.draft(draft)?;
+    let has_server = !acting_accounts(store).local().contains(&draft.account);
+    crate::compose::freeze::admits(&draft, has_server)?;
+    let identity = crate::compose::identity_of(store, draft.account.clone(), Some(draft.identity))?;
+    let parent = draft
+        .in_reply_to
+        .and_then(|id| store.message(id).or_log("a message could not be read"));
+
+    // Attachment bytes come from the blob store, because `posting` is pure and takes them as
+    // an argument rather than reading anything.
+    let mut parts = Vec::with_capacity(draft.attachments.len());
+    for attachment in &draft.attachments {
+        let bytes = store
+            .blobs()
+            .get(attachment.blob)
+            .map_err(|e| CoreError::context(format!("attachment {}", attachment.name), e))?;
+        let bytes = match crate::compose::sized(&bytes, pictures) {
+            std::borrow::Cow::Owned(smaller) => smaller,
+            std::borrow::Cow::Borrowed(_) => bytes,
+        };
+        parts.push((attachment.blob, bytes));
+    }
+    Ok(crate::compose::freeze::Snapshot {
+        draft,
+        identity,
+        parent,
+        parts,
+    })
+}

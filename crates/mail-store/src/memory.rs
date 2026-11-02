@@ -66,6 +66,8 @@ struct Inner {
     unplaced: BTreeMap<(AccountId, MessageId), crate::dispatch::Unplaced>,
     labels: BTreeMap<LabelId, Label>,
     drafts: BTreeMap<DraftId, Draft>,
+    /// A composer's reminder for each draft until its message has left, as `follow_up_held` holds.
+    follow_up_held: BTreeMap<DraftId, crate::FollowUpHold>,
     templates: BTreeMap<TemplateId, Template>,
     /// Saved views, by id, each with its place among them.
     views: BTreeMap<mail_domain::ViewId, (i64, mail_domain::View)>,
@@ -174,6 +176,7 @@ impl Default for Inner {
             unplaced: BTreeMap::new(),
             labels: BTreeMap::new(),
             drafts: BTreeMap::new(),
+            follow_up_held: BTreeMap::new(),
             templates: BTreeMap::new(),
             views: BTreeMap::new(),
             opened: BTreeMap::new(),
@@ -1859,8 +1862,22 @@ impl Inner {
         &mut self,
         commit: &mail_domain::Commit,
     ) -> Result<mail_domain::commit::Written, StoreError> {
-        use mail_domain::{Resolve, Row, Unplaced};
+        use mail_domain::{Expect, Resolve, Row, Unplaced};
         let mut queued: Vec<Option<OutboxId>> = vec![None; commit.queue.len()];
+        for row in &commit.rows {
+            if let Row::Expect(Expect::Draft {
+                draft,
+                updated,
+                state,
+            }) = row
+                && !self
+                    .drafts
+                    .get(draft)
+                    .is_some_and(|now| now.updated == *updated && now.state == *state)
+            {
+                return Err(StoreError::Stale);
+            }
+        }
         for when in [Resolve::BeforeForward, Resolve::AfterForward] {
             if when == Resolve::AfterForward {
                 self.accounts.insert(commit.account.clone());
@@ -1903,6 +1920,38 @@ impl Inner {
                 Row::Withdrawn { forward, inverse } => {
                     self.withdraw(*forward, inverse, commit.at)?;
                 }
+                Row::SendState { draft, state, at } => {
+                    let draft = self
+                        .drafts
+                        .get_mut(draft)
+                        .ok_or(StoreError::NoDraft(*draft))?;
+                    draft.state = state.clone();
+                    draft.updated = *at;
+                }
+                Row::FollowUpHeld {
+                    draft,
+                    account,
+                    message_id,
+                    thread,
+                    due,
+                    set,
+                } => {
+                    self.follow_up_held.insert(
+                        *draft,
+                        crate::FollowUpHold {
+                            draft: *draft,
+                            account: account.clone(),
+                            message_id: message_id.clone(),
+                            thread: *thread,
+                            at: *due,
+                            set: *set,
+                        },
+                    );
+                }
+                Row::FollowUpReleased { draft } => {
+                    self.follow_up_held.remove(draft);
+                }
+                Row::Expect(_) => {}
             }
         }
         Ok(mail_domain::commit::Written { queued })

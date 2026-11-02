@@ -4,7 +4,8 @@
 //! that ends in a [`Commit`]; `Store::commit` is the one place that writes it, in one
 //! transaction, so a decision either happened whole or not at all.
 
-use crate::id::{ChangeId, MessageId, OutboxId};
+use crate::draft::SendState;
+use crate::id::{ChangeId, DraftId, MessageId, OutboxId, ThreadId};
 use crate::junk::Judged;
 use crate::op::{Applied, Patch, RemoteIntent};
 use chrono::{DateTime, Utc};
@@ -57,7 +58,8 @@ pub enum Resolve {
 pub enum Unplaced {
     /// Queue nothing and write the rest.
     Skip,
-    /// Write nothing at all: the commit is refused.
+    /// Write nothing at all: the commit is refused. A person's act, and a send, which must not
+    /// leave a draft saying queued over an outbox with nothing in it.
     Rollback,
 }
 
@@ -81,6 +83,42 @@ pub enum Row {
     /// work queued for the act whose patch was `forward`; for work queued before acts were named,
     /// the entry whose undo is `inverse`. Work already tried, or not there, is left.
     Withdrawn { forward: UndoId, inverse: Patch },
+    /// A draft's place in sending: queued, scheduled, failing or sent.
+    SendState {
+        draft: DraftId,
+        state: SendState,
+        at: DateTime<Utc>,
+    },
+    /// A composer's reminder, kept by its draft until the message has left; replaces the draft's
+    /// earlier one.
+    FollowUpHeld {
+        draft: DraftId,
+        account: AccountId,
+        /// The `Message-ID` the message goes with, normalized.
+        message_id: String,
+        /// The conversation a reply answers.
+        thread: Option<ThreadId>,
+        /// When the reminder is due.
+        due: DateTime<Utc>,
+        /// When the message leaves.
+        set: DateTime<Utc>,
+    },
+    /// A draft's held reminder goes: its send was taken back, or sent again without one.
+    FollowUpReleased { draft: DraftId },
+    /// What must still hold when the commit is written; otherwise nothing is written at all and
+    /// the commit is refused as stale. Checked before any other row is.
+    Expect(Expect),
+}
+
+/// What a decision made over something that can change while it waits.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Expect {
+    /// The draft is as it was read: last saved at `updated` and in `state`.
+    Draft {
+        draft: DraftId,
+        updated: DateTime<Utc>,
+        state: SendState,
+    },
 }
 
 /// What a commit wrote.

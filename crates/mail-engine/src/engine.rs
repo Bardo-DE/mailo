@@ -7,9 +7,9 @@
 
 use chrono::{DateTime, Utc};
 use mail_domain::{
-    AccountCaps, AccountPlan, BlobId, Condstore, FetchSince, Incoming, MailboxRef, MailboxRole,
-    MessageId, Outgoing, PartTree, ProtoOp, RemoteRef, Resync, Retry, Retryable, SendState,
-    SyncCursor, SystemFlag, Tls, UidValidity, WatchMode,
+    AccountCaps, AccountPlan, BlobId, Condstore, FetchSince, MailboxRef, MailboxRole, MessageId,
+    Outgoing, PartTree, ProtoOp, RemoteRef, Resync, Retry, Retryable, SendState, SyncCursor,
+    SystemFlag, Tls, UidValidity, WatchMode,
 };
 use mail_mime::Posting;
 use mail_net::Failure;
@@ -18,7 +18,8 @@ use mail_proto::backend::SmtpBackend;
 use mail_proto::{Authentication, Backend, Moved, ProtoOutcome, SignIn, Submission};
 use mail_runtime::error::Logged;
 use mail_runtime::error::refused_fresh;
-use mail_runtime::pass::{OUTBOX_LOOK, first_stored, given_up, note_state};
+use mail_runtime::pass::{OUTBOX_LOOK, first_stored, given_up};
+use mail_runtime::sending::{self, Login, Outcome, SentCopy, Then};
 use mail_runtime::{Cancel, RuntimeError, SyncReport, drive, drive_within};
 use mail_secrets::AccountSecrets;
 use mail_secrets::tokens::{AfterRefusal, Token, TokenSource};
@@ -107,17 +108,6 @@ const GRAPH_BODIES: usize = 10;
 
 fn by_band(wanted: &mut [(RemoteRef, u64)]) {
     wanted.sort_by_key(|(_, size)| BANDS.iter().position(|&band| *size <= band));
-}
-
-/// Who files the copy of a message an account submits; see `AccountEngine::sent_copy`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum SentCopy {
-    /// The server does, and a sync reads it back.
-    Server,
-    /// This client does, in the local Sent: the account has no mailbox for it.
-    Here,
-    /// This client uploads it to the server's Sent mailbox at this path.
-    Upload(String),
 }
 
 /// How often each part of a sync runs.
@@ -907,39 +897,9 @@ impl<B: Backend> AccountEngine<B> {
         })
     }
 
-    /// Who files the copy of a message this account submits.
-    ///
-    /// SMTP says only that a message was accepted (RFC 6409), so whether a Sent copy exists
-    /// afterwards depends on the pairing of servers, and each has one answer:
-    ///
-    /// - Graph's `sendMail`, JMAP's `EmailSubmission` and a Gmail or Microsoft SMTP server file
-    ///   it themselves, and a sync reads it back from Sent. Keeping one here too would list the
-    ///   message twice.
-    /// - An IMAP account on any other SMTP server has a Sent mailbox and nobody filing into it,
-    ///   so the client uploads the copy there (`APPEND`, RFC 3501 §6.3.11) when the server's
-    ///   `SPECIAL-USE` listing names one (RFC 6154), or, with none, a folder at the top has a
-    ///   name every client takes for Sent (`Sent`, `Sent Items`: `mail_proto`'s folder roles).
-    ///   With neither, uploading to a guessed path is how a message lands somewhere nobody
-    ///   looks, so the copy is kept here.
-    /// - A POP3 or local account has no Sent mailbox at all, whichever server sends for it, so
-    ///   the copy is kept here: Graph's lands in a Sent Items a POP3 sync never reads.
+    /// Who files the copy of a message this account submits ([`sending::sent_copy`]).
     fn sent_copy(&self) -> SentCopy {
-        match (&self.plan.incoming, &self.plan.outgoing) {
-            (_, Outgoing::Jmap | Outgoing::Nowhere)
-            | (Incoming::Jmap { .. } | Incoming::Graph, _) => SentCopy::Server,
-            (Incoming::Pop3 { .. } | Incoming::Local, _) => SentCopy::Here,
-            (Incoming::Imap { .. }, Outgoing::Graph) => SentCopy::Server,
-            (Incoming::Imap { .. }, Outgoing::Smtp { host, .. }) => {
-                if mail_domain::presets::files_sent_itself(host) {
-                    SentCopy::Server
-                } else {
-                    match self.folder_for(MailboxRole::Sent) {
-                        Some(path) => SentCopy::Upload(path),
-                        None => SentCopy::Here,
-                    }
-                }
-            }
-        }
+        sending::sent_copy(&self.plan, self.folder_for(MailboxRole::Sent))
     }
 
     /// Keep what was just submitted as `raw`, dated `at`, as [`Self::sent_copy`] says: kept
@@ -1083,18 +1043,17 @@ impl<B: Backend> AccountEngine<B> {
                 ProtoOp::Submit { draft, .. } => Some(*draft),
                 _ => None,
             };
-            // Sending apart from receiving (`mail_runtime::sending`): what a submission's failure asks
-            // for is its own row's, not the account's.
-            let tells_the_pass = mail_runtime::sending::tells_the_pass(&entry.op);
+            // What the settlement reads, since the operation is consumed by the attempt.
+            let attempted = entry.op.clone();
             // What a submission sent, and to whom, for the account that files its own copy of it.
             let copy = self.sent_copy();
-            let submitted = match &entry.op {
+            let mut submitted = match &entry.op {
                 ProtoOp::Submit { raw, rcpt_to, .. } if copy != SentCopy::Server => {
                     Some((*raw, rcpt_to.clone()))
                 }
                 _ => None,
             };
-            let upload = match &entry.op {
+            let mut upload = match &entry.op {
                 ProtoOp::Append {
                     mailbox,
                     flags,
@@ -1118,10 +1077,11 @@ impl<B: Backend> AccountEngine<B> {
             };
             let mut progress = partial::Progress::default();
             // Stamped with the same instant the draft records as `Sent { at }`, so the two agree.
-            match self
+            let attempt = self
                 .run_per_mailbox(entry.op, cancel, draft.map(|_| now), &mut progress)
-                .await
-            {
+                .await;
+            let mut accepted = None;
+            let settled = match attempt {
                 Ok(outcome) => {
                     // Before the settle, so the next entry, addressed as it is reached, finds
                     // the message where the move put it.
@@ -1132,24 +1092,55 @@ impl<B: Backend> AccountEngine<B> {
                         ProtoOutcome::Copied(copied) => self.copied(copied)?,
                         _ => {}
                     }
-                    self.store.outbox_settle(id, Settle::Ok, now)?;
-                    if let (Some(upload), ProtoOutcome::Appended { remote }) = (upload, outcome) {
-                        report.appended += 1;
-                        // The upload happened whatever this says. Failing the drain over the
-                        // local copy would report as lost a message the server now holds.
-                        if let Err(e) = self.keep_appended(upload, remote, now) {
-                            report.needs_attention.push(format!(
-                                "uploaded, but not kept here until the next sync: {e}"
-                            ));
+                    accepted = Some(outcome);
+                    sending::settle(&attempted, Login::Apart, Outcome::Accepted, now)
+                }
+                Err(RuntimeError::Cancelled) => return Ok((report, false)),
+                Err(e) => {
+                    // Refused after part of it was done: only the rest is undone.
+                    let done = partial::done(&held, &progress, into.as_deref());
+                    let said = partial::said(&progress, into.as_deref(), &e);
+                    sending::settle(
+                        &attempted,
+                        Login::Apart,
+                        Outcome::Refused {
+                            error: &e,
+                            done,
+                            said,
+                        },
+                        now,
+                    )
+                }
+            };
+            if let Some(heard) = &settled.heard {
+                report.saw(heard);
+            }
+            report.needs_attention.extend(settled.notes.iter().cloned());
+            let mut kept = None;
+            for step in &settled.then {
+                match step {
+                    Then::SettleRow(row) => self.store.outbox_settle(id, row.clone(), now)?,
+                    Then::KeepUpload => {
+                        if let (Some(upload), Some(ProtoOutcome::Appended { remote })) =
+                            (upload.take(), accepted.take())
+                        {
+                            report.appended += 1;
+                            // The upload happened whatever this says. Failing the drain over the
+                            // local copy would report as lost a message the server now holds.
+                            if let Err(e) = self.keep_appended(upload, remote, now) {
+                                report.needs_attention.push(format!(
+                                    "uploaded, but not kept here until the next sync: {e}"
+                                ));
+                            }
                         }
                     }
-                    if let Some(draft) = draft {
+                    Then::KeepSentCopy => {
                         // SMTP reports that the message was accepted, not where a copy was
                         // filed. Gmail files it in Sent itself and a sync finds it there, so
                         // `message: None` until then, and so for a copy this client uploads.
                         // A POP3 account has no Sent folder at all: the copy is kept here,
                         // now, or nowhere.
-                        let message = match submitted {
+                        kept = match submitted.take() {
                             Some((raw, rcpt_to)) => match self.keep_sent(&copy, raw, &rcpt_to, now)
                             {
                                 Ok(kept) => kept,
@@ -1165,73 +1156,29 @@ impl<B: Backend> AccountEngine<B> {
                             None => None,
                         };
                         copy_queued |= matches!(copy, SentCopy::Upload(_));
-                        self.mark_draft(draft, SendState::Sent { at: now, message }, now);
-                        report.submitted += 1;
+                    }
+                    Then::Mark(draft, mark) => {
+                        self.mark_draft(*draft, mark.clone().state(kept), now);
+                    }
+                    Then::DropDraftCopies(draft) => {
                         // Sent, so its copy in Drafts on the server goes, in this drain as the
                         // Sent copy does. Sent whatever becomes of that, as above.
-                        match self.drop_draft_copies(draft, now) {
+                        match self.drop_draft_copies(*draft, now) {
                             Ok(queued) => copy_queued |= queued,
                             Err(e) => report.needs_attention.push(format!(
                                 "sent, but its draft may still be in Drafts on the server: {e}"
                             )),
                         }
                     }
-                    report.outbox_settled += 1;
                 }
-                Err(RuntimeError::Cancelled) => return Ok((report, false)),
-                Err(e) => {
-                    let retry = match tells_the_pass {
-                        true => e.retry(),
-                        false => mail_runtime::sending::settles(&e),
-                    };
-                    if tells_the_pass {
-                        report.saw(&retry);
-                    }
-                    // Refused after part of it was done: only the rest is undone.
-                    let done = match retry {
-                        Retry::Fatal(_) => partial::done(&held, &progress, into.as_deref()),
-                        _ => Vec::new(),
-                    };
-                    if !done.is_empty() {
-                        report
-                            .needs_attention
-                            .push(partial::said(&progress, into.as_deref(), &e));
-                        self.store.outbox_settle(id, Settle::InPart { done }, now)?;
-                        halted = true;
-                        break;
-                    }
-                    // Said as the error is, whatever the row does with it: a send the server
-                    // refused for good, or refused the protocol for, is worth a note.
-                    if (tells_the_pass && retry.needs_person())
-                        || matches!(e.retry(), Retry::Fatal(_))
-                    {
-                        report.needs_attention.push(e.to_string());
-                    }
-                    if let Some(draft) = draft {
-                        // Carries the retry, so the composer can say "retrying" rather than
-                        // "failed" for something the outbox has not given up on.
-                        self.mark_draft(
-                            draft,
-                            SendState::Failed {
-                                reason: e.to_string(),
-                                retry: retry.clone(),
-                            },
-                            now,
-                        );
-                    }
-                    self.store.outbox_settle(
-                        id,
-                        Settle::Failed {
-                            reason: e.to_string(),
-                            retry,
-                        },
-                        now,
-                    )?;
-                    // Stop at the first failure rather than racing ahead: a later operation on
-                    // the same thread would otherwise overtake the one that just failed.
-                    halted = true;
-                    break;
-                }
+            }
+            report.submitted += usize::from(settled.submitted);
+            report.outbox_settled += usize::from(settled.settled);
+            if settled.halt {
+                // Stop at the first failure rather than racing ahead: a later operation on
+                // the same thread would otherwise overtake the one that just failed.
+                halted = true;
+                break;
             }
         }
         // Whatever is left, however it got there: a failure that backed off, or an entry whose
@@ -1369,7 +1316,7 @@ impl<B: Backend> AccountEngine<B> {
     /// Failing here would leave the outbox entry settled and the pass reporting an error about
     /// something nobody is waiting on.
     fn mark_draft(&self, draft: mail_domain::DraftId, state: SendState, now: DateTime<Utc>) {
-        note_state(self.store.set_send_state(draft, &state, now));
+        sending::mark_draft(&*self.store, draft, state, now);
     }
 
     /// Ask the server what it supports, and write down the answer.
@@ -1493,15 +1440,10 @@ impl<B: Backend> AccountEngine<B> {
         draft: mail_domain::DraftId,
         now: DateTime<Utc>,
     ) -> Result<bool, RuntimeError> {
-        // A Graph account reads through `self.graph`, and keeps no copy there.
-        if !self.plan.incoming.caps().writes_mailboxes || self.graph.is_some() {
-            return Ok(false);
-        }
-        // Nor does Gmail ([`mail_runtime::server_drafts::keeps_copies`]), whose EXPUNGE may archive.
-        if !mail_runtime::server_drafts::keeps_copies(self.caps()) {
-            return Ok(false);
-        }
-        let Some(path) = self.folder_for(MailboxRole::Drafts) else {
+        // Where the server keeps drafts, if it does: not a Graph account's, nor Gmail's.
+        let Some(path) =
+            mail_runtime::server_drafts::drafts_folder(&self.plan.incoming, self.caps())
+        else {
             return Ok(false);
         };
         let draft = match self.store.draft(draft) {

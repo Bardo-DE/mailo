@@ -28,6 +28,7 @@ mod search_scale;
 mod seed_live;
 mod sender_standing;
 mod sender_trust;
+mod sending;
 mod sign_in_check;
 mod sync_path;
 
