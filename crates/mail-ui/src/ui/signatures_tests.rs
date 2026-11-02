@@ -43,7 +43,7 @@ fn pushed(built: &Work, made: &Signature) -> (VirtualDom, Seen) {
         &mut dom,
         seen.one(
             "id",
-            &crate::ui::settings_window::account_split::row_id("signatures-pane", &account),
+            &mail_ui_settings::settings::account_split::row_id("signatures-pane", &account),
         ),
     );
     let seen = seen.merge(picked).merge(drain_seen(&mut dom));

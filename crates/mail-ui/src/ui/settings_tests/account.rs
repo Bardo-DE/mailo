@@ -30,7 +30,7 @@ fn poh(built: &Work) -> AccountId {
 
 /// The element id of `account`'s row in the list.
 fn row_id(account: &AccountId) -> String {
-    crate::ui::settings_window::account_split::row_id("accounts-pane", account)
+    mail_ui_settings::settings::account_split::row_id("accounts-pane", account)
 }
 
 /// The Settings window on Accounts with `ADDRESS`'s page chosen by its row.
