@@ -1440,15 +1440,10 @@ impl<B: Backend> AccountEngine<B> {
         draft: mail_domain::DraftId,
         now: DateTime<Utc>,
     ) -> Result<bool, RuntimeError> {
-        // A Graph account reads through `self.graph`, and keeps no copy there.
-        if !self.plan.incoming.caps().writes_mailboxes || self.graph.is_some() {
-            return Ok(false);
-        }
-        // Nor does Gmail ([`mail_runtime::server_drafts::keeps_copies`]), whose EXPUNGE may archive.
-        if !mail_runtime::server_drafts::keeps_copies(self.caps()) {
-            return Ok(false);
-        }
-        let Some(path) = self.folder_for(MailboxRole::Drafts) else {
+        // Where the server keeps drafts, if it does: not a Graph account's, nor Gmail's.
+        let Some(path) =
+            mail_runtime::server_drafts::drafts_folder(&self.plan.incoming, self.caps())
+        else {
             return Ok(false);
         };
         let draft = match self.store.draft(draft) {

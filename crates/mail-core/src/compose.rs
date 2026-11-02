@@ -1096,19 +1096,13 @@ fn drafts_on_server(store: &SqliteStore, account: &AccountId) -> Option<MailboxR
     let plan = stored
         .plan
         .or_log("the plan of the account a draft is on could not be read")?;
-    if !plan.incoming.caps().server_drafts {
-        return None;
-    }
     let caps = stored
         .caps?
         .or_log("the capabilities of the account a draft is on could not be read")?;
-    if !mail_runtime::server_drafts::keeps_copies(&caps) {
-        return None;
-    }
-    let path = caps.folders.path(MailboxRole::Drafts)?;
+    let path = mail_runtime::server_drafts::drafts_folder(&plan.incoming, &caps)?;
     Some(MailboxRef {
         account: account.clone(),
-        path: path.to_owned(),
+        path,
     })
 }
 

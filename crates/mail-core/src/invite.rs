@@ -151,26 +151,20 @@ pub fn answer(
         },
     )?;
     let frozen = store.blobs().put(&post.message)?;
-    let queued = store.enqueue(
+    // Named like a draft because the outbox keys a submission by one; no draft row exists, which
+    // the drain already treats as "nothing to mark", as for a receipt. A reply that left cannot
+    // be taken back by a patch; answering again is how.
+    let commit = crate::compose::freeze::unattached(
         original.account,
-        // Named like a draft because the outbox keys a submission by one; no draft row
-        // exists, which the drain already treats as "nothing to mark", as for a receipt.
-        RemoteIntent::Send {
-            draft: id,
-            raw: frozen,
-            mail_from: post.mail_from.clone(),
-            rcpt_to: post.rcpt_to.clone(),
-            delivery: post.delivery,
-        },
-        // A reply that left cannot be taken back by a patch; answering again is how.
-        &Patch {
-            id: ChangeId::generate(),
-            changes: Vec::new(),
-        },
+        id,
+        (&post, frozen),
         now,
-    )?;
-    if queued.is_none() {
-        return Err(CoreError::AnswerNotQueued);
+        crate::compose::freeze::Ids::generate(),
+    );
+    match store.commit(&commit) {
+        Ok(_) => {}
+        Err(mail_store::StoreError::NotQueued) => return Err(CoreError::AnswerNotQueued),
+        Err(other) => return Err(other.into()),
     }
     store.answer_invite(&InviteAnswer {
         message,

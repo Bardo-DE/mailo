@@ -217,6 +217,45 @@ pub fn freeze(
     })
 }
 
+/// What to write to send a message that is not a draft's: a redirect, an answer to an
+/// invitation, a receipt, which have no draft behind them and nothing to take back. `id` is the
+/// name the outbox keys the submission by, and `post` the bytes, already in the blob store as
+/// `raw`. The message leaves at `leaves`, and a commit that places nothing is refused whole.
+pub fn unattached(
+    account: porter_core::AccountId,
+    id: mail_domain::DraftId,
+    (post, raw): (&Posting, BlobId),
+    leaves: DateTime<Utc>,
+    ids: Ids,
+) -> Commit {
+    Commit {
+        account,
+        at: leaves,
+        forward: Patch {
+            id: ids.pulled_back,
+            changes: Vec::new(),
+        },
+        queue: vec![Queue {
+            intent: RemoteIntent::Send {
+                draft: id,
+                raw,
+                mail_from: post.mail_from.clone(),
+                rcpt_to: post.rcpt_to.clone(),
+                delivery: post.delivery,
+            },
+            // Nothing to undo: the outbox cannot take back bytes once they are on the wire.
+            undo: Patch {
+                id: ids.queued,
+                changes: Vec::new(),
+            },
+            id: None,
+            resolve: Resolve::AfterForward,
+            unplaced: Unplaced::Rollback,
+        }],
+        rows: Vec::new(),
+    }
+}
+
 impl Frozen {
     /// What to write once the bytes are in the blob store as `raw`.
     pub fn commit(&self, raw: BlobId) -> Commit {
