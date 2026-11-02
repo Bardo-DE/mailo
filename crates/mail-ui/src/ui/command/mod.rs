@@ -8,7 +8,6 @@
 //! [`spotlight`], its keys [`keys`]; the commands are [`commands`], one type each; this file is
 //! what a pick does.
 
-mod bar;
 mod commands;
 mod items;
 mod keys;
@@ -20,18 +19,20 @@ mod spotlight;
 mod suggest;
 mod templates;
 
-pub(in crate::ui) use bar::{Affordance, SearchBox, SearchHead, affordance, clear};
-#[cfg(test)]
-pub(in crate::ui) use bar::{BOX_LABEL, CLEAR_LABEL};
 pub(in crate::ui) use commands::{Acts, Command, Settings, Sidebar, TidyUp};
-pub(in crate::ui) use items::avatar_color;
 #[cfg(test)]
-pub(in crate::ui) use spotlight::{FIELD, LABEL};
-pub(in crate::ui) use spotlight::{Spotlight, summon};
+pub(in crate::ui) use mail_ui_kit::summon::FIELD;
+pub(in crate::ui) use mail_ui_kit::summon::summon;
+pub(in crate::ui) use mail_ui_list::bar::{Affordance, affordance, clear};
+#[cfg(test)]
+pub(in crate::ui) use mail_ui_list::bar::{BOX_LABEL, CLEAR_LABEL};
+#[cfg(test)]
+pub(in crate::ui) use spotlight::LABEL;
+pub(in crate::ui) use spotlight::Spotlight;
 
-use crate::ui::view::{Bar, PageMenu, Shell};
 use dioxus::prelude::*;
 use items::Pick;
+use mail_ui_kit::view::{Bar, PageMenu, Shell};
 use sections::Choice;
 use spotlight::Ctx;
 
@@ -39,7 +40,7 @@ use spotlight::Ctx;
 fn close(mut shell: Signal<Shell>) {
     shell.write().bar = Bar::Closed;
     shell.write().page_menu = PageMenu::Closed;
-    crate::ui::host::Host::focus_app();
+    mail_ui_kit::host::Host::focus_app();
 }
 
 /// The search the list showed before a command's name was typed over it, back in the list: the
@@ -86,13 +87,13 @@ fn act(ctx: Ctx, choice: Option<Choice>) {
         Choice::Draft(draft) => {
             close(shell);
             if let Some(desk) = desk {
-                crate::ui::compose::reopen(desk, shell, draft);
+                mail_ui_compose::compose::reopen(desk, shell, draft);
             }
         }
         Choice::Space(index) => {
             restore(shell, pages);
             close(shell);
-            if let Some(handle) = try_consume_context::<crate::ui::space::Handle>() {
+            if let Some(handle) = try_consume_context::<mail_ui_kit::space::Handle>() {
                 let _ = handle.switch_index(index);
             }
         }

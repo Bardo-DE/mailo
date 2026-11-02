@@ -1,0 +1,51 @@
+[package]
+name = "mail-intents"
+# The app side: I/O and policy, not a library for others.
+publish = false
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Mailo as a provider of the desktop's intents over D-Bus, and the search index it pushes"
+repository = "https://github.com/PoHsuanLai/mailo"
+authors = ["Po Hsuan Lai <pohsuanlai0208@gmail.com>"]
+
+# What the desktop's intent router asks of mailo (`dist/intents/org.quire.Mail.toml`). It does not
+# name `mail-cli` and the command line does not name it. It reads the words of a finished operation
+# from `mail-ui-model`, and the window's own vocabulary from `mail-ui` (`ui::ask`, the handoff,
+# `ui::discarding_draft`, the app id), which is why that dependency stays: `ask`'s `Ask` is
+# applied to the window itself, and the handoff delivers it.
+
+[dependencies]
+mail-core = { workspace = true, features = ["pdf", "keyring"] }
+mail-domain.workspace = true
+mail-logic.workspace = true
+mail-client.workspace = true
+mail-edge.workspace = true
+mail-ui.workspace = true
+mail-ui-model.workspace = true
+porter-core.workspace = true
+chrono.workspace = true
+log.workspace = true
+serde.workspace = true
+serde_json = "1"
+uuid = { workspace = true }
+
+[target.'cfg(not(any(target_os = "macos", windows)))'.dependencies]
+# The session bus the provider answers on and the index is pushed over. Already in the lock
+# through notify-rust and the keyring's Secret Service store. MIT.
+zbus = "5.19"
+# The stream of the bus's signals the provider is served over (`serve.rs`).
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+
+[dev-dependencies]
+toml = "1"
+# The launcher's desktop id, which the entry, the manifest and the unit must share.
+mail-os.workspace = true
+# A provider over a store in a scratch directory, never the person's.
+tempfile = "3"
+# The seeds and doubles a test arranges the provider's world with (`mail_core::fixtures`).
+mail-core = { workspace = true, features = ["testing"] }
+
+[lints]
+workspace = true

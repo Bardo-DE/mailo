@@ -3,10 +3,10 @@
 
 use super::{RemoveError, remove};
 use crate::account::{Credentials, add_with_password};
-use crate::password::Password;
 use crate::support_tests::{now, pop3};
 use mail_domain::id::new_account_id;
-use mail_runtime::{ClientRegistry, block_on};
+use mail_logic::password::Password;
+use mail_secrets::{ClientRegistry, block_on};
 use mail_store::SqliteStore;
 use porter_core::{AccountId, Credential, SecretKey, SecretPurpose};
 use porter_secrets::{MemorySecrets, Secrets, SecretsError};

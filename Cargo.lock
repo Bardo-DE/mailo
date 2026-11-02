@@ -1950,7 +1950,7 @@ checksum = "be1e0bca6c3637f992fc1cc7cbc52a78c1ef6db076dbf1059c4323d6a2048376"
 [[package]]
 name = "dav-proto"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/porter?rev=f406782b90b67f62f0f14ec5e78aec8992b5d709#f406782b90b67f62f0f14ec5e78aec8992b5d709"
+source = "git+https://github.com/PoHsuanLai/porter?rev=1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2#1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2"
 dependencies = [
  "roxmltree 0.21.1",
  "thiserror 2.0.21",
@@ -2541,7 +2541,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3041,7 +3041,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4735,7 +4735,7 @@ dependencies = [
 [[package]]
 name = "keyring-chunked"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/porter?rev=f406782b90b67f62f0f14ec5e78aec8992b5d709#f406782b90b67f62f0f14ec5e78aec8992b5d709"
+source = "git+https://github.com/PoHsuanLai/porter?rev=1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2#1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2"
 dependencies = [
  "keyring-core",
  "thiserror 2.0.21",
@@ -5111,6 +5111,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "mail-agent"
+version = "0.1.0"
+dependencies = [
+ "interprocess",
+ "latchkey",
+ "log",
+ "mail-core",
+ "mail-secrets",
+ "mail-store",
+ "mailo-domain",
+ "mailo-logic",
+ "notify-rust",
+ "porter-core",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "uuid",
+ "zbus",
+]
+
+[[package]]
 name = "mail-app"
 version = "0.1.0"
 dependencies = [
@@ -5125,32 +5148,33 @@ dependencies = [
  "ds-lint",
  "ds-settings",
  "ds-shell",
- "futures-util",
  "image",
  "latchkey",
  "log",
+ "mail-agent",
+ "mail-cli",
  "mail-client",
  "mail-core",
- "mail-runtime",
- "mail-store",
+ "mail-edge",
+ "mail-intents",
+ "mail-os",
  "mail-ui",
+ "mail-ui-compose",
+ "mail-ui-kit",
+ "mail-ui-model",
+ "mail-ui-reader",
+ "mailo-crypto",
  "mailo-domain",
+ "mailo-logic",
  "mailo-mime",
- "mailo-pim",
- "mailo-proto",
+ "mailo-reader",
  "pdfrum",
  "porter-core",
- "porter-provider",
  "porter-secrets",
  "rand 0.8.8",
- "rpassword",
- "serde",
- "serde_json",
  "tempfile",
  "tokio",
- "toml",
  "uuid",
- "zbus",
 ]
 
 [[package]]
@@ -5173,18 +5197,54 @@ dependencies = [
 ]
 
 [[package]]
+name = "mail-cli"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "image",
+ "log",
+ "mail-agent",
+ "mail-client",
+ "mail-core",
+ "mail-edge",
+ "mail-os",
+ "mail-ui-model",
+ "mailo-archive",
+ "mailo-crypto",
+ "mailo-domain",
+ "mailo-logic",
+ "mailo-mime",
+ "mailo-pim",
+ "mailo-proto",
+ "mailo-reader",
+ "porter-core",
+ "porter-provider",
+ "porter-secrets",
+ "rand 0.8.8",
+ "rpassword",
+ "tempfile",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "mail-client"
 version = "0.1.0"
 dependencies = [
  "chrono",
  "log",
+ "mail-agent",
  "mail-client",
  "mail-core",
  "mail-runtime",
+ "mail-secrets",
  "mail-store",
  "mailo-domain",
+ "mailo-editor",
+ "mailo-logic",
  "mailo-mime",
  "mailo-proto",
+ "mailo-reader",
  "notify",
  "parking_lot",
  "porter-core",
@@ -5200,22 +5260,26 @@ dependencies = [
 name = "mail-core"
 version = "0.1.0"
 dependencies = [
- "aho-corasick",
  "base64 0.22.1",
  "chrono",
  "futures-util",
  "image",
- "interprocess",
  "latchkey",
  "log",
+ "mail-engine",
+ "mail-net",
  "mail-runtime",
+ "mail-secrets",
  "mail-store",
+ "mailo-archive",
+ "mailo-crypto",
  "mailo-domain",
+ "mailo-editor",
+ "mailo-logic",
  "mailo-mime",
  "mailo-pim",
  "mailo-proto",
- "notify-rust",
- "nucleo-matcher",
+ "mailo-reader",
  "pdfrum",
  "porter-capability",
  "porter-core",
@@ -5236,11 +5300,124 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tokio-tungstenite",
- "unicode-segmentation",
  "url",
  "uuid",
- "zbus",
  "zeroize",
+]
+
+[[package]]
+name = "mail-edge"
+version = "0.1.0"
+dependencies = [
+ "mail-core",
+ "mailo-logic",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "mail-engine"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "chrono",
+ "flate2",
+ "log",
+ "mail-engine",
+ "mail-net",
+ "mail-runtime",
+ "mail-secrets",
+ "mail-store",
+ "mailo-archive",
+ "mailo-domain",
+ "mailo-mime",
+ "mailo-proto",
+ "porter-core",
+ "porter-ids",
+ "porter-provider",
+ "porter-secrets",
+ "reqwest",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "url",
+ "uuid",
+]
+
+[[package]]
+name = "mail-intents"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "futures-util",
+ "log",
+ "mail-client",
+ "mail-core",
+ "mail-edge",
+ "mail-os",
+ "mail-ui",
+ "mail-ui-model",
+ "mailo-domain",
+ "mailo-logic",
+ "porter-core",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "toml",
+ "uuid",
+ "zbus",
+]
+
+[[package]]
+name = "mail-net"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "chrono",
+ "flate2",
+ "hickory-resolver",
+ "hmac 0.12.1",
+ "log",
+ "mail-net",
+ "mailo-crypto",
+ "mailo-domain",
+ "mailo-mime",
+ "mailo-proto",
+ "porter-client",
+ "porter-core",
+ "porter-discover",
+ "porter-http",
+ "porter-http-reqwest",
+ "porter-provider",
+ "rand 0.8.8",
+ "reqwest",
+ "rustls",
+ "rustls-native-certs",
+ "rustls-pki-types",
+ "sha1 0.10.7",
+ "socket2",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-rustls",
+ "url",
+ "webpki-roots",
+]
+
+[[package]]
+name = "mail-os"
+version = "0.1.0"
+dependencies = [
+ "block2 0.6.2",
+ "dispatch2",
+ "mail-appkit",
+ "mail-client",
+ "mailo-domain",
+ "mailo-logic",
+ "mailo-proto",
+ "objc2 0.6.4",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
+ "zbus",
 ]
 
 [[package]]
@@ -5257,58 +5434,74 @@ dependencies = [
 name = "mail-runtime"
 version = "0.1.0"
 dependencies = [
- "apple-native-keyring-store",
  "base64 0.22.1",
  "blake3",
  "chrono",
  "dav-proto",
- "dirs",
- "flate2",
  "futures-util",
- "hickory-resolver",
- "hmac 0.12.1",
- "keyring-chunked",
- "keyring-core",
  "log",
+ "mail-net",
  "mail-runtime",
+ "mail-secrets",
  "mail-store",
+ "mailo-archive",
+ "mailo-crypto",
  "mailo-domain",
  "mailo-mime",
  "mailo-pim",
  "mailo-proto",
- "porter-capability",
  "porter-client",
  "porter-core",
- "porter-discover",
- "porter-http",
- "porter-http-reqwest",
  "porter-ids",
- "porter-oauth",
  "porter-provider",
  "porter-secrets",
+ "proptest",
  "psl",
  "rand 0.8.8",
  "reqwest",
  "resvg",
  "roxmltree 0.21.1",
- "rustls",
- "rustls-native-certs",
- "rustls-pki-types",
  "serde",
  "serde_json",
- "sha1 0.10.7",
  "sha2 0.10.9",
- "socket2",
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
- "tokio-rustls",
  "tokio-tungstenite",
  "url",
  "uuid",
- "webpki-roots",
- "windows-native-keyring-store",
  "xattr",
+ "zeroize",
+]
+
+[[package]]
+name = "mail-secrets"
+version = "0.1.0"
+dependencies = [
+ "apple-native-keyring-store",
+ "base64 0.22.1",
+ "chrono",
+ "dirs",
+ "keyring-chunked",
+ "keyring-core",
+ "mail-net",
+ "mail-secrets",
+ "mailo-domain",
+ "porter-capability",
+ "porter-core",
+ "porter-ids",
+ "porter-oauth",
+ "porter-provider",
+ "porter-secrets",
+ "rand 0.8.8",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "url",
+ "uuid",
+ "windows-native-keyring-store",
  "zbus-secret-service-keyring-store",
  "zeroize",
 ]
@@ -5339,18 +5532,13 @@ dependencies = [
 name = "mail-ui"
 version = "0.1.0"
 dependencies = [
- "anyview-core",
- "anyview-peek",
- "arboard",
  "base64 0.22.1",
  "blitz-dom",
- "block2 0.6.2",
  "chordkit",
  "chrono",
  "dioxus",
  "dioxus-native-dom",
  "dioxus-ssr",
- "dispatch2",
  "ds",
  "ds-blitz",
  "ds-harness",
@@ -5361,17 +5549,23 @@ dependencies = [
  "log",
  "mail-appkit",
  "mail-client",
- "mail-core",
- "mail-runtime",
- "mail-store",
+ "mail-os",
  "mail-ui",
+ "mail-ui-compose",
+ "mail-ui-kit",
+ "mail-ui-list",
+ "mail-ui-model",
+ "mail-ui-reader",
+ "mail-ui-settings",
+ "mailo-archive",
+ "mailo-crypto",
  "mailo-domain",
+ "mailo-editor",
+ "mailo-logic",
  "mailo-mime",
  "mailo-pim",
  "mailo-proto",
- "objc2 0.6.4",
- "objc2-app-kit 0.3.2",
- "objc2-foundation 0.3.2",
+ "mailo-reader",
  "pdfrum",
  "porter-capability",
  "porter-client-inproc",
@@ -5398,6 +5592,241 @@ dependencies = [
 ]
 
 [[package]]
+name = "mail-ui-compose"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "chordkit",
+ "chrono",
+ "dioxus",
+ "ds",
+ "ds-blitz",
+ "image",
+ "log",
+ "mail-client",
+ "mail-ui-kit",
+ "mail-ui-model",
+ "mailo-domain",
+ "mailo-editor",
+ "mailo-logic",
+ "mailo-mime",
+ "mailo-reader",
+ "porter-core",
+ "serde",
+ "tempfile",
+ "tokio",
+ "unicode-segmentation",
+]
+
+[[package]]
+name = "mail-ui-kit"
+version = "0.1.0"
+dependencies = [
+ "arboard",
+ "base64 0.22.1",
+ "blitz-dom",
+ "chordkit",
+ "chrono",
+ "dioxus",
+ "dioxus-native-dom",
+ "dioxus-ssr",
+ "ds",
+ "ds-blitz",
+ "ds-settings",
+ "image",
+ "log",
+ "mail-client",
+ "mail-os",
+ "mail-ui-model",
+ "mailo-crypto",
+ "mailo-domain",
+ "mailo-editor",
+ "mailo-logic",
+ "mailo-mime",
+ "mailo-reader",
+ "porter-core",
+ "porter-provider",
+ "rand 0.8.8",
+ "rfd",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "toml",
+ "url",
+ "uuid",
+ "webbrowser",
+ "zbus",
+]
+
+[[package]]
+name = "mail-ui-list"
+version = "0.1.0"
+dependencies = [
+ "chordkit",
+ "chrono",
+ "dioxus",
+ "dioxus-ssr",
+ "ds",
+ "log",
+ "mail-client",
+ "mail-ui-kit",
+ "mail-ui-model",
+ "mailo-domain",
+ "mailo-logic",
+ "mailo-proto",
+ "porter-core",
+ "regex",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "mail-ui-model"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "ds-core",
+ "ds-settings",
+ "log",
+ "mail-client",
+ "mailo-domain",
+ "mailo-logic",
+ "mailo-reader",
+ "porter-capability",
+ "porter-client-inproc",
+ "porter-core",
+ "porter-ids",
+ "porter-provider",
+ "porter-secrets",
+ "porter-sheet",
+ "porter-wire",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "toml",
+ "url",
+ "uuid",
+]
+
+[[package]]
+name = "mail-ui-reader"
+version = "0.1.0"
+dependencies = [
+ "anyview-core",
+ "anyview-peek",
+ "base64 0.22.1",
+ "blitz-dom",
+ "chordkit",
+ "chrono",
+ "dioxus",
+ "dioxus-native-dom",
+ "dioxus-ssr",
+ "ds",
+ "ds-blitz",
+ "image",
+ "log",
+ "mail-client",
+ "mail-os",
+ "mail-ui-kit",
+ "mail-ui-model",
+ "mailo-crypto",
+ "mailo-domain",
+ "mailo-logic",
+ "mailo-mime",
+ "mailo-pim",
+ "mailo-reader",
+ "porter-core",
+ "reqwest",
+ "tempfile",
+ "tokio",
+ "url",
+ "uuid",
+]
+
+[[package]]
+name = "mail-ui-settings"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "chordkit",
+ "chrono",
+ "dioxus",
+ "dioxus-ssr",
+ "ds",
+ "ds-blitz",
+ "ds-settings",
+ "log",
+ "mail-client",
+ "mail-os",
+ "mail-ui-kit",
+ "mail-ui-model",
+ "mailo-domain",
+ "mailo-editor",
+ "mailo-logic",
+ "mailo-mime",
+ "mailo-pim",
+ "mailo-proto",
+ "mailo-reader",
+ "porter-core",
+ "porter-provider",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "toml",
+ "uuid",
+]
+
+[[package]]
+name = "mailo-archive"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "mailo-domain",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "mailo-crypto"
+version = "0.1.0"
+dependencies = [
+ "aes 0.8.4",
+ "aes-gcm",
+ "base64 0.22.1",
+ "cbc 0.1.2",
+ "chrono",
+ "cms",
+ "const-oid 0.9.6",
+ "der",
+ "des",
+ "flate2",
+ "hmac 0.12.1",
+ "mail-parser",
+ "mailo-crypto",
+ "mailo-domain",
+ "mailo-mime",
+ "p256",
+ "p384",
+ "pgp",
+ "pkcs12",
+ "pkcs5",
+ "pkcs8",
+ "rand 0.8.8",
+ "rsa",
+ "sha1 0.10.7",
+ "sha2 0.10.9",
+ "signature",
+ "smallvec",
+ "spki",
+ "tempfile",
+ "thiserror 2.0.21",
+ "x509-cert",
+ "zeroize",
+]
+
+[[package]]
 name = "mailo-domain"
 version = "0.1.0"
 dependencies = [
@@ -5414,49 +5843,53 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailo-editor"
+version = "0.1.0"
+dependencies = [
+ "mailo-domain",
+ "mailo-mime",
+ "mailo-reader",
+ "proptest",
+ "unicode-segmentation",
+]
+
+[[package]]
+name = "mailo-logic"
+version = "0.1.0"
+dependencies = [
+ "aho-corasick",
+ "chrono",
+ "mailo-archive",
+ "mailo-domain",
+ "nucleo-matcher",
+ "porter-core",
+ "porter-discover",
+ "porter-ids",
+ "porter-provider",
+ "psl",
+ "regex",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "uuid",
+ "zeroize",
+]
+
+[[package]]
 name = "mailo-mime"
 version = "0.1.0"
 dependencies = [
- "aes 0.8.4",
- "aes-gcm",
- "ammonia",
  "base64 0.22.1",
- "cbc 0.1.2",
  "chardetng",
  "chrono",
- "cms",
- "const-oid 0.9.6",
- "cssparser 0.38.0",
- "der",
- "des",
  "encoding_rs",
- "flate2",
- "hmac 0.12.1",
- "html5ever 0.40.1",
  "mail-builder",
  "mail-parser",
  "mailo-domain",
- "mailo-mime",
- "p256",
- "p384",
- "pgp",
- "pkcs12",
- "pkcs5",
- "pkcs8",
  "proptest",
- "rand 0.8.8",
- "rsa",
- "sha1 0.10.7",
- "sha2 0.10.9",
- "signature",
- "smallvec",
- "spki",
- "tempfile",
  "thiserror 2.0.21",
  "url",
  "uuid",
- "x509-cert",
- "zeroize",
 ]
 
 [[package]]
@@ -5490,6 +5923,21 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.21",
  "uuid",
+]
+
+[[package]]
+name = "mailo-reader"
+version = "0.1.0"
+dependencies = [
+ "ammonia",
+ "base64 0.22.1",
+ "chrono",
+ "cssparser 0.38.0",
+ "html5ever 0.40.1",
+ "mailo-domain",
+ "mailo-mime",
+ "proptest",
+ "url",
 ]
 
 [[package]]
@@ -6387,7 +6835,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d8fae84b431384b68627d0f9b3b1245fcf9f46f6c0e3dc902e9dce64edd1967"
 dependencies = [
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.45.0",
 ]
 
 [[package]]
@@ -7231,7 +7679,7 @@ dependencies = [
 [[package]]
 name = "porter-capability"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/porter?rev=f406782b90b67f62f0f14ec5e78aec8992b5d709#f406782b90b67f62f0f14ec5e78aec8992b5d709"
+source = "git+https://github.com/PoHsuanLai/porter?rev=1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2#1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2"
 dependencies = [
  "porter-ids",
  "serde",
@@ -7240,7 +7688,7 @@ dependencies = [
 [[package]]
 name = "porter-client"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/porter?rev=f406782b90b67f62f0f14ec5e78aec8992b5d709#f406782b90b67f62f0f14ec5e78aec8992b5d709"
+source = "git+https://github.com/PoHsuanLai/porter?rev=1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2#1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2"
 dependencies = [
  "futures-core",
  "futures-util",
@@ -7257,7 +7705,7 @@ dependencies = [
 [[package]]
 name = "porter-client-inproc"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/porter?rev=f406782b90b67f62f0f14ec5e78aec8992b5d709#f406782b90b67f62f0f14ec5e78aec8992b5d709"
+source = "git+https://github.com/PoHsuanLai/porter?rev=1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2#1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2"
 dependencies = [
  "porter-capability",
  "porter-client",
@@ -7277,7 +7725,7 @@ dependencies = [
 [[package]]
 name = "porter-core"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/porter?rev=f406782b90b67f62f0f14ec5e78aec8992b5d709#f406782b90b67f62f0f14ec5e78aec8992b5d709"
+source = "git+https://github.com/PoHsuanLai/porter?rev=1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2#1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2"
 dependencies = [
  "peephole-core",
  "porter-capability",
@@ -7293,7 +7741,7 @@ dependencies = [
 [[package]]
 name = "porter-discover"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/porter?rev=f406782b90b67f62f0f14ec5e78aec8992b5d709#f406782b90b67f62f0f14ec5e78aec8992b5d709"
+source = "git+https://github.com/PoHsuanLai/porter?rev=1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2#1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2"
 dependencies = [
  "porter-capability",
  "porter-core",
@@ -7309,12 +7757,12 @@ dependencies = [
 [[package]]
 name = "porter-fs"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/porter?rev=f406782b90b67f62f0f14ec5e78aec8992b5d709#f406782b90b67f62f0f14ec5e78aec8992b5d709"
+source = "git+https://github.com/PoHsuanLai/porter?rev=1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2#1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2"
 
 [[package]]
 name = "porter-http"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/porter?rev=f406782b90b67f62f0f14ec5e78aec8992b5d709#f406782b90b67f62f0f14ec5e78aec8992b5d709"
+source = "git+https://github.com/PoHsuanLai/porter?rev=1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2#1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2"
 dependencies = [
  "http",
  "httpdate",
@@ -7326,7 +7774,7 @@ dependencies = [
 [[package]]
 name = "porter-http-reqwest"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/porter?rev=f406782b90b67f62f0f14ec5e78aec8992b5d709#f406782b90b67f62f0f14ec5e78aec8992b5d709"
+source = "git+https://github.com/PoHsuanLai/porter?rev=1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2#1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2"
 dependencies = [
  "porter-http",
  "porter-ids",
@@ -7338,7 +7786,7 @@ dependencies = [
 [[package]]
 name = "porter-ids"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/porter?rev=f406782b90b67f62f0f14ec5e78aec8992b5d709#f406782b90b67f62f0f14ec5e78aec8992b5d709"
+source = "git+https://github.com/PoHsuanLai/porter?rev=1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2#1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2"
 dependencies = [
  "chrono",
  "percent-encoding",
@@ -7349,7 +7797,7 @@ dependencies = [
 [[package]]
 name = "porter-match"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/porter?rev=f406782b90b67f62f0f14ec5e78aec8992b5d709#f406782b90b67f62f0f14ec5e78aec8992b5d709"
+source = "git+https://github.com/PoHsuanLai/porter?rev=1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2#1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2"
 dependencies = [
  "porter-capability",
  "porter-ids",
@@ -7359,7 +7807,7 @@ dependencies = [
 [[package]]
 name = "porter-oauth"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/porter?rev=f406782b90b67f62f0f14ec5e78aec8992b5d709#f406782b90b67f62f0f14ec5e78aec8992b5d709"
+source = "git+https://github.com/PoHsuanLai/porter?rev=1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2#1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2"
 dependencies = [
  "base64 0.22.1",
  "form_urlencoded",
@@ -7380,7 +7828,7 @@ dependencies = [
 [[package]]
 name = "porter-provider"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/porter?rev=f406782b90b67f62f0f14ec5e78aec8992b5d709#f406782b90b67f62f0f14ec5e78aec8992b5d709"
+source = "git+https://github.com/PoHsuanLai/porter?rev=1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2#1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2"
 dependencies = [
  "porter-capability",
  "porter-core",
@@ -7395,7 +7843,7 @@ dependencies = [
 [[package]]
 name = "porter-secrets"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/porter?rev=f406782b90b67f62f0f14ec5e78aec8992b5d709#f406782b90b67f62f0f14ec5e78aec8992b5d709"
+source = "git+https://github.com/PoHsuanLai/porter?rev=1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2#1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2"
 dependencies = [
  "apple-native-keyring-store",
  "keyring-chunked",
@@ -7415,7 +7863,7 @@ dependencies = [
 [[package]]
 name = "porter-service"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/porter?rev=f406782b90b67f62f0f14ec5e78aec8992b5d709#f406782b90b67f62f0f14ec5e78aec8992b5d709"
+source = "git+https://github.com/PoHsuanLai/porter?rev=1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2#1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2"
 dependencies = [
  "porter-capability",
  "porter-core",
@@ -7433,7 +7881,7 @@ dependencies = [
 [[package]]
 name = "porter-service-accounts"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/porter?rev=f406782b90b67f62f0f14ec5e78aec8992b5d709#f406782b90b67f62f0f14ec5e78aec8992b5d709"
+source = "git+https://github.com/PoHsuanLai/porter?rev=1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2#1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2"
 dependencies = [
  "porter-capability",
  "porter-core",
@@ -7450,7 +7898,7 @@ dependencies = [
 [[package]]
 name = "porter-service-core"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/porter?rev=f406782b90b67f62f0f14ec5e78aec8992b5d709#f406782b90b67f62f0f14ec5e78aec8992b5d709"
+source = "git+https://github.com/PoHsuanLai/porter?rev=1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2#1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2"
 dependencies = [
  "porter-capability",
  "porter-core",
@@ -7468,7 +7916,7 @@ dependencies = [
 [[package]]
 name = "porter-service-grants"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/porter?rev=f406782b90b67f62f0f14ec5e78aec8992b5d709#f406782b90b67f62f0f14ec5e78aec8992b5d709"
+source = "git+https://github.com/PoHsuanLai/porter?rev=1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2#1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2"
 dependencies = [
  "porter-capability",
  "porter-core",
@@ -7485,7 +7933,7 @@ dependencies = [
 [[package]]
 name = "porter-sheet"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/porter?rev=f406782b90b67f62f0f14ec5e78aec8992b5d709#f406782b90b67f62f0f14ec5e78aec8992b5d709"
+source = "git+https://github.com/PoHsuanLai/porter?rev=1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2#1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2"
 dependencies = [
  "porter-capability",
  "porter-core",
@@ -7499,7 +7947,7 @@ dependencies = [
 [[package]]
 name = "porter-tailscale"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/porter?rev=f406782b90b67f62f0f14ec5e78aec8992b5d709#f406782b90b67f62f0f14ec5e78aec8992b5d709"
+source = "git+https://github.com/PoHsuanLai/porter?rev=1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2#1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2"
 dependencies = [
  "porter-ids",
  "serde",
@@ -7510,7 +7958,7 @@ dependencies = [
 [[package]]
 name = "porter-wire"
 version = "0.1.0"
-source = "git+https://github.com/PoHsuanLai/porter?rev=f406782b90b67f62f0f14ec5e78aec8992b5d709#f406782b90b67f62f0f14ec5e78aec8992b5d709"
+source = "git+https://github.com/PoHsuanLai/porter?rev=1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2#1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2"
 dependencies = [
  "porter-capability",
  "porter-core",
@@ -7788,7 +8236,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -8338,7 +8786,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -9024,7 +9472,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3d1e2c7f27f8d4cb10542a02c49005dbd6e93095799d6f3be745fae9f8fedd4"
 dependencies = [
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -9033,8 +9481,8 @@ version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0d204abcbdf8e88729306a8d0ca01a79d8a49969fe1f84696909d6dbc4321c1a"
 dependencies = [
- "foldhash 0.2.0",
- "hashbrown 0.17.1",
+ "foldhash 0.1.5",
+ "hashbrown 0.15.5",
 ]
 
 [[package]]
@@ -9530,7 +9978,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -9548,7 +9996,7 @@ version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d8c27177b12a6399ffc08b98f76f7c9a1f4fe9fc967c784c5a071fa8d93cf7e1"
 dependencies = [
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -10034,7 +10482,7 @@ checksum = "f2f6fb2847f6742cd76af783a2a2c49e9375d0a111c7bef6f71cd9e738c72d6e"
 dependencies = [
  "memoffset",
  "tempfile",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -10916,7 +11364,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

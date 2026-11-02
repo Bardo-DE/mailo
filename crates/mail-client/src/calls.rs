@@ -8,8 +8,8 @@
 
 mod act {
     use crate::Client;
-    use mail_core::undo::Undo;
     use mail_domain::*;
+    use mail_logic::undo::Undo;
 
     /// What the client calls in `mail_core::act`.
     #[derive(Clone, Copy, Debug)]
@@ -24,13 +24,8 @@ mod act {
 
     impl Act<'_> {
         /// `mail_core::act::perform`.
-        pub fn perform(
-            &self,
-            thread: ThreadId,
-            op: Op,
-            clock: mail_core::when::Clock,
-        ) -> Option<Undo> {
-            mail_core::act::perform(self.0.store(), thread, op, clock)
+        pub fn perform(&self, thread: ThreadId, op: Op) -> Option<Undo> {
+            mail_core::act::perform(self.0.store(), thread, op)
         }
 
         /// `mail_core::act::take_back`.
@@ -42,8 +37,8 @@ mod act {
 pub use act::Act;
 
 mod attach {
+    use crate::CallError;
     use crate::Client;
-    use mail_core::error::CoreError;
     use mail_domain::*;
     use std::path::{Path, PathBuf};
 
@@ -65,18 +60,19 @@ mod attach {
             message: MessageId,
             index: usize,
             dir: &Path,
-        ) -> Result<PathBuf, CoreError> {
+        ) -> Result<PathBuf, CallError> {
             mail_core::attach::save(self.0.store(), message, index, dir)
+                .map_err(crate::CallError::from)
         }
     }
 }
 pub use attach::Attach;
 
 mod compose {
+    use crate::CallError;
     use crate::Client;
     use chrono::{DateTime, Utc};
     use mail_core::compose::*;
-    use mail_core::error::CoreError;
     use mail_domain::*;
     use porter_core::AccountId;
 
@@ -93,8 +89,8 @@ mod compose {
 
     impl Compose<'_> {
         /// `mail_core::compose::account_for`.
-        pub fn account_for(&self, wanted: Option<&str>) -> Result<AccountId, CoreError> {
-            mail_core::compose::account_for(self.0.store(), wanted)
+        pub fn account_for(&self, wanted: Option<&str>) -> Result<AccountId, CallError> {
+            mail_core::compose::account_for(self.0.store(), wanted).map_err(crate::CallError::from)
         }
 
         /// `mail_core::compose::attach_bytes`.
@@ -104,8 +100,9 @@ mod compose {
             name: &str,
             bytes: &[u8],
             now: DateTime<Utc>,
-        ) -> Result<Draft, CoreError> {
+        ) -> Result<Draft, CallError> {
             mail_core::compose::attach_bytes(self.0.store(), draft, name, bytes, now)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::compose::attached_to`.
@@ -114,8 +111,8 @@ mod compose {
         }
 
         /// `mail_core::compose::discard`.
-        pub fn discard(&self, draft: DraftId) -> Result<String, CoreError> {
-            mail_core::compose::discard(self.0.store(), draft)
+        pub fn discard(&self, draft: DraftId) -> Result<String, CallError> {
+            mail_core::compose::discard(self.0.store(), draft).map_err(crate::CallError::from)
         }
 
         /// `mail_core::compose::draft_forward`.
@@ -125,8 +122,9 @@ mod compose {
             to: &[Address],
             body: &str,
             now: DateTime<Utc>,
-        ) -> Result<Draft, CoreError> {
+        ) -> Result<Draft, CallError> {
             mail_core::compose::draft_forward(self.0.store(), message, to, body, now)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::compose::draft_forward_attached`.
@@ -136,8 +134,9 @@ mod compose {
             to: &[Address],
             body: &str,
             now: DateTime<Utc>,
-        ) -> Result<Draft, CoreError> {
+        ) -> Result<Draft, CallError> {
             mail_core::compose::draft_forward_attached(self.0.store(), message, to, body, now)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::compose::draft_mailto`.
@@ -146,8 +145,9 @@ mod compose {
             account: AccountId,
             link: &mail_mime::MailtoUri,
             now: DateTime<Utc>,
-        ) -> Result<Draft, CoreError> {
+        ) -> Result<Draft, CallError> {
             mail_core::compose::draft_mailto(self.0.store(), account, link, now)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::compose::draft_new`.
@@ -158,8 +158,9 @@ mod compose {
             subject: &str,
             body: &str,
             now: DateTime<Utc>,
-        ) -> Result<Draft, CoreError> {
+        ) -> Result<Draft, CallError> {
             mail_core::compose::draft_new(self.0.store(), account, to, subject, body, now)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::compose::draft_reply`.
@@ -169,8 +170,9 @@ mod compose {
             scope: ReplyScope,
             body: &str,
             now: DateTime<Utc>,
-        ) -> Result<Draft, CoreError> {
+        ) -> Result<Draft, CallError> {
             mail_core::compose::draft_reply(self.0.store(), message, scope, body, now)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::compose::identity_of`.
@@ -178,8 +180,9 @@ mod compose {
             &self,
             account: AccountId,
             wanted: Option<IdentityId>,
-        ) -> Result<Identity, CoreError> {
+        ) -> Result<Identity, CallError> {
             mail_core::compose::identity_of(self.0.store(), account, wanted)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::compose::move_draft_to`.
@@ -188,14 +191,15 @@ mod compose {
             draft: DraftId,
             account: AccountId,
             now: DateTime<Utc>,
-        ) -> Result<Draft, CoreError> {
+        ) -> Result<Draft, CallError> {
             mail_core::compose::move_draft_to(self.0.store(), draft, account, now)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::compose::queue_with`.
         pub fn queue_with(
             &self,
-            secrets: &dyn mail_runtime::SigningStore,
+            secrets: &dyn mail_secrets::SigningStore,
             ask: mail_core::pgp::Ask<'_>,
             draft: DraftId,
             leaves: Leaves,
@@ -205,8 +209,8 @@ mod compose {
         }
 
         /// `mail_core::compose::save`.
-        pub fn save(&self, draft: &Draft) -> Result<(), CoreError> {
-            mail_core::compose::save(self.0.store(), draft)
+        pub fn save(&self, draft: &Draft) -> Result<(), CallError> {
+            mail_core::compose::save(self.0.store(), draft).map_err(crate::CallError::from)
         }
 
         /// `mail_core::compose::sending_accounts`.
@@ -221,13 +225,15 @@ mod compose {
             name: &str,
             bytes: &[u8],
             now: DateTime<Utc>,
-        ) -> Result<(Draft, String), CoreError> {
+        ) -> Result<(Draft, String), CallError> {
             mail_core::compose::attach_inline(self.0.store(), draft, name, bytes, now)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::compose::copy_myself`.
-        pub fn copy_myself(&self, draft: DraftId, to: Myself) -> Result<Draft, CoreError> {
+        pub fn copy_myself(&self, draft: DraftId, to: Myself) -> Result<Draft, CallError> {
             mail_core::compose::copy_myself(self.0.store(), draft, to)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::compose::draft_again`.
@@ -235,8 +241,9 @@ mod compose {
             &self,
             message: MessageId,
             now: DateTime<Utc>,
-        ) -> Result<Draft, CoreError> {
+        ) -> Result<Draft, CallError> {
             mail_core::compose::draft_again(self.0.store(), message, now)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::compose::draft_answer`.
@@ -247,8 +254,9 @@ mod compose {
             quote: Quote<'_>,
             now: DateTime<Utc>,
             placement: mail_core::signature::Placement,
-        ) -> Result<Draft, CoreError> {
+        ) -> Result<Draft, CallError> {
             mail_core::compose::draft_answer(self.0.store(), message, to, quote, now, placement)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::compose::inline_parts`.
@@ -261,8 +269,9 @@ mod compose {
             &self,
             draft: DraftId,
             now: DateTime<Utc>,
-        ) -> Result<bool, CoreError> {
+        ) -> Result<bool, CallError> {
             mail_core::compose::keep_on_server(self.0.store(), draft, now)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::compose::move_draft_to_identity`.
@@ -271,18 +280,19 @@ mod compose {
             draft: DraftId,
             identity: IdentityId,
             now: DateTime<Utc>,
-        ) -> Result<Draft, CoreError> {
+        ) -> Result<Draft, CallError> {
             mail_core::compose::move_draft_to_identity(self.0.store(), draft, identity, now)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::compose::queue_sized`.
         pub fn queue_sized(
             &self,
-            secrets: &dyn mail_runtime::SigningStore,
+            secrets: &dyn mail_secrets::SigningStore,
             ask: mail_core::pgp::Ask<'_>,
             draft: DraftId,
             leaves: Leaves,
-            pictures: PictureSize,
+            pictures: mail_logic::picture::PictureSize,
             now: DateTime<Utc>,
         ) -> Result<(Draft, mail_mime::Posting), SendError> {
             mail_core::compose::queue_sized(
@@ -296,9 +306,29 @@ mod compose {
             )
         }
 
+        /// `mail_core::compose::queue_reminding`.
+        pub fn queue_reminding(
+            &self,
+            secrets: &dyn mail_secrets::SigningStore,
+            ask: mail_core::pgp::Ask<'_>,
+            (draft, pictures): (DraftId, mail_logic::picture::PictureSize),
+            (leaves, remind): (Leaves, Option<DateTime<Utc>>),
+            now: DateTime<Utc>,
+        ) -> Result<(Draft, mail_mime::Posting), SendError> {
+            mail_core::compose::queue_reminding(
+                self.0.store(),
+                secrets,
+                ask,
+                (draft, pictures),
+                (leaves, remind),
+                now,
+            )
+        }
+
         /// `mail_core::compose::withdraw_redirect`.
-        pub fn withdraw_redirect(&self, redirected: &Redirected) -> Result<(), CoreError> {
+        pub fn withdraw_redirect(&self, redirected: &Redirected) -> Result<(), CallError> {
             mail_core::compose::withdraw_redirect(self.0.store(), redirected)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::compose::written_as`.
@@ -307,17 +337,17 @@ mod compose {
         }
 
         /// `mail_core::compose::unsend`.
-        pub fn unsend(&self, draft: DraftId, now: DateTime<Utc>) -> Result<Draft, CoreError> {
-            mail_core::compose::unsend(self.0.store(), draft, now)
+        pub fn unsend(&self, draft: DraftId, now: DateTime<Utc>) -> Result<Draft, CallError> {
+            mail_core::compose::unsend(self.0.store(), draft, now).map_err(crate::CallError::from)
         }
     }
 }
 pub use compose::Compose;
 
 mod contacts {
+    use crate::CallError;
     use crate::Client;
     use mail_core::contacts::*;
-    use mail_core::error::CoreError;
 
     /// What the client calls in `mail_core::contacts`.
     #[derive(Clone, Copy, Debug)]
@@ -332,22 +362,22 @@ mod contacts {
 
     impl Contacts<'_> {
         /// `mail_core::contacts::export`.
-        pub fn export(&self) -> Result<String, CoreError> {
-            mail_core::contacts::export(self.0.store())
+        pub fn export(&self) -> Result<String, CallError> {
+            mail_core::contacts::export(self.0.store()).map_err(crate::CallError::from)
         }
 
         /// `mail_core::contacts::import`.
-        pub fn import(&self, bytes: &[u8]) -> Result<Imported, CoreError> {
-            mail_core::contacts::import(self.0.store(), bytes)
+        pub fn import(&self, bytes: &[u8]) -> Result<Imported, CallError> {
+            mail_core::contacts::import(self.0.store(), bytes).map_err(crate::CallError::from)
         }
     }
 }
 pub use contacts::Contacts;
 
 mod contacts_groups {
+    use crate::CallError;
     use crate::Client;
     use mail_core::contacts::groups::*;
-    use mail_core::error::CoreError;
     use mail_store::{Group, GroupId};
 
     /// What the client calls in `mail_core::contacts::groups`.
@@ -383,8 +413,9 @@ mod contacts_groups {
         }
 
         /// `mail_core::contacts::groups::listed`.
-        pub fn listed(&self, filter: &str) -> Result<Vec<Group>, CoreError> {
+        pub fn listed(&self, filter: &str) -> Result<Vec<Group>, CallError> {
             mail_core::contacts::groups::listed(self.0.store(), filter)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::contacts::groups::members`.
@@ -406,9 +437,9 @@ mod contacts_groups {
 pub use contacts_groups::ContactsGroups;
 
 mod contacts_people {
+    use crate::CallError;
     use crate::Client;
     use mail_core::contacts::people::{Added, Details, PersonError};
-    use mail_core::error::CoreError;
     use mail_store::{CardId, PersonCard};
 
     /// What the client calls in `mail_core::contacts::people`.
@@ -439,8 +470,9 @@ mod contacts_people {
         }
 
         /// `mail_core::contacts::people::listed`.
-        pub fn listed(&self, filter: &str) -> Result<Vec<PersonCard>, CoreError> {
+        pub fn listed(&self, filter: &str) -> Result<Vec<PersonCard>, CallError> {
             mail_core::contacts::people::listed(self.0.store(), filter)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::contacts::people::photo_of`.
@@ -457,10 +489,9 @@ mod contacts_people {
 pub use contacts_people::ContactsPeople;
 
 mod export {
+    use crate::CallError;
     use crate::Client;
     use chrono::{DateTime, Utc};
-    use mail_core::environment::Environment;
-    use mail_core::error::CoreError;
     use mail_core::export::Target;
     use mail_core::export::*;
     use mail_domain::*;
@@ -481,13 +512,20 @@ mod export {
         /// `mail_core::export::export`.
         pub fn export(
             &self,
-            env: &Environment,
             messages: &[MessageId],
             target: &Target,
             now: DateTime<Utc>,
             progress: &mut dyn FnMut(&Exported),
-        ) -> Result<Exported, CoreError> {
-            mail_core::export::export(self.0.store(), env, messages, target, now, progress)
+        ) -> Result<Exported, CallError> {
+            mail_core::export::export(
+                self.0.store(),
+                &self.0.net().environment(),
+                messages,
+                target,
+                now,
+                progress,
+            )
+            .map_err(crate::CallError::from)
         }
 
         /// `mail_core::export::raw_head`.
@@ -495,18 +533,18 @@ mod export {
             &self,
             id: MessageId,
             limit: usize,
-        ) -> Result<Option<mail_core::export::RawHead>, CoreError> {
-            mail_core::export::raw_head(self.0.store(), id, limit)
+        ) -> Result<Option<mail_core::export::RawHead>, CallError> {
+            mail_core::export::raw_head(self.0.store(), id, limit).map_err(crate::CallError::from)
         }
 
         /// `mail_core::export::save_eml`.
-        pub fn save_eml(&self, id: MessageId, dir: &Path) -> Result<Option<PathBuf>, CoreError> {
-            mail_core::export::save_eml(self.0.store(), id, dir)
+        pub fn save_eml(&self, id: MessageId, dir: &Path) -> Result<Option<PathBuf>, CallError> {
+            mail_core::export::save_eml(self.0.store(), id, dir).map_err(crate::CallError::from)
         }
 
         /// `mail_core::export::select`.
-        pub fn select(&self, query: &str, now: DateTime<Utc>) -> Result<Vec<MessageId>, CoreError> {
-            mail_core::export::select(self.0.store(), query, now)
+        pub fn select(&self, query: &str, now: DateTime<Utc>) -> Result<Vec<MessageId>, CallError> {
+            mail_core::export::select(self.0.store(), query, now).map_err(crate::CallError::from)
         }
     }
 }
@@ -538,16 +576,21 @@ mod folder {
             work: FolderWork,
             now: DateTime<Utc>,
         ) -> Result<Applied, Refusal> {
-            mail_core::folder::change(self.0.store(), account, work, now)
+            let accounts = self
+                .0
+                .net()
+                .roster()
+                .map_err(|e| Refusal::Store(e.to_string()))?;
+            mail_core::folder::change(self.0.store(), &accounts, account, work, now)
         }
     }
 }
 pub use folder::Folder;
 
 mod follow_up {
+    use crate::CallError;
     use crate::Client;
     use chrono::{DateTime, Utc};
-    use mail_core::error::CoreError;
     use mail_core::follow_up::*;
     use mail_core::notify::Notifier;
     use mail_domain::*;
@@ -571,8 +614,9 @@ mod follow_up {
             raw: &[u8],
             at: Option<DateTime<Utc>>,
             set: DateTime<Utc>,
-        ) -> Result<(), CoreError> {
+        ) -> Result<(), CallError> {
             mail_core::follow_up::after_queue(self.0.store(), draft, raw, at, set)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::follow_up::next_due`.
@@ -585,8 +629,9 @@ mod follow_up {
             &self,
             notifier: Option<&dyn Notifier>,
             now: DateTime<Utc>,
-        ) -> Result<Swept, CoreError> {
+        ) -> Result<Swept, CallError> {
             mail_core::follow_up::sweep_and_announce(self.0.store(), notifier, now)
+                .map_err(crate::CallError::from)
         }
     }
 }
@@ -618,9 +663,9 @@ mod history {
 pub use history::History;
 
 mod invite {
+    use crate::CallError;
     use crate::Client;
     use chrono::{DateTime, Utc};
-    use mail_core::error::CoreError;
     use mail_core::invite::*;
     use mail_domain::*;
 
@@ -643,13 +688,14 @@ mod invite {
             attendance: Attendance,
             comment: Option<&str>,
             now: DateTime<Utc>,
-        ) -> Result<Answered, CoreError> {
+        ) -> Result<Answered, CallError> {
             mail_core::invite::answer(self.0.store(), message, attendance, comment, now)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::invite::export`.
-        pub fn export(&self, message: MessageId) -> Result<Vec<u8>, CoreError> {
-            mail_core::invite::export(self.0.store(), message)
+        pub fn export(&self, message: MessageId) -> Result<Vec<u8>, CallError> {
+            mail_core::invite::export(self.0.store(), message).map_err(crate::CallError::from)
         }
     }
 }
@@ -698,7 +744,7 @@ mod pgp_keys {
     use mail_core::pgp::keys::*;
     use mail_core::pgp::{PgpError, WithSecret};
     use mail_domain::*;
-    use mail_runtime::SigningStore;
+    use mail_secrets::SigningStore;
 
     /// What the client calls in `mail_core::pgp::keys`.
     #[derive(Clone, Copy, Debug)]
@@ -794,12 +840,12 @@ mod preview {
 pub use preview::Preview;
 
 mod print {
+    use crate::CallError;
     use crate::Client;
     use chrono::{DateTime, TimeZone, Utc};
-    use mail_core::error::CoreError;
     use mail_core::html_document::*;
-    use mail_core::when::Clock;
-    use mail_mime::print::{Options, Pages};
+    use mail_logic::when::Clock;
+    use mail_reader::print::{Options, Pages};
 
     /// What the client calls in `mail_core::html_document`.
     #[derive(Clone, Copy, Debug)]
@@ -821,12 +867,13 @@ mod print {
             now: DateTime<Utc>,
             pages: Pages,
             clock: Clock,
-        ) -> Result<Printed, CoreError>
+        ) -> Result<Printed, CallError>
         where
             Tz: TimeZone,
             Tz::Offset: std::fmt::Display,
         {
             mail_core::html_document::document(self.0.store(), id, zone, now, pages, clock)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::html_document::document_with`.
@@ -837,7 +884,7 @@ mod print {
             now: DateTime<Utc>,
             options: &Options<'_>,
             pictures: Option<&Pictures<'_>>,
-        ) -> Result<Printed, CoreError>
+        ) -> Result<Printed, CallError>
         where
             Tz: TimeZone,
             Tz::Offset: std::fmt::Display,
@@ -850,6 +897,7 @@ mod print {
                 options,
                 pictures,
             )
+            .map_err(crate::CallError::from)
         }
     }
 }
@@ -882,8 +930,8 @@ mod query {
         }
 
         /// `mail_core::vip::listed`.
-        pub fn listed_vips(&self) -> Result<Vec<mail_core::vip::Vip>, mail_core::error::CoreError> {
-            mail_core::vip::listed(self.0.store())
+        pub fn listed_vips(&self) -> Result<Vec<mail_core::vip::Vip>, crate::CallError> {
+            mail_core::vip::listed(self.0.store()).map_err(crate::CallError::from)
         }
 
         /// `mail_core::vip::set`.
@@ -892,8 +940,8 @@ mod query {
             address: &str,
             name: Option<&str>,
             mark: mail_core::vip::Mark,
-        ) -> Result<(), mail_core::error::CoreError> {
-            mail_core::vip::set(self.0.store(), address, name, mark)
+        ) -> Result<(), crate::CallError> {
+            mail_core::vip::set(self.0.store(), address, name, mark).map_err(crate::CallError::from)
         }
 
         /// `mail_core::query::known_accounts`.
@@ -905,9 +953,9 @@ mod query {
 pub use query::Query;
 
 mod receipt {
+    use crate::CallError;
     use crate::Client;
     use chrono::{DateTime, Utc};
-    use mail_core::error::CoreError;
     use mail_core::receipt::*;
     use mail_domain::*;
 
@@ -929,17 +977,18 @@ mod receipt {
             message: MessageId,
             answer: ReceiptAnswer,
             now: DateTime<Utc>,
-        ) -> Result<Settled, CoreError> {
+        ) -> Result<Settled, CallError> {
             mail_core::receipt::answer(self.0.store(), message, answer, now)
+                .map_err(crate::CallError::from)
         }
     }
 }
 pub use receipt::Receipt;
 
 mod rules_manage {
+    use crate::CallError;
     use crate::Client;
     use chrono::{DateTime, TimeZone, Utc};
-    use mail_core::error::CoreError;
     use mail_core::rules::ListedRule;
     use mail_core::rules::manage::Draft;
     use mail_core::rules::manage::*;
@@ -964,8 +1013,8 @@ mod rules_manage {
         }
 
         /// `mail_core::rules::manage::delete`.
-        pub fn delete(&self, rule: &Rule) -> Result<(), CoreError> {
-            mail_core::rules::manage::delete(self.0.store(), rule)
+        pub fn delete(&self, rule: &Rule) -> Result<(), CallError> {
+            mail_core::rules::manage::delete(self.0.store(), rule).map_err(crate::CallError::from)
         }
 
         /// `mail_core::rules::manage::labels`.
@@ -974,8 +1023,9 @@ mod rules_manage {
         }
 
         /// `mail_core::rules::manage::listed`.
-        pub fn listed(&self, account: AccountId) -> Result<Vec<ListedRule>, CoreError> {
+        pub fn listed(&self, account: AccountId) -> Result<Vec<ListedRule>, CallError> {
             mail_core::rules::manage::listed(self.0.store(), account)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::rules::manage::matching`.
@@ -984,18 +1034,20 @@ mod rules_manage {
             account: AccountId,
             filter: Filter,
             now: DateTime<Utc>,
-        ) -> Result<u64, CoreError> {
+        ) -> Result<u64, CallError> {
             mail_core::rules::manage::matching(self.0.store(), account, filter, now)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::rules::manage::reorder`.
-        pub fn reorder(&self, account: AccountId, id: RuleId, step: Step) -> Result<(), CoreError> {
+        pub fn reorder(&self, account: AccountId, id: RuleId, step: Step) -> Result<(), CallError> {
             mail_core::rules::manage::reorder(self.0.store(), account, id, step)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::rules::manage::restore`.
-        pub fn restore(&self, rule: &Rule) -> Result<(), CoreError> {
-            mail_core::rules::manage::restore(self.0.store(), rule)
+        pub fn restore(&self, rule: &Rule) -> Result<(), CallError> {
+            mail_core::rules::manage::restore(self.0.store(), rule).map_err(crate::CallError::from)
         }
 
         /// `mail_core::rules::manage::run`.
@@ -1004,8 +1056,9 @@ mod rules_manage {
             rule: &Rule,
             now: DateTime<Utc>,
             report: &(dyn Fn(usize) + Sync),
-        ) -> Result<mail_store::rules::Ran, CoreError> {
+        ) -> Result<mail_core::arrival::Arrived, CallError> {
             mail_core::rules::manage::run(self.0.store(), rule, now, report)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::rules::manage::save`.
@@ -1019,8 +1072,9 @@ mod rules_manage {
         }
 
         /// `mail_core::rules::manage::switch`.
-        pub fn switch(&self, rule: &Rule, state: RuleState) -> Result<(), CoreError> {
+        pub fn switch(&self, rule: &Rule, state: RuleState) -> Result<(), CallError> {
             mail_core::rules::manage::switch(self.0.store(), rule, state)
+                .map_err(crate::CallError::from)
         }
     }
 }
@@ -1033,7 +1087,7 @@ mod smime_certs {
     use mail_core::smime::SmimeError;
     use mail_core::smime::certs::*;
     use mail_domain::*;
-    use mail_runtime::SigningStore;
+    use mail_secrets::SigningStore;
 
     /// What the client calls in `mail_core::smime::certs`.
     #[derive(Clone, Copy, Debug)]
@@ -1127,9 +1181,9 @@ mod smime {
 pub use smime::Smime;
 
 mod snooze {
+    use crate::CallError;
     use crate::Client;
     use chrono::{DateTime, Utc};
-    use mail_core::error::CoreError;
     use mail_domain::*;
 
     /// What the client calls in `mail_core::snooze`.
@@ -1145,8 +1199,8 @@ mod snooze {
 
     impl Snooze<'_> {
         /// `mail_core::snooze::pin`.
-        pub fn pin(&self, thread: ThreadId, now: DateTime<Utc>) -> Result<bool, CoreError> {
-            mail_core::snooze::pin(self.0.store(), thread, now)
+        pub fn pin(&self, thread: ThreadId, now: DateTime<Utc>) -> Result<bool, CallError> {
+            mail_core::snooze::pin(self.0.store(), thread, now).map_err(crate::CallError::from)
         }
     }
 }
@@ -1177,9 +1231,9 @@ mod sync {
 pub use sync::Sync;
 
 mod template {
+    use crate::CallError;
     use crate::Client;
     use chrono::{DateTime, Utc};
-    use mail_core::error::CoreError;
     use mail_domain::*;
 
     /// What the client calls in `mail_core::template`.
@@ -1195,13 +1249,13 @@ mod template {
 
     impl Templates<'_> {
         /// `mail_core::template::all`.
-        pub fn all(&self) -> Result<Vec<(String, Template)>, CoreError> {
-            mail_core::template::all(self.0.store())
+        pub fn all(&self) -> Result<Vec<(String, Template)>, CallError> {
+            mail_core::template::all(self.0.store()).map_err(crate::CallError::from)
         }
 
         /// `mail_core::template::delete`.
-        pub fn delete(&self, template: TemplateId) -> Result<String, CoreError> {
-            mail_core::template::delete(self.0.store(), template)
+        pub fn delete(&self, template: TemplateId) -> Result<String, CallError> {
+            mail_core::template::delete(self.0.store(), template).map_err(crate::CallError::from)
         }
 
         /// `mail_core::template::save`.
@@ -1210,8 +1264,9 @@ mod template {
             draft: DraftId,
             name: &str,
             now: DateTime<Utc>,
-        ) -> Result<Template, CoreError> {
+        ) -> Result<Template, CallError> {
             mail_core::template::save(self.0.store(), draft, name, now)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::template::start`.
@@ -1220,17 +1275,18 @@ mod template {
             template: TemplateId,
             to: &[Address],
             now: DateTime<Utc>,
-        ) -> Result<Draft, CoreError> {
+        ) -> Result<Draft, CallError> {
             mail_core::template::start(self.0.store(), template, to, now)
+                .map_err(crate::CallError::from)
         }
     }
 }
 pub use template::Templates;
 
 mod transfer {
+    use crate::CallError;
     use crate::Client;
     use chrono::{DateTime, Utc};
-    use mail_core::error::CoreError;
     use mail_core::import::{Destination, Imported, Source};
     use mail_core::transfer::*;
     use porter_core::AccountId;
@@ -1254,13 +1310,16 @@ mod transfer {
             into: &Destination,
             now: DateTime<Utc>,
             progress: &mut dyn FnMut(&Imported),
-        ) -> Result<(Imported, Option<AccountId>), CoreError> {
-            mail_core::transfer::import_into(self.0.store(), source, into, now, progress)
+        ) -> Result<(Imported, Option<AccountId>), CallError> {
+            let accounts = self.0.net().roster()?;
+            mail_core::transfer::import_into(self.0.store(), &accounts, source, into, now, progress)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::transfer::selection_size`.
-        pub fn selection_size(&self, query: &str, now: DateTime<Utc>) -> Result<usize, CoreError> {
+        pub fn selection_size(&self, query: &str, now: DateTime<Utc>) -> Result<usize, CallError> {
             mail_core::transfer::selection_size(self.0.store(), query, now)
+                .map_err(crate::CallError::from)
         }
 
         /// `mail_core::transfer::upload_folders`.

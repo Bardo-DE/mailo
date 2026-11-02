@@ -10,7 +10,7 @@ use mail_domain::testing::{account, now};
 use mail_domain::{
     AccountCaps, ArchiveMeans, Attachments, BlobId, Body, Change, Condstore, ConnectionBudget,
     ExpungeMeans, FolderRoles, LabelId, MailboxRole, MailboxSet, Membership, Message, MessageId,
-    MessageKey, MoveExt, Op, OpKind, Patch, Pin, ReadState, RemoteIntent, ServerLabels,
+    MessageKey, MoveExt, Op, OpKind, OpPreview, Patch, Pin, ReadState, RemoteIntent, ServerLabels,
     ServerThreads, Snooze, Star, Supported, Target, Thread, ThreadId, ThreadSummary, WatchMode,
 };
 use mail_domain::{Address, Attachment, FollowUp, Hue, Inline, Mute, PartContent, SortFacts};
@@ -1624,4 +1624,89 @@ fn a_thread_wears_its_newest_flag() {
     let thread = thread_of(&messages, Snooze::Inactive, Pin::Unpinned, Mute::Unmuted);
     // m3 is newest but not starred: its colour is not a flag.
     assert_eq!(thread.summary.flag, Hue::Yellow);
+}
+
+// ---------------------------------------------------------------------------------------
+// The preview: what a list can show before the operation is written.
+// ---------------------------------------------------------------------------------------
+
+/// `messages` after `patch`, the way the store writes it; deleted ones gone.
+fn after_patch(mut messages: Vec<Message>, patch: &Patch) -> Vec<Message> {
+    for change in &patch.changes {
+        match change {
+            Change::MessageRead(id, read) => find(&mut messages, *id).read = *read,
+            Change::MessageStar(id, star) => find(&mut messages, *id).star = *star,
+            Change::MessageFlag(id, hue) => find(&mut messages, *id).flag = *hue,
+            Change::MessageMailbox(id, role) => find(&mut messages, *id).mailbox = *role,
+            Change::MessageLabel(id, label, Membership::In) => {
+                let m = find(&mut messages, *id);
+                if !m.labels.contains(label) {
+                    m.labels.push(*label);
+                }
+            }
+            Change::MessageLabel(id, label, Membership::Out) => {
+                find(&mut messages, *id).labels.retain(|l| l != label);
+            }
+            Change::MessageDelete(id) => messages.retain(|m| m.id != *id),
+            // Thread-level state is the summary's own, set below.
+            Change::ThreadSnooze(..)
+            | Change::ThreadPin(..)
+            | Change::ThreadMute(..)
+            | Change::ThreadFollowUp(..) => {}
+            other => panic!("an Op never produces {other:?}"),
+        }
+    }
+    messages
+}
+
+proptest! {
+    /// Where a preview says what a conversation becomes, it is what summarising the messages the
+    /// operation leaves gives; where it says the conversation is gone, none is left. It may say
+    /// it does not know, but only for the two things a summary cannot tell.
+    #[test]
+    fn a_preview_agrees_with_summarising_what_apply_leaves(
+        messages in arb_messages(),
+        snooze in arb_snooze(),
+        pin in arb_pin(),
+        mute in arb_mute(),
+        follow_up in arb_follow_up(),
+        op in prop_oneof![arb_op(), Just(Op::Destroy)],
+    ) {
+        let thread = following(&messages, snooze, pin, mute, follow_up);
+        let applied = op.apply(
+            &Target::Threads(vec![THREAD]),
+            &thread,
+            &messages,
+            &server_caps(),
+            now(),
+        );
+        let left = after_patch(messages.clone(), &applied.forward);
+        // Thread-level state the operation sets, as the store writes it.
+        let (mut snooze, mut pin, mut mute, mut follow_up) = (snooze, pin, mute, follow_up);
+        for change in &applied.forward.changes {
+            match change {
+                Change::ThreadSnooze(_, v) => snooze = *v,
+                Change::ThreadPin(_, v) => pin = *v,
+                Change::ThreadMute(_, v) => mute = *v,
+                Change::ThreadFollowUp(_, v) => follow_up = *v,
+                _ => {}
+            }
+        }
+        match op.preview(&thread.summary) {
+            OpPreview::Gone => prop_assert!(left.is_empty()),
+            OpPreview::Becomes(shown) => {
+                prop_assert!(!left.is_empty());
+                let mut real = ThreadSummary::derive(THREAD, &left, snooze, pin, mute, follow_up);
+                let mut shown = *shown;
+                real.labels.sort_unstable();
+                shown.labels.sort_unstable();
+                prop_assert_eq!(shown, real);
+            }
+            OpPreview::Unknown => prop_assert!(
+                matches!(op, Op::Destroy | Op::SetStar(Star::Starred)),
+                "{:?} cannot be previewed, though a summary says enough",
+                op
+            ),
+        }
+    }
 }

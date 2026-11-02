@@ -12,13 +12,81 @@
 //! that failed ([`settles`], [`tells_the_pass`]), and a pass that makes sure of a Graph token
 //! before it starts ([`sending_alone`]).
 
+mod settle;
+
+pub use settle::{Login, Mark, Outcome, Settled, Then, settle};
+
 use crate::RuntimeError;
-use mail_domain::{AccountPlan, Incoming, Outgoing, ProtoOp, Retry, Retryable};
+use chrono::{DateTime, Utc};
+use mail_domain::{AccountPlan, DraftId, Incoming, Outgoing, ProtoOp, Retry, Retryable, SendState};
 use std::time::Duration;
 
 /// How long a message waits when the server will not take mail from the account over the
 /// protocol at all, before it is tried again: a day, as a refused credential's does.
 pub const PROTOCOL_REFUSED_WAIT: Duration = Duration::from_secs(24 * 60 * 60);
+
+/// Who files the copy of a message an account submits.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SentCopy {
+    /// The server does, and a sync reads it back.
+    Server,
+    /// This client does, in the local Sent: the account has no mailbox for it.
+    Here,
+    /// This client uploads it to the server's Sent mailbox at this path.
+    Upload(String),
+}
+
+/// Who files the copy of a message `plan`'s account submits, given the path of the Sent mailbox
+/// its server named, if it named one.
+///
+/// SMTP says only that a message was accepted (RFC 6409), so whether a Sent copy exists
+/// afterwards depends on the pairing of servers, and each has one answer:
+///
+/// - Graph's `sendMail`, JMAP's `EmailSubmission` and a Gmail or Microsoft SMTP server file
+///   it themselves, and a sync reads it back from Sent. Keeping one here too would list the
+///   message twice.
+/// - An IMAP account on any other SMTP server has a Sent mailbox and nobody filing into it,
+///   so the client uploads the copy there (`APPEND`, RFC 3501 §6.3.11) when the server's
+///   `SPECIAL-USE` listing names one (RFC 6154), or, with none, a folder at the top has a
+///   name every client takes for Sent (`Sent`, `Sent Items`: `mail_proto`'s folder roles).
+///   With neither, uploading to a guessed path is how a message lands somewhere nobody
+///   looks, so the copy is kept here.
+/// - A POP3 or local account has no Sent mailbox at all, whichever server sends for it, so
+///   the copy is kept here: Graph's lands in a Sent Items a POP3 sync never reads.
+pub fn sent_copy(plan: &AccountPlan, sent_folder: Option<String>) -> SentCopy {
+    match (&plan.incoming, &plan.outgoing) {
+        (_, Outgoing::Jmap | Outgoing::Nowhere) | (Incoming::Jmap { .. } | Incoming::Graph, _) => {
+            SentCopy::Server
+        }
+        (Incoming::Pop3 { .. } | Incoming::Local, _) => SentCopy::Here,
+        (Incoming::Imap { .. }, Outgoing::Graph) => SentCopy::Server,
+        (Incoming::Imap { .. }, Outgoing::Smtp { host, .. }) => {
+            if mail_domain::presets::files_sent_itself(host) {
+                SentCopy::Server
+            } else {
+                match sent_folder {
+                    Some(path) => SentCopy::Upload(path),
+                    None => SentCopy::Here,
+                }
+            }
+        }
+    }
+}
+
+/// Record where a draft got to, without letting that record fail the drain.
+///
+/// A missing draft is not an error worth propagating: the user may have deleted it while the
+/// outbox was backed off, and the message either was or was not accepted regardless. Failing
+/// here would leave the outbox entry settled and the pass reporting an error about something
+/// nobody is waiting on.
+pub fn mark_draft(
+    store: &dyn mail_store::Store,
+    draft: DraftId,
+    state: SendState,
+    now: DateTime<Utc>,
+) {
+    crate::pass::note_state(store.set_send_state(draft, &state, now));
+}
 
 /// How a submission's failure settles its outbox row.
 ///
@@ -41,7 +109,7 @@ pub const REDIRECT_REFUSED_FROM: &str = "the server will not send a message as s
 /// status 5.2.252 or 5.7.60 (Exchange Online), or JMAP's `forbiddenFrom` (RFC 8621 §7.5). Where
 /// `resent` says the message was a redirect, that refusal is the redirect's, and the person is
 /// told to forward it instead; anything else is as the server said.
-pub(crate) fn redirect_refused(error: RuntimeError, resent: bool) -> RuntimeError {
+pub fn redirect_refused(error: RuntimeError, resent: bool) -> RuntimeError {
     use mail_proto::{ProtoError, Refusal};
     let RuntimeError::Proto(ProtoError::Refused {
         kind: Refusal::Permanent,

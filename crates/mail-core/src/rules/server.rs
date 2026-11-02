@@ -12,14 +12,17 @@
 //! use, so a Gmail account has none. A vacation reply this client sent itself would stop
 //! whenever the laptop closed, so there is none of that either.
 
-use crate::error::{CoreError, TimeError};
+use crate::error::CoreError;
 use chrono::{DateTime, NaiveDate, NaiveDateTime, TimeZone, Utc};
 use mail_domain::{AccountPlan, DateRange, Incoming, IsDefault, Vacation};
+use mail_logic::accounts::Accounts;
+use mail_logic::snooze::TimeError;
 use mail_proto::sieve::{
     Active, NoSieve, Places, SieveJob, SieveOutcome, Takeover, Unmappable, compile, endpoint,
 };
+use mail_runtime::RuntimeError;
 use mail_runtime::sieve::{Pushed, SieveAuth};
-use mail_runtime::{AccountSecrets, ClientRegistry, RuntimeError};
+use mail_secrets::{AccountSecrets, ClientRegistry};
 use mail_store::{SqliteStore, Store};
 use porter_core::{Credential, SecretKey, SecretPurpose};
 use std::path::PathBuf;
@@ -243,6 +246,7 @@ impl crate::mail::RuleOps<'_> {
         let mail = self.0;
         run_vacation(
             mail.store(),
+            &mail.roster()?,
             mail.secrets(),
             command,
             &mail.saved_clients(),
@@ -256,6 +260,7 @@ impl crate::mail::RuleOps<'_> {
         let mail = self.0;
         run_sieve(
             mail.store(),
+            &mail.roster()?,
             mail.secrets().as_ref(),
             command,
             &mail.saved_clients(),
@@ -282,6 +287,7 @@ impl crate::mail::RuleOps<'_> {
 /// A vacation command over `store`, signing in through `secrets`.
 pub async fn run_vacation(
     store: &Arc<SqliteStore>,
+    accounts: &Accounts,
     secrets: Arc<dyn AccountSecrets>,
     command: &VacationCmd,
     saved: &ClientRegistry,
@@ -289,7 +295,7 @@ pub async fn run_vacation(
 ) -> Result<VacationDone, CoreError> {
     match command {
         VacationCmd::Show { account } => {
-            let account = super::pick(store, account.as_deref())?;
+            let account = super::pick(accounts, account.as_deref())?;
             Ok(VacationDone::Show {
                 vacation: store
                     .vacation(account.id)?
@@ -305,7 +311,7 @@ pub async fn run_vacation(
             from,
             until,
         } => {
-            let account = super::pick(store, account.as_deref())?;
+            let account = super::pick(accounts, account.as_deref())?;
             // Refused before anything is kept: a reply nobody will send is worse than none,
             // because the user believes it is going out.
             away_server(&account.plan).map_err(|why| CoreError::NoSieve {
@@ -336,7 +342,7 @@ pub async fn run_vacation(
             Ok(VacationDone::On { kept, pushed })
         }
         VacationCmd::Off { account } => {
-            let account = super::pick(store, account.as_deref())?;
+            let account = super::pick(accounts, account.as_deref())?;
             let had = store.vacation(account.id.clone())?.is_some();
             store.put_vacation(account.id.clone(), None, now)?;
             // Off says nothing to a server that was never told: a reply set elsewhere stays.
@@ -501,6 +507,7 @@ fn kept(address: &str, vacation: Vacation, now: DateTime<Utc>) -> KeptVacation {
 /// A sieve command over `store`, signing in through `secrets`.
 pub async fn run_sieve(
     store: &SqliteStore,
+    accounts: &Accounts,
     secrets: &dyn AccountSecrets,
     command: &SieveCmd,
     saved: &ClientRegistry,
@@ -508,7 +515,7 @@ pub async fn run_sieve(
 ) -> Result<SieveDone, CoreError> {
     match command {
         SieveCmd::Push { account, takeover } => {
-            let account = super::pick(store, account.as_deref())?;
+            let account = super::pick(accounts, account.as_deref())?;
             let pushed = pushed(store, secrets, &account, *takeover, saved, now).await?;
             Ok(SieveDone::Pushed {
                 address: account.address,
@@ -516,7 +523,7 @@ pub async fn run_sieve(
             })
         }
         SieveCmd::Status { account } => {
-            let account = super::pick(store, account.as_deref())?;
+            let account = super::pick(accounts, account.as_deref())?;
             status(store, secrets, &account, saved, now)
                 .await
                 .map(SieveDone::Status)
@@ -537,7 +544,13 @@ async fn auth(
             purpose: SecretPurpose::IncomingPassword,
         })
         .await
-        .map_err(|e| CoreError::unread_credential(&account.address, &account.plan.auth, &e))?;
+        .map_err(|e| {
+            CoreError::unread_credential(
+                &account.address,
+                &account.plan.auth,
+                mail_secrets::SecretTrouble::of(&e),
+            )
+        })?;
     let credential = crate::sync::renewed(account, stored, secrets, saved, now).await?;
     Ok(SieveAuth {
         username: account.plan.username(),

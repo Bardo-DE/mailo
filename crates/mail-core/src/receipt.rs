@@ -146,20 +146,17 @@ pub fn answer(
             },
         )?;
         let frozen = store.blobs().put(&post.message)?;
-        let queued = store.enqueue(
+        let commit = crate::compose::freeze::unattached(
             original.account.clone(),
-            RemoteIntent::Send {
-                draft: id,
-                raw: frozen,
-                mail_from: post.mail_from.clone(),
-                rcpt_to: post.rcpt_to.clone(),
-                delivery: post.delivery,
-            },
-            &nothing_to_undo(),
+            id,
+            (&post, frozen),
             now,
-        )?;
-        if queued.is_none() {
-            return Err(CoreError::ReceiptNotQueued);
+            crate::compose::freeze::Ids::generate(),
+        );
+        match store.commit(&commit) {
+            Ok(_) => {}
+            Err(mail_store::StoreError::NotQueued) => return Err(CoreError::ReceiptNotQueued),
+            Err(other) => return Err(other.into()),
         }
         Settled::Sent { to: post.rcpt_to }
     } else {

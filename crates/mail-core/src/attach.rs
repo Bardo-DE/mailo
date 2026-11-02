@@ -1,7 +1,8 @@
 //! Attachments on a received message, and getting them back out.
 //!
-//! `mail-runtime` writes every attachment to its own blob at ingest and `Message::attachments`
-//! has named them ever since. Nothing read that: no command listed them, no pane showed them,
+//! `mail-runtime` keeps every attachment of a message it ingests as a pointer into the message's
+//! own bytes ([`PartContent::Inside`]) and `Message::attachments` has named them ever since;
+//! messages kept before that have a blob of each part's own, and read as they did ([`blob_of`]). Nothing read that: no command listed them, nothing on screen showed them,
 //! and there was no way at all to get a file out of a message. A mail client people are sent
 //! PDFs through is not one that can only display text.
 //!
@@ -11,7 +12,7 @@
 //! machine over. Everything written here goes through [`safe_name`].
 
 use crate::error::CoreError;
-use mail_domain::{Attachment, MessageId};
+use mail_domain::{Attachment, BlobId, Message, MessageId, PartContent};
 use mail_store::{SqliteStore, Store};
 use std::path::{Path, PathBuf};
 
@@ -212,14 +213,14 @@ pub fn list(store: &SqliteStore, message: MessageId) -> Result<Vec<Listed>, Core
 ///
 /// The folder the desktop names (`XDG_DOWNLOAD_DIR` on Linux, the system's Downloads folder on
 /// macOS and Windows), `~/Downloads` when it names none, and the working directory as a last
-/// resort. Deliberately not a file chooser: a dialog is a
+/// resort. Deliberately not a file chooser: a chooser is a
 /// dependency that pulls a toolkit in behind it, and every client that offers one also has a
 /// default that most saves actually use. The path is reported afterwards, which is the part
 /// that matters — a file saved somewhere the user cannot name is a file they have lost.
 pub fn downloads_dir() -> PathBuf {
     downloads_from(
-        mail_runtime::places::downloads_named().as_deref(),
-        mail_runtime::places::home()
+        mail_secrets::places::downloads_named().as_deref(),
+        mail_secrets::places::home()
             .as_deref()
             .map(std::path::Path::as_os_str),
     )
@@ -267,17 +268,100 @@ pub fn save(
                 index,
             })?;
 
-    let Some(blob) = attachment.blob() else {
-        return Err(CoreError::AttachmentOnServer {
-            name: attachment.name.clone(),
-        });
-    };
+    let blob = blob_of(store, &message, index)?;
     let bytes = store
         .blobs()
         .get(blob)
         .map_err(|e| CoreError::cannot("read the attachment", e))?;
 
     write_new(dir, &attachment.name, &bytes)
+}
+
+/// How many decoded parts [`blob_of`] remembers the blob of.
+const REMEMBERED: usize = 16;
+
+/// The decoded parts [`blob_of`] has put back lately, newest last, so a preview that asks for the
+/// same part once a page does not decode the message each time. A blob that has since been swept
+/// is found out by its size being unreadable, and decoded again.
+static REMEMBERED_PARTS: std::sync::Mutex<Vec<((MessageId, usize), BlobId)>> =
+    std::sync::Mutex::new(Vec::new());
+
+/// The blob holding attachment `index` of `message`'s decoded bytes: its own when the message was
+/// kept with one, else the part decoded out of the message's raw bytes and put in the store.
+///
+/// A part kept only inside the raw message is the cost of the message and nothing more on disk;
+/// the copy this puts is for whoever is reading it now, and nothing names it, so a sweep of the
+/// blobs takes it back once it has gone unused. Blocking: reads and parses the raw message.
+///
+/// A part still on the server is [`CoreError::AttachmentOnServer`]. One whose message has lost its
+/// raw bytes, or no longer holds a part of that name and size at that place, is
+/// [`CoreError::AttachmentUnreadable`], never a panic and never another part's bytes.
+pub fn blob_of(store: &SqliteStore, message: &Message, index: usize) -> Result<BlobId, CoreError> {
+    let attachment = message
+        .attachments
+        .get(index)
+        .ok_or_else(|| CoreError::NoAttachment {
+            have: message.attachments.len(),
+            index,
+        })?;
+    let unreadable = |why: &str| CoreError::AttachmentUnreadable {
+        name: attachment.name.clone(),
+        why: why.to_owned(),
+    };
+    let place = match &attachment.content {
+        PartContent::Held(blob) => return Ok(*blob),
+        PartContent::Remote { .. } => {
+            return Err(CoreError::AttachmentOnServer {
+                name: attachment.name.clone(),
+            });
+        }
+        PartContent::Inside { index } => *index as usize,
+    };
+
+    let key = (message.id, index);
+    let remembered = match REMEMBERED_PARTS.lock() {
+        Ok(parts) => parts.iter().find(|(k, _)| *k == key).map(|(_, blob)| *blob),
+        // A poisoned memory is no memory: the part is decoded again.
+        Err(_) => None,
+    };
+    if let Some(blob) = remembered
+        && store.blobs().size(blob).is_ok()
+    {
+        return Ok(blob);
+    }
+
+    let raw = message
+        .body
+        .raw()
+        .ok_or_else(|| unreadable("the message's bytes are not kept"))?;
+    let bytes = store
+        .blobs()
+        .get(raw)
+        .map_err(|_| unreadable("the message's bytes are missing from the store"))?;
+    let parsed = mail_mime::parse(&bytes).map_err(|why| unreadable(&why.to_string()))?;
+    // The place it was kept at, if a part of its name and size is still there: a reader that
+    // numbers parts differently from the one that kept this must not hand over another file.
+    let same = |part: &&mail_mime::ParsedPart| {
+        part.name == attachment.name && part.bytes.len() as u64 == attachment.size
+    };
+    let part = parsed
+        .attachments
+        .get(place)
+        .filter(same)
+        .or_else(|| parsed.attachments.iter().find(same))
+        .ok_or_else(|| unreadable("the message no longer holds a part like it"))?;
+    let blob = store
+        .blobs()
+        .put(&part.bytes)
+        .map_err(|e| CoreError::cannot("keep the attachment for reading", e))?;
+    if let Ok(mut parts) = REMEMBERED_PARTS.lock() {
+        parts.retain(|(k, _)| *k != key);
+        if parts.len() >= REMEMBERED {
+            parts.remove(0);
+        }
+        parts.push((key, blob));
+    }
+    Ok(blob)
 }
 
 /// One attachment of a message opened for reading — decrypted, or with its signature taken off —

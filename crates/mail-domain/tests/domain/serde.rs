@@ -734,6 +734,22 @@ fn an_attachment_row_from_before_remote_parts_still_reads() {
     );
 }
 
+/// A part kept only inside its message's bytes is written as its place there, with no blob, and
+/// reads back the same.
+#[test]
+fn an_attachment_kept_inside_its_message_round_trips_without_a_blob() {
+    let inside = Attachment {
+        content: PartContent::Inside { index: 2 },
+        ..attachment()
+    };
+    let json = serde_json::to_value(&inside).unwrap();
+    assert_eq!(json["in_raw"], 2);
+    assert!(json.get("blob").is_none() && json.get("remote_section").is_none());
+    let read: Attachment = serde_json::from_value(json).unwrap();
+    assert_eq!(read, inside);
+    assert!(read.is_here() && read.blob().is_none());
+}
+
 #[test]
 fn account_types_round_trip() {
     round_trip_each(

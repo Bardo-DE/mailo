@@ -2,7 +2,7 @@
 //! and the people in the address book, each as a title, a subtitle and the words that find it.
 //!
 //! A desktop's launcher searches as the person types, and cannot start mail for every key. So the
-//! front end hands a copy of these to the desktop while it runs (`mail_app::intents::index`), and
+//! front end hands a copy of these to the desktop while it runs (`mail_intents::index`), and
 //! the desktop matches them itself. Mail's own search box stays the way to search the words of the
 //! mail: nothing here carries a body or a snippet.
 //!
@@ -12,12 +12,13 @@
 //! on only that.
 
 use crate::error::CoreError;
-use crate::notify::{Own, own_addresses};
+use crate::notify::own_addresses;
 use chrono::{DateTime, Utc};
 use mail_domain::{
     Address, Filter, LabelId, MailboxRole, PageReq, Property, Query, Sort, SortDir, ThreadSummary,
     subject_or_none,
 };
+use mail_logic::own::Own;
 use mail_store::{SqliteStore, Store, StoreError};
 use std::collections::{BTreeMap, HashMap};
 

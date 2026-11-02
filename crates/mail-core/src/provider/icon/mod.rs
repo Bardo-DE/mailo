@@ -1,6 +1,6 @@
 //! A provider's own icon, fetched once and cached.
 //!
-//! The address is a fixed table keyed by [`super::Provider`]. Nothing here reads a
+//! The address is a fixed table keyed by [`mail_logic::provider::Provider`]. Nothing here reads a
 //! message, so a sender domain cannot become a request. The letter on the chip is
 //! what shows until a file is cached, and whenever the setting says letters.
 //!

@@ -1,0 +1,133 @@
+//! The rows of the page's menus: `/`, Turn into, `@`, `:`, people, and the object menu. Each is a
+//! [`MenuItem`] for the one shared [`mail_ui_kit::menu::Menu`].
+
+use super::page::Page;
+use ds::prelude::*;
+use mail_client::search::match_list;
+use mail_editor::{Action, Item, ParaKind, Person, filter, turn_into};
+use mail_ui_kit::menu::{MenuItem, Right, Tile};
+
+fn tile(item: &Item) -> Tile {
+    match item.action {
+        Action::Turn(ParaKind::Paragraph) => Tile::Text("Aa"),
+        Action::Turn(ParaKind::Heading(level)) => Tile::Text(match level.number() {
+            1 => "H1",
+            2 => "H2",
+            _ => "H3",
+        }),
+        Action::Turn(ParaKind::Bullet) => Tile::Glyph('•'),
+        Action::Turn(ParaKind::Numbered) => Tile::Text("1."),
+        Action::Turn(ParaKind::Todo(_)) => Tile::Glyph('☐'),
+        Action::Turn(ParaKind::Quote) => Tile::Glyph('❝'),
+        Action::Turn(ParaKind::Code) => Tile::Text("{}"),
+        Action::Divider => Tile::Glyph('—'),
+        Action::Image | Action::Attachment => Tile::Icon(Icon::Paperclip),
+        Action::Table => Tile::Icon(Icon::Columns),
+        Action::Signature => Tile::Text("--"),
+        Action::Snippet => Tile::Icon(Icon::Pen),
+        Action::Date => Tile::Icon(Icon::Clock),
+    }
+}
+
+fn row(item: &Item, grouped: bool, right: Right) -> MenuItem {
+    let group = grouped.then(|| match item.action {
+        Action::Turn(_) => "Turn this line into".to_owned(),
+        _ => "Insert".to_owned(),
+    });
+    MenuItem {
+        tile: tile(item),
+        help: Some(item.help.to_owned()),
+        right,
+        group,
+        ..MenuItem::plain(item.name, item.name)
+    }
+}
+
+/// The `/` menu for `query`, filtered by `mail_editor::filter`, whose fuzzy tier is the same match every menu uses.
+pub fn slash_items(query: &str) -> Vec<MenuItem> {
+    let grouped = query.trim().is_empty();
+    let fuzzy = |query: &str, labels: &[&str]| {
+        match_list(query, labels)
+            .into_iter()
+            .map(|hit| hit.index)
+            .collect()
+    };
+    filter(query, fuzzy)
+        .into_iter()
+        .map(|item| row(item, grouped, Right::Hint(item.markdown.to_owned())))
+        .collect()
+}
+
+/// Turn into, with the current kind checked.
+pub fn turn_items(current: Option<ParaKind>) -> Vec<MenuItem> {
+    turn_into()
+        .into_iter()
+        .map(|item| {
+            let on = matches!(item.action, Action::Turn(kind) if Some(kind) == current);
+            row(item, false, Right::Check(on))
+        })
+        .collect()
+}
+
+/// The book's suggestions for the `@` query, as [`super::float::suggest_mention`] left them.
+pub fn mention_items(page: &Page) -> Vec<MenuItem> {
+    people_rows(page.people.iter().collect())
+}
+
+/// The most rows the `:` menu shows.
+pub const EMOJI_ROWS: usize = 8;
+
+/// The `:` menu: the emoji the name typed after the `:` finds, best first, each keyed by itself.
+pub fn emoji_items(page: &Page) -> Vec<MenuItem> {
+    let Some((_, query)) = super::float::emoji_typed(page) else {
+        return Vec::new();
+    };
+    crate::emoji::search(&query)
+        .into_iter()
+        .take(EMOJI_ROWS)
+        .map(|emoji| MenuItem {
+            tile: Tile::Text(emoji.glyph),
+            ..MenuItem::plain(emoji.glyph, emoji.name)
+        })
+        .collect()
+}
+
+/// Menu rows for people: an avatar, the name, the address.
+pub fn people_rows(people: Vec<&Person>) -> Vec<MenuItem> {
+    people
+        .into_iter()
+        .map(|person| MenuItem {
+            tile: Tile::Avatar {
+                letter: person
+                    .name
+                    .chars()
+                    .next()
+                    .and_then(|ch| ch.to_uppercase().next())
+                    .unwrap_or('?'),
+                color: mail_ui_kit::avatar::avatar_color(&person.address),
+            },
+            help: Some(person.address.clone()),
+            ..MenuItem::plain(person.address.clone(), person.name.clone())
+        })
+        .collect()
+}
+
+/// The ⋮⋮ menu for an object.
+pub fn object_items() -> Vec<MenuItem> {
+    [
+        ("up", "Move up", Icon::Corner, ""),
+        ("down", "Move down", Icon::Corner, ""),
+        ("dup", "Duplicate", Icon::Square, ""),
+        ("del", "Delete", Icon::Trash, "Del"),
+    ]
+    .into_iter()
+    .map(|(key, name, icon, shortcut)| MenuItem {
+        right: if shortcut.is_empty() {
+            Right::None
+        } else {
+            Right::Hint(shortcut.to_owned())
+        },
+        ..MenuItem::icon(key, icon, name)
+    })
+    .collect()
+}

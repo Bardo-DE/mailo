@@ -34,7 +34,7 @@ impl Inner {
                             },
                             m.date,
                         )),
-                        PartContent::Held(_) => None,
+                        PartContent::Held(_) | PartContent::Inside { .. } => None,
                     })
             })
             .collect();

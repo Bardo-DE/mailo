@@ -26,7 +26,8 @@ use crate::store::{Seed, seeded_with};
 use drive::{Drive, PRIMARY};
 use mail_core::{SqliteStore, Store};
 use mail_domain::*;
-use mail_ui::ui::native::{Ask, MessageOpen, OpenWindow, Windows};
+use mail_ui::ui::native::MessageOpen;
+use mail_ui_kit::window::{Ask, OpenWindow, Windows};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -103,18 +104,18 @@ fn thread(store: &SqliteStore, subject: &str) -> ThreadSummary {
 /// What every window of the app is handed: the store, no directories, and a printer that never
 /// opens a dialog.
 fn window_contexts(store: &Arc<SqliteStore>) -> RootContexts {
-    let printer = mail_ui::ui::native::Printer::with_dialog(|_, _| Ok(PrintOutcome::Cancelled));
+    let printer = mail_ui_reader::print::Printer::with_dialog(|_, _| Ok(PrintOutcome::Cancelled));
     window_contexts_printing(store, printer)
 }
 
 /// [`window_contexts`] with `printer`, for a test that reads what the window prints.
 fn window_contexts_printing(
     store: &Arc<SqliteStore>,
-    printer: mail_ui::ui::native::Printer,
+    printer: mail_ui_reader::print::Printer,
 ) -> RootContexts {
     mail_ui::ui::native::contexts(
         mail_client::Client::open(Arc::clone(store), mail_client::ClientConfig::default()),
-        mail_ui::ui::view::Appearance::default(),
+        mail_ui_kit::view::Appearance::default(),
         None,
         None,
         mail_ui::ui::ask::Open::raise(),
@@ -370,7 +371,7 @@ fn command_p_prints_the_conversation_in_a_window_of_its_own() {
     let store = seeded(dir.path());
     let lunch = thread(&store, INBOX[2].1).id;
     let dialogs = Arc::new(AtomicUsize::new(0));
-    let printer = mail_ui::ui::native::Printer::with_dialog({
+    let printer = mail_ui_reader::print::Printer::with_dialog({
         let dialogs = Arc::clone(&dialogs);
         move |_, _| {
             dialogs.fetch_add(1, Ordering::SeqCst);

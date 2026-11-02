@@ -8,6 +8,7 @@
 pub mod account;
 pub mod address;
 pub mod autocrypt;
+pub mod commit;
 pub mod content;
 pub mod draft;
 pub mod error;
@@ -20,6 +21,7 @@ pub mod incoming;
 pub mod ingest;
 pub mod invite;
 pub mod jmap_id;
+pub mod junk;
 pub mod keyword;
 pub mod message;
 pub mod op;
@@ -38,6 +40,7 @@ pub mod signing;
 pub mod smime;
 pub mod state;
 pub mod template;
+pub mod term;
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
 pub mod threading;
@@ -51,10 +54,14 @@ pub use account::{
 };
 pub use address::Address;
 pub use autocrypt::{AutocryptPeer, PreferEncrypt, Sighting};
+// `Written` is `commit::Written`: another `Written` is exported below, and callers glob this crate.
+pub use commit::{Commit, Expect, Queue, Resolve, Row, Taught, UndoId, Unplaced};
 pub use content::{Attachment, Body, Inline, Label, PartContent};
 pub use draft::{Draft, PendingAttachment, ReplyScope, SendState};
 pub use error::{FolderError, ParseAddressError, ParseFingerprintError, ParseSectionError};
-pub use filter::{Category, DateRange, Filed, Filter, Leaving, MatchCtx, Placed, TextMatch, Words};
+pub use filter::{
+    Category, DateRange, Filed, Filter, Leaving, MatchCtx, Placed, Placing, TextMatch, Words,
+};
 pub use folder::{
     Folder, FolderContents, FolderCtx, FolderWork, Holds, NonEmpty, SpecialUse, Subscription,
 };
@@ -69,9 +76,10 @@ pub use invite::{Attendance, InviteAnswer};
 pub use jmap_id::{
     JmapAccountId, JmapBlobId, JmapEmailId, JmapIdentityId, JmapMailboxId, JmapThreadId,
 };
+pub use junk::{Judged, JunkCounts};
 pub use keyword::{THUNDERBIRD_TAGS, keyword_label, label_keyword};
 pub use message::{Message, MessageKey, SortFacts, Thread, ThreadSummary};
-pub use op::{Action, Applied, Change, Op, OpKind, Patch, RemoteIntent, Target};
+pub use op::{Action, Applied, Change, Op, OpKind, OpPreview, Patch, RemoteIntent, Target};
 pub use parts::PartTree;
 pub use pgp::{
     Coverage, Encryption, Fingerprint, KeyId, KeySource, KeyTrust, PgpKey, SecretHeld, Verification,
@@ -96,7 +104,8 @@ pub use state::{
     ReadState, Snooze, Star, Threading,
 };
 pub use template::Template;
-pub use threading::{ThreadInput, normalize_id, sort_subject, thread};
+pub use term::Term;
+pub use threading::{ThreadInput, normalize_id, sort_subject, thread, thread_with};
 pub use view::{Cursor, GroupKey, Page, PageReq, Property, Query, Sort, SortDir, View, ViewKind};
 pub use words::{NO_SUBJECT, human_size, subject_or_none};
 

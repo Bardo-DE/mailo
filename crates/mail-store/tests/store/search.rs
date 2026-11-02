@@ -5,9 +5,10 @@
 //! parity test owns the set, and one case below is where the two orders diverge.
 
 use crate::support::*;
+use mail_domain::Term;
 use mail_domain::*;
 use mail_store::testing::seed_account;
-use mail_store::{MemoryStore, SqliteStore, Store, Term};
+use mail_store::{MemoryStore, SqliteStore, Store};
 use porter_core::AccountId;
 
 struct Mail<'a> {
@@ -59,8 +60,12 @@ fn load(mails: &[Mail<'_>]) -> Held {
         };
         threads.push(message.thread);
         let upsert = patch(vec![Change::MessageUpsert(Box::new(message))]);
-        sqlite.apply(mail.account.clone(), &upsert).unwrap();
-        memory.apply(mail.account.clone(), &upsert).unwrap();
+        sqlite
+            .apply(mail.account.clone(), &upsert, chrono::Utc::now())
+            .unwrap();
+        memory
+            .apply(mail.account.clone(), &upsert, chrono::Utc::now())
+            .unwrap();
     }
     Held {
         sqlite,
@@ -299,6 +304,7 @@ fn terms_are_visible_from_a_read_connection() {
         .apply(
             acct_account(),
             &patch(vec![Change::MessageUpsert(Box::new(message))]),
+            chrono::Utc::now(),
         )
         .unwrap();
     assert_eq!(texts(&sqlite, "Rés"), vec!["resume".to_owned()]);
@@ -416,6 +422,7 @@ fn attachment_names_and_sizes_are_searched() {
             .apply(
                 acct_account(),
                 &patch(vec![Change::MessageUpsert(Box::new(message.clone()))]),
+                chrono::Utc::now(),
             )
             .unwrap();
     }
@@ -497,6 +504,7 @@ fn a_messages_size_is_kept_as_it_changes() {
             .apply(
                 acct_account(),
                 &patch(vec![Change::MessageUpsert(Box::new(headers_only.clone()))]),
+                chrono::Utc::now(),
             )
             .unwrap();
     }
@@ -508,6 +516,7 @@ fn a_messages_size_is_kept_as_it_changes() {
             .apply(
                 acct_account(),
                 &patch(vec![Change::MessageUpsert(Box::new(with_body.clone()))]),
+                chrono::Utc::now(),
             )
             .unwrap();
     }
@@ -552,6 +561,7 @@ fn a_header_only_message_weighs_what_the_server_said() {
             .apply(
                 acct_account(),
                 &patch(vec![Change::MessageUpsert(Box::new(headers_only.clone()))]),
+                chrono::Utc::now(),
             )
             .unwrap();
     }
@@ -581,6 +591,7 @@ fn a_header_only_message_weighs_what_the_server_said() {
             .apply(
                 acct_account(),
                 &patch(vec![Change::MessageUpsert(Box::new(headers_only.clone()))]),
+                chrono::Utc::now(),
             )
             .unwrap();
     }
@@ -590,6 +601,7 @@ fn a_header_only_message_weighs_what_the_server_said() {
             .apply(
                 acct_account(),
                 &patch(vec![Change::MessageUpsert(Box::new(with_body.clone()))]),
+                chrono::Utc::now(),
             )
             .unwrap();
     }
@@ -627,7 +639,9 @@ fn opening_indexes_every_row_that_lacks_its_text_in_batches() {
                 message: m,
             });
         }
-        store.ingest(acct_account(), batch).unwrap();
+        store
+            .ingest(acct_account(), batch, chrono::Utc::now())
+            .unwrap();
         store
             .raw_connection()
             .execute("UPDATE messages SET fts_text = NULL", [])

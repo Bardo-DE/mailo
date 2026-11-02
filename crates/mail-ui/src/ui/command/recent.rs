@@ -7,15 +7,16 @@
 //! is one keystroke away and never in the way. What it lists is [`rows`], pure over the client
 //! and Today, so a table test can say it.
 
-use super::super::menu::{MenuItem, Tile};
-use super::items::{RECENT, avatar_color};
-use crate::ui::copy;
-use crate::ui::space::SpaceId;
-use crate::ui::today::Today;
+use super::items::RECENT;
 use chrono::{DateTime, Utc};
 use ds::prelude::*;
 use mail_client::Client;
 use mail_domain::{Draft, DraftId, ThreadId};
+use mail_ui_kit::avatar::avatar_color;
+use mail_ui_kit::menu::{MenuItem, Tile};
+use mail_ui_kit::space::SpaceId;
+use mail_ui_kit::today::Today;
+use mail_ui_model::copy;
 
 /// How many conversations Recent lists. The rest are still a search away.
 const SHOWN: usize = 8;
@@ -47,7 +48,7 @@ pub(super) fn rows(
     today: &Today,
     space: SpaceId,
     now: DateTime<Utc>,
-    clock: mail_client::when::Clock,
+    clock: mail_logic::when::Clock,
 ) -> Vec<MenuItem> {
     let mut opened: Vec<_> = today
         .all(space)
@@ -79,7 +80,7 @@ pub(super) fn rows(
         .filter_map(|parked| client.stored().draft(parked.item).ok())
         .filter(|draft| !draft.untouched())
         .map(|draft| MenuItem {
-            help: Some(copy::status::draft_touched(&mail_client::when::listed(
+            help: Some(copy::status::draft_touched(&mail_logic::when::listed(
                 draft.updated,
                 now,
                 &chrono::Local,

@@ -175,11 +175,10 @@ pub fn load(
     let message = store
         .message(message)
         .map_err(|e| Unavailable::Store(e.to_string()))?;
-    let attachment = message
-        .attachments
-        .get(index)
-        .ok_or_else(|| Unavailable::Store(format!("there is no attachment {index}")))?;
-    let blob = attachment.blob().ok_or(Unavailable::NotHere)?;
+    let blob = crate::attach::blob_of(store, &message, index).map_err(|e| match e {
+        crate::CoreError::AttachmentOnServer { .. } => Unavailable::NotHere,
+        other => Unavailable::Store(other.to_string()),
+    })?;
     let blobs = store.blobs();
     let head = blobs
         .head(blob, SNIFF)

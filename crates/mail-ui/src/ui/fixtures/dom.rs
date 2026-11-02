@@ -1,11 +1,11 @@
 use super::super::app::App;
-use super::super::reading::Reader;
-use crate::ui::view::Shell;
 use dioxus::prelude::*;
 use dioxus_core::{NoOpMutations, VirtualDom};
 use ds::prelude::*;
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::*;
+use mail_ui_kit::view::Shell;
+use mail_ui_reader::reading::Reader;
 use std::sync::Arc;
 
 /// The shell's markup, rendered from the real components against a real database.
@@ -318,6 +318,7 @@ impl dioxus::html::HtmlEventConverter for TestEvents {
 pub(in crate::ui) fn dispatching() {
     static ONCE: std::sync::Once = std::sync::Once::new();
     ONCE.call_once(|| {
+        mail_ui_list::list::mount_every_row();
         dioxus::html::set_event_converter(Box::new(TestEvents));
     });
 }

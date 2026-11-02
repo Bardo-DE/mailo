@@ -2,6 +2,7 @@
 //! across a save, and never lets an id that is not one onto disk.
 
 use super::*;
+use mail_logic::profile::Home;
 use std::collections::BTreeSet;
 
 fn listing(dir: &Path) -> Vec<PathBuf> {
@@ -89,23 +90,7 @@ fn a_profile_is_found_by_its_id_or_its_name_in_any_case() {
 }
 
 #[test]
-fn an_id_that_is_not_one_is_refused_when_parsed_and_when_read() {
-    for text in [
-        "",
-        "deadbee",
-        "deadbeef0",
-        "DEADBEEF",
-        "ghijklmn",
-        "../../x",
-        "Default",
-    ] {
-        assert_eq!(
-            text.parse::<ProfileId>(),
-            Err(NotAProfileId(text.to_owned()))
-        );
-    }
-    assert!("deadbeef".parse::<ProfileId>().is_ok());
-
+fn an_id_that_is_not_one_is_refused_when_read() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("profiles.json"),
@@ -139,34 +124,4 @@ fn a_removal_is_remembered_until_it_is_finished_and_the_default_cannot_be_remove
     assert!(after.file.removing.is_empty());
     assert!(after.get(work.id()).is_none());
     assert_eq!(after.profiles().len(), 1);
-}
-
-#[test]
-fn the_default_profile_is_the_install_in_place_and_another_has_a_folder() {
-    let roots = Roots {
-        data: PathBuf::from("/data/mailo"),
-        config: PathBuf::from("/config/mailo"),
-    };
-    let default = Profile {
-        id: ProfileId::default(),
-        name: None,
-    };
-    assert_eq!(default.db(&roots), Path::new("/data/mailo/mail.db"));
-    assert_eq!(default.blobs(&roots), Path::new("/data/mailo/blobs"));
-    assert_eq!(default.signing_service(), "mailo");
-
-    let work = Profile {
-        id: "0a1b2c3d".parse().unwrap(),
-        name: Some("Work".to_owned()),
-    };
-    assert_eq!(work.home(), Home::Folder);
-    assert_eq!(
-        work.db(&roots),
-        Path::new("/data/mailo/profiles/0a1b2c3d/mail.db")
-    );
-    assert_eq!(
-        work.blobs(&roots),
-        Path::new("/data/mailo/profiles/0a1b2c3d/blobs")
-    );
-    assert_eq!(work.signing_service(), "mailo/0a1b2c3d");
 }

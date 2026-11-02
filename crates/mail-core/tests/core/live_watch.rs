@@ -8,7 +8,7 @@
 use crate::support::{account, now};
 use mail_core::sync::live::{self, Heard};
 use mail_domain::*;
-use mail_runtime::{AccountSecrets, ClientRegistry};
+use mail_secrets::{AccountSecrets, ClientRegistry};
 use mail_store::SqliteStore;
 use porter_core::SecretText;
 use porter_core::{AccountId, Credential, SecretKey, SecretPurpose};
@@ -127,7 +127,7 @@ fn configured(port: u16, watch: WatchMode) -> Arc<SqliteStore> {
 
 fn secrets() -> Arc<MemorySecrets> {
     let secrets = MemorySecrets::default();
-    mail_runtime::block_on(secrets.put(
+    mail_secrets::block_on(secrets.put(
         &SecretKey {
             account: account(),
             purpose: SecretPurpose::IncomingPassword,
@@ -202,13 +202,16 @@ fn an_account_the_server_cannot_push_to_is_not_watched() {
     let lost = handle.join().unwrap().expect_err("nothing to wait on");
     assert!(matches!(lost.retry, Retry::Fatal(_)), "{lost:?}");
     assert!(heard.lock().unwrap().is_empty());
-    assert!(live::pushing(&store).is_empty());
+    assert!(live::pushing(&store, &crate::support::accounts(&store)).is_empty());
 }
 
 #[test]
 fn an_idle_account_is_one_that_pushes() {
     let store = configured(1, WatchMode::Idle);
-    assert_eq!(live::pushing(&store), [account()]);
+    assert_eq!(
+        live::pushing(&store, &crate::support::accounts(&store)),
+        [account()]
+    );
 }
 
 /// Pushed only while it is checked automatically: an interval the person chose is polled at, and
@@ -223,8 +226,12 @@ fn an_idle_account_checked_on_its_own_terms_is_not_pushed_to() {
         (Every::Manually, &[]),
     ];
     for (every, want) in table {
-        let kept = Kept::default().with_every(account(), every);
-        assert_eq!(live::pushing_with(&store, &kept), want, "{every:?}");
+        let settings = mail_logic::accounts::Settings {
+            kept: Kept::default().with_every(account(), every),
+            ..Default::default()
+        };
+        let accounts = mail_core::gather::accounts(&store, &settings).unwrap();
+        assert_eq!(live::pushing(&store, &accounts), want, "{every:?}");
     }
 }
 

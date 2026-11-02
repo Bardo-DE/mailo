@@ -24,14 +24,14 @@ mod search;
 use crate::error::{CoreError, Logged};
 use access::{Pass, access};
 use mail_domain::*;
+use mail_engine::AccountEngine;
+use mail_logic::accounts::Accounts;
 use mail_proto::backend::{Authenticate, ImapBackend, Pop3Backend};
 use mail_proto::{ImapAuth, ImapCommand, ImapSession, Pop3Command, Pop3Session};
+use mail_runtime::SyncReport;
 use mail_runtime::graph::read::{OverHttp, Reader};
-use mail_runtime::tokens::{self, Now};
-use mail_runtime::{
-    AccountEngine, AccountSecrets, ClientRegistry, Held, OAuthTokens, SyncReport, TokenSource,
-    clients,
-};
+use mail_secrets::tokens::{self, Now};
+use mail_secrets::{AccountSecrets, ClientRegistry, Held, OAuthTokens, TokenSource, clients};
 use mail_store::SqliteStore;
 use porter_core::{AccountId, Credential, SecretKey, SecretPurpose};
 use report::{Done, Emit, Failure, Hooks, PassEnd, Progress};
@@ -40,7 +40,8 @@ pub use search::search_server_with;
 use std::sync::Arc;
 use tokio::sync::watch;
 
-/// Everything stored about one account.
+/// An account as a pass runs it: its plan, what its server supports and how the person syncs it.
+/// Only an account something has connected for is one ([`Configured::of`]).
 #[derive(Debug)]
 pub struct Configured {
     pub id: AccountId,
@@ -48,14 +49,9 @@ pub struct Configured {
     pub plan: AccountPlan,
     pub caps: AccountCaps,
     /// Whether a pass fetches the attachments a sync leaves on the server too. The window's
-    /// setting, not the store's ([`crate::offline`]): [`Keep::Bodies`] until something reads it.
-    ///
-    /// [`Keep::Bodies`]: crate::offline::Keep::Bodies
+    /// setting, not the store's ([`crate::offline`]).
     pub keep: crate::offline::Keep,
-    /// How often a timed pass checks it, from the same setting: [`Every::Automatic`] until
-    /// something reads it.
-    ///
-    /// [`Every::Automatic`]: crate::offline::Every::Automatic
+    /// How often a timed pass checks it, from the same setting.
     pub every: crate::offline::Every,
     /// How far back a pass downloads its bodies, from the same setting.
     pub window: crate::offline::Window,
@@ -63,7 +59,7 @@ pub struct Configured {
     pub remove: crate::offline::Remove,
     /// How the junk filter judges what a pass brings ([`crate::junk`]): the window's setting,
     /// as `keep` is.
-    pub junk: crate::junk::Policy,
+    pub junk: mail_logic::junk::Policy,
 }
 
 /// What the server was last observed to support, for one account.
@@ -78,48 +74,34 @@ pub fn caps_of(store: &SqliteStore, account: AccountId) -> Option<AccountCaps> {
         .flatten()
 }
 
-/// Whether the person paused `account`'s syncing in Settings. A paused account is in every list
-/// of accounts but none of the lists of what to sync: no timed pass, no pass asked for, no
-/// connection held open for it. One whose preferences cannot be read syncs, as it did before
-/// there were any.
-pub fn paused(store: &SqliteStore, account: AccountId) -> bool {
-    store
-        .account_prefs(account)
-        .or_log("the account's preferences could not be read")
-        .is_some_and(|prefs| prefs.syncing == mail_store::Syncing::Paused)
+impl Configured {
+    /// `account` as a pass runs it; `None` while nothing has connected for it, which is an
+    /// ordinary state and no reason to log.
+    pub fn of(account: &mail_logic::accounts::Account) -> Option<Configured> {
+        let prefs = account.prefs;
+        Some(Configured {
+            id: account.id.clone(),
+            address: account.address.clone(),
+            plan: account.plan.clone(),
+            caps: account.caps.clone()?,
+            keep: prefs.keep,
+            every: prefs.every,
+            window: prefs.window,
+            remove: prefs.remove,
+            junk: prefs.junk,
+        })
+    }
 }
 
-/// Read the accounts back out of the store.
-pub(crate) fn configured(store: &SqliteStore) -> Result<Vec<Configured>, CoreError> {
-    let mut out = Vec::new();
-    for stored in store.list_accounts()? {
-        let address = stored.address;
-        let plan: AccountPlan = stored.plan.map_err(|e| CoreError::PlanUnreadable {
-            address: address.clone(),
-            why: why(&e),
-        })?;
-        let caps: AccountCaps = match stored.caps {
-            Some(caps) => caps.map_err(|e| CoreError::CapsUnreadable {
-                address: address.clone(),
-                why: why(&e),
-            })?,
-            // No capabilities yet means nothing has connected. The expected ones from the
-            // preset are a starting point, not a claim about the server.
-            None => return Err(CoreError::NoCaps { address }),
-        };
-        out.push(Configured {
-            id: stored.id,
-            address,
-            plan,
-            caps,
-            keep: crate::offline::Keep::default(),
-            every: crate::offline::Every::default(),
-            window: crate::offline::Window::default(),
-            remove: crate::offline::Remove::default(),
-            junk: crate::junk::Policy::default(),
-        });
-    }
-    Ok(out)
+/// The accounts a pass can be run for, in the order they were added: those something has
+/// connected for.
+pub(crate) fn connected(accounts: &Accounts) -> Vec<Configured> {
+    accounts.iter().filter_map(Configured::of).collect()
+}
+
+/// The account `id`, as a pass runs it.
+pub(crate) fn connected_one(accounts: &Accounts, id: &AccountId) -> Option<Configured> {
+    accounts.get(id).and_then(Configured::of)
 }
 
 /// A pass's classified failure as the error of a call that has no use for the classification.
@@ -138,71 +120,48 @@ pub(crate) fn why(error: &mail_store::StoreError) -> String {
     }
 }
 
-/// How each configured account signs in, by address.
-///
-/// Beside `mailboxes_by_account` and for the same reason: `account list` should be able to say
-/// what an account is waiting for without deciding it for itself. Two surfaces answering that
-/// question separately is how `sync` came to tell a Google account to find a password.
-pub fn auth_by_account(
-    store: &SqliteStore,
-) -> Result<std::collections::HashMap<String, AuthPlan>, CoreError> {
-    Ok(configured(store)?
-        .into_iter()
-        .map(|account| (account.address, account.plan.auth))
-        .collect())
-}
-
-/// Every configured account's id and address, in the order they were added.
-pub fn addresses(store: &SqliteStore) -> Vec<(AccountId, String)> {
-    configured(store)
-        .or_log_default("the accounts could not be read")
-        .into_iter()
-        .map(|account| (account.id, account.address))
-        .collect()
-}
-
-/// The remedy for an account that must sign in, again or for the first time: a pass that ended in
-/// [`Retry::NeedsReauth`] says so, and this says how that account signs in. An address the store
-/// does not know, or a plan it cannot read, is asked to sign in without saying how.
-pub fn sign_in_remedy(store: &SqliteStore, address: &str) -> crate::Remedy {
-    let with = configured(store)
-        .or_log("the accounts could not be read to say how to sign in")
-        .and_then(|all| all.into_iter().find(|account| account.address == address))
-        .map_or(crate::SignInWith::Unknown, |account| {
-            crate::SignInWith::of(&account.plan.auth)
-        });
-    crate::Remedy::SignIn {
-        address: address.to_owned(),
-        with,
-    }
-}
-
-/// The accounts that keep their mail on this computer ([`Incoming::Local`]).
-pub fn local_accounts(store: &SqliteStore) -> Vec<AccountId> {
-    configured(store)
-        .or_log_default("the accounts could not be read")
-        .into_iter()
-        .filter(|account| !account.plan.incoming.caps().has_server)
-        .map(|account| account.id)
-        .collect()
-}
-
 /// How often a background sync should run, from the accounts' own capabilities.
 ///
 /// The shortest interval any account asks for, so an account that wants IDLE-like freshness is
 /// not held to another's hourly poll. Five minutes when nothing says otherwise, which is what
 /// every preset in the table already carries.
-pub fn poll_interval(store: &SqliteStore) -> std::time::Duration {
-    let default = std::time::Duration::from_secs(300);
-    configured(store)
+pub fn poll_interval(accounts: &Accounts) -> std::time::Duration {
+    accounts
+        .poll_interval()
+        .unwrap_or(std::time::Duration::from_secs(300))
+}
+
+/// The remedy for an account that must sign in, again or for the first time: a pass that ended in
+/// [`Retry::NeedsReauth`] says so, and this says how that account signs in. An address the store
+/// does not know, or a plan it cannot read, is asked to sign in without saying how.
+pub fn sign_in_remedy(accounts: &Accounts, address: &str) -> mail_logic::remedy::Remedy {
+    let with = accounts
+        .by_address(address)
+        .map_or(mail_logic::remedy::SignInWith::Unknown, |account| {
+            mail_logic::remedy::SignInWith::of(&account.plan.auth)
+        });
+    mail_logic::remedy::Remedy::SignIn {
+        address: address.to_owned(),
+        with,
+    }
+}
+
+/// The accounts that keep their mail on this computer ([`Incoming::Local`]), read from the store
+/// alone. For the actions and the composer, which decide one account at a time and are given no
+/// [`Accounts`] yet; the one action path takes them from its snapshot.
+pub fn local_accounts(store: &SqliteStore) -> Vec<AccountId> {
+    store
+        .list_accounts()
         .or_log_default("the accounts could not be read")
         .into_iter()
-        // IDLE is a long-lived connection this loop does not hold. Until it does, an account that
-        // supports it is polled like any other, at `due::IDLE`.
-        .filter(|account| !paused(store, account.id.clone()))
-        .map(|a| due::every(&a.caps.watch))
-        .min()
-        .unwrap_or(default)
+        .filter(|stored| {
+            stored
+                .plan
+                .as_ref()
+                .is_ok_and(|plan| !plan.incoming.caps().has_server)
+        })
+        .map(|stored| stored.id)
+        .collect()
 }
 
 impl crate::mail::SyncOps<'_> {
@@ -218,17 +177,14 @@ impl crate::mail::SyncOps<'_> {
         // configuration, and an edit halfway through a run producing two different client ids is
         // not a behaviour worth having.
         let registry = mail.clients()?;
-        run_all(
-            mail.store().clone(),
+        let accounts = pick(&mail.roster()?, &|_| true);
+        pass_over(
+            mail.store(),
             mail.secrets(),
             &registry,
             mail.now(),
             Mode::Once,
-            &Scope {
-                due: &|_| true,
-                kept: &crate::offline::load_default(),
-                junk: mail.junk(),
-            },
+            accounts,
             hooks,
         )
         .await
@@ -242,10 +198,12 @@ impl crate::mail::SyncOps<'_> {
     ) -> Result<(), CoreError> {
         let mail = self.0;
         let registry = mail.clients()?;
+        let accounts = mail.roster()?;
         fetch_part_with(
             mail.store(),
             mail.secrets(),
             &registry,
+            &accounts,
             message,
             section,
             mail.now(),
@@ -260,7 +218,16 @@ impl crate::mail::SyncOps<'_> {
     pub async fn drain(&self, account: AccountId) -> Result<SyncReport, CoreError> {
         let mail = self.0;
         let registry = mail.clients()?;
-        drain_with(mail.store(), mail.secrets(), &registry, account, mail.now()).await
+        let accounts = mail.roster()?;
+        drain_with(
+            mail.store(),
+            mail.secrets(),
+            &registry,
+            &accounts,
+            account,
+            mail.now(),
+        )
+        .await
     }
 
     /// Fetch one folder now.
@@ -275,16 +242,27 @@ impl crate::mail::SyncOps<'_> {
     /// is nothing to fetch for: POP3, which has one mailbox and fetches it every pass, and an
     /// account whose folders are labels, where a folder's mail is the mail with that label and
     /// arrives with it.
-    pub async fn folder_now(&self, account: AccountId, path: &str) -> Result<PassEnd, CoreError> {
+    pub async fn folder_now(
+        &self,
+        account: AccountId,
+        path: &str,
+        wanted: mail_runtime::wanted::Wanted,
+    ) -> Result<PassEnd, CoreError> {
         let mail = self.0;
         let registry = mail.clients()?;
+        let accounts = mail.roster()?;
+        let mailbox = MailboxRef {
+            account,
+            path: path.to_owned(),
+        };
         folder_now_with(
             mail.store().clone(),
             mail.secrets(),
             &registry,
-            account,
-            path,
+            &accounts,
+            &mailbox,
             mail.now(),
+            wanted,
         )
         .await
     }
@@ -304,75 +282,32 @@ pub async fn run_with(
     store: Arc<SqliteStore>,
     secrets: Arc<dyn AccountSecrets>,
     registry: &ClientRegistry,
+    accounts: &Accounts,
     now: chrono::DateTime<chrono::Utc>,
     hooks: Hooks<'_>,
 ) -> Result<Vec<PassEnd>, CoreError> {
-    run_all(
-        store,
+    pass_over(
+        &store,
         secrets,
         registry,
         now,
         Mode::Once,
-        &Scope {
-            due: &|_| true,
-            kept: &crate::offline::Kept::default(),
-            junk: crate::junk::Policy::default(),
-        },
+        pick(accounts, &|_| true),
         hooks,
     )
     .await
 }
 
-/// Which accounts a run syncs, and how much of each it keeps.
-struct Scope<'a> {
-    /// Whether an account is due a pass ([`due`]).
-    due: &'a dyn Fn(AccountId) -> bool,
-    /// How each account is synced ([`crate::offline`]).
-    kept: &'a crate::offline::Kept,
-    /// How the junk filter judges new mail ([`crate::junk`]).
-    junk: crate::junk::Policy,
-}
-
-/// A run over the accounts in `scope`, told whether to stop after one pass.
-async fn run_all(
-    store: Arc<SqliteStore>,
-    secrets: Arc<dyn AccountSecrets>,
-    registry: &ClientRegistry,
-    now: chrono::DateTime<chrono::Utc>,
-    mode: Mode,
-    scope: &Scope<'_>,
-    hooks: Hooks<'_>,
-) -> Result<Vec<PassEnd>, CoreError> {
-    let accounts = pick(&store, scope)?;
-    pass_over(&store, secrets, registry, now, mode, accounts, hooks).await
-}
-
-/// The accounts a run is to sync.
-fn pick(store: &SqliteStore, scope: &Scope<'_>) -> Result<Vec<Configured>, CoreError> {
+/// The accounts a run is to sync, each as the person syncs it.
+pub(crate) fn pick(accounts: &Accounts, due: &dyn Fn(AccountId) -> bool) -> Vec<Configured> {
     // An account that keeps its mail here has no server: nothing to fetch, nothing to drain,
     // and no credential to ask the keyring for. Left out rather than reported, because a line
     // saying so on every pass would be noise about something that is working as intended.
-    Ok(configured(store)?
-        .into_iter()
-        .filter(|account| account.plan.incoming.caps().has_server)
-        .filter(|account| !paused(store, account.id.clone()))
-        .filter(|a| (scope.due)(a.id.clone()))
-        .map(|a| Configured {
-            junk: scope.junk,
-            ..kept_as(a, scope.kept)
-        })
-        .collect())
-}
-
-/// `account`, synced as `kept` says.
-pub(crate) fn kept_as(account: Configured, kept: &crate::offline::Kept) -> Configured {
-    Configured {
-        keep: kept.of(account.id.clone()),
-        every: kept.every_of(&account.id),
-        window: kept.window_of(&account.id),
-        remove: kept.remove_of(&account.id),
-        ..account
-    }
+    accounts
+        .syncing()
+        .filter(|account| due(account.id.clone()))
+        .filter_map(Configured::of)
+        .collect()
 }
 
 /// One pass over `accounts`, concurrently, each ended as a [`PassEnd`].
@@ -385,6 +320,8 @@ async fn pass_over(
     accounts: Vec<Configured>,
     hooks: Hooks<'_>,
 ) -> Result<Vec<PassEnd>, CoreError> {
+    // The pass's own start, when its caller counted one: a window's pass is the window's time.
+    let now = hooks.now.unwrap_or(now);
     // All the accounts at once.
     //
     // Accounts are independent by construction: `AccountId` partitions every table, and two
@@ -405,28 +342,93 @@ async fn pass_over(
     // Ended in the order the accounts are configured, which `join_all` preserves. A pass that
     // listed its accounts in whatever order they happened to finish would read differently
     // between runs for no reason the user could see.
-    Ok(
-        futures_util::future::join_all(accounts.iter().map(|account| async {
-            let run = Run {
-                store,
-                secrets: secrets.clone(),
-                registry,
-                now,
-                account,
-            };
-            let result = one(&run, mode, &hooks).await;
-            let end = ended(account, result, hooks.cancel.get(&account.id).cloned());
-            remember(store, &end, now);
-            end
-        }))
-        .await,
-    )
+    let ends = futures_util::future::join_all(accounts.iter().map(|account| async {
+        let run = Run {
+            store,
+            secrets: secrets.clone(),
+            registry,
+            now,
+            account,
+            wanted: hooks.wanted.clone(),
+        };
+        let result = one(&run, mode, &hooks).await;
+        let end = ended(account, result, hooks.cancel.get(&account.id).cloned());
+        remember(store, &end, now);
+        end
+    }))
+    .await;
+    // Once the pass is over rather than after each account: a pass can write a great deal, and
+    // this is the moment its log is no longer being added to. Passive, so a window reading
+    // beside it is never waited on. Logged and no more: the log only stays larger until the next.
+    store
+        .checkpoint(mail_store::Checkpoint::Passive)
+        .or_log("the log could not be folded back after a pass");
+    sweep_blobs_later(store);
+    Ok(ends)
+}
+
+/// Take back the stored bytes nothing names any more, if a day has gone by since anyone did.
+///
+/// After a pass because that is when the database has just been written to and is about to be
+/// quiet, and on a thread of its own because it reads every table, which is no work for the
+/// threads the network waits on, let alone the window's. Not waited for: a pass is not over any
+/// later for it, and a sweep that did not finish is found again by the next. The time is the
+/// clock's, not the pass's, because the rows it judges by are stamped by it.
+fn sweep_blobs_later(store: &Arc<SqliteStore>) {
+    // Without a runtime to lend a thread (a test driving a pass by hand) there is nothing to do.
+    let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+        return;
+    };
+    let store = Arc::clone(store);
+    runtime.spawn_blocking(move || {
+        store
+            .sweep_blobs_daily(chrono::Utc::now())
+            .or_log("the stored bytes nothing names could not be swept");
+    });
+}
+
+/// How long a kept pass outcome is left as it is when the next pass ends the same way. Only the
+/// freshness a window shows reads it, and a minute's difference is not one a person can see.
+const KEPT_FOR: chrono::TimeDelta = chrono::TimeDelta::minutes(1);
+
+/// Whether `end`, ending a pass that began at `at`, says something the `stored` record does not:
+/// a different outcome, or the same one the record has held for [`KEPT_FOR`]. A pass that finds
+/// nothing is the common one, and writing it every time would tell every reader of the accounts
+/// of a change that is not one.
+fn worth_keeping(
+    stored: &mail_store::Passes,
+    end: &PassEnd,
+    at: chrono::DateTime<chrono::Utc>,
+) -> bool {
+    let recent = |kept: chrono::DateTime<chrono::Utc>| at.signed_duration_since(kept) < KEPT_FOR;
+    match end {
+        PassEnd::Finished(_) => {
+            stored.failed.is_some() || stored.finished.is_none_or(|kept| !recent(kept))
+        }
+        PassEnd::Failed { why: now, .. } => stored
+            .failed
+            .as_ref()
+            .is_none_or(|failed| failed.why != *now || !recent(failed.at)),
+        PassEnd::Cancelled { .. } => false,
+    }
 }
 
 /// Keep how `end` went, so a window opened later can tell an account that is quiet from one
 /// that has not been fetched in days ([`fresh`]). `at` is when the pass began: its mail is as
-/// current as that. A cancelled pass says nothing either way and is not kept.
+/// current as that. A cancelled pass says nothing either way and is not kept, and one that ended
+/// as the record already says is kept again only once the record is [`KEPT_FOR`] old.
 fn remember(store: &SqliteStore, end: &PassEnd, at: chrono::DateTime<chrono::Utc>) {
+    let account = match end {
+        PassEnd::Finished(report) => report.account.clone(),
+        PassEnd::Failed { account, .. } | PassEnd::Cancelled { account, .. } => account.clone(),
+    };
+    // A record that cannot be read is written over: the write is the way to get a good one.
+    let stored = store
+        .passes(account)
+        .or_log_default("how the last pass ended could not be read");
+    if !worth_keeping(&stored, end, at) {
+        return;
+    }
     let kept = match end {
         PassEnd::Finished(report) => store.pass_finished(report.account.clone(), at),
         PassEnd::Failed { account, why, .. } => store.pass_failed(account.clone(), at, why),
@@ -528,11 +530,11 @@ pub(crate) async fn stored_credential(
         .await
         // A credential that is not there is one to be asked for again; a keyring that did not
         // answer is waited for, and says so.
-        .map_err(|error| match mail_runtime::SecretTrouble::of(&error) {
-            mail_runtime::SecretTrouble::Absent => {
+        .map_err(|error| match mail_secrets::SecretTrouble::of(&error) {
+            mail_secrets::SecretTrouble::Absent => {
                 Failure::reauth(crate::account::no_credential(&account.plan.auth))
             }
-            trouble @ mail_runtime::SecretTrouble::Unreachable(why) => Failure {
+            trouble @ mail_secrets::SecretTrouble::Unreachable(why) => Failure {
                 retry: trouble.retry(),
                 why: why.to_owned(),
                 pause: crate::fetch::Pause::ServerBusy,
@@ -734,14 +736,15 @@ async fn sending_token(
 /// What it learns of the server (its capabilities and folders) is kept, as a first sync would.
 pub async fn check_sign_in(
     store: &Arc<SqliteStore>,
+    accounts: &Accounts,
     address: &str,
     secrets: Arc<dyn AccountSecrets>,
     now: chrono::DateTime<chrono::Utc>,
 ) -> Result<(), CoreError> {
     let address = address.to_lowercase();
-    let account = configured(store)?
-        .into_iter()
-        .find(|account| account.address == address)
+    let account = accounts
+        .by_address(&address)
+        .and_then(Configured::of)
         .ok_or_else(|| CoreError::UnknownAccount(address.clone()))?;
     if account.plan.incoming.host().is_none()
         || !matches!(account.plan.auth, AuthPlan::Password { .. })
@@ -756,6 +759,7 @@ pub async fn check_sign_in(
         registry: &registry,
         now,
         account: &account,
+        wanted: Default::default(),
     };
     access(&account.plan.incoming).check_sign_in(&run).await
 }
@@ -896,16 +900,14 @@ pub async fn fetch_part_with(
     store: &Arc<SqliteStore>,
     secrets: Arc<dyn AccountSecrets>,
     registry: &ClientRegistry,
+    accounts: &Accounts,
     message: mail_domain::MessageId,
     section: &mail_domain::Section,
     now: chrono::DateTime<chrono::Utc>,
 ) -> Result<(), CoreError> {
     use mail_store::Store as _;
     let owner = store.message(message)?.account;
-    let account = configured(store)?
-        .into_iter()
-        .find(|a| a.id == owner)
-        .ok_or(CoreError::MessageAccountGone)?;
+    let account = connected_one(accounts, &owner).ok_or(CoreError::MessageAccountGone)?;
     if !account.plan.incoming.caps().writes_mailboxes {
         return Err(CoreError::OnlyImapLeavesAttachments);
     }
@@ -916,6 +918,7 @@ pub async fn fetch_part_with(
         registry,
         now,
         account: &account,
+        wanted: Default::default(),
     };
     let mut engine = access::imap::signed_engine(&run, Mode::Once)
         .await
@@ -932,13 +935,11 @@ pub async fn drain_with(
     store: &Arc<SqliteStore>,
     secrets: Arc<dyn AccountSecrets>,
     registry: &ClientRegistry,
+    accounts: &Accounts,
     account: AccountId,
     now: chrono::DateTime<chrono::Utc>,
 ) -> Result<SyncReport, CoreError> {
-    let account = configured(store)?
-        .into_iter()
-        .find(|a| a.id == account)
-        .ok_or(CoreError::AccountGone)?;
+    let account = connected_one(accounts, &account).ok_or(CoreError::AccountGone)?;
     if !account.plan.incoming.caps().writes_mailboxes {
         return Err(CoreError::OnlyImapUploads);
     }
@@ -949,6 +950,7 @@ pub async fn drain_with(
         registry,
         now,
         account: &account,
+        wanted: Default::default(),
     };
     let mut engine = access::imap::signed_engine(&run, Mode::Once)
         .await
@@ -969,7 +971,7 @@ pub enum Mode {
 /// Drive one account through a single pass.
 ///
 /// How the pass ended is the return. Passes over time are the scheduler's
-/// (`mail_runtime::schedule`), which `mailo watch` and the window share; what a watch says
+/// (`mail_engine::schedule`), which `mailo watch` and the window share; what a watch says
 /// between them is [`watcher::told`].
 pub async fn drive<B: mail_proto::Backend>(
     engine: &mut AccountEngine<B>,
@@ -1061,31 +1063,18 @@ async fn pass_on<B: mail_proto::Backend>(
         one_mailbox(engine, mailbox, account.keep, cancel, now, &mut done, emit).await?;
     }
 
-    // Rules, over what arrived in any folder this pass, before the drain so that what they
-    // queue leaves in the same pass. After the bodies, so a rule about words in the body finds
-    // them for every message the pass had room to fetch. The junk filter before them or after,
-    // as the person chose: whichever goes second sees only what the first left in the inbox.
-    let junk = account.junk;
-    if junk.order == crate::junk::Order::BeforeRules {
-        sift(engine, account.id.clone(), &junk, &mut done, now);
-    }
-    match engine.run_rules(&done.counts.arrived, now) {
-        Ok(ran) => {
-            done.counts.ruled.extend(ran.acted);
-            // Forwards and replies are queued before the drain, so they leave in this pass.
-            let noted = crate::rules::speak::carry_out(
-                engine.store(),
-                &ran.left,
-                crate::rules::guard::Occasion::Arrival,
-                now,
-            );
-            done.counts.noted.extend(noted);
-        }
-        Err(e) => done.trouble(None, e.retry(), format!("rules: {e}")),
-    }
-    if junk.order == crate::junk::Order::AfterRules {
-        sift(engine, account.id.clone(), &junk, &mut done, now);
-    }
+    // The junk filter and the rules, over what arrived in any folder this pass, before the drain
+    // so that what they queue leaves in the same pass. After the bodies, so a rule about words in
+    // the body finds them for every message the pass had room to fetch.
+    let arrived = done.counts.arrived.clone();
+    arrival(
+        engine.store(),
+        account,
+        engine.caps(),
+        &arrived,
+        now,
+        &mut done,
+    );
 
     say(emit, Progress::Sending);
     let drained = engine
@@ -1119,30 +1108,47 @@ async fn pass_on<B: mail_proto::Backend>(
     Ok(done)
 }
 
-/// Run the junk filter over what the pass brought. A filter that cannot read its counts says
-/// so and the pass goes on: unjudged mail in the inbox is what there was before the filter.
-fn sift<B: mail_proto::Backend>(
-    engine: &AccountEngine<B>,
-    account: AccountId,
-    policy: &crate::junk::Policy,
-    done: &mut Done,
+/// Act on what a pass brought, as the person's settings say: the junk filter, their rules and the
+/// conversations they muted, then what the rules asked of the client (forwards, replies, a
+/// notification). One step for every protocol, between the last fetch and the outbox drain.
+///
+/// A failure of it says so and the pass goes on: unjudged mail in the inbox is what there was
+/// before the filter.
+fn arrival(
+    store: &SqliteStore,
+    account: &Configured,
+    caps: &mail_domain::AccountCaps,
+    arrived: &[mail_domain::MessageId],
     now: chrono::DateTime<chrono::Utc>,
+    done: &mut Done,
 ) {
-    if let Err(e) = crate::junk::sift(
-        engine.store(),
-        account,
-        engine.caps(),
-        &done.counts.arrived,
-        policy,
+    let has_server = account.plan.incoming.caps().has_server;
+    match crate::arrival::arrive(
+        store,
+        &account.id,
+        has_server,
+        caps,
+        arrived,
+        account.junk,
         now,
     ) {
-        junk_failed(done, e);
+        Ok(ran) => {
+            done.counts.ruled.extend(ran.acted);
+            // Forwards and replies are queued before the drain, so they leave in this pass.
+            let noted = crate::rules::speak::carry_out(
+                store,
+                &ran.effects,
+                mail_logic::rules::guard::Occasion::Arrival,
+                now,
+            );
+            done.counts.noted.extend(noted);
+        }
+        Err(e) => done.trouble(
+            None,
+            mail_domain::Retry::Now,
+            format!("rules and the junk filter: {e}"),
+        ),
     }
-}
-
-/// Say that the junk filter failed, without failing the pass.
-fn junk_failed(done: &mut Done, why: CoreError) {
-    done.trouble(None, mail_domain::Retry::Now, format!("junk filter: {why}"));
 }
 
 /// Most headers one mailbox takes in one pass. The rest wait for the next pass, behind the
@@ -1156,7 +1162,7 @@ const BODIES_PER_PASS: usize = 100;
 /// offline in full: twenty attachments or 64 MiB, whichever comes first, and always at least
 /// one. A pass is what stands between the user and their next new mail, so a mailbox of large
 /// attachments is brought here over many passes rather than in one that does not end.
-const PARTS_PER_PASS: mail_runtime::PartBudget = mail_runtime::PartBudget {
+const PARTS_PER_PASS: mail_engine::PartBudget = mail_engine::PartBudget {
     parts: 20,
     bytes: 64 * 1024 * 1024,
 };
@@ -1284,14 +1290,12 @@ pub async fn folder_now_with(
     store: Arc<SqliteStore>,
     secrets: Arc<dyn AccountSecrets>,
     registry: &ClientRegistry,
-    account: AccountId,
-    path: &str,
+    accounts: &Accounts,
+    mailbox: &MailboxRef,
     now: chrono::DateTime<chrono::Utc>,
+    wanted: mail_runtime::wanted::Wanted,
 ) -> Result<PassEnd, CoreError> {
-    let account = configured(&store)?
-        .into_iter()
-        .find(|a| a.id == account)
-        .ok_or(CoreError::NoSuchAccount)?;
+    let account = connected_one(accounts, &mailbox.account).ok_or(CoreError::NoSuchAccount)?;
     let access = access(&account.plan.incoming);
     let run = Run {
         store: &store,
@@ -1299,6 +1303,7 @@ pub async fn folder_now_with(
         registry,
         now,
         account: &account,
+        wanted,
     };
     if !account.plan.incoming.caps().fetches_one {
         // Not a pass that failed: a request there is nothing to fetch for.
@@ -1309,7 +1314,7 @@ pub async fn folder_now_with(
             address: account.address,
         });
     }
-    let done = access.folder_now(&run, path).await;
+    let done = access.folder_now(&run, &mailbox.path).await;
     Ok(ended(&account, done, None))
 }
 
@@ -1344,9 +1349,12 @@ async fn fetch_folder<B: mail_proto::Backend>(
 /// Reported by `mailo account list`, because "why is my Sent folder empty" is a question a user
 /// asks and the answer is a fact this client knows: only these folders are fetched. Exposed
 /// rather than duplicated so a test can ask the code rather than restate its rules.
-pub fn mailboxes_by_account(store: &SqliteStore) -> Result<Vec<(String, Vec<String>)>, CoreError> {
+pub fn mailboxes_by_account(
+    store: &SqliteStore,
+    accounts: &Accounts,
+) -> Result<Vec<(String, Vec<String>)>, CoreError> {
     use mail_store::Store as _;
-    configured(store)?
+    connected(accounts)
         .into_iter()
         .map(|account| {
             let folders = store.folders(account.id.clone())?;
@@ -1486,6 +1494,138 @@ fn sasl_for(plan: &AccountPlan) -> Vec<SaslMech> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeDelta;
+
+    fn seen(minutes: i64) -> chrono::DateTime<chrono::Utc> {
+        crate::support_tests::now() + TimeDelta::minutes(minutes)
+    }
+
+    fn finished_end() -> PassEnd {
+        PassEnd::Finished(Done::default().of(&configured_account()))
+    }
+
+    fn failed_end(why: &str) -> PassEnd {
+        PassEnd::Failed {
+            account: crate::support_tests::account(),
+            address: "ada@example.test".to_owned(),
+            retry: Retry::Now,
+            why: why.to_owned(),
+            pause: crate::fetch::Pause::Unreachable,
+            offer: None,
+        }
+    }
+
+    fn configured_account() -> Configured {
+        let store = mail_store::testing::in_memory();
+        seed_readable(&store, crate::support_tests::account(), "ada@example.test");
+        connected(&crate::gather::accounts(&store, &Default::default()).unwrap()).remove(0)
+    }
+
+    /// An account whose plan and capabilities both read.
+    fn seed_readable(store: &SqliteStore, id: AccountId, address: &str) {
+        let preset = mail_domain::presets::manual_pop3(
+            address,
+            &mail_domain::presets::ManualPop3 {
+                pop3_host: "pop.example.test".to_owned(),
+                pop3_port: 995,
+                smtp_host: "smtp.example.test".to_owned(),
+                smtp_port: 465,
+                login: None,
+            },
+            crate::support_tests::now(),
+        );
+        mail_store::testing::seed_account_plan(store, id.clone(), address, &preset.plan, None);
+        mail_store::testing::seed_caps(
+            store,
+            id,
+            &crate::support_tests::caps(),
+            crate::support_tests::now(),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn one_account_that_will_not_read_does_not_take_the_others_with_it() {
+        let store = mail_store::testing::in_memory();
+        let good = |n: u128| {
+            mail_domain::id::account_id_from_uuid(uuid::Uuid::from_u128(
+                0x4000_8000_0000_0000_0000 + n,
+            ))
+        };
+        seed_readable(&store, good(1), "one@example.test");
+        // A plan that is not one, between two that are.
+        mail_store::testing::seed_account(&store, good(2), "broken@example.test");
+        seed_readable(&store, good(3), "three@example.test");
+        let read = crate::gather::accounts(&store, &Default::default()).unwrap();
+        let addresses: Vec<_> = read
+            .iter()
+            .map(|account| account.address.as_str())
+            .collect();
+        assert_eq!(addresses, vec!["one@example.test", "three@example.test"]);
+    }
+
+    #[test]
+    fn the_same_outcome_within_a_minute_is_not_kept_again() {
+        let finished = mail_store::Passes {
+            finished: Some(seen(0)),
+            failed: None,
+        };
+        assert!(!worth_keeping(
+            &finished,
+            &finished_end(),
+            seen(0) + TimeDelta::seconds(59)
+        ));
+        assert!(worth_keeping(&finished, &finished_end(), seen(1)));
+        let failed = mail_store::Passes {
+            finished: None,
+            failed: Some(mail_store::PassFailed {
+                at: seen(0),
+                why: "down".to_owned(),
+            }),
+        };
+        assert!(!worth_keeping(
+            &failed,
+            &failed_end("down"),
+            seen(0) + TimeDelta::seconds(59)
+        ));
+        assert!(worth_keeping(&failed, &failed_end("down"), seen(1)));
+    }
+
+    #[test]
+    fn a_different_outcome_is_kept_at_once() {
+        let finished = mail_store::Passes {
+            finished: Some(seen(0)),
+            failed: None,
+        };
+        assert!(worth_keeping(&finished, &failed_end("down"), seen(0)));
+        let failed = mail_store::Passes {
+            finished: Some(seen(0)),
+            failed: Some(mail_store::PassFailed {
+                at: seen(0),
+                why: "down".to_owned(),
+            }),
+        };
+        assert!(worth_keeping(&failed, &finished_end(), seen(0)));
+        assert!(worth_keeping(&failed, &failed_end("refused"), seen(0)));
+        assert!(worth_keeping(
+            &mail_store::Passes::default(),
+            &finished_end(),
+            seen(0)
+        ));
+    }
+
+    #[test]
+    fn a_pass_ended_the_same_way_writes_the_record_once() {
+        let store = mail_store::testing::in_memory();
+        let id = crate::support_tests::account();
+        seed_readable(&store, id.clone(), "ada@example.test");
+        let writes = store.subscribe();
+        remember(&store, &finished_end(), seen(0));
+        remember(&store, &finished_end(), seen(0) + TimeDelta::seconds(20));
+        remember(&store, &finished_end(), seen(0) + TimeDelta::seconds(40));
+        assert_eq!(writes.try_iter().count(), 1);
+        assert_eq!(store.passes(id).unwrap().finished, Some(seen(0)));
+    }
 
     #[test]
     fn the_auth_prelude_prefers_sasl_but_falls_back() {

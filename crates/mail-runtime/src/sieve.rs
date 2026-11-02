@@ -5,12 +5,14 @@
 //! connections a push needs — one to learn what the server's Sieve can do, one to install a
 //! script written for exactly that.
 
-use crate::{Cancel, RuntimeError, Transport, drive};
+use crate::{Cancel, RuntimeError, drive};
 use chrono::{DateTime, Utc};
 use mail_domain::{Rule, Vacation};
+use mail_net::Transport;
+pub use mail_proto::sieve::Pushed;
 use mail_proto::sieve::{
-    Compiled, Endpoint, Places, SieveAuthentication, SieveJob, SieveLogin, SieveOutcome,
-    SieveSession, Takeover, compile,
+    Endpoint, Places, SieveAuthentication, SieveJob, SieveLogin, SieveOutcome, SieveSession,
+    Takeover, compile,
 };
 use porter_core::Credential;
 
@@ -47,16 +49,6 @@ pub async fn manage(
         job,
     );
     drive(&mut session, &mut transport, cancel).await
-}
-
-/// What a push wrote, and what the server said to it.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Pushed {
-    pub compiled: Compiled,
-    /// [`SieveOutcome::Installed`], [`SieveOutcome::Refused`] when another script is active and
-    /// `takeover` did not allow replacing it, or [`SieveOutcome::Removed`] when there was nothing
-    /// left to install.
-    pub outcome: SieveOutcome,
 }
 
 /// What an account is to run: its rules, its vacation reply, and where its folders are.

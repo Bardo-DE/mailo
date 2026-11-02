@@ -11,8 +11,8 @@ use mail_core::offline::Keep;
 use mail_core::sync::report::{AccountReport, PassEnd};
 use mail_core::sync::{self, Configured};
 use mail_domain::*;
+use mail_engine::AccountEngine;
 use mail_proto::{Backend, IoReady, Progress, ProtoOutcome};
-use mail_runtime::AccountEngine;
 use mail_store::{SqliteStore, Store};
 use porter_secrets::MemorySecrets;
 use std::sync::{Arc, Mutex};
@@ -257,7 +257,7 @@ async fn one_pass(keep: Keep) -> Passed {
         every: mail_core::offline::Every::default(),
         window: mail_core::offline::Window::default(),
         remove: mail_core::offline::Remove::default(),
-        junk: mail_core::junk::Policy::default(),
+        junk: mail_logic::junk::Policy::default(),
     };
     let (_tx, mut cancel) = tokio::sync::watch::channel(false);
     let report = match sync::drive(&mut engine, &account, &[inbox()], &mut cancel, now()).await {

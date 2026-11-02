@@ -10,7 +10,7 @@ use dioxus::prelude::Element;
 use ds_blitz::{FocusFallback, NetPolicy, PrintOutcome, RootContexts};
 use ds_harness::{Clock, Harness, HarnessConfig, Viewport};
 use mail_core::SqliteStore;
-use mail_ui::ui::appearance::WindowDirs;
+use mail_ui_kit::appearance::WindowDirs;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -35,7 +35,7 @@ pub enum Wait {
 pub struct Open<'a> {
     pub view: Viewport,
     pub root: fn() -> Element,
-    pub spaces: Option<mail_ui::ui::space::Spaces>,
+    pub spaces: Option<mail_ui_kit::space::Spaces>,
     pub dirs: Option<WindowDirs>,
     pub start: mail_ui::ui::ask::Open,
     pub fallback: FocusFallback,
@@ -43,7 +43,7 @@ pub struct Open<'a> {
     /// Handed to the window besides the client: a recorder, say.
     pub with: Option<Box<dyn FnOnce(RootContexts) -> RootContexts + 'a>>,
     /// The window's print dialog; `None` is one that cancels, so no test opens the system's.
-    pub printer: Option<mail_ui::ui::native::Printer>,
+    pub printer: Option<mail_ui_reader::print::Printer>,
     pub wait: Wait,
 }
 
@@ -67,11 +67,11 @@ impl Default for Open<'_> {
 /// A window over `store`, as `how` says, its first frame drawn.
 pub fn open_window(store: &Arc<SqliteStore>, how: Open) -> Harness {
     let printer = how.printer.unwrap_or_else(|| {
-        mail_ui::ui::native::Printer::with_dialog(|_, _| Ok(PrintOutcome::Cancelled))
+        mail_ui_reader::print::Printer::with_dialog(|_, _| Ok(PrintOutcome::Cancelled))
     });
     let mut contexts = mail_ui::ui::native::contexts(
         mail_client::Client::open(Arc::clone(store), mail_client::ClientConfig::default()),
-        mail_ui::ui::view::Appearance::default(),
+        mail_ui_kit::view::Appearance::default(),
         how.spaces,
         how.dirs,
         how.start,

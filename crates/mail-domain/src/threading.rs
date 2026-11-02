@@ -138,6 +138,16 @@ pub fn thread<'a>(
     inputs: &[ThreadInput<'a>],
     existing: &dyn Fn(&str) -> Option<ThreadId>,
 ) -> Vec<ThreadId> {
+    thread_with(inputs, existing, &mut ThreadId::generate)
+}
+
+/// [`thread`], with the ids of the conversations that are new made by `fresh`, so a caller
+/// that owns its ids gets the same answer for the same input.
+pub fn thread_with<'a>(
+    inputs: &[ThreadInput<'a>],
+    existing: &dyn Fn(&str) -> Option<ThreadId>,
+    fresh: &mut dyn FnMut() -> ThreadId,
+) -> Vec<ThreadId> {
     let mut forest = Forest::default();
 
     // 1 & 2. Id table, parent links, cycle refusal.
@@ -182,7 +192,7 @@ pub fn thread<'a>(
     subject_merge(&mut forest, inputs, &rootless);
 
     // 6. Thread ids.
-    assign(&mut forest, &home, existing)
+    assign(&mut forest, &home, existing, fresh)
 }
 
 // ---------------------------------------------------------------------------------------
@@ -530,6 +540,7 @@ fn assign(
     forest: &mut Forest,
     home: &[usize],
     existing: &dyn Fn(&str) -> Option<ThreadId>,
+    new_id: &mut dyn FnMut() -> ThreadId,
 ) -> Vec<ThreadId> {
     let mut known: HashMap<usize, ThreadId> = HashMap::new();
     for n in 0..forest.nodes.len() {
@@ -552,7 +563,7 @@ fn assign(
         let class = forest.root_of(at);
         let tid = match known.get(&class) {
             Some(&tid) => tid,
-            None => *fresh.entry(class).or_insert_with(ThreadId::generate),
+            None => *fresh.entry(class).or_insert_with(&mut *new_id),
         };
         out.push(tid);
     }
