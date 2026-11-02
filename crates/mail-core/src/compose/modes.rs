@@ -178,7 +178,7 @@ pub fn draft_again(
         // `Draft.text` is flowed text, however it was written.
         draft.text = plain_to_flowed(text);
     }
-    draft.attachments = carried(&original.attachments);
+    draft.attachments = carried(store, &original);
     save(store, &draft)?;
     Ok(draft)
 }

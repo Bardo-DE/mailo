@@ -67,6 +67,10 @@ pub enum CoreError {
     /// The attachment was left on the server and is fetched when opened.
     #[error("{name} is still on the server; it downloads when opened")]
     AttachmentOnServer { name: String },
+    /// The attachment is kept inside the message's own bytes and they could not give it back:
+    /// the message is gone from the store, or no longer holds a part like it.
+    #[error("{name} could not be read out of its message: {why}")]
+    AttachmentUnreadable { name: String, why: String },
 
     // ---- conversations, accounts, places
     #[error("that conversation has no messages")]

@@ -93,7 +93,7 @@ fn a_batch_threads_within_itself_and_onto_what_is_stored() {
 }
 
 #[test]
-fn bytes_are_stored_once_whoever_names_them_and_attachments_are_held() {
+fn bytes_are_stored_once_whoever_names_them_and_attachments_are_inside_them() {
     let (store, _dir) = store();
     let raw = "From: a@example.test\nSubject: pic\nMessage-ID: <pic@example.test>\n\
                MIME-Version: 1.0\nContent-Type: multipart/mixed; boundary=\"b\"\n\n\
@@ -117,10 +117,11 @@ fn bytes_are_stored_once_whoever_names_them_and_attachments_are_held() {
         raw.replace('\n', "\r\n").into_bytes()
     );
     assert_eq!(message.attachments.len(), 1);
-    let PartContent::Held(part) = &message.attachments[0].content else {
-        panic!("a part the message carries is held");
-    };
-    assert_eq!(store.blobs().get(*part).unwrap(), vec![0, 1, 2, 3, 4, 5]);
+    assert_eq!(
+        message.attachments[0].content,
+        PartContent::Inside { index: 0 },
+        "a part the message carries is inside it, not stored again"
+    );
     assert_eq!(message.attachments[0].size, 6);
 }
 

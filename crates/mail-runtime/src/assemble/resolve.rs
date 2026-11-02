@@ -216,6 +216,7 @@ pub(super) fn messages(
             let Parsed {
                 fields,
                 digest,
+                whole,
                 part_digests,
                 ..
             } = entry.parsed;
@@ -229,7 +230,8 @@ pub(super) fn messages(
                 .attachments
                 .iter()
                 .zip(part_digests)
-                .map(|(part, held)| {
+                .enumerate()
+                .map(|(place, (part, held))| {
                     // Left on the server: nothing to store, and its size is the server's figure.
                     let (content, size) = match (&part.remote, held) {
                         (Some(remote), _) => (
@@ -237,6 +239,14 @@ pub(super) fn messages(
                                 section: remote.section.clone(),
                             },
                             remote.octets,
+                        ),
+                        // Inside the message's own bytes already: stored again it would take the
+                        // room it takes once more, and it is decoded from there when it is wanted.
+                        (None, _) if *whole => (
+                            PartContent::Inside {
+                                index: u32::try_from(place).unwrap_or(u32::MAX),
+                            },
+                            part.bytes.len() as u64,
                         ),
                         (None, held) => {
                             let digest = held.unwrap_or_else(|| blake3::hash(&part.bytes));
@@ -505,7 +515,7 @@ mod tests {
     }
 
     #[test]
-    fn a_part_left_on_the_server_is_not_held_and_a_held_one_is_the_blob_it_was_given() {
+    fn a_part_of_a_whole_message_is_inside_it_and_is_not_held_apart() {
         let raw = "From: a@example.test\nSubject: pic\nMessage-ID: <pic@example.test>\n\
                    MIME-Version: 1.0\nContent-Type: multipart/mixed; boundary=\"b\"\n\n\
                    --b\nContent-Type: text/plain\n\nlook\n\
@@ -515,12 +525,11 @@ mod tests {
         let parsed = vec![(remote(1), read(raw, false))];
         let out = run(&ThreadIndex::default(), inbox(), &parsed);
         let message = &out.ingest.messages[0].message;
-        let PartContent::Held(blob) = &message.attachments[0].content else {
-            panic!("held");
-        };
-        let mut bytes = [0u8; 16];
-        bytes.copy_from_slice(&blake3::hash(&[0, 1, 2, 3, 4, 5]).as_bytes()[..16]);
-        assert_eq!(*blob, BlobId::from_uuid(Uuid::from_bytes(bytes)));
+        // The message came whole, so its part is inside the bytes held and is not stored again.
+        assert_eq!(
+            message.attachments[0].content,
+            PartContent::Inside { index: 0 }
+        );
         assert_eq!(message.attachments[0].size, 6);
         assert_eq!(
             out.ingest.messages[0].raw,

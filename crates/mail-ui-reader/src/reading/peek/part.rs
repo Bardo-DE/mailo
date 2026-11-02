@@ -53,8 +53,12 @@ pub(super) fn draw(
     let Some(attachment) = stored.attachments.get(index) else {
         return Drawn::Said(copy::status::NO_PREVIEW.to_owned());
     };
-    let Some(blob) = attachment.blob() else {
+    if !attachment.is_here() {
         return Drawn::Said(copy::status::NOT_DOWNLOADED.to_owned());
+    }
+    let blob = match client.stored().attachment_blob(&stored, index) {
+        Ok(blob) => blob,
+        Err(why) => return unreadable(why),
     };
     let head = match client.blobs().head(blob, HEAD) {
         Ok(head) => head,
@@ -125,7 +129,7 @@ fn beyond_mailo(_store: &Client, _message: MessageId, _index: usize) -> Drawn {
 /// Peek opens only what is here, as the strip does.
 pub(super) fn stepped(client: &Client, viewing: Viewing, by: i32) -> Option<Viewing> {
     let attachments = client.stored().message(viewing.message).ok()?.attachments;
-    let here = |index: &usize| attachments.get(*index).and_then(|a| a.blob()).is_some();
+    let here = |index: &usize| attachments.get(*index).is_some_and(|a| a.is_here());
     let next = if by > 0 {
         (viewing.index + 1..attachments.len()).find(here)
     } else {

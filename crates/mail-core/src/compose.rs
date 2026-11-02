@@ -214,7 +214,7 @@ where
         &original,
         zone,
     ));
-    draft.attachments = carried(&original.attachments);
+    draft.attachments = carried(store, &original);
     Ok(draft)
 }
 
@@ -227,13 +227,17 @@ where
 ///
 /// Only a part kept counts against the budget: one left behind takes nothing of it, so a smaller
 /// part after it still goes.
-fn carried(attachments: &[Attachment]) -> Vec<PendingAttachment> {
+fn carried(store: &SqliteStore, original: &Message) -> Vec<PendingAttachment> {
     let mut total = 0u64;
-    attachments
+    original
+        .attachments
         .iter()
-        .filter(|a| a.inline == Inline::Attached)
-        .filter_map(|a| {
-            let blob = a.blob()?;
+        .enumerate()
+        .filter(|(_, a)| a.inline == Inline::Attached)
+        .filter(|(_, a)| a.is_here())
+        .filter_map(|(index, a)| {
+            let blob = crate::attach::blob_of(store, original, index)
+                .or_log("a part to forward could not be read")?;
             let with = total.saturating_add(a.size);
             (with <= ATTACHMENT_BUDGET).then(|| {
                 total = with;
@@ -1661,7 +1665,14 @@ mod carried_tests {
             part("huge.bin", ATTACHMENT_BUDGET),
             part("last.bin", ATTACHMENT_BUDGET / 4),
         ];
-        let kept: Vec<String> = carried(&parts).into_iter().map(|p| p.name).collect();
+        let mut original =
+            crate::support_tests::message(1, "s", "b", 0, ReadState::Read, Star::Unstarred);
+        original.attachments = parts.to_vec();
+        let store = mail_store::testing::in_memory();
+        let kept: Vec<String> = carried(&store, &original)
+            .into_iter()
+            .map(|p| p.name)
+            .collect();
         assert_eq!(kept, ["small.bin", "last.bin"]);
     }
 }

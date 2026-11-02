@@ -41,8 +41,13 @@ pub(super) struct Parsed {
     pub fields: mail_mime::Parsed,
     /// A digest of the whole message, which is what names its blob before the blob has an id.
     pub digest: blake3::Hash,
-    /// The same, for each attachment held in the message ([`mail_mime::ParsedPart::remote`] is
-    /// `None`); `None` for one left on the server.
+    /// Whether the bytes are the message as it came, so that its parts are inside them to be
+    /// decoded when wanted and are not stored apart. A message rebuilt from sections is not: its
+    /// parts were fetched one by one and the bytes held are not all of them.
+    pub whole: bool,
+    /// The same, for each attachment held apart from the message ([`mail_mime::ParsedPart::remote`]
+    /// is `None` and the message is not [`Parsed::whole`]); `None` for one left on the server or
+    /// inside the message's own bytes.
     pub part_digests: Vec<Option<blake3::Hash>>,
     /// The one valid Autocrypt header of a message from a sender, if it had one.
     pub autocrypt: Option<AutocryptHeader>,
@@ -70,13 +75,15 @@ pub(super) fn parse(raw: &[u8], how: Reading) -> Result<Parsed, MimeError> {
         }
         signer = crate::smime::signer_of(raw, &from.email, how.at);
     }
+    let whole = matches!(how.provenance, Provenance::Wire);
     let part_digests = fields
         .attachments
         .iter()
-        .map(|part| part.remote.is_none().then(|| blake3::hash(&part.bytes)))
+        .map(|part| (part.remote.is_none() && !whole).then(|| blake3::hash(&part.bytes)))
         .collect();
     Ok(Parsed {
         digest: blake3::hash(raw),
+        whole,
         part_digests,
         fields,
         autocrypt,

@@ -678,3 +678,152 @@ mod whole_message {
         assert_eq!(std::fs::read_dir(out.path()).unwrap().count(), 0);
     }
 }
+
+/// A part kept only inside the message's own bytes, decoded when it is opened.
+mod inside {
+    use super::*;
+    use base64::Engine;
+
+    const PAYLOAD: &[u8] =
+        b"%PDF-1.4 not really a pdf, but bytes that must come back as they went in \x00\xff\xfe";
+
+    /// A message that carries `PAYLOAD` as base64, in the form a server sends it.
+    fn wire(content_type: &str, name: &str) -> Vec<u8> {
+        let b64 = base64::engine::general_purpose::STANDARD.encode(PAYLOAD);
+        format!(
+            "From: a@b.test\r\nSubject: s\r\nMIME-Version: 1.0\r\n\
+             Content-Type: multipart/mixed; boundary=\"b\"\r\n\r\n\
+             --b\r\nContent-Type: text/plain\r\n\r\nhi\r\n\
+             --b\r\nContent-Type: {content_type}\r\nContent-Transfer-Encoding: base64\r\n\
+             Content-Disposition: attachment; filename=\"{name}\"\r\n\r\n{b64}\r\n--b--\r\n"
+        )
+        .into_bytes()
+    }
+
+    /// The fixture's message with its one attachment kept inside `sent` and nowhere else.
+    fn kept_inside(store: &SqliteStore, sent: &[u8], name: &str) -> MessageId {
+        let id = ingested(store, name, PAYLOAD, sent, Here::Whole);
+        mail_store::testing::edit_messages(store, |message| {
+            if message.id != id {
+                return false;
+            }
+            message.attachments[0].content = PartContent::Inside { index: 0 };
+            true
+        });
+        id
+    }
+
+    #[test]
+    fn a_part_inside_its_message_saves_the_same_bytes_as_one_stored_apart() {
+        let (store, dir) = (store(), tempfile::tempdir().unwrap());
+        let sent = wire("application/pdf", "doc.pdf");
+        let apart = ingested(&store, "doc.pdf", PAYLOAD, &sent, Here::Whole);
+        let inside = kept_inside(&store, &sent, "doc.pdf");
+
+        let old = attach::save(&store, apart, 0, dir.path()).unwrap();
+        let new = attach::save(&store, inside, 0, dir.path()).unwrap();
+        assert_eq!(std::fs::read(old).unwrap(), PAYLOAD);
+        assert_eq!(std::fs::read(new).unwrap(), PAYLOAD);
+        // Opened again, from what was remembered.
+        let again = attach::save(&store, inside, 0, dir.path()).unwrap();
+        assert_eq!(std::fs::read(again).unwrap(), PAYLOAD);
+    }
+
+    #[test]
+    fn a_picture_preview_reads_a_part_inside_its_message() {
+        let store = store();
+        let sent = wire("application/pdf", "doc.pdf");
+        let inside = kept_inside(&store, &sent, "doc.pdf");
+        let (kind, bytes) = mail_core::attachment_image::load(&store, inside, 0).unwrap();
+        assert_eq!(kind, mail_core::attachment_image::Kind::Pdf);
+        assert_eq!(bytes, PAYLOAD);
+    }
+
+    #[test]
+    fn a_message_whose_bytes_are_gone_says_so_and_does_not_panic() {
+        let (store, dir) = (store(), tempfile::tempdir().unwrap());
+        let sent = wire("application/pdf", "doc.pdf");
+
+        // No raw bytes held at all.
+        let headers_only = ingested(&store, "doc.pdf", PAYLOAD, &sent, Here::HeadersOnly);
+        // Raw bytes named, and not in the store.
+        let lost = kept_inside(&store, &sent, "lost.pdf");
+        mail_store::testing::edit_messages(&store, |message| {
+            if message.id != lost {
+                return false;
+            }
+            message.body = Body::Present {
+                text: None,
+                raw: BlobId::generate(),
+            };
+            true
+        });
+        mail_store::testing::edit_messages(&store, |message| {
+            if message.id != headers_only {
+                return false;
+            }
+            message.attachments[0].content = PartContent::Inside { index: 0 };
+            true
+        });
+
+        for id in [headers_only, lost] {
+            let error = attach::save(&store, id, 0, dir.path()).unwrap_err();
+            assert!(
+                matches!(error, CoreError::AttachmentUnreadable { .. }),
+                "{error:?}"
+            );
+            assert!(error.to_string().contains("could not be read"), "{error}");
+        }
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn a_part_that_is_no_longer_where_it_was_is_not_replaced_by_another() {
+        let (store, dir) = (store(), tempfile::tempdir().unwrap());
+        // The bytes held are another message's: a part of another name and size at that place.
+        let sent = wire("application/pdf", "other.pdf");
+        let id = kept_inside(&store, &sent, "doc.pdf");
+        mail_store::testing::edit_messages(&store, |message| {
+            if message.id == id {
+                message.attachments[0].size += 1;
+            }
+            message.id == id
+        });
+        let error = attach::save(&store, id, 0, dir.path()).unwrap_err();
+        assert!(
+            matches!(error, CoreError::AttachmentUnreadable { .. }),
+            "{error:?}"
+        );
+    }
+
+    #[test]
+    fn an_encrypted_message_opens_its_stored_parts_as_it_always_did() {
+        // The stored parts of an encrypted message are its ciphertext, by either route; the
+        // decrypted ones are never stored (`opened_attachment`).
+        let (store, dir) = (store(), tempfile::tempdir().unwrap());
+        let armor = b"-----BEGIN PGP MESSAGE-----\r\n\r\nwcBMA0000000000000000\r\n-----END PGP MESSAGE-----";
+        let mut sent = b"From: a@b.test\r\nSubject: s\r\nMIME-Version: 1.0\r\n\
+            Content-Type: multipart/encrypted; protocol=\"application/pgp-encrypted\"; boundary=\"e\"\r\n\r\n\
+            --e\r\nContent-Type: application/pgp-encrypted\r\n\r\nVersion: 1\r\n\
+            --e\r\nContent-Type: application/octet-stream; name=\"encrypted.asc\"\r\n\
+            Content-Disposition: inline; filename=\"encrypted.asc\"\r\n\r\n"
+            .to_vec();
+        sent.extend_from_slice(armor);
+        sent.extend_from_slice(b"\r\n--e--\r\n");
+        let parsed = mail_mime::parse(&sent).unwrap();
+        let part = parsed
+            .attachments
+            .first()
+            .expect("the ciphertext is a part");
+
+        let id = ingested(&store, &part.name, &part.bytes, &sent, Here::Whole);
+        mail_store::testing::edit_messages(&store, |message| {
+            if message.id == id {
+                message.attachments[0].content = PartContent::Inside { index: 0 };
+            }
+            message.id == id
+        });
+        let path = attach::save(&store, id, 0, dir.path()).unwrap();
+        assert_eq!(std::fs::read(path).unwrap(), part.bytes);
+    }
+}

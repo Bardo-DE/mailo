@@ -226,6 +226,22 @@ pub fn count(store: &SqliteStore, table: &str) -> i64 {
         .unwrap_or_else(|why| panic!("count the rows of {table}: {why}"))
 }
 
+/// The bytes of all the blobs, and of those that are some message's raw bytes.
+pub fn blob_bytes(store: &SqliteStore) -> (i64, i64) {
+    let db = store.connection();
+    let total = db
+        .query_row("SELECT coalesce(sum(size),0) FROM blobs", [], |r| r.get(0))
+        .expect("sum the blobs");
+    let raw = db
+        .query_row(
+            "SELECT coalesce(sum(size),0) FROM blobs WHERE id IN (SELECT body_raw FROM messages)",
+            [],
+            |r| r.get(0),
+        )
+        .expect("sum the raw messages");
+    (total, raw)
+}
+
 /// Say every stored message was stored when it is dated, or, with `Some(at)`, at `at`: a test's
 /// messages are all stored now, and it asks about ages in the past.
 pub fn set_stored_at(store: &SqliteStore, at: Option<chrono::DateTime<chrono::Utc>>) {
