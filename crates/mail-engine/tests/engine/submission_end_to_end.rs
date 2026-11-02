@@ -881,9 +881,9 @@ async fn a_submission_told_to_wait_stays_queued_and_holds_back_what_follows() {
     assert_eq!(it.report.submitted, 0);
     assert_eq!(it.report.outbox_settled, 0);
     assert!(it.report.needs_attention.is_empty(), "{:?}", it.report);
-    assert!(!it.report.needs_reauth);
+    assert!(!it.report.verdict.reauth);
     assert_eq!(
-        it.report.hold, None,
+        it.report.verdict.hold, None,
         "a wait a send asked for is the row's, not the pass's"
     );
     assert!(it.accepted.is_empty());
@@ -921,7 +921,7 @@ async fn a_submission_refused_for_good_is_dropped_with_its_reason_and_stops_the_
     assert_eq!(it.report.outbox_settled, 0);
     assert_eq!(it.report.needs_attention.len(), 1, "{:?}", it.report);
     assert!(it.report.needs_attention[0].contains("Sender refused"));
-    assert!(!it.report.needs_reauth);
+    assert!(!it.report.verdict.reauth);
     assert_eq!(it.waiting, ["second", "third"]);
     assert_eq!(it.report.still_queued, 2);
     match &it.states[0].1 {
@@ -943,7 +943,7 @@ async fn a_submission_refused_for_good_is_dropped_with_its_reason_and_stops_the_
 async fn a_refused_sending_password_is_the_rows_and_not_the_passes() {
     let it = refused_at("AUTH", "535 5.7.8 Authentication credentials invalid").await;
     assert_eq!(it.report.submitted, 0);
-    assert!(!it.report.needs_reauth, "sending is apart from receiving");
+    assert!(!it.report.verdict.reauth, "sending is apart from receiving");
     assert!(it.report.needs_attention.is_empty(), "{:?}", it.report);
     assert_eq!(it.waiting, ["first", "second", "third"], "no row is lost");
     assert!(

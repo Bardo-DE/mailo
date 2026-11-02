@@ -1,4 +1,4 @@
-use super::{AccountReport, Counts, PassEnd, Progress, Trouble as Found, outcome};
+use super::{AccountReport, Counts, PassEnd, Progress, outcome};
 use crate::fetch::{Count, Effect, Event, First, Link, Pause, Step, Trouble, step};
 use crate::support_tests::account;
 use mail_domain::Retry;
@@ -14,7 +14,7 @@ fn secs(n: u64) -> Duration {
     Duration::from_secs(n)
 }
 
-fn finished(trouble: Vec<Found>) -> PassEnd {
+fn finished(trouble: Vec<Trouble>) -> PassEnd {
     PassEnd::Finished(AccountReport {
         account: account(),
         address: "ada@example.test".to_owned(),
@@ -23,8 +23,8 @@ fn finished(trouble: Vec<Found>) -> PassEnd {
     })
 }
 
-fn found(mailbox: Option<&str>, retry: Retry, why: Option<&str>) -> Found {
-    Found {
+fn found(mailbox: Option<&str>, retry: Retry, why: Option<&str>) -> Trouble {
+    Trouble {
         mailbox: mailbox.map(str::to_owned),
         retry,
         why: why.map(str::to_owned),
@@ -122,7 +122,7 @@ fn how_a_pass_ended_is_what_the_link_hears() {
                 trouble: vec![Trouble {
                     mailbox: Some("Archive".into()),
                     retry: Retry::Fatal("cannot select".into()),
-                    why: "Archive: cannot select".into(),
+                    why: Some("Archive: cannot select".into()),
                 }],
             },
         ),
@@ -133,7 +133,7 @@ fn how_a_pass_ended_is_what_the_link_hears() {
                 trouble: vec![Trouble {
                     mailbox: None,
                     retry: Retry::Now,
-                    why: "The connection dropped".into(),
+                    why: Some("The connection dropped".into()),
                 }],
             },
         ),

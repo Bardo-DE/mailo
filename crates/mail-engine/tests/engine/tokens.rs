@@ -893,7 +893,7 @@ async fn a_graph_401_renews_the_graph_token_once_and_sends_again() {
     let report = it.engine.drain_outbox(&mut cancel, t0()).await.unwrap();
 
     assert_eq!(report.submitted, 1, "{report:?}");
-    assert!(!report.needs_reauth, "{report:?}");
+    assert!(!report.verdict.reauth, "{report:?}");
     let posted = posted.lock().unwrap().clone();
     let bearers: Vec<_> = posted.iter().map(|r| r.header("authorization")).collect();
     assert_eq!(
@@ -922,7 +922,7 @@ async fn a_graph_refusal_after_renewing_surfaces_rather_than_renewing_again() {
 
     assert_eq!(report.submitted, 0);
     // Graph refused the token the issuer had just minted: not the user's sign-in to redo.
-    assert!(!report.needs_reauth, "{report:?}");
+    assert!(!report.verdict.reauth, "{report:?}");
     assert!(
         report
             .needs_attention
