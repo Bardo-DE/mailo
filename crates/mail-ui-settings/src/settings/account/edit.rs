@@ -3,7 +3,7 @@
 //!
 //! The description and the switch are kept the moment they change, in the client's
 //! `account_prefs`, and the revision moves, so the sidebar's tile and every list that names the
-//! account follow at once. A paused account is left out of every sync (`mail_core::sync::paused`)
+//! account follow at once. A paused account is left out of every sync (`Account::paused`)
 //! and its tile's mark says so.
 //!
 //! A folder picked for a role is laid over what the server says (the client's `with_picks`), so

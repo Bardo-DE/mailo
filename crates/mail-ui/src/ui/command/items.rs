@@ -276,7 +276,7 @@ pub(in crate::ui) fn search_now(
 ) -> (Results, HashMap<String, String>) {
     let history = mail_ui_kit::history::history(client);
     let (affinity, mut names) = (history.affinity(), history.names());
-    let mut results = search::run(query, client.source(), &affinity, &commands(), now);
+    let mut results = search::run(query, &client.source(), &affinity, &commands(), now);
     super::people::from_book(&mut results, &mut names, client, query, &history);
     (results, names)
 }

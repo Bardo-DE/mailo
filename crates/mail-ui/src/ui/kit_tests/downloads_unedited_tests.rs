@@ -213,6 +213,7 @@ fn the_setting_decides_when_the_recorded_copies_go() {
                     mail_domain::MailboxRole::Trash,
                 )],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     assert_eq!(remove_for_deleted(&client), vec![first.clone()]);

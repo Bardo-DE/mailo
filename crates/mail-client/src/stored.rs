@@ -38,12 +38,23 @@ impl Client {
     }
 
     /// What a search reads ([`mail_core::search::run`]).
-    pub fn source(&self) -> &dyn mail_core::search::Source {
-        self.store()
+    pub fn source(&self) -> mail_core::search::StoreSource<'_, mail_store::SqliteStore> {
+        mail_core::search::StoreSource(self.store())
     }
 }
 
 impl Stored<'_> {
+    /// The blob holding attachment `index` of `message` decoded, made from the message's own
+    /// bytes when it is not kept apart (`mail_core::attach::blob_of`). May decode a whole
+    /// message, so it is called where a read is, not where a frame is drawn.
+    pub fn attachment_blob(
+        &self,
+        message: &Message,
+        index: usize,
+    ) -> Result<mail_domain::BlobId, CallError> {
+        mail_core::attach::blob_of(self.0.store(), message, index).map_err(CallError::from)
+    }
+
     pub fn identities(&self, account: AccountId) -> Result<Vec<mail_domain::Identity>, CallError> {
         self.0.store().identities(account).map_err(CallError::from)
     }
@@ -114,11 +125,16 @@ impl Stored<'_> {
         self.0.store().folders(account).map_err(CallError::from)
     }
 
-    /// Write the caller's own changes, atomically.
-    pub fn apply(&self, account: AccountId, patch: &Patch) -> Result<(), CallError> {
+    /// Write the caller's own changes, atomically, at `now`.
+    pub fn apply(
+        &self,
+        account: AccountId,
+        patch: &Patch,
+        now: DateTime<Utc>,
+    ) -> Result<(), CallError> {
         self.0
             .store()
-            .apply(account, patch)
+            .apply(account, patch, now)
             .map_err(CallError::from)
     }
 

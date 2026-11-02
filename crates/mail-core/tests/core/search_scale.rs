@@ -2,7 +2,7 @@
 //!
 //! Sibling to `reader_scale.rs`. Every other search test holds a handful of threads, which says
 //! what a query returns and nothing about what it costs. The list box runs
-//! [`mail_core::search::search_list`] once the box is still — parse, prefix expansion through the
+//! [`mail_logic::search::search_list`] once the box is still — parse, prefix expansion through the
 //! index vocabulary, one page of matches in date order (`listed`), and the "Top results" strip
 //! ranked inside a window of the newest matches (`top`) — so that whole pipeline is what is
 //! timed here, one character at a time, the way `uidvalidity` is actually typed.
@@ -25,8 +25,9 @@
 
 use crate::support::account;
 use chrono::{DateTime, TimeZone, Utc};
-use mail_core::search::{Affinity, Source, Term, first, search_list};
+use mail_core::search::StoreSource;
 use mail_domain::*;
+use mail_logic::search::{Affinity, Source, first, search_list};
 use mail_store::{SqliteStore, Store};
 use std::cell::Cell;
 use std::time::{Duration, Instant};
@@ -267,6 +268,7 @@ fn fill(store: &SqliteStore) {
                     provider_threads: Vec::new(),
                     gone: vec![],
                 },
+                chrono::Utc::now(),
             )
             .unwrap();
     }
@@ -292,14 +294,14 @@ struct Timed<'a> {
 impl Source for Timed<'_> {
     fn terms_with_prefix(&self, prefix: &str, limit: usize) -> Vec<Term> {
         let start = Instant::now();
-        let terms = <SqliteStore as Source>::terms_with_prefix(self.store, prefix, limit);
+        let terms = Source::terms_with_prefix(&StoreSource(self.store), prefix, limit);
         self.vocabulary.set(self.vocabulary.get() + start.elapsed());
         terms
     }
 
     fn listed(&self, filter: &Filter, page: PageReq, now: DateTime<Utc>) -> Vec<ThreadSummary> {
         let start = Instant::now();
-        let rows = <SqliteStore as Source>::listed(self.store, filter, page, now);
+        let rows = Source::listed(&StoreSource(self.store), filter, page, now);
         self.listed.set(self.listed.get() + start.elapsed());
         rows
     }
@@ -312,7 +314,7 @@ impl Source for Timed<'_> {
         now: DateTime<Utc>,
     ) -> Vec<(ThreadSummary, f64)> {
         let start = Instant::now();
-        let rows = <SqliteStore as Source>::top(self.store, filter, k, window, now);
+        let rows = Source::top(&StoreSource(self.store), filter, k, window, now);
         self.top.set(self.top.get() + start.elapsed());
         rows
     }

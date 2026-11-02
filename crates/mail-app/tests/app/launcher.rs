@@ -102,6 +102,7 @@ fn change(store: &SqliteStore, account: AccountId, change: Change) {
                 id: ChangeId::generate(),
                 changes: vec![change],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
 }

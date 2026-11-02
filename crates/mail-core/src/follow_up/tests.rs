@@ -71,59 +71,13 @@ fn put(store: &SqliteStore, message: Message) {
                 id: ChangeId::generate(),
                 changes: vec![Change::MessageUpsert(Box::new(message))],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
 }
 
 fn state(store: &SqliteStore, t: ThreadId) -> FollowUp {
     store.thread(t).unwrap().summary.follow_up
-}
-
-#[test]
-fn a_reply_is_someone_else_writing_after_the_reminder_was_set() {
-    let own = Own::new([ME, "alias@example.test"]);
-    let set = day(0);
-    let t = thread(1);
-    let mine = message(1, t, ME, day(-1), MailboxRole::Sent);
-    // (name, the conversation's messages, replied)
-    let cases: [(&str, Vec<Message>, bool); 5] = [
-        ("only what I sent", vec![mine.clone()], false),
-        (
-            "their earlier mail, which I was answering",
-            vec![
-                message(2, t, "ada@example.test", day(-2), MailboxRole::Inbox),
-                mine.clone(),
-            ],
-            false,
-        ),
-        (
-            "my own later note, from another of my addresses",
-            vec![
-                mine.clone(),
-                message(3, t, "ALIAS@example.test", day(1), MailboxRole::Sent),
-            ],
-            false,
-        ),
-        (
-            "their answer after",
-            vec![
-                mine.clone(),
-                message(4, t, "ada@example.test", day(1), MailboxRole::Inbox),
-            ],
-            true,
-        ),
-        (
-            "an answer a rule filed away still counts",
-            vec![
-                mine,
-                message(5, t, "grace@example.test", day(2), MailboxRole::Archive),
-            ],
-            true,
-        ),
-    ];
-    for (name, messages, want) in cases {
-        assert_eq!(replied(&messages, &own, set), want, "{name}");
-    }
 }
 
 /// Records what it was asked to show.

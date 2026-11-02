@@ -59,6 +59,7 @@ fn read(store: &SqliteStore, subject: &str) {
                 id: ChangeId::generate(),
                 changes,
             },
+            chrono::Utc::now(),
         )
         .expect("read");
 }

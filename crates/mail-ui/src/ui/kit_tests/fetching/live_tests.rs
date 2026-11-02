@@ -159,7 +159,7 @@ impl Script {
                     std::thread::sleep(Duration::from_millis(5));
                 }
             }),
-            pushers: Arc::new(|_| vec![acct_account()]),
+            pushers: Arc::new(|_, _| vec![acct_account()]),
             daemon: Arc::new(move || {
                 if daemon.load(Ordering::SeqCst) {
                     Daemon::Holding

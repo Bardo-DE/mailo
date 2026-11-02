@@ -9,6 +9,7 @@ use crate::error::CoreError;
 use crate::error::Logged;
 use chrono::{DateTime, TimeZone, Utc};
 use mail_domain::{AfterMatch, Filter, LabelId, Rule, RuleAction, RuleId, RuleState};
+use mail_logic::rules::condition::{ConditionError, read_condition};
 use mail_store::{SqliteStore, Store};
 use porter_core::AccountId;
 
@@ -60,27 +61,6 @@ impl Draft {
 pub enum Step {
     Up,
     Down,
-}
-
-/// Why a condition cannot be a rule's.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ConditionError {
-    /// Nothing was typed.
-    Blank,
-    /// `field:` with nothing after the colon.
-    NoValue { field: String },
-    /// `before:`/`after:` with something that is not a date.
-    NotADate { word: String, field: String },
-    /// `label:` naming a label the account does not have.
-    NoLabel { value: String },
-    /// `is:` with a word it does not take.
-    BadIs,
-    /// `in:` with a word it does not take.
-    BadIn,
-    /// `has:` with a word it does not take.
-    BadHas,
-    /// A `word:` the search language has no term for.
-    UnknownField { field: String },
 }
 
 /// Why a draft was not kept.
@@ -165,16 +145,24 @@ pub fn apply_to(
             None => by_account.push((account, thread.messages.clone())),
         }
     }
+    let accounts = crate::gather::acting_accounts(store);
     let mut acted = 0;
     for (account, ids) in by_account {
         let caps = crate::act::caps_here(store, account.clone(), now);
         let speaking = match sending {
-            Sending::Yes => mail_store::rules::Speaking::Yes,
-            Sending::No => mail_store::rules::Speaking::No,
+            Sending::Yes => mail_logic::arrival::Speaking::Yes,
+            Sending::No => mail_logic::arrival::Speaking::No,
         };
-        let ran = mail_store::rules::apply_to(store, account, &caps, &ids, speaking, now)?;
+        let has_server = accounts.has_server(&account);
+        let ran =
+            crate::arrival::apply_to(store, &account, has_server, &caps, &ids, speaking, now)?;
         acted += ran.acted.len();
-        super::speak::carry_out(store, &ran.left, super::guard::Occasion::Asked, now);
+        super::speak::carry_out(
+            store,
+            &ran.effects,
+            mail_logic::rules::guard::Occasion::Asked,
+            now,
+        );
     }
     Ok(acted)
 }
@@ -217,69 +205,6 @@ pub fn listed(store: &SqliteStore, account: AccountId) -> Result<Vec<ListedRule>
             rule,
         })
         .collect())
-}
-
-/// The condition `text` means, or why a rule cannot use it.
-///
-/// A search box reads a word it does not know as text, so as not to refuse what is being
-/// typed. A rule is different: it runs unseen on every message that arrives, and `frm:bank` read
-/// as the text "frm:bank" is a rule that silently never fires. So every `word:` term is read on
-/// its own through the same parser, and one the parser did not take as that term is refused here
-/// before it is kept.
-///
-/// `is:vip` is read as the clause it is, which asks the VIP list whenever the rule runs: a rule
-/// follows the list, and does not keep the people on it when the rule was saved.
-pub fn read_condition<Tz: TimeZone>(
-    text: &str,
-    labels: &[(String, LabelId)],
-    zone: &Tz,
-) -> Result<Filter, ConditionError> {
-    if text.trim().is_empty() {
-        return Err(ConditionError::Blank);
-    }
-    let named = mail_logic::query::named(labels);
-    for word in text.split_whitespace() {
-        let bare = word.strip_prefix('-').unwrap_or(word);
-        if bare.starts_with('"') {
-            continue;
-        }
-        let Some((field, value)) = bare.split_once(':') else {
-            continue;
-        };
-        let alone = mail_logic::query::parse_with(bare, zone, &named);
-        // Gmail's category is the server's to say, and a message here is never in one: a rule on
-        // it would never fire, and the script pushed to the server cannot say it.
-        if matches!(alone, Filter::Category(_)) {
-            return Err(ConditionError::UnknownField {
-                field: field.to_ascii_lowercase(),
-            });
-        }
-        if !matches!(alone, Filter::Text(_)) {
-            continue;
-        }
-        return Err(refused(bare, field.to_ascii_lowercase(), value));
-    }
-    Ok(mail_logic::query::parse_with(text, zone, &named))
-}
-
-/// Why `word`, whose field is `field`, is not a term.
-fn refused(word: &str, field: String, value: &str) -> ConditionError {
-    if value.is_empty() {
-        return ConditionError::NoValue { field };
-    }
-    match field.as_str() {
-        "before" | "after" => ConditionError::NotADate {
-            word: word.to_owned(),
-            field,
-        },
-        "label" => ConditionError::NoLabel {
-            value: value.to_owned(),
-        },
-        "is" => ConditionError::BadIs,
-        "in" => ConditionError::BadIn,
-        "has" => ConditionError::BadHas,
-        _ => ConditionError::UnknownField { field },
-    }
 }
 
 /// How many conversations on the account match `filter` now.
@@ -433,12 +358,14 @@ pub fn run(
     rule: &Rule,
     now: DateTime<Utc>,
     report: &(dyn Fn(usize) + Sync),
-) -> Result<mail_store::rules::Ran, CoreError> {
+) -> Result<crate::arrival::Arrived, CoreError> {
     let caps = crate::act::caps_here(store, rule.account.clone(), now);
+    let has_server = crate::gather::acting_accounts(store).has_server(&rule.account);
     let total = conversations(store, rule.account.clone(), now);
     let mut pages = 0usize;
-    Ok(mail_store::rules::run_now(
+    crate::arrival::run_now(
         store,
+        has_server,
         &caps,
         rule,
         &Filter::All,
@@ -448,7 +375,7 @@ pub fn run(
             pages += 1;
             report((pages * BATCH as usize).min(total));
         },
-    )?)
+    )
 }
 
 #[cfg(test)]
@@ -470,62 +397,6 @@ mod tests {
             query: query.to_owned(),
             actions,
             ..Draft::blank()
-        }
-    }
-
-    #[test]
-    fn a_condition_the_rules_cannot_read_is_refused_by_kind() {
-        use ConditionError::*;
-        let cases = [
-            (
-                "frm:bank.example",
-                UnknownField {
-                    field: "frm".to_owned(),
-                },
-            ),
-            (
-                "from:bank.example before:yesterday",
-                NotADate {
-                    word: "before:yesterday".to_owned(),
-                    field: "before".to_owned(),
-                },
-            ),
-            (
-                "label:nowhere",
-                NoLabel {
-                    value: "nowhere".to_owned(),
-                },
-            ),
-            (
-                "category:promotions",
-                UnknownField {
-                    field: "category".to_owned(),
-                },
-            ),
-            ("is:important", BadIs),
-            ("in:elsewhere", BadIn),
-            ("has:wings", BadHas),
-            (
-                "subject:",
-                NoValue {
-                    field: "subject".to_owned(),
-                },
-            ),
-            ("   ", Blank),
-        ];
-        for (typed, expect) in cases {
-            assert_eq!(read_condition(typed, &[], &Utc), Err(expect), "{typed:?}");
-        }
-        // What a search reads as text but a rule reads fine: a phrase, a negation, a plain word.
-        for fine in [
-            "\"weekly report\"",
-            "-from:boss@example.com invoice",
-            "subject:\"re: lunch\"",
-        ] {
-            assert!(
-                read_condition(fine, &[], &Utc).is_ok(),
-                "{fine:?} was refused"
-            );
         }
     }
 

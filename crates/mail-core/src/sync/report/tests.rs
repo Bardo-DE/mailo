@@ -38,9 +38,10 @@ fn store_at(port: u16) -> Arc<SqliteStore> {
 async fn a_missing_credential_fails_the_account_as_needing_a_sign_in() {
     let store = store_at(1);
     let ends = run_with(
-        store,
+        store.clone(),
         Arc::new(MemorySecrets::default()),
         &ClientRegistry::default(),
+        &crate::gather::accounts(&store, &Default::default()).unwrap(),
         now(),
         Hooks::default(),
     )
@@ -59,9 +60,10 @@ async fn an_unreachable_server_fails_the_account_with_a_wait() {
     let secrets = MemorySecrets::default();
     with_password(&secrets, "s3cr3t-pass");
     let ends = run_with(
-        store,
+        store.clone(),
         Arc::new(secrets),
         &ClientRegistry::default(),
+        &crate::gather::accounts(&store, &Default::default()).unwrap(),
         now(),
         Hooks::default(),
     )
@@ -91,6 +93,7 @@ async fn how_a_pass_ended_is_kept_in_the_store() {
         store.clone(),
         secrets,
         &ClientRegistry::default(),
+        &crate::gather::accounts(&store, &Default::default()).unwrap(),
         later,
         Hooks::default(),
     )
@@ -120,9 +123,10 @@ async fn a_mailbox_that_fails_lands_in_trouble_with_its_decision() {
     let secrets = MemorySecrets::default();
     with_password(&secrets, "s3cr3t-pass");
     let ends = run_with(
-        store,
+        store.clone(),
         Arc::new(secrets),
         &ClientRegistry::default(),
+        &crate::gather::accounts(&store, &Default::default()).unwrap(),
         now(),
         Hooks::default(),
     )
@@ -291,28 +295,75 @@ fn a_stalled_pass_leaves_the_account_waiting_with_a_wake() {
     );
 }
 
+/// What a pass's refusals ask of whoever runs it, read three ways today: the engine's report
+/// folds each `Retry` into flags, `Done` turns the flags back into trouble, and the link reads
+/// the trouble. All three must agree on who is asked and how long to wait.
 #[test]
-fn only_a_pass_that_ran_may_have_stored_something() {
-    let finished = PassEnd::Finished(AccountReport {
-        account: account(),
-        address: "ada@example.test".to_owned(),
-        counts: Counts::default(),
-        trouble: vec![],
-    });
-    let failed = PassEnd::Failed {
-        account: account(),
-        address: "ada@example.test".to_owned(),
-        retry: Retry::After(std::time::Duration::from_secs(5)),
-        why: "cannot connect".to_owned(),
-        pause: crate::fetch::Pause::Unreachable,
-        offer: None,
-    };
-    let cancelled = PassEnd::Cancelled {
-        account: account(),
-        address: "ada@example.test".to_owned(),
-    };
-    // A flag sweep stores without counting, so even an all-zero pass that ran says yes.
-    assert!(finished.may_have_stored());
-    assert!(cancelled.may_have_stored());
-    assert!(!failed.may_have_stored());
+fn what_a_pass_asks_is_the_same_whichever_way_it_is_read() {
+    use std::time::Duration;
+    let secs = Duration::from_secs;
+    type Row = (
+        &'static str,
+        Vec<Retry>,
+        Option<Retry>,
+        Option<Duration>,
+        usize,
+    );
+    let cases: Vec<Row> = vec![
+        ("nothing", vec![], None, None, 0),
+        (
+            "an ordinary retry and a fatal one decide nothing for the caller",
+            vec![Retry::Now, Retry::Fatal("x".into())],
+            None,
+            None,
+            0,
+        ),
+        (
+            "a refused sign-in",
+            vec![Retry::NeedsReauth],
+            Some(Retry::NeedsReauth),
+            None,
+            1,
+        ),
+        (
+            "a grant gone",
+            vec![Retry::NeedsGrant],
+            Some(Retry::NeedsGrant),
+            None,
+            1,
+        ),
+        (
+            "the longest wait is kept",
+            vec![
+                Retry::After(secs(60)),
+                Retry::After(secs(3600)),
+                Retry::After(secs(9)),
+            ],
+            None,
+            Some(secs(3600)),
+            1,
+        ),
+        (
+            "a sign-in is asked before a grant, whatever the order seen",
+            vec![Retry::NeedsGrant, Retry::After(secs(5)), Retry::NeedsReauth],
+            Some(Retry::NeedsReauth),
+            Some(secs(5)),
+            3,
+        ),
+    ];
+    for (name, seen, asked, wait, troubles) in cases {
+        let mut report = SyncReport::default();
+        for retry in &seen {
+            report.saw(retry);
+        }
+        let done = Done::from_report(report);
+        assert_eq!(
+            person_asked(&done.trouble).map(|t| t.retry.clone()),
+            asked,
+            "{name}"
+        );
+        assert_eq!(needs_person(&done.trouble), asked.is_some(), "{name}");
+        assert_eq!(hold(&done.trouble), wait, "{name}");
+        assert_eq!(done.trouble.len(), troubles, "{name}");
+    }
 }

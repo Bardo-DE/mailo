@@ -53,6 +53,7 @@ fn a_patch_says_what_its_changes_touch_and_no_more() {
         .apply(
             acct_account(),
             &patch(vec![Change::MessageUpsert(Box::new(m.clone()))]),
+            chrono::Utc::now(),
         )
         .unwrap();
     let rx = store.subscribe();
@@ -61,6 +62,7 @@ fn a_patch_says_what_its_changes_touch_and_no_more() {
         .apply(
             acct_account(),
             &patch(vec![Change::MessageStar(m.id, Star::Starred)]),
+            chrono::Utc::now(),
         )
         .unwrap();
 

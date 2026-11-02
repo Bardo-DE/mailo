@@ -64,6 +64,7 @@ fn store_of(messages: Vec<Message>) -> (SqliteStore, tempfile::TempDir) {
                 id: ChangeId::generate(),
                 changes,
             },
+            chrono::Utc::now(),
         )
         .expect("the messages");
     (store, dir)

@@ -34,6 +34,10 @@ const ALLOWED: &[(&str, &str)] = &[
         "reads SQLite's own datetime text",
     ),
     (
+        "mail-store/src/sqlite/write.rs",
+        "writes SQLite's own datetime text, for the caller's clock",
+    ),
+    (
         "mail-proto/src/automatic_replies.rs",
         "Graph's `dateTimeTimeZone`, a wire format",
     ),

@@ -306,6 +306,25 @@ mod compose {
             )
         }
 
+        /// `mail_core::compose::queue_reminding`.
+        pub fn queue_reminding(
+            &self,
+            secrets: &dyn mail_secrets::SigningStore,
+            ask: mail_core::pgp::Ask<'_>,
+            (draft, pictures): (DraftId, mail_logic::picture::PictureSize),
+            (leaves, remind): (Leaves, Option<DateTime<Utc>>),
+            now: DateTime<Utc>,
+        ) -> Result<(Draft, mail_mime::Posting), SendError> {
+            mail_core::compose::queue_reminding(
+                self.0.store(),
+                secrets,
+                ask,
+                (draft, pictures),
+                (leaves, remind),
+                now,
+            )
+        }
+
         /// `mail_core::compose::withdraw_redirect`.
         pub fn withdraw_redirect(&self, redirected: &Redirected) -> Result<(), CallError> {
             mail_core::compose::withdraw_redirect(self.0.store(), redirected)
@@ -557,7 +576,12 @@ mod folder {
             work: FolderWork,
             now: DateTime<Utc>,
         ) -> Result<Applied, Refusal> {
-            mail_core::folder::change(self.0.store(), account, work, now)
+            let accounts = self
+                .0
+                .net()
+                .roster()
+                .map_err(|e| Refusal::Store(e.to_string()))?;
+            mail_core::folder::change(self.0.store(), &accounts, account, work, now)
         }
     }
 }
@@ -1032,7 +1056,7 @@ mod rules_manage {
             rule: &Rule,
             now: DateTime<Utc>,
             report: &(dyn Fn(usize) + Sync),
-        ) -> Result<mail_store::rules::Ran, CallError> {
+        ) -> Result<mail_core::arrival::Arrived, CallError> {
             mail_core::rules::manage::run(self.0.store(), rule, now, report)
                 .map_err(crate::CallError::from)
         }
@@ -1287,7 +1311,8 @@ mod transfer {
             now: DateTime<Utc>,
             progress: &mut dyn FnMut(&Imported),
         ) -> Result<(Imported, Option<AccountId>), CallError> {
-            mail_core::transfer::import_into(self.0.store(), source, into, now, progress)
+            let accounts = self.0.net().roster()?;
+            mail_core::transfer::import_into(self.0.store(), &accounts, source, into, now, progress)
                 .map_err(crate::CallError::from)
         }
 

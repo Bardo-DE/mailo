@@ -114,7 +114,7 @@ pub fn watching_here() -> bool {
 ///
 /// The lock is asked here, before the window opens, so that the window's first look at who
 /// schedules already finds the app watching.
-pub fn start(store: Arc<SqliteStore>, profile: mail_core::profile::ProfileId) {
+pub fn start(store: Arc<SqliteStore>, profile: mail_logic::profile::ProfileId) {
     let first = claimed(&profile);
     if first.is_some() {
         WATCHING_HERE.store(true, Ordering::Release);
@@ -137,7 +137,7 @@ pub fn start(store: Arc<SqliteStore>, profile: mail_core::profile::ProfileId) {
 }
 
 /// The lock for `profile`'s watch, when this process may have it now.
-fn claimed(profile: &mail_core::profile::ProfileId) -> Option<Watching> {
+fn claimed(profile: &mail_logic::profile::ProfileId) -> Option<Watching> {
     match step(mail_agent::ipc::watching::claim(profile)) {
         Step::Watch(held) => Some(held),
         Step::Wait => None,
@@ -264,12 +264,20 @@ fn follow_accounts(store: &Arc<SqliteStore>) -> mail_agent::ipc::watching::Asked
                     let _ = tx.send(());
                 })
             });
-            let mut known = mail_core::sync::due::intervals(&store);
+            let mail = mail_edge::mail(&store);
+            let intervals = || match mail.roster() {
+                Ok(accounts) => mail_core::sync::due::intervals(&accounts),
+                Err(why) => {
+                    log::warn!("the accounts could not be read: {why}");
+                    Vec::new()
+                }
+            };
+            let mut known = intervals();
             let mut looked = Some(Instant::now());
             loop {
                 wait_to_look(&written, looked, ACCOUNTS_EVERY, ACCOUNTS_GAP);
                 looked = Some(Instant::now());
-                let now = mail_core::sync::due::intervals(&store);
+                let now = intervals();
                 if now != known {
                     known = now;
                     moved.send_modify(|count| *count = count.wrapping_add(1));

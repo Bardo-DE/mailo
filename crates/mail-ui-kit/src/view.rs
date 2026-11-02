@@ -2617,7 +2617,7 @@ mod viewing_tests {
 #[cfg(test)]
 mod finding_tests {
     use super::{Finding, Shell};
-    use mail_client::testing::core::search::Step;
+    use mail_client::search::Step;
     use mail_domain::ThreadId;
 
     #[test]

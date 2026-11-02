@@ -5,7 +5,6 @@
 //! paginated like a place, and ranks only a small strip of top results chosen from a capped
 //! window of the newest matches. The window bounds the scoring cost whatever the word.
 
-use crate::error::CoreError;
 use chrono::{DateTime, TimeZone, Utc};
 use mail_domain::{Filter, PageReq, ThreadId, ThreadSummary};
 
@@ -42,8 +41,8 @@ pub fn prepare<Tz: TimeZone>(
     input: &str,
     source: &dyn Source,
     zone: &Tz,
-    label: &dyn mail_logic::query::Names,
-) -> Result<Prepared, CoreError> {
+    label: &dyn crate::query::Names,
+) -> Result<Prepared, regex::Error> {
     let extracted = extract(input)?;
     // Trailing whitespace is significant: it means the last word is finished and must not be
     // prefix-expanded. Trim only the emptiness checks.
@@ -179,10 +178,10 @@ pub fn search_list<Tz: TimeZone>(
     source: &dyn Source,
     affinity: &Affinity,
     zone: &Tz,
-    label: &dyn mail_logic::query::Names,
+    label: &dyn crate::query::Names,
     page: PageReq,
     now: DateTime<Utc>,
-) -> Result<Searched, CoreError> {
+) -> Result<Searched, regex::Error> {
     let prepared = prepare(input, source, zone, label)?;
     let rows = prepared.listed(source, page, now);
     // The strip ranks the page it sits above: those threads are already in hand.
@@ -194,7 +193,3 @@ pub fn search_list<Tz: TimeZone>(
         rows,
     })
 }
-
-#[cfg(test)]
-#[path = "pipeline_tests.rs"]
-mod tests;

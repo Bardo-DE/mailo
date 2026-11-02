@@ -5,8 +5,8 @@
 use std::sync::{Arc, Mutex};
 
 use chrono::Utc;
+use mail_client::discover::{Failed, Found, Gap, Source};
 use mail_client::testing::core::account::Setup;
-use mail_client::testing::core::discover::{Failed, Found, Gap, Source};
 use mail_domain::presets::{self, Manual};
 use mail_domain::{HttpAuth, Incoming, LeaveOnServer, Outgoing, Tls};
 use porter_core::{Credential, ProviderId, SecretText};

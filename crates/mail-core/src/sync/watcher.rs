@@ -8,18 +8,16 @@
 //! has stopped for a reason only a person can clear.
 
 use super::report::{Hooks, PassEnd, Progress, Watched, outcome};
-use super::{Announce, configured, live};
-use crate::error::CoreError;
+use super::{Announce, live};
+use crate::error::{CoreError, Logged};
 use crate::fetch::{Event, Trigger};
-use crate::junk::Policy;
 use crate::mail::{Mail, SyncOps};
 use crate::notify::{Notifier, Whom};
 use chrono::{DateTime, Utc};
 use mail_engine::schedule::{
-    Change, Daemon, End, Host, ListenCall, Local, Lost, Note, PassCall, Passed, Schedule,
-    Scheduler, Stored,
+    Change, Daemon, End, Host, ListenCall, Local, Lost, Note, PassCall, Schedule, Scheduler,
 };
-use mail_store::SqliteStore;
+use mail_logic::junk::Policy;
 use porter_core::AccountId;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
@@ -169,29 +167,39 @@ impl SyncOps<'_> {
         );
         // The accounts are read once, as they always were: one made since is the window's to
         // tell the next watch about.
-        let _ = tx.send(Note::Accounts(super::due::intervals(mail.store())));
+        let _ = tx.send(Note::Accounts(intervals(mail)));
         tokio::select! {
             _ = scheduler.run(inbox, end) => {}
-            () = answer(asked, mail.store(), tx.clone()) => {}
-            () = follow(accounts, mail.store(), tx) => {}
+            () = answer(asked, mail, tx.clone()) => {}
+            () = follow(accounts, mail, tx) => {}
         }
         let mut ends = host.ends.into_inner();
         // In the order the accounts are configured.
-        Ok(configured(mail.store())?
-            .into_iter()
+        Ok(mail
+            .roster()?
+            .iter()
             .filter_map(|account| ends.remove(&account.id))
             .collect())
     }
+}
+
+/// Each account with a server and how often it wants a pass, as they are now. Accounts that
+/// cannot be read are none, and logged.
+fn intervals(mail: &Mail) -> Vec<(AccountId, std::time::Duration)> {
+    let accounts = mail
+        .roster()
+        .or_log_default("the accounts could not be read");
+    super::due::intervals(&accounts)
 }
 
 /// Ask every account for a pass each time `asked` moves, as a person's Sync does: a pass starts
 /// at once on a link at rest (a parked IDLE holds a connection of its own and is not in the
 /// way), and a link already in a pass is in the middle of what was asked for. Never returns: the
 /// scheduler's end is the watch's.
-pub async fn answer(asked: Option<Asked>, store: &SqliteStore, tx: UnboundedSender<Note>) {
+pub async fn answer(asked: Option<Asked>, mail: &Mail, tx: UnboundedSender<Note>) {
     if let Some(mut asked) = asked {
         while asked.changed().await.is_ok() {
-            for (account, _) in super::due::intervals(store) {
+            for (account, _) in intervals(mail) {
                 // The send fails only once the scheduler has stopped, and then nobody is left to ask.
                 let _ = tx.send(Note::Event(account, Event::Start(Trigger::Manual)));
             }
@@ -202,11 +210,11 @@ pub async fn answer(asked: Option<Asked>, store: &SqliteStore, tx: UnboundedSend
 
 /// Tell the scheduler the accounts as they are now each time `accounts` moves. Never returns, as
 /// [`answer`] does not.
-pub async fn follow(accounts: Option<Asked>, store: &SqliteStore, tx: UnboundedSender<Note>) {
+pub async fn follow(accounts: Option<Asked>, mail: &Mail, tx: UnboundedSender<Note>) {
     if let Some(mut accounts) = accounts {
         while accounts.changed().await.is_ok() {
             // The send fails only once the scheduler has stopped, and then nobody is left to tell.
-            let _ = tx.send(Note::Accounts(super::due::intervals(store)));
+            let _ = tx.send(Note::Accounts(intervals(mail)));
         }
     }
     std::future::pending::<()>().await;
@@ -276,14 +284,18 @@ impl Host for Watching<'_> {
     }
 
     fn pushers(&self) -> Vec<AccountId> {
-        live::pushing(self.mail.store())
+        let accounts = self
+            .mail
+            .roster()
+            .or_log_default("the accounts could not be read");
+        live::pushing(self.mail.store(), &accounts)
     }
 
     fn folder_in_flight(&self, _: &AccountId) -> bool {
         false
     }
 
-    fn pass(&self, call: PassCall) -> Local<'_, Passed> {
+    fn pass(&self, call: PassCall) -> Local<'_, crate::fetch::Event> {
         Box::pin(async move {
             let PassCall {
                 account,
@@ -301,14 +313,10 @@ impl Host for Watching<'_> {
             };
             let mail = self.mail_now();
             let done = survive(mail.sync().run_due(std::slice::from_ref(&account), hooks)).await;
-            let mut stored = Stored::Nothing;
             match &done {
                 Ok(ends) => {
                     for end in ends {
                         told(end, self.announce, started, self.tell);
-                        if end.may_have_stored() {
-                            stored = Stored::Maybe;
-                        }
                         self.ends.borrow_mut().insert(end.account(), end.clone());
                     }
                 }
@@ -316,10 +324,7 @@ impl Host for Watching<'_> {
                     why: why.to_string(),
                 }),
             }
-            Passed {
-                event: outcome(done, account),
-                stored,
-            }
+            outcome(done, account)
         })
     }
 
@@ -345,6 +350,7 @@ impl Host for Watching<'_> {
 mod tests {
     use super::*;
     use crate::support_tests::{account, caps};
+    use mail_store::SqliteStore;
 
     use mail_domain::*;
 
@@ -390,7 +396,7 @@ mod tests {
     /// A watch that runs for days follows the junk filter's setting from its next pass.
     #[test]
     fn each_pass_runs_over_the_junk_policy_as_it_is_set_then() {
-        use crate::junk::Filtering;
+        use mail_logic::junk::Filtering;
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -426,10 +432,13 @@ mod tests {
     /// the watch's own scheduler.
     #[tokio::test]
     async fn an_ask_at_the_door_starts_a_pass_of_every_account() {
-        let store = store();
+        let mail = Mail::new(
+            std::sync::Arc::new(store()),
+            tokio::runtime::Handle::current(),
+        );
         let (asks, asked) = tokio::sync::watch::channel(0u64);
         let (tx, mut notes) = tokio::sync::mpsc::unbounded_channel();
-        let answering = answer(Some(asked), &store, tx);
+        let answering = answer(Some(asked), &mail, tx);
         tokio::pin!(answering);
 
         // Nothing is started before anyone asks.

@@ -463,6 +463,7 @@ mod a_label_typed_into_the_window_finds_the_mail {
                     provider_threads: Vec::new(),
                     gone: vec![],
                 },
+                chrono::Utc::now(),
             )
             .unwrap();
         (store, dir)
@@ -514,6 +515,7 @@ mod a_label_typed_into_the_window_finds_the_mail {
                     provider_threads: Vec::new(),
                     gone: vec![],
                 },
+                chrono::Utc::now(),
             )
             .unwrap();
 

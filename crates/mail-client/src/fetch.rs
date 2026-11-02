@@ -20,11 +20,12 @@ use chrono::{DateTime, Utc};
 pub use mail_core::fetch::{Event, FolderFetch, Link, Trigger};
 use mail_core::fetch::{FolderEffect, FolderEvent};
 use mail_core::schedule::{
-    self, Change, Daemon, End, Heard, Hold, Host, ListenCall, Local, Lost, Note, PassCall, Passed,
-    Schedule, Scheduler, Stop, Stored, Timing,
+    self, Change, Daemon, End, Heard, Hold, Host, ListenCall, Local, Lost, Note, PassCall,
+    Schedule, Scheduler, Stop, Timing,
 };
 use mail_core::sync::report::{Hooks, Offer, PassEnd, Progress, outcome};
 use mail_domain::{MailboxRef, Retry};
+use mail_logic::accounts::Accounts;
 use mail_store::{SqliteStore, Store};
 use parking_lot::Mutex;
 use porter_core::AccountId;
@@ -48,7 +49,7 @@ pub type Listen = Arc<
 >;
 
 /// Which accounts the server can push to: the signature of `mail_core::sync::live::pushing`.
-pub type Pushers = Arc<dyn Fn(&SqliteStore) -> Vec<AccountId> + Send + Sync>;
+pub type Pushers = Arc<dyn Fn(&SqliteStore, &Accounts) -> Vec<AccountId> + Send + Sync>;
 
 /// The accounts whose server pushes, as the store keeps them: what a program's [`Seams`] say.
 pub fn pushers() -> Pushers {
@@ -207,12 +208,13 @@ pub(crate) struct Fetcher {
     outbox: tokio::sync::Notify,
 }
 
-/// Which accounts there are to fetch, and how often each wants a pass.
-fn intervals(seams: &Seams, store: &SqliteStore) -> Vec<(AccountId, Duration)> {
-    match &seams.config {
-        Some(dir) => mail_core::sync::due::intervals_with(store, &mail_core::offline::load(dir)),
-        None => mail_core::sync::due::intervals(store),
-    }
+/// The accounts as the store and the person's settings have them now.
+fn read_accounts(seams: &Seams, store: &SqliteStore) -> Accounts {
+    let settings = mail_core::gather::settings(seams.config.as_deref(), Default::default());
+    mail_core::gather::accounts(store, &settings).unwrap_or_else(|why| {
+        log::warn!("the accounts could not be read: {why}");
+        Accounts::default()
+    })
 }
 
 impl Fetcher {
@@ -236,9 +238,10 @@ impl Fetcher {
     /// Find the accounts to fetch and where each one's link stands, and tell the scheduler. Reads
     /// the store, so it is called on the fetching thread and never on the caller's.
     fn begin(&self, store: &SqliteStore, now: DateTime<Utc>) {
-        let every = intervals(&self.seams, store);
+        let accounts = read_accounts(&self.seams, store);
+        let every = mail_core::sync::due::intervals(&accounts);
         let links = schedule::initial(store, &every, now);
-        let pushed = (self.seams.pushers)(store);
+        let pushed = (self.seams.pushers)(store, &accounts);
         self.change(|fetched| {
             fetched.links = links;
             fetched.began = true;
@@ -271,8 +274,9 @@ impl Fetcher {
 
     /// The accounts may have changed: tell the scheduler when they have.
     pub(crate) fn accounts(&self, store: &SqliteStore) {
-        let now = intervals(&self.seams, store);
-        let pushed_now = (self.seams.pushers)(store);
+        let accounts = read_accounts(&self.seams, store);
+        let now = mail_core::sync::due::intervals(&accounts);
+        let pushed_now = (self.seams.pushers)(store, &accounts);
         let mut every = self.every.lock();
         let mut pushed = self.pushed.lock();
         if *every != now || *pushed != pushed_now {
@@ -347,15 +351,6 @@ pub fn offer_of(done: &Result<Vec<PassEnd>, String>, account: &AccountId) -> Opt
     })
 }
 
-/// Whether a pass that ended like this may have written something.
-///
-/// A pass that ran, or was cancelled part-way, may have: counts do not say everything it writes
-/// (flags are not counted). One that never got to run, or whose whole run failed, has not.
-pub fn may_have_stored(done: &Result<Vec<PassEnd>, String>) -> bool {
-    done.as_ref()
-        .is_ok_and(|ends| ends.iter().any(PassEnd::may_have_stored))
-}
-
 /// The client, as the scheduler's host.
 struct ClientHost {
     shared: Arc<Shared>,
@@ -383,7 +378,9 @@ impl Host for ClientHost {
     }
 
     fn pushers(&self) -> Vec<AccountId> {
-        (self.fetcher().seams.pushers)(self.shared.store())
+        let fetcher = self.fetcher();
+        let accounts = read_accounts(&fetcher.seams, self.shared.store());
+        (fetcher.seams.pushers)(self.shared.store(), &accounts)
     }
 
     fn folder_in_flight(&self, account: &AccountId) -> bool {
@@ -399,7 +396,7 @@ impl Host for ClientHost {
         self.fetcher().seams.timing
     }
 
-    fn pass(&self, call: PassCall) -> Local<'_, Passed> {
+    fn pass(&self, call: PassCall) -> Local<'_, Event> {
         let store = self.shared.store_arc();
         let pass = self.fetcher().seams.pass.clone();
         let announcing = self.fetcher().seams.announce.clone();
@@ -441,15 +438,10 @@ impl Host for ClientHost {
                     }
                 });
             }
-            let stored = if may_have_stored(&done) {
-                Stored::Maybe
-            } else {
-                Stored::Nothing
-            };
-            Passed {
-                event: outcome(done, account),
-                stored,
-            }
+            // What the pass stored reaches the client as the store's own commits; a client that
+            // reads on its caller's thread hears them now.
+            self.shared.stored();
+            outcome(done, account)
         })
     }
 
@@ -488,8 +480,6 @@ impl Host for ClientHost {
                 fetched.offers.remove(&account);
                 fetched.folders.retain(|(one, _), _| *one != account);
             }),
-            // What a pass stored reaches the client as the store's own commits.
-            Change::Stored => self.shared.stored(),
         }
     }
 }

@@ -226,6 +226,7 @@ fn held(store: &SqliteStore, uid: u32, from: &str) -> MessageId {
                 provider_threads: Vec::new(),
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     id
@@ -480,7 +481,7 @@ async fn one_pass(port: u16, store: &Arc<SqliteStore>) -> AccountReport {
         every: mail_core::offline::Every::default(),
         window: mail_core::offline::Window::default(),
         remove: mail_core::offline::Remove::default(),
-        junk: mail_core::junk::Policy::default(),
+        junk: mail_logic::junk::Policy::default(),
     };
     let inbox = vec![MailboxRef {
         account: acct_account(),

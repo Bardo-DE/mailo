@@ -34,7 +34,6 @@ use ds::prelude::*;
 use ds::root::common::Common;
 use ds::style::tokens::control_size::ControlSize;
 use mail_client::Storage;
-use mail_ui_kit::appearance::WindowDirs;
 use mail_ui_kit::common::Problem;
 use mail_ui_kit::data::{AccountRow, use_account_rows};
 use mail_ui_kit::need::{Need, Needing, use_needs};
@@ -186,7 +185,7 @@ fn to_list(mut shell: Signal<Shell>) {
     write.accounts_pane.step = AccountStep::Showing;
 }
 
-/// The confirming button: remove the account, then tidy what the window kept of it and go back
+/// The confirming button: remove the account, which takes how it was synced with it, and go back
 /// to the list.
 fn confirm(mut shell: Signal<Shell>, account: AccountId) {
     if shell.peek().accounts_pane.step != AccountStep::Asking {
@@ -196,7 +195,6 @@ fn confirm(mut shell: Signal<Shell>, account: AccountId) {
         return;
     };
     to(shell, AccountStep::Removing);
-    let dirs = try_consume_context::<WindowDirs>();
     let removing = account.clone();
     // The client forgets the secrets and then the account's mail, waiting on its runtime, so a
     // blocking thread waits for it. The task is the window's, not the page's: a page left
@@ -210,7 +208,6 @@ fn confirm(mut shell: Signal<Shell>, account: AccountId) {
         };
         match removed {
             Ok(_) => {
-                forgotten(dirs.as_ref(), account.clone());
                 let mut write = shell.write();
                 write.accounts_pane.step = AccountStep::Showing;
                 if *write.accounts_pane.path.current() == AccountsPage::Account(account) {
@@ -221,16 +218,6 @@ fn confirm(mut shell: Signal<Shell>, account: AccountId) {
             Err(error) => to(shell, AccountStep::Refused(words::refused(&error))),
         }
     });
-}
-
-/// What the window kept of a removed account that the Spaces do not hold: how it was synced.
-/// The Spaces and the pressed tile follow the store (`app`'s effect), as they do for an
-/// account removed from a terminal.
-fn forgotten(dirs: Option<&WindowDirs>, account: AccountId) {
-    if let Some(dirs) = dirs {
-        // The account is gone either way; a setting left behind is never asked about.
-        let _ = mail_client::offline::change(&dirs.config, |kept| kept.without(account));
-    }
 }
 
 /// Sign `account` in again, as the dialog in the first window does; that window is told, so that

@@ -31,7 +31,9 @@ fn a_colour_is_kept_on_the_message_and_its_conversation() {
             Change::MessageStar(m.id, Star::Starred),
             Change::MessageFlag(m.id, Hue::Orange),
         ]);
-        store.apply(acct_account(), &flag).unwrap();
+        store
+            .apply(acct_account(), &flag, chrono::Utc::now())
+            .unwrap();
         worn(store, &m)
     });
     assert_eq!(
@@ -49,7 +51,9 @@ fn a_sync_says_what_colour_a_message_is() {
             flag_colors: vec![(imap("INBOX", 10), Hue::Purple)],
             ..ingest("INBOX")
         };
-        store.ingest(acct_account(), batch).unwrap();
+        store
+            .ingest(acct_account(), batch, chrono::Utc::now())
+            .unwrap();
         worn(store, &m)
     });
     assert_eq!(
@@ -83,6 +87,7 @@ fn a_colour_on_its_way_to_the_server_outlives_a_sync() {
                     Change::MessageStar(m.id, Star::Starred),
                     Change::MessageFlag(m.id, Hue::Green),
                 ]),
+                chrono::Utc::now(),
             )
             .unwrap();
         let stale = Ingest {
@@ -90,7 +95,9 @@ fn a_colour_on_its_way_to_the_server_outlives_a_sync() {
             flag_colors: vec![(imap("INBOX", 10), Hue::Red)],
             ..ingest("INBOX")
         };
-        store.ingest(acct_account(), stale).unwrap();
+        store
+            .ingest(acct_account(), stale, chrono::Utc::now())
+            .unwrap();
         let sent = match store.outbox_dispatch(queued).unwrap() {
             Dispatch::Send(op) => op,
             other => panic!("{other:?}"),
@@ -146,6 +153,7 @@ fn user_label(store: &SqliteStore, name: &str) -> Label {
         .apply(
             acct_account(),
             &patch(vec![Change::LabelUpsert(label.clone())]),
+            chrono::Utc::now(),
         )
         .unwrap();
     label
@@ -171,7 +179,9 @@ fn keywords_read_back_as_the_labels_that_wrote_them() {
         )],
         ..ingest("INBOX")
     };
-    store.ingest(acct_account(), batch).unwrap();
+    store
+        .ingest(acct_account(), batch, chrono::Utc::now())
+        .unwrap();
 
     let to_do = label_named(&store, "To Do").expect("To Do is made");
     assert_eq!(to_do.color.as_deref(), Some("blue"));
@@ -201,13 +211,16 @@ fn a_label_with_no_keyword_outlives_a_sync() {
         .apply(
             acct_account(),
             &patch(vec![Change::MessageLabel(m.id, local.id, Membership::In)]),
+            chrono::Utc::now(),
         )
         .unwrap();
     let batch = Ingest {
         label_names: vec![(imap("INBOX", 10), Vec::new())],
         ..ingest("INBOX")
     };
-    store.ingest(acct_account(), batch).unwrap();
+    store
+        .ingest(acct_account(), batch, chrono::Utc::now())
+        .unwrap();
     assert_eq!(store.message(m.id).unwrap().labels, vec![local.id]);
 }
 
@@ -228,6 +241,7 @@ fn labels_held_before_keywords_are_sent_when_the_server_keeps_them() {
         .apply(
             acct_account(),
             &patch(vec![Change::MessageLabel(m.id, work.id, Membership::In)]),
+            chrono::Utc::now(),
         )
         .unwrap();
     assert!(store.outbox_due(acct_account(), at(1)).unwrap().is_empty());
@@ -255,7 +269,9 @@ fn labels_held_before_keywords_are_sent_when_the_server_keeps_them() {
         label_names: vec![(imap("INBOX", 10), Vec::new())],
         ..ingest("INBOX")
     };
-    store.ingest(acct_account(), batch).unwrap();
+    store
+        .ingest(acct_account(), batch, chrono::Utc::now())
+        .unwrap();
     assert_eq!(store.message(m.id).unwrap().labels, vec![work.id]);
     // And told again, nothing more is queued.
     store

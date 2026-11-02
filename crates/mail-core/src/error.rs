@@ -67,6 +67,10 @@ pub enum CoreError {
     /// The attachment was left on the server and is fetched when opened.
     #[error("{name} is still on the server; it downloads when opened")]
     AttachmentOnServer { name: String },
+    /// The attachment is kept inside the message's own bytes and they could not give it back:
+    /// the message is gone from the store, or no longer holds a part like it.
+    #[error("{name} could not be read out of its message: {why}")]
+    AttachmentUnreadable { name: String, why: String },
 
     // ---- conversations, accounts, places
     #[error("that conversation has no messages")]
@@ -87,7 +91,7 @@ pub enum CoreError {
 
     // ---- profiles
     #[error(transparent)]
-    ProfileId(#[from] crate::profile::NotAProfileId),
+    ProfileId(#[from] mail_logic::profile::NotAProfileId),
     /// A Profile was named by its id or its name and there is none like it.
     #[error("no profile {0:?}")]
     NoProfile(String),
@@ -240,7 +244,7 @@ pub enum CoreError {
 
     // ---- discovery, server search
     #[error(transparent)]
-    Discovery(#[from] crate::discover::Failed),
+    Discovery(#[from] mail_logic::discover::Failed),
     #[error("that account is no longer configured")]
     AccountGone,
 
@@ -340,6 +344,8 @@ pub enum CoreError {
     AlreadySent,
     #[error("the submission could not be queued")]
     SubmissionNotQueued,
+    #[error("that draft kept changing while it was being sent")]
+    DraftChanging,
     /// A recipient the box could not read as an address.
     #[error(transparent)]
     Address(#[from] mail_domain::ParseAddressError),

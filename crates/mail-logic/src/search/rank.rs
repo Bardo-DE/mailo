@@ -196,7 +196,7 @@ mod tests {
 
     use super::super::parsing::parse;
     use super::{Affinity, MAX_BONUS, SenderStats, rank};
-    use crate::support_tests::{self as support, at};
+    use mail_domain::testing::{at, listed};
 
     fn ids(rows: &[(ThreadSummary, f64)]) -> Vec<u128> {
         rows.iter()
@@ -205,14 +205,14 @@ mod tests {
     }
 
     fn words(text: &str) -> super::super::Parsed {
-        parse(text, &Utc, &mail_logic::query::unnamed)
+        parse(text, &Utc, &crate::query::unnamed)
     }
 
     #[test]
     fn orderings() {
         let now = at(0);
         // Equal bm25. Unread, recent, from someone we write to, against old and read.
-        let close = support::summary(
+        let close = listed(
             1,
             "hello",
             "",
@@ -221,7 +221,7 @@ mod tests {
             ReadState::Unread,
             Star::Unstarred,
         );
-        let distant = support::summary(
+        let distant = listed(
             2,
             "hello",
             "",
@@ -247,7 +247,7 @@ mod tests {
         );
 
         // Subject hit against a body-only hit. Same everything else.
-        let subject = support::summary(
+        let subject = listed(
             3,
             "invoice due",
             "",
@@ -256,7 +256,7 @@ mod tests {
             ReadState::Read,
             Star::Unstarred,
         );
-        let body = support::summary(
+        let body = listed(
             4,
             "hello",
             "invoice due",
@@ -270,7 +270,7 @@ mod tests {
         assert_eq!(ids(&ranked), vec![3, 4], "subject beats body");
 
         // Every bonus on one side, a bm25 gap larger than MAX_BONUS on the other.
-        let bonuses = support::summary(
+        let bonuses = listed(
             5,
             "invoice pay now",
             "pay now",
@@ -279,7 +279,7 @@ mod tests {
             ReadState::Unread,
             Star::Starred,
         );
-        let bm25 = support::summary(
+        let bm25 = listed(
             6,
             "unrelated",
             "",

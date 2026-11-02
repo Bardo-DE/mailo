@@ -250,6 +250,7 @@ fn compose(smtp: u16, imap: u16, sent_folder: bool) -> Sending {
                 id: ChangeId::generate(),
                 changes: vec![Change::DraftUpsert(Box::new(draft.clone()))],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     let post = posting(&draft, &identity(), None, &[]).expect("the draft has recipients");

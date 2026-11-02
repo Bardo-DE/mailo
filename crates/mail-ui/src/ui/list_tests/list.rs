@@ -77,6 +77,7 @@ mod searching_in_the_window {
                     provider_threads: Vec::new(),
                     gone: vec![],
                 },
+                chrono::Utc::now(),
             )
             .unwrap();
         (store, dir)

@@ -7,7 +7,7 @@ use super::decode::decode;
 use super::fetch::{client, fetch, url};
 use crate::environment::Program;
 use crate::error::CoreError;
-use crate::provider::Provider;
+use mail_logic::provider::Provider;
 use std::path::Path;
 
 /// Re-fetch every provider. One failure does not stop the others.
@@ -45,7 +45,7 @@ pub fn providers_of(store: &mail_store::SqliteStore) -> Result<Vec<Provider>, Co
             log::warn!("provider icon: an account plan could not be read");
             continue;
         };
-        let which = crate::provider::provider(&plan);
+        let which = mail_logic::provider::provider(&plan);
         if !out.contains(&which) {
             out.push(which);
         }

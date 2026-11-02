@@ -61,13 +61,13 @@ impl Provider {
     fn found(&self, text: &str) -> Result<Vec<ThreadSummary>, AppRefusal> {
         let labels = mail_core::query::known_labels(&self.store);
         let named = mail_logic::query::named(&labels);
-        let searched = mail_core::search::search_list(
+        let searched = mail_logic::search::search_list(
             text,
-            self.store.as_ref(),
-            &mail_core::search::Affinity::default(),
+            &mail_core::search::StoreSource(self.store.as_ref()),
+            &mail_logic::search::Affinity::default(),
             &Local,
             &named,
-            mail_core::search::first(LIMIT.saturating_add(mail_core::search::TOP_LIMIT)),
+            mail_logic::search::first(LIMIT.saturating_add(mail_logic::search::TOP_LIMIT)),
             Utc::now(),
         )
         .map_err(|why| AppRefusal::Failed(why.to_string()))?;

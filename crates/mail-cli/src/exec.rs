@@ -237,7 +237,8 @@ pub fn execute(store: Arc<SqliteStore>, command: Command) -> Result<(), String> 
         let mail = mail_edge::mail(&store);
         let ends = mail_edge::block_on(mail.sync().run(Default::default()))
             .map_err(super::remedy::error)?;
-        print!("{}", super::sync::run_text(&store, &ends));
+        let accounts = mail.roster().map_err(super::remedy::error)?;
+        print!("{}", super::sync::run_text(&accounts, &ends));
         return Ok(());
     }
     if let Command::SyncFolder { account, path } = &command {
@@ -270,7 +271,10 @@ pub fn execute(store: Arc<SqliteStore>, command: Command) -> Result<(), String> 
                     let mail =
                         mail_edge::mail(&store).with_junk(mail_ui_model::settings::junk_policy());
                     match mail_edge::block_on(mail.sync().run(Default::default())) {
-                        Ok(ends) => print!("{}", super::sync::run_text(&store, &ends)),
+                        Ok(ends) => match mail.roster() {
+                            Ok(accounts) => print!("{}", super::sync::run_text(&accounts, &ends)),
+                            Err(why) => eprintln!("{}", super::remedy::error(why)),
+                        },
                         Err(why) => eprintln!("{}", super::remedy::error(why)),
                     }
                 }),
@@ -361,7 +365,10 @@ pub fn execute(store: Arc<SqliteStore>, command: Command) -> Result<(), String> 
         return Ok(());
     }
     if let Command::Offline { address, set } = &command {
-        let accounts = mail_core::sync::addresses(&store);
+        let accounts = mail_edge::mail(&store)
+            .roster()
+            .map_err(super::remedy::error)?
+            .addresses();
         let said = super::offline::command(
             mail_core::config::config_dir().as_deref(),
             store.as_ref(),
@@ -411,15 +418,17 @@ pub fn execute(store: Arc<SqliteStore>, command: Command) -> Result<(), String> 
         println!("watching. Ctrl-C to stop.");
         // Said as it happens, and flushed: a watch is read by someone waiting on it. An open
         // window sees what was stored from the store's file, not from here.
+        let mail = mail_edge::mail(&store);
         let say = |watched: mail_core::sync::report::Watched| {
             use std::io::Write as _;
             print!("{}", super::sync::watched_text(&watched));
-            if let mail_core::sync::report::Watched::Pass(end) = &watched {
-                print!("{}", super::sync::sign_in_hint(&store, end));
+            if let mail_core::sync::report::Watched::Pass(end) = &watched
+                && let Ok(accounts) = mail.roster()
+            {
+                print!("{}", super::sync::sign_in_hint(&accounts, end));
             }
             let _ = std::io::stdout().flush();
         };
-        let mail = mail_edge::mail(&store);
         // The desktop's notification service unless the watch was told to say nothing. What it
         // says, whose mail, in which mailboxes, with which sound, and how the junk filter
         // behaves are read as each pass ends or starts (`Notices`, `junk_policy`), so a change
@@ -457,7 +466,8 @@ pub fn execute(store: Arc<SqliteStore>, command: Command) -> Result<(), String> 
             asked,
         ))
         .map_err(super::remedy::error)?;
-        print!("{}", super::sync::run_text(&store, &ends));
+        let accounts = mail.roster().map_err(super::remedy::error)?;
+        print!("{}", super::sync::run_text(&accounts, &ends));
         return Err("stopped watching; nothing left to watch".to_owned());
     }
 

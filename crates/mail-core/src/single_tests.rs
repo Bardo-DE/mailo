@@ -105,6 +105,7 @@ fn store(dir: &std::path::Path) -> SqliteStore {
                 id: ChangeId::generate(),
                 changes,
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     store

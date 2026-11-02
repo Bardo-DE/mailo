@@ -120,7 +120,7 @@ fn finishing_polls_again_after_the_interval() {
     let trouble = vec![Trouble {
         mailbox: Some("A".into()),
         retry: Retry::Now,
-        why: "x".into(),
+        why: Some("x".into()),
     }];
     let (to, fx) = go(
         &syncing(First::Yes, Link::Fresh),

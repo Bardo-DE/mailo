@@ -92,6 +92,7 @@ fn store() -> (Arc<SqliteStore>, tempfile::TempDir, Vec<ThreadId>) {
                     origin: LabelOrigin::User,
                 })],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     let threads = [(1, "Q3 plan draft"), (2, "Budget for the Q3 plan")]
@@ -155,7 +156,9 @@ fn deliver(store: &SqliteStore, uid: u32, subject: &str) -> ThreadId {
         provider_threads: Vec::new(),
         gone: vec![],
     };
-    store.ingest(acct_imap(), ingest).unwrap();
+    store
+        .ingest(acct_imap(), ingest, chrono::Utc::now())
+        .unwrap();
     thread
 }
 

@@ -19,8 +19,9 @@
 //! fails because someone is on a train is a test people learn to ignore. A server that answers
 //! and is not what the file says is a failure, and the file is what to correct.
 
-use mail_core::discover::{self, Source};
+use mail_core::discover;
 use mail_domain::{AuthPlan, Incoming, Outgoing, SaslMech, Tls, Username};
+use mail_logic::discover::Source;
 use mail_net::Transport;
 use mail_proto::{ImapAuth, ImapCommand, ImapSession};
 use mail_runtime::drive;

@@ -8,7 +8,9 @@ fn surveyed(both: &Both, path: &str) {
     for (_, store) in both.each() {
         let mut survey = ingest(path);
         survey.cursor = Some(SyncCursor::Pop);
-        store.ingest(acct_account(), survey).unwrap();
+        store
+            .ingest(acct_account(), survey, chrono::Utc::now())
+            .unwrap();
     }
 }
 

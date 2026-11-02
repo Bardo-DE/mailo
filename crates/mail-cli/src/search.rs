@@ -1,6 +1,6 @@
 //! `mailo search`: the top results, marked, then every other match, newest first.
 //!
-//! The same [`mail_core::search::search_list`] the window's list box runs, so `from:ada`, a prefix
+//! The same [`mail_logic::search::search_list`] the window's list box runs, so `from:ada`, a prefix
 //! and a phrase cannot mean one thing here and another there, and the top results are the
 //! strip the window draws above its rows.
 
@@ -28,11 +28,11 @@ pub(super) fn search(
 ) -> String {
     let take = usize::try_from(limit).unwrap_or(usize::MAX);
     // Asked for the top results' worth more, so removing them still leaves `limit` rows.
-    let page = mail_core::search::first(take.saturating_add(mail_core::search::TOP_LIMIT));
-    let searched = match mail_core::search::search_list(
+    let page = mail_logic::search::first(take.saturating_add(mail_logic::search::TOP_LIMIT));
+    let searched = match mail_logic::search::search_list(
         needle,
-        store,
-        &mail_core::search::Affinity::default(),
+        &mail_core::search::StoreSource(store),
+        &mail_logic::search::Affinity::default(),
         &chrono::Local,
         label,
         page,
@@ -72,9 +72,9 @@ pub(super) fn search(
 #[cfg(test)]
 mod tests {
     use chrono::{DateTime, TimeZone, Utc};
-    use mail_core::search::Affinity;
     use mail_core::{FixedClock, SqliteStore, Store};
     use mail_domain::*;
+    use mail_logic::search::Affinity;
     use porter_core::AccountId;
     use std::sync::Arc;
 
@@ -142,6 +142,7 @@ mod tests {
                         id: ChangeId::generate(),
                         changes: vec![Change::MessageUpsert(Box::new(message))],
                     },
+                    chrono::Utc::now(),
                 )
                 .expect("sqlite apply");
         }
@@ -180,13 +181,13 @@ mod tests {
             .map(id)
             .collect();
 
-        let window = mail_core::search::search_list(
+        let window = mail_logic::search::search_list(
             "compose",
-            &*store,
+            &mail_core::search::StoreSource(&*store),
             &Affinity::default(),
             &chrono::Local,
             &mail_logic::query::unnamed,
-            mail_core::search::first(100),
+            mail_logic::search::first(100),
             now,
         )
         .expect("not a pattern");

@@ -23,8 +23,8 @@
 //!   client id" instead of opening a real issuer's page.
 //! - [`mail`] builds the handle over a store from those.
 
-use mail_core::profile::Profile;
 use mail_core::{Environment, KeyringSigningStore, Mail, OAuthClients, SigningStore, SqliteStore};
+use mail_logic::profile::Profile;
 use std::future::Future;
 use std::sync::{Arc, OnceLock};
 use tokio::runtime::Runtime;
@@ -93,6 +93,7 @@ pub fn signing() -> Arc<dyn SigningStore> {
 /// Profile's signing keys and the application's runtime.
 pub fn mail(store: &Arc<SqliteStore>) -> Mail {
     Mail::new(store.clone(), runtime().handle().clone())
+        .with_config(mail_core::config::config_dir())
         .with_environment(environment())
         .with_oauth_clients(clients())
         .with_signing(signing())

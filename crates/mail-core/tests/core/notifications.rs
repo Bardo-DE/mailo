@@ -175,6 +175,7 @@ fn stored_as(
                 id: ChangeId::generate(),
                 changes: vec![Change::MessageUpsert(Box::new(message))],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     id
@@ -598,7 +599,7 @@ async fn watching<F: std::future::Future<Output = ()>>(
         every: mail_core::offline::Every::default(),
         window: mail_core::offline::Window::default(),
         remove: mail_core::offline::Remove::default(),
-        junk: mail_core::junk::Policy::default(),
+        junk: mail_logic::junk::Policy::default(),
     };
     let inbox = vec![MailboxRef {
         account: account.id.clone(),

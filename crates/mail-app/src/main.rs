@@ -144,7 +144,7 @@ fn main() {
     // Messages an older parser misread are re-read from their stored bytes, once, here — the
     // one place every command and the window pass through. Usually an empty queue and one
     // query. A failure is reported and does not stop the command: the mail is still readable.
-    if let Err(e) = mail_core::upkeep::reparse_queued(&store) {
+    if let Err(e) = mail_core::upkeep::reparse_queued(&store, std::time::SystemTime::now().into()) {
         eprintln!("could not re-read stored headers: {e}");
     }
     // Plain drafts kept before every draft's text was flowed text are made so, once.
@@ -236,7 +236,7 @@ struct Paths {
 /// config directory.
 /// The folders mailo keeps: the data and config roots, and the state and cache folders where they
 /// are elsewhere (on Linux each place is its own folder).
-fn places_kept(roots: &mail_core::profile::Roots) -> Vec<std::path::PathBuf> {
+fn places_kept(roots: &mail_logic::profile::Roots) -> Vec<std::path::PathBuf> {
     let mut kept = vec![roots.data.clone(), roots.config.clone()];
     for path in [
         mail_core::config::state_dir(),
@@ -252,8 +252,8 @@ fn places_kept(roots: &mail_core::profile::Roots) -> Vec<std::path::PathBuf> {
     kept
 }
 
-fn roots() -> Option<mail_core::profile::Roots> {
-    Some(mail_core::profile::Roots {
+fn roots() -> Option<mail_logic::profile::Roots> {
+    Some(mail_logic::profile::Roots {
         data: mail_core::config::data_dir()?,
         config: mail_core::config::config_dir()?,
     })

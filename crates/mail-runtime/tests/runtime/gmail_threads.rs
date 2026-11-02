@@ -43,7 +43,7 @@ fn arrive(store: &SqliteStore, uid: u32) -> Fetched {
         "From: ada@example.test\r\nTo: me@example.test\r\nSubject: topic {uid}\r\n\
          Message-ID: <m{uid}@example.test>\r\nDate: Tue, 14 Nov 2023 22:13:20 +0000\r\n\r\nbody {uid}\r\n"
     );
-    let ingest = assemble(
+    let assembly = assemble(
         store,
         acct_account(),
         inbox(),
@@ -56,8 +56,8 @@ fn arrive(store: &SqliteStore, uid: u32) -> Fetched {
         now(),
     )
     .unwrap();
-    let fetched = ingest.messages[0].clone();
-    store.ingest(acct_account(), ingest).unwrap();
+    let fetched = assembly.ingest.messages[0].clone();
+    assembly.write(store, acct_account(), now()).unwrap();
     fetched
 }
 
@@ -67,7 +67,9 @@ fn messages_gmail_threads_together_are_one_thread_with_nothing_else_to_join_them
 
     let seen = surveyed(&[(10, "111"), (11, "111"), (12, "222")]);
     assert_eq!(seen.provider_threads.len(), 3, "the survey carried no ids");
-    store.ingest(acct_account(), seen).unwrap();
+    store
+        .ingest(acct_account(), seen, chrono::Utc::now())
+        .unwrap();
 
     let a = arrive(&store, 10);
     let b = arrive(&store, 11);
@@ -77,7 +79,7 @@ fn messages_gmail_threads_together_are_one_thread_with_nothing_else_to_join_them
 
     // A reply in the same Gmail thread, arriving on a later pass, joins what is stored.
     store
-        .ingest(acct_account(), surveyed(&[(13, "111")]))
+        .ingest(acct_account(), surveyed(&[(13, "111")]), chrono::Utc::now())
         .unwrap();
     let later = arrive(&store, 13);
     assert_eq!(later.message.thread, a.message.thread);

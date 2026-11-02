@@ -6,6 +6,7 @@
 
 mod account_prefs;
 mod accounts;
+mod act_path;
 mod blobs;
 mod cards;
 mod changes;
@@ -41,6 +42,7 @@ mod reconciliation;
 mod remove_account;
 mod rules;
 mod search;
+mod send_commit;
 mod send_later;
 mod server_copies;
 mod server_drafts;

@@ -8,8 +8,8 @@ use chordkit::Platform;
 use chrono::Utc;
 use dioxus_core::VirtualDom;
 use ds::prelude::*;
+use mail_client::search::{Results, Top};
 use mail_client::testing::SqliteStore;
-use mail_client::testing::core::search::{Results, Top};
 use mail_ui_kit::menu::Right;
 use mail_ui_kit::view::Shell;
 use std::collections::HashMap;
@@ -221,7 +221,7 @@ const EVERY_COMMAND: &[&str] = &[
 fn every_palette_row_is_run_by_its_command() {
     use super::commands::COMMANDS;
     use super::items::action_key;
-    use mail_client::testing::core::search::{ActionHit, Command as Words};
+    use mail_client::search::{ActionHit, Command as Words};
     let listed: Vec<String> = COMMANDS
         .iter()
         .map(|command| action_key(*command))

@@ -1,11 +1,10 @@
 //! What more than one of the crate's unit tests starts from. Not compiled into the binary, and
 //! named as a test file so the checks over the program's source pass it by.
 
-use chrono::{DateTime, TimeDelta, Utc};
 use mail_domain::*;
 use mail_store::{MemoryStore, SqliteStore, Store};
 
-pub use mail_domain::testing::{account, now};
+pub use mail_domain::testing::{account, at, listed as summary, now};
 
 /// A POP3 account's setup at `example.edu`, signing in as `login` (the address when `None`).
 pub fn pop3(login: Option<&str>) -> crate::account::Setup {
@@ -53,36 +52,6 @@ pub fn with_password(secrets: &porter_secrets::MemorySecrets, password: &str) {
     .unwrap();
 }
 
-/// `secs` seconds after [`now`].
-pub fn at(secs: i64) -> DateTime<Utc> {
-    now() + TimeDelta::seconds(secs)
-}
-
-pub fn summary(
-    n: u128,
-    subject: &str,
-    snippet: &str,
-    email: &str,
-    secs: i64,
-    read: ReadState,
-    star: Star,
-) -> ThreadSummary {
-    ThreadSummary {
-        id: ThreadId::from_uuid(uuid::Uuid::from_u128(n)),
-        account: account(),
-        subject: subject.to_owned(),
-        snippet: snippet.to_owned(),
-        from: Address {
-            name: None,
-            email: email.to_owned(),
-        },
-        last_date: at(secs),
-        read,
-        star,
-        ..mail_domain::testing::summary()
-    }
-}
-
 pub fn remember(store: &MemoryStore, n: u128, subject: &str, body: &str, secs: i64) {
     let message = message(n, subject, body, secs, ReadState::Read, Star::Unstarred);
     store
@@ -92,6 +61,7 @@ pub fn remember(store: &MemoryStore, n: u128, subject: &str, body: &str, secs: i
                 id: ChangeId::generate(),
                 changes: vec![Change::MessageUpsert(Box::new(message))],
             },
+            chrono::Utc::now(),
         )
         .expect("memory apply");
 }
@@ -160,6 +130,7 @@ pub fn sqlite_with(rows: &[(&str, &str, i64)]) -> SqliteStore {
                     id: ChangeId::generate(),
                     changes: vec![Change::MessageUpsert(Box::new(message))],
                 },
+                chrono::Utc::now(),
             )
             .expect("sqlite apply");
     }

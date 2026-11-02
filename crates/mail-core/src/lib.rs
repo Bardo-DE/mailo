@@ -1,7 +1,7 @@
 //! The logic of mailo: everything that is neither the window nor the terminal.
 //!
-//! Sync and the fetch state machines, accounts and their discovery, composing, rules, contacts,
-//! search, the switches kept in the config directory, and the rest, over the pure crates
+//! Sync and the fetch state machines, accounts and the lookup of their servers, composing, the store
+//! behind rules and search, contacts, the switches kept in the config directory, and the rest, over the pure crates
 //! (`mail-domain`, `mail-mime`, `mail-proto`, `mail-pim`, `mail-logic`) and the I/O ones (`mail-store`,
 //! `mail-runtime`). `mail-app` is its only user, and draws two front-ends over it: the window
 //! (`mail_ui::ui`) and the command line (`mail_cli`).
@@ -18,6 +18,7 @@
 
 pub mod account;
 pub mod act;
+pub mod arrival;
 pub mod attach;
 pub mod attachment_image;
 pub mod auth;
@@ -35,6 +36,7 @@ pub mod findable;
 pub mod folder;
 pub mod follow_up;
 pub mod formats;
+pub mod gather;
 pub mod history;
 pub mod html_document;
 pub mod identity;

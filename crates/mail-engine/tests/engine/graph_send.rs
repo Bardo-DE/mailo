@@ -266,6 +266,7 @@ fn compose_as(port: u16, message: Option<Vec<u8>>) -> Sending {
                 id: ChangeId::generate(),
                 changes: vec![Change::DraftUpsert(Box::new(draft.clone()))],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     let post = posting(&draft, &identity(), None, &[]).expect("the draft has recipients");
