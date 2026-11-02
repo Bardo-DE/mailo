@@ -10,8 +10,8 @@
 
 use chrono::{DateTime, Utc};
 use mail_domain::{
-    Filter, LabelId, MailboxRole, MatchCtx, Membership, MessageId, Op, Target, ThreadId,
-    ThreadSummary, View, ViewId,
+    Filter, LabelId, MatchCtx, MessageId, Op, OpPreview, Target, ThreadId, ThreadSummary, View,
+    ViewId,
 };
 use mail_logic::undo::Undo;
 use mail_store::{Generation, SqliteStore, Store};
@@ -54,6 +54,7 @@ impl Act for Perform {
             alone,
             then_erase,
         } = self;
+        let accounts = mail_core::gather::acting_accounts(store);
         let done: Performed = ops
             .into_iter()
             .filter_map(|(thread, op)| {
@@ -61,7 +62,7 @@ impl Act for Perform {
                     Some((_, message)) => Target::Messages(vec![*message]),
                     None => Target::Threads(vec![thread]),
                 };
-                mail_core::act::perform_on(store, thread, target, op.clone())
+                mail_core::act::perform_with(store, &accounts, thread, target, op.clone())
                     .map(|undo| (thread, op, undo))
             })
             .collect();
@@ -88,10 +89,11 @@ impl Act for TakeBack {
     type Done = TookBack;
 
     fn run(self, store: &SqliteStore) -> TookBack {
+        let accounts = mail_core::gather::acting_accounts(store);
         let (back, refused) = self
             .0
             .into_iter()
-            .partition(|undo| mail_core::act::take_back(store, undo));
+            .partition(|undo| mail_core::act::take_back_with(store, &accounts, undo));
         TookBack { back, refused }
     }
 }
@@ -185,58 +187,11 @@ pub(crate) fn apply<A: Act>(store: &SqliteStore, change: A) -> Acted<A::Done> {
     }
 }
 
-/// What `op` will make of the conversation `summary` sums up, as near as the summary tells:
-/// where it is filed, whether it is read, starred, labelled, snoozed, pinned. `None` when it
-/// will be gone.
-///
-/// Near, not exact: an op acts on each message, and a summary is their union, so a message the
-/// op leaves where it is (a copy in Sent, kept when the rest is archived) is not seen here.
-pub fn after(summary: &ThreadSummary, op: &Op) -> Option<ThreadSummary> {
-    let mut next = summary.clone();
-    let filed = |keep: &[MailboxRole], into: MailboxRole| {
-        summary
-            .mailboxes
-            .iter()
-            .filter(|role| keep.contains(role))
-            .fold(mail_domain::MailboxSet::only(into), |set, role| {
-                set.with(role)
-            })
-    };
-    match op {
-        Op::Archive => next.mailboxes = filed(&[MailboxRole::Sent], MailboxRole::Archive),
-        Op::Trash => next.mailboxes = filed(&[MailboxRole::Sent], MailboxRole::Trash),
-        Op::Spam => next.mailboxes = filed(&[], MailboxRole::Spam),
-        Op::Restore => next.mailboxes = filed(&[MailboxRole::Sent], MailboxRole::Inbox),
-        Op::File(label) => {
-            next.mailboxes = summary.mailboxes.without(MailboxRole::Inbox);
-            if !next.labels.contains(label) {
-                next.labels.push(*label);
-            }
-        }
-        Op::SetRead(read) => next.read = *read,
-        Op::SetStar(star) => next.star = *star,
-        Op::Flag(hue) => {
-            next.star = mail_domain::Star::Starred;
-            next.flag = *hue;
-        }
-        Op::Copy(label) => {
-            if !next.labels.contains(label) {
-                next.labels.push(*label);
-            }
-        }
-        Op::Label(label, Membership::In) => {
-            if !next.labels.contains(label) {
-                next.labels.push(*label);
-            }
-        }
-        Op::Label(label, Membership::Out) => next.labels.retain(|it| it != label),
-        Op::SetSnooze(snooze) => next.snooze = *snooze,
-        Op::SetPin(pin) => next.pin = *pin,
-        Op::SetMute(mute) => next.mute = *mute,
-        Op::SetFollowUp(follow_up) => next.follow_up = *follow_up,
-        Op::Destroy => return None,
-    }
-    Some(next)
+/// What `op` will make of the conversation `summary` sums up ([`Op::preview`]): where it is
+/// filed, whether it is read, starred, labelled, snoozed, pinned. [`OpPreview::Unknown`] where the
+/// summary does not say, and then a caller waits for the commit instead of guessing.
+pub fn after(summary: &ThreadSummary, op: &Op) -> OpPreview {
+    op.preview(summary)
 }
 
 /// Whether `op` takes the conversation `summary` sums up out of what `filter` lists at `now`:
@@ -255,14 +210,19 @@ pub fn leaves(filter: &Filter, summary: &ThreadSummary, op: &Op, now: DateTime<U
             now,
         })
     };
-    fits(summary) && after(summary, op).is_none_or(|next| !fits(&next))
+    fits(summary)
+        && match after(summary, op) {
+            OpPreview::Gone => true,
+            OpPreview::Becomes(next) => !fits(&next),
+            OpPreview::Unknown => false,
+        }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use mail_domain::testing::summary;
-    use mail_domain::{LabelId, ReadState, Snooze, Star};
+    use mail_domain::{LabelId, MailboxRole, ReadState, Snooze, Star};
 
     fn inbox() -> Filter {
         Filter::InMailbox(MailboxRole::Inbox)
@@ -302,7 +262,24 @@ mod tests {
                 Op::File(label),
                 true,
             ),
-            ("deleted for good", inbox(), summary(), Op::Destroy, true),
+            // Only what is in Trash or Spam is deleted, so a conversation in the inbox stays.
+            (
+                "deleting what is in the inbox",
+                inbox(),
+                summary(),
+                Op::Destroy,
+                false,
+            ),
+            (
+                "deleted for good out of Trash",
+                Filter::InMailbox(MailboxRole::Trash),
+                ThreadSummary {
+                    mailboxes: mail_domain::MailboxSet::only(MailboxRole::Trash),
+                    ..summary()
+                },
+                Op::Destroy,
+                true,
+            ),
             (
                 "starred, still in the inbox",
                 inbox(),
@@ -359,14 +336,20 @@ mod tests {
     }
 
     #[test]
-    fn a_copy_in_sent_stays_when_the_rest_is_archived() {
+    fn archiving_a_conversation_files_all_of_it_and_a_star_waits_for_the_commit() {
         let row = ThreadSummary {
             mailboxes: mail_domain::MailboxSet::only(MailboxRole::Inbox).with(MailboxRole::Sent),
             ..summary()
         };
-        let archived = after(&row, &Op::Archive).expect("still there");
-        assert!(archived.mailboxes.contains(MailboxRole::Sent));
-        assert!(archived.mailboxes.contains(MailboxRole::Archive));
-        assert!(!archived.mailboxes.contains(MailboxRole::Inbox));
+        let OpPreview::Becomes(archived) = after(&row, &Op::Archive) else {
+            panic!("an archive can be previewed");
+        };
+        // Every message moves, the copy in Sent too, as `Op::apply` moves them.
+        assert_eq!(
+            archived.mailboxes,
+            mail_domain::MailboxSet::only(MailboxRole::Archive)
+        );
+        // A flag's colour is the newest starred message's, which a summary does not say.
+        assert_eq!(after(&row, &Op::SetStar(Star::Starred)), OpPreview::Unknown);
     }
 }

@@ -526,6 +526,13 @@ impl SqliteStore {
     pub(super) fn write_patch(&self, patch: &Patch) -> Result<(), StoreError> {
         let db = self.connection();
         let tx = Transaction::new_unchecked(&db, TransactionBehavior::Immediate)?;
+        self.write_patch_in(patch)?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// [`Self::write_patch`], inside a transaction the caller holds.
+    pub(super) fn write_patch_in(&self, patch: &Patch) -> Result<(), StoreError> {
         let mut touched = BTreeSet::new();
         for change in &patch.changes {
             if let Some(t) = self.write_change(change)? {
@@ -535,7 +542,6 @@ impl SqliteStore {
         for thread in touched {
             self.refresh_summary(thread)?;
         }
-        tx.commit()?;
         Ok(())
     }
 

@@ -162,6 +162,33 @@ pub(in crate::ui) fn seeded() -> (Arc<SqliteStore>, tempfile::TempDir) {
 /// has no spaces to break at, and enough rows to fill the pane.
 pub(in crate::ui) fn realistic() -> (Arc<SqliteStore>, tempfile::TempDir) {
     let (store, dir) = seeded();
+    // An account as a program could have written it, with a server to tell: what decides whether
+    // an operation has a server half is the account's plan and its capabilities together.
+    let plan = AccountPlan {
+        address: "me@example.test".to_owned(),
+        incoming: Incoming::Imap {
+            host: "imap.example.test".to_owned(),
+            port: 993,
+            tls: Tls::Implicit,
+        },
+        outgoing: Outgoing::Smtp {
+            host: "smtp.example.test".to_owned(),
+            port: 465,
+            tls: Tls::Implicit,
+        },
+        auth: AuthPlan::Password {
+            username: Username::SameAsAddress,
+            sasl: vec![SaslMech::Plain],
+        },
+        identities: Vec::new(),
+    };
+    mail_client::testing::seed::seed_account_plan(
+        &store,
+        acct_account(),
+        "me@example.test",
+        &plan,
+        None,
+    );
     let rows: [(&str, &str, &str, bool); 6] = [
         (
             "校園資訊網路中心",

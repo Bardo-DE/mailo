@@ -8,6 +8,7 @@
 pub mod account;
 pub mod address;
 pub mod autocrypt;
+pub mod commit;
 pub mod content;
 pub mod draft;
 pub mod error;
@@ -53,6 +54,8 @@ pub use account::{
 };
 pub use address::Address;
 pub use autocrypt::{AutocryptPeer, PreferEncrypt, Sighting};
+// `Written` is `commit::Written`: another `Written` is exported below, and callers glob this crate.
+pub use commit::{Commit, Queue, Resolve, Row, UndoId, Unplaced};
 pub use content::{Attachment, Body, Inline, Label, PartContent};
 pub use draft::{Draft, PendingAttachment, ReplyScope, SendState};
 pub use error::{FolderError, ParseAddressError, ParseFingerprintError, ParseSectionError};
@@ -71,10 +74,10 @@ pub use invite::{Attendance, InviteAnswer};
 pub use jmap_id::{
     JmapAccountId, JmapBlobId, JmapEmailId, JmapIdentityId, JmapMailboxId, JmapThreadId,
 };
-pub use junk::JunkCounts;
+pub use junk::{Judged, JunkCounts};
 pub use keyword::{THUNDERBIRD_TAGS, keyword_label, label_keyword};
 pub use message::{Message, MessageKey, SortFacts, Thread, ThreadSummary};
-pub use op::{Action, Applied, Change, Op, OpKind, Patch, RemoteIntent, Target};
+pub use op::{Action, Applied, Change, Op, OpKind, OpPreview, Patch, RemoteIntent, Target};
 pub use parts::PartTree;
 pub use pgp::{
     Coverage, Encryption, Fingerprint, KeyId, KeySource, KeyTrust, PgpKey, SecretHeld, Verification,

@@ -9,3 +9,20 @@ pub struct JunkCounts {
     /// Each word asked about that has been seen: in how many spam and how many good messages.
     pub words: Vec<(String, u64, u64)>,
 }
+
+/// What a message was learned as.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Judged {
+    Spam,
+    Ham,
+}
+
+impl Judged {
+    /// How the filter's rows name it.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Judged::Spam => "spam",
+            Judged::Ham => "ham",
+        }
+    }
+}

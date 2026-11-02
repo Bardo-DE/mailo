@@ -83,6 +83,9 @@ pub struct OutboxEntry {
     /// Applied if this entry ends in [`Retry::Fatal`], so an optimistic local change does not
     /// outlive an operation the server refused.
     pub undo: Patch,
+    /// The act that queued it, named by the id of the patch it applied. `None` for work no act
+    /// queued, and for work queued before acts were named.
+    pub forward: Option<mail_domain::UndoId>,
     pub attempts: u32,
     pub next_attempt: DateTime<Utc>,
 }
@@ -289,6 +292,18 @@ pub trait Store {
         undo: &Patch,
         now: DateTime<Utc>,
     ) -> Result<Option<OutboxId>, StoreError>;
+
+    /// Write one decision whole: in one transaction, the work to address before the change, the
+    /// change, the work to address after it, and the other rows. Either all of it is written or
+    /// none of it is.
+    ///
+    /// Each [`mail_domain::Queue`] is resolved as [`Store::enqueue`] resolves it. Work that
+    /// names nothing the server holds is skipped under [`mail_domain::Unplaced::Skip`], and under
+    /// [`mail_domain::Unplaced::Rollback`] refuses the commit with [`StoreError::NotQueued`].
+    fn commit(
+        &self,
+        commit: &mail_domain::Commit,
+    ) -> Result<mail_domain::commit::Written, StoreError>;
 
     /// Queued work whose `next_attempt` has arrived, in insertion order.
     ///

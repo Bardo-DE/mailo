@@ -6,6 +6,7 @@
 
 mod account_prefs;
 mod accounts;
+mod act_path;
 mod blobs;
 mod cards;
 mod changes;

@@ -783,7 +783,7 @@ mod an_ingest_in_chunks {
 /// is the writer's own door.
 #[test]
 fn a_store_function_that_only_reads_never_takes_the_writer() {
-    const WRITES: [&str; 14] = [
+    const WRITES: [&str; 16] = [
         "INSERT ",
         "UPDATE ",
         "DELETE ",
@@ -795,6 +795,8 @@ fn a_store_function_that_only_reads_never_takes_the_writer() {
         ".execute",
         "execute_batch",
         "transaction(",
+        "new_unchecked(",
+        "settle_in(",
         ".touch(",
         "write_change",
         "VACUUM",

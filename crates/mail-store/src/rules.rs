@@ -4,7 +4,7 @@
 //! compare what they did rather than two implementations of it.
 //!
 //! Every action is the [`Op`] a person would apply by hand, through [`Op::apply`] and
-//! [`Store::enqueue`]: it changes the message here, is undoable, and tells the server in the
+//! [`Store::commit`]: it changes the message here, is undoable, and tells the server in the
 //! same words — archiving on Gmail drops the Inbox label, on a server with folders it moves.
 //! A rule is a shortcut for the user's own hand, never a second path to the same state.
 
@@ -403,11 +403,10 @@ pub fn perform<S: Store + ?Sized>(
     if applied.forward.changes.is_empty() {
         return Ok(0);
     }
-    store.apply(message.account.clone(), &applied.forward)?;
-    match applied.remote {
-        Some(intent) => Ok(store
-            .enqueue(message.account.clone(), intent, &applied.inverse, now)?
-            .map_or(0, |_| 1)),
-        None => Ok(0),
-    }
+    // The server's half whenever there is one to tell: a message the server does not hold, which
+    // is every message of an account with no server, gives it nothing to be told, and is changed
+    // here alone. Written whole, as a person's own act is.
+    let commit = applied.into_commit(message.account.clone(), now, true);
+    let written = store.commit(&commit)?;
+    Ok(written.queued.iter().flatten().count())
 }

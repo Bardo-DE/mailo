@@ -3,6 +3,7 @@
 mod account_prefs;
 mod accounts;
 mod binned;
+mod commit;
 mod contacts;
 mod copies;
 mod destroyed;
@@ -1026,6 +1027,13 @@ impl Store for SqliteStore {
         now: DateTime<Utc>,
     ) -> Result<Option<OutboxId>, StoreError> {
         self.queue(account, intent, undo, now)
+    }
+
+    fn commit(
+        &self,
+        commit: &mail_domain::Commit,
+    ) -> Result<mail_domain::commit::Written, StoreError> {
+        self.commit_whole(commit)
     }
 
     fn outbox_due(
