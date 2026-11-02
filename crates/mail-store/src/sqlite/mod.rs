@@ -1343,6 +1343,10 @@ impl Store for SqliteStore {
         self.load_placed(message)
     }
 
+    fn placing(&self, message: MessageId) -> Result<mail_domain::Placing, StoreError> {
+        self.load_placing(message)
+    }
+
     fn unplaced_into(
         &self,
         account: AccountId,

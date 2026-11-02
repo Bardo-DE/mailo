@@ -318,6 +318,35 @@ pub enum Leaving {
     Elsewhere,
 }
 
+/// What decides where one message is listed, before it is weighed ([`Placed::of_message_copied`]):
+/// its server addresses and the moves and copies still queued for it.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Placing {
+    /// Every mailbox the message has a server address in, by path.
+    pub addresses: Vec<MailboxRef>,
+    /// The folders the moves still queued for it are taking it to.
+    pub moving: Vec<String>,
+    /// The folders the copies still queued for it are putting it in, each once.
+    pub copying: Vec<MailboxRef>,
+    /// Whether it is waiting for a sync to find where a move put it, so that work queued for it
+    /// is addressed though it has no address yet.
+    pub unplaced: bool,
+}
+
+impl Placing {
+    /// The places the message is listed, filed as `role` on an account whose folders `roles`
+    /// names.
+    pub fn placed(&self, role: MailboxRole, roles: &crate::FolderRoles) -> Vec<Placed> {
+        Placed::of_message_copied(
+            role,
+            self.addresses.clone(),
+            roles,
+            &self.moving,
+            self.copying.clone(),
+        )
+    }
+}
+
 impl Placed {
     /// Every address of one message filed as `role` here, on an account whose folders `roles`
     /// names, with `moving` the target folders of the `File` moves still queued for it.

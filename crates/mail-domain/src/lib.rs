@@ -59,7 +59,9 @@ pub use commit::{Commit, Queue, Resolve, Row, UndoId, Unplaced};
 pub use content::{Attachment, Body, Inline, Label, PartContent};
 pub use draft::{Draft, PendingAttachment, ReplyScope, SendState};
 pub use error::{FolderError, ParseAddressError, ParseFingerprintError, ParseSectionError};
-pub use filter::{Category, DateRange, Filed, Filter, Leaving, MatchCtx, Placed, TextMatch, Words};
+pub use filter::{
+    Category, DateRange, Filed, Filter, Leaving, MatchCtx, Placed, Placing, TextMatch, Words,
+};
 pub use folder::{
     Folder, FolderContents, FolderCtx, FolderWork, Holds, NonEmpty, SpecialUse, Subscription,
 };

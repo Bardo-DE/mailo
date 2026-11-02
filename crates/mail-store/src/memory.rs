@@ -557,6 +557,14 @@ impl Store for MemoryStore {
         Ok(inner.placed_of(message))
     }
 
+    fn placing(&self, message: MessageId) -> Result<mail_domain::Placing, StoreError> {
+        let inner = self.inner.borrow();
+        if !inner.messages.contains_key(&message) {
+            return Err(StoreError::NoMessage(message));
+        }
+        Ok(inner.placing_of(message))
+    }
+
     fn unplaced_into(
         &self,
         account: AccountId,
@@ -1250,24 +1258,34 @@ impl Inner {
             .get(&held.account)
             .map(|caps| caps.folders.clone())
             .unwrap_or_default();
-        let moving: Vec<String> = self
-            .pending
-            .iter()
-            .filter(|row| row.message == message)
-            .filter_map(|row| match self.outbox.get(&row.outbox).map(|o| &o.op) {
-                Some(ProtoOp::File { folder, .. }) => Some(folder.clone()),
-                _ => None,
-            })
-            .collect();
-        let mut copying: Vec<String> = self
-            .pending
-            .iter()
-            .filter(|row| row.message == message)
-            .filter_map(|row| match self.outbox.get(&row.outbox).map(|o| &o.op) {
-                Some(ProtoOp::Copy { folder, .. }) => Some(folder.clone()),
-                _ => None,
-            })
-            .collect();
+        self.placing_of(message).placed(held.mailbox, &roles)
+    }
+
+    /// Kept in step with `sqlite/placed.rs`, which the parity proptest holds it to.
+    fn placing_of(&self, message: MessageId) -> mail_domain::Placing {
+        let Some(held) = self.messages.get(&message) else {
+            return mail_domain::Placing::default();
+        };
+        let queued = |wanted: fn(&ProtoOp) -> Option<&String>| -> Vec<String> {
+            self.pending
+                .iter()
+                .filter(|row| row.message == message)
+                .filter_map(|row| {
+                    self.outbox
+                        .get(&row.outbox)
+                        .and_then(|o| wanted(&o.op))
+                        .cloned()
+                })
+                .collect()
+        };
+        let moving = queued(|op| match op {
+            ProtoOp::File { folder, .. } => Some(folder),
+            _ => None,
+        });
+        let mut copying = queued(|op| match op {
+            ProtoOp::Copy { folder, .. } => Some(folder),
+            _ => None,
+        });
         copying.sort_unstable();
         copying.dedup();
         let mut paths: Vec<&str> = self
@@ -1282,9 +1300,12 @@ impl Inner {
             account: held.account.clone(),
             path: path.to_owned(),
         };
-        let addresses = paths.into_iter().map(folder).collect();
-        let copying = copying.iter().map(|path| folder(path)).collect();
-        mail_domain::Placed::of_message_copied(held.mailbox, addresses, &roles, &moving, copying)
+        mail_domain::Placing {
+            addresses: paths.into_iter().map(folder).collect(),
+            moving,
+            copying: copying.iter().map(|path| folder(path)).collect(),
+            unplaced: self.unplaced.contains_key(&(held.account.clone(), message)),
+        }
     }
 
     fn summary_of(&self, id: ThreadId) -> Option<ThreadSummary> {

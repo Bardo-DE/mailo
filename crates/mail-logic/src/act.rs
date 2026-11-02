@@ -54,6 +54,73 @@ pub struct ThreadView {
     pub messages: Vec<Message>,
 }
 
+impl ThreadView {
+    /// The conversation as it stands once `patch` is written: what a patch says of its messages
+    /// and of the conversation's own state, and the summary derived again from them. A change
+    /// that is about anything else (a label made, a draft, a folder) leaves it as it was.
+    pub fn apply(&mut self, patch: &Patch) {
+        let id = self.thread.summary.id;
+        for change in &patch.changes {
+            match change {
+                Change::MessageRead(m, read) => {
+                    if let Some(m) = self.message_mut(*m) {
+                        m.read = *read;
+                    }
+                }
+                Change::MessageStar(m, star) => {
+                    if let Some(m) = self.message_mut(*m) {
+                        m.star = *star;
+                    }
+                }
+                Change::MessageFlag(m, hue) => {
+                    if let Some(m) = self.message_mut(*m) {
+                        m.flag = *hue;
+                    }
+                }
+                Change::MessageMailbox(m, role) => {
+                    if let Some(m) = self.message_mut(*m) {
+                        m.mailbox = *role;
+                    }
+                }
+                Change::MessageLabel(m, label, Membership::In) => {
+                    if let Some(m) = self.message_mut(*m)
+                        && !m.labels.contains(label)
+                    {
+                        m.labels.push(*label);
+                    }
+                }
+                Change::MessageLabel(m, label, Membership::Out) => {
+                    if let Some(m) = self.message_mut(*m) {
+                        m.labels.retain(|it| it != label);
+                    }
+                }
+                Change::ThreadSnooze(t, snooze) if *t == id => self.thread.summary.snooze = *snooze,
+                Change::ThreadPin(t, pin) if *t == id => self.thread.summary.pin = *pin,
+                Change::ThreadMute(t, mute) if *t == id => self.thread.summary.mute = *mute,
+                Change::ThreadFollowUp(t, follow_up) if *t == id => {
+                    self.thread.summary.follow_up = *follow_up;
+                }
+                _ => {}
+            }
+        }
+        if !self.messages.is_empty() {
+            let kept = &self.thread.summary;
+            self.thread.summary = mail_domain::ThreadSummary::derive(
+                id,
+                &self.messages,
+                kept.snooze,
+                kept.pin,
+                kept.mute,
+                kept.follow_up,
+            );
+        }
+    }
+
+    fn message_mut(&mut self, id: MessageId) -> Option<&mut Message> {
+        self.messages.iter_mut().find(|m| m.id == id)
+    }
+}
+
 /// What acts are decided over.
 #[derive(Debug, Clone, Copy)]
 pub struct ActSnapshot<'a> {
@@ -114,30 +181,16 @@ fn decide(snapshot: &ActSnapshot<'_>, act: &Act, now: DateTime<Utc>) -> Option<A
     // place of the stored capabilities would change nothing on the server, and the conversation
     // would come back on the next full sync.
     let caps = caps_here(snapshot.accounts, &account, now);
-    let applied = act
-        .op
-        .apply(&act.target, &view.thread, &view.messages, &caps, now);
+    let mut acted = applied(
+        view,
+        act,
+        &caps,
+        snapshot.accounts.has_server(&account),
+        now,
+    )?;
     let taught = taught_by(&act.op, &view.messages, snapshot.junk_label(&account));
-    let undo = Undo {
-        thread: Some(act.thread),
-        account: account.clone(),
-        forward: applied.forward.clone(),
-        inverse: applied.inverse.clone(),
-        remote: applied.remote.clone(),
-        resend: None,
-    };
-    // Local folders have no server half: their outbox is never drained, so nothing is put in it.
-    let mut commit =
-        applied.into_commit(account.clone(), now, snapshot.accounts.has_server(&account));
-    // A deletion is addressed before it is written, the rest after (`into_commit`); a message
-    // that names nothing the server holds is made here alone.
-    debug_assert!(
-        commit
-            .queue
-            .iter()
-            .all(|queue| queue.unplaced == Unplaced::Skip)
-    );
-    commit
+    acted
+        .commit
         .rows
         .extend(taught.into_iter().flat_map(|(judged, messages)| {
             messages.into_iter().map(move |message| Row::JunkTaught {
@@ -147,6 +200,42 @@ fn decide(snapshot: &ActSnapshot<'_>, act: &Act, now: DateTime<Utc>) -> Option<A
                 judged,
             })
         }));
+    Some(acted)
+}
+
+/// What `act` does to the conversation in `view`, under `caps`: the operation's patch and, when
+/// `has_server`, its server half, with nothing the junk filter learns. `None` for a conversation
+/// that holds no message.
+///
+/// Local folders have no server half: their outbox is never drained, so nothing is put in it.
+pub(crate) fn applied(
+    view: &ThreadView,
+    act: &Act,
+    caps: &AccountCaps,
+    has_server: bool,
+    now: DateTime<Utc>,
+) -> Option<Acted> {
+    let account = view.messages.first().map(|m| m.account.clone())?;
+    let applied = act
+        .op
+        .apply(&act.target, &view.thread, &view.messages, caps, now);
+    let undo = Undo {
+        thread: Some(act.thread),
+        account: account.clone(),
+        forward: applied.forward.clone(),
+        inverse: applied.inverse.clone(),
+        remote: applied.remote.clone(),
+        resend: None,
+    };
+    let commit = applied.into_commit(account, now, has_server);
+    // A deletion is addressed before it is written, the rest after (`into_commit`); a message
+    // that names nothing the server holds is made here alone.
+    debug_assert!(
+        commit
+            .queue
+            .iter()
+            .all(|queue| queue.unplaced == Unplaced::Skip)
+    );
     Some(Acted { commit, undo })
 }
 

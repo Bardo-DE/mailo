@@ -18,6 +18,7 @@
 
 pub mod account;
 pub mod act;
+pub mod arrival;
 pub mod attach;
 pub mod attachment_image;
 pub mod auth;

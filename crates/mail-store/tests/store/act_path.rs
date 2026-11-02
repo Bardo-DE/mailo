@@ -456,14 +456,25 @@ fn a_rule_queues_for_a_message_the_server_holds_and_for_no_other() {
     for (name, store) in both.each() {
         for (n, ids) in threads.iter().enumerate() {
             let message = store.message(ids[0]).unwrap();
-            let queued = mail_store::rules::perform(
-                store,
+            // As a rule applies it: to the one message, the server told whenever there is a
+            // server half, and the message changed here either way.
+            let thread = store.thread(message.thread).unwrap();
+            let messages: Vec<Message> = thread
+                .messages
+                .iter()
+                .map(|id| store.message(*id).unwrap())
+                .collect();
+            let applied = Op::SetRead(ReadState::Read).apply(
+                &Target::Messages(vec![message.id]),
+                &thread,
+                &messages,
                 &server_caps(),
-                &Op::SetRead(ReadState::Read),
-                &message,
                 at(100),
-            )
-            .unwrap();
+            );
+            let written = store
+                .commit(&applied.into_commit(message.account.clone(), at(100), true))
+                .unwrap();
+            let queued = written.queued.iter().flatten().count();
             assert_eq!(queued, usize::from(n == 0), "{name} message {n}");
             assert_eq!(store.message(ids[0]).unwrap().read, ReadState::Read);
         }
