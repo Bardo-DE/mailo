@@ -8,16 +8,17 @@
 //! (`people.rs`), the one the composer's To field gets.
 
 use ds::prelude::*;
+use mail_ui_kit::avatar::avatar_color;
 use std::collections::HashMap;
 
-use super::super::menu::{MenuItem, Right, Run, Tile, Tone};
 use super::commands::{COMMANDS, Command};
-use crate::ui::actions;
 use chordkit::Keymap;
 use chrono::{DateTime, Utc};
 use mail_client::Client;
 use mail_client::search::{self, ActionHit, PersonHit, Results, Top};
 use mail_domain::ThreadId;
+use mail_ui_kit::actions;
+use mail_ui_kit::menu::{MenuItem, Right, Run, Tile, Tone};
 use mail_ui_model::copy::menus;
 
 /// The commands as the matcher takes them: their words, in the panel's order.
@@ -187,14 +188,6 @@ fn query_marks(query: &str, text: &str) -> Vec<u32> {
         .unwrap_or_default()
 }
 
-/// A person's avatar fill, stable for an address: quire's person hash (design/03 section 13),
-/// the colour its `Avatar` gives the same address, as the text a tile's style takes.
-pub(in crate::ui) fn avatar_color(email: &str) -> String {
-    ds::components::content::avatar::person_hue(email)
-        .hex()
-        .css()
-}
-
 /// A command row, with the chord of the standard action it is drawn from `keymap`: its first
 /// chord, in the platform's own order and words (`Ctrl+N` on Windows, ⌘N on a Mac).
 fn action_item(hit: &ActionHit, group: &str, keymap: &Keymap) -> MenuItem {
@@ -281,7 +274,7 @@ pub(in crate::ui) fn search_now(
     query: &str,
     now: DateTime<Utc>,
 ) -> (Results, HashMap<String, String>) {
-    let history = super::super::history::history(client);
+    let history = mail_ui_kit::history::history(client);
     let (affinity, mut names) = (history.affinity(), history.names());
     let mut results = search::run(query, client.source(), &affinity, &commands(), now);
     super::people::from_book(&mut results, &mut names, client, query, &history);

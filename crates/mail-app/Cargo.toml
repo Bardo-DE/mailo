@@ -77,18 +77,18 @@ path = "src/main.rs"
 
 [features]
 # Desktop extras (design/36 rule 3): what only our desktop has. Here: a saved file opens in
-# anyview, the desktop's viewer, over the session bus (`ui/downloads/open.rs` in `mail-ui`), with
+# anyview, the desktop's viewer, over the session bus (`downloads/open.rs` in `mail-ui-kit`), with
 # the system's app when anyview does not answer. On by default; a build for another desktop, and the portable
 # gate (`cargo check --workspace --no-default-features`), opens files in the system's app alone.
 default = ["quire-desktop", "anyview"]
-quire-desktop = ["mail-ui/quire-desktop"]
+quire-desktop = ["mail-ui-kit/quire-desktop"]
 # anyview's peek and card (github.com/PoHsuanLai/anyview) for the attachments mailo does not draw
 # itself: a picture in the reader's strip and a card in Peek, both over the stored bytes
-# (`ui/reading/anyview.rs` in `mail-ui`). On by default; off, the strip shows a picture's or a PDF's thumbnail
+# (`reading/anyview.rs` in `mail-ui-reader`). On by default; off, the strip shows a picture's or a PDF's thumbnail
 # and Peek those, the calendars, contacts and messages mailo reads itself, and "no preview" for the
 # rest. Only `mail-app` names it: `mail-core` and below never reach anyview
 # (`scripts/check-boundary.sh`).
-anyview = ["mail-ui/anyview"]
+anyview = ["mail-ui-reader/anyview"]
 
 [dependencies]
 porter-core.workspace = true
@@ -105,6 +105,11 @@ mail-intents.workspace = true
 mail-client.workspace = true
 # The window, over the client.
 mail-ui.workspace = true
+# The window below its parts: its shell state, hooks and shared controls, which the program and its
+# tests name directly.
+mail-ui-kit.workspace = true
+mail-ui-reader.workspace = true
+mail-ui-compose.workspace = true
 # The settings files the window and the command line read.
 mail-ui-model.workspace = true
 # The launcher's count and the words the command line prints, which the window shares.

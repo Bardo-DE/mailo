@@ -5,13 +5,13 @@
 
 use crate::ui::fetching::Fetching;
 use crate::ui::reauth::Reauth;
-use crate::ui::space::{Handle, Member, with_member};
-use crate::ui::view::Shell;
 use dioxus::prelude::*;
 use ds::components::menus::item::item::MenuItem;
 use ds::host::measure::Anchor;
 use ds::prelude::*;
 use ds::root::common::Common;
+use mail_ui_kit::space::{Handle, Member, with_member};
+use mail_ui_kit::view::Shell;
 use mail_ui_model::copy;
 use porter_core::AccountId;
 
@@ -108,7 +108,7 @@ fn picked(pick: Pick, mut shell: Signal<Shell>, handle: Handle, account: Option<
                 shell.write().account = None;
             }
         }
-        (Pick::Settings, Some(id)) => crate::ui::settings_window::open_account(id),
+        (Pick::Settings, Some(id)) => mail_ui_kit::settings_at::open_account(id),
         (_, None) => {}
     }
 }

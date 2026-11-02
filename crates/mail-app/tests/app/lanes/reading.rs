@@ -120,7 +120,7 @@ fn open(counts: &Arc<Counts>) -> Window {
         mail_runtime::bimi::remember(&cache, "brand.example", Some(&png), chrono::Utc::now())
             .expect("the logo is cached");
         contexts
-            .with(mail_ui::ui::native::BrandCache(cache))
+            .with(mail_ui_reader::brand::BrandCache(cache))
             .with(Launcher(counts as Arc<dyn Badge>))
     })
 }
@@ -327,9 +327,11 @@ fn a_one_time_code_is_offered_under_the_header_and_copied() {
             );
         },
         move |_, contexts| {
-            contexts.with(mail_ui::ui::native::SensitiveCopy::with_sink(move |text| {
-                sink.lock().unwrap().push(text.to_owned());
-            }))
+            contexts.with(mail_ui_kit::sensitive_copy::SensitiveCopy::with_sink(
+                move |text| {
+                    sink.lock().unwrap().push(text.to_owned());
+                },
+            ))
         },
     );
     const LINE: &str = ".reader-body .otp-code";

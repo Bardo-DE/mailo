@@ -3,13 +3,14 @@
 //! writes `settings.toml`, and every page draws in the window. An account's page in the Accounts
 //! pane is `account`'s (`account/tests.rs`).
 
-use super::{OpenSettings, SettingsAt, SettingsWindows, settings_root};
+use super::settings_root;
 use crate::ui::app::App;
 use crate::ui::fixtures::{
     INSIDE_THE_SHELL, Seen, Work, chord, click, dispatching, drain_seen, rebuild_into, work,
 };
-use crate::ui::view::PageId;
 use dioxus::dioxus_core::{self, VirtualDom};
+use mail_ui_kit::settings_at::{OpenSettings, SettingsAt, SettingsWindows};
+use mail_ui_kit::view::PageId;
 use mail_ui_model::settings::{BrandLogos, LoadRemoteImages, MailSettings, Spelling};
 use std::sync::{Arc, Mutex};
 
@@ -270,7 +271,7 @@ async fn page_controls_write_settings_toml() {
 async fn an_account_s_switch_in_notifications_mutes_and_unmutes_it() {
     let built = work();
     let client = crate::ui::fixtures::client(&built.store);
-    let address = crate::ui::data::account_rows(&client)
+    let address = mail_ui_kit::data::account_rows(&client)
         .first()
         .map(|row| row.address.clone())
         .expect("the fixture has an account");
@@ -474,7 +475,7 @@ async fn vacation_reply_lists_the_accounts_and_a_row_pushes_its_reply() {
     let built = work();
     let (mut dom, seen) = opened_on(&built, PageId::VACATION);
     let list = dioxus_ssr::render(&dom);
-    let rows: Vec<_> = crate::ui::data::account_rows(&crate::ui::fixtures::client(&built.store))
+    let rows: Vec<_> = mail_ui_kit::data::account_rows(&crate::ui::fixtures::client(&built.store))
         .into_iter()
         .filter(|row| !row.is_local())
         .collect();
@@ -572,7 +573,7 @@ async fn every_add_row_stands_in_a_list_of_its_own_led_by_the_plain_plus() {
 #[tokio::test]
 async fn an_open_window_turns_to_the_page_asked_for() {
     let built = work();
-    let asked = super::SettingsAsked::default();
+    let asked = mail_ui_kit::settings_at::SettingsAsked::default();
     asked.ask(SettingsAt::Page(PageId::RULES));
     dispatching();
     let mut dom = VirtualDom::new(settings_root)
@@ -656,7 +657,7 @@ async fn trusting_senders_with_none_yet_says_there_are_none() {
 /// into, and Use Downloads puts the default back. The dialog is the test's: no real one opens.
 #[tokio::test]
 async fn choose_sets_the_downloads_folder_and_use_downloads_clears_it() {
-    use crate::ui::pick::{Ask, Dialogs};
+    use mail_ui_kit::pick::{Ask, Dialogs};
     let built = work();
     let folder = tempfile::tempdir().unwrap_or_else(|why| panic!("a temp dir: {why}"));
     let (dialogs, asked) = Dialogs::answering(vec![folder.path().to_path_buf()]);
@@ -764,7 +765,7 @@ async fn the_vips_page_offers_the_pinned_people_and_removes_a_vip() {
 #[tokio::test]
 async fn turning_to_another_page_leaves_a_pushed_page_behind() {
     let built = work();
-    let asked = super::SettingsAsked::default();
+    let asked = mail_ui_kit::settings_at::SettingsAsked::default();
     asked.ask(SettingsAt::Page(PageId::PRIVACY));
     dispatching();
     let mut dom = VirtualDom::new(settings_root)

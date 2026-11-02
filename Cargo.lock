@@ -5137,7 +5137,10 @@ dependencies = [
  "mail-runtime",
  "mail-store",
  "mail-ui",
+ "mail-ui-compose",
+ "mail-ui-kit",
  "mail-ui-model",
+ "mail-ui-reader",
  "mailo-crypto",
  "mailo-domain",
  "mailo-mime",
@@ -5425,9 +5428,6 @@ dependencies = [
 name = "mail-ui"
 version = "0.1.0"
 dependencies = [
- "anyview-core",
- "anyview-peek",
- "arboard",
  "base64 0.22.1",
  "blitz-dom",
  "chordkit",
@@ -5450,7 +5450,10 @@ dependencies = [
  "mail-runtime",
  "mail-store",
  "mail-ui",
+ "mail-ui-compose",
+ "mail-ui-kit",
  "mail-ui-model",
+ "mail-ui-reader",
  "mailo-archive",
  "mailo-crypto",
  "mailo-domain",
@@ -5485,6 +5488,75 @@ dependencies = [
 ]
 
 [[package]]
+name = "mail-ui-compose"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "chordkit",
+ "chrono",
+ "dioxus",
+ "ds",
+ "ds-blitz",
+ "image",
+ "log",
+ "mail-client",
+ "mail-core",
+ "mail-ui-kit",
+ "mail-ui-model",
+ "mailo-domain",
+ "mailo-editor",
+ "mailo-mime",
+ "mailo-reader",
+ "porter-core",
+ "serde",
+ "tempfile",
+ "tokio",
+ "unicode-segmentation",
+]
+
+[[package]]
+name = "mail-ui-kit"
+version = "0.1.0"
+dependencies = [
+ "arboard",
+ "base64 0.22.1",
+ "blitz-dom",
+ "chordkit",
+ "chrono",
+ "dioxus",
+ "dioxus-native-dom",
+ "dioxus-ssr",
+ "ds",
+ "ds-blitz",
+ "ds-settings",
+ "image",
+ "log",
+ "mail-client",
+ "mail-core",
+ "mail-os",
+ "mail-store",
+ "mail-ui-model",
+ "mailo-crypto",
+ "mailo-domain",
+ "mailo-editor",
+ "mailo-mime",
+ "mailo-reader",
+ "porter-core",
+ "porter-provider",
+ "rand 0.8.8",
+ "rfd",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "toml",
+ "url",
+ "uuid",
+ "webbrowser",
+ "zbus",
+]
+
+[[package]]
 name = "mail-ui-model"
 version = "0.1.0"
 dependencies = [
@@ -5509,6 +5581,41 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml",
+ "url",
+ "uuid",
+]
+
+[[package]]
+name = "mail-ui-reader"
+version = "0.1.0"
+dependencies = [
+ "anyview-core",
+ "anyview-peek",
+ "base64 0.22.1",
+ "blitz-dom",
+ "chordkit",
+ "chrono",
+ "dioxus",
+ "dioxus-native-dom",
+ "dioxus-ssr",
+ "ds",
+ "ds-blitz",
+ "image",
+ "log",
+ "mail-client",
+ "mail-core",
+ "mail-os",
+ "mail-ui-kit",
+ "mail-ui-model",
+ "mailo-crypto",
+ "mailo-domain",
+ "mailo-mime",
+ "mailo-pim",
+ "mailo-reader",
+ "porter-core",
+ "reqwest",
+ "tempfile",
+ "tokio",
  "url",
  "uuid",
 ]

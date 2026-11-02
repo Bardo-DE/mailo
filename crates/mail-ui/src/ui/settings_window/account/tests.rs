@@ -4,15 +4,16 @@
 //! main window asks for it.
 
 use super::Seams;
-use crate::ui::data::account_rows;
 use crate::ui::fixtures::{
     INSIDE_THE_SHELL, Seen, Work, click, dispatching, drain_seen, press, rebuild_into, work,
 };
+use crate::ui::settings_window::settings_root;
 use crate::ui::settings_window::tests::opened_on;
-use crate::ui::settings_window::{SettingsAsked, SettingsAt, settings_root};
-use crate::ui::view::PageId;
 use dioxus::dioxus_core::VirtualDom;
 use mail_core::Storage;
+use mail_ui_kit::data::account_rows;
+use mail_ui_kit::settings_at::{SettingsAsked, SettingsAt};
+use mail_ui_kit::view::PageId;
 use porter_core::AccountId;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -255,7 +256,7 @@ async fn the_page_says_how_much_storage_the_server_counts_once_it_has_said() {
 /// sign-in again.
 #[tokio::test]
 async fn an_account_waiting_to_sign_in_is_not_asked_for_its_storage() {
-    use crate::ui::fetching::{Need, Needing};
+    use mail_ui_kit::need::{Need, Needing};
     let built = work();
     let asked: Arc<Mutex<Vec<AccountId>>> = Arc::default();
     let seams = Seams {

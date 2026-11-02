@@ -6,9 +6,6 @@
 //! window.
 
 use super::app::App;
-use crate::ui::appearance::WindowDirs;
-use crate::ui::space::Spaces;
-use crate::ui::view::Appearance;
 use dioxus::prelude::*;
 use ds::base::spawner::Spawner;
 use ds::style::kit::{StyleHomes, Styles, UserStyle};
@@ -16,6 +13,9 @@ use ds_settings::{AppName, ConfigRoot, Store, SystemPrefsSource, use_environment
 use mail_client::Client;
 use mail_client::profile::ProfileId;
 use mail_client::provider::icon::Loaded;
+use mail_ui_kit::appearance::WindowDirs;
+use mail_ui_kit::space::Spaces;
+use mail_ui_kit::view::Appearance;
 use std::sync::Arc;
 
 pub(super) mod gate;
@@ -114,10 +114,10 @@ pub(super) struct Opening {
     pub look: Appearance,
     pub spaces: Spaces,
     pub dirs: Option<WindowDirs>,
-    pub start: super::ask::Open,
+    pub start: crate::ui::ask::Open,
     pub icons: Loaded,
     /// Where brand logos are cached, when there is a cache directory.
-    pub brand: Option<super::brand::BrandCache>,
+    pub brand: Option<mail_ui_reader::brand::BrandCache>,
     /// The settings files that are there and cannot be read, asked about before the window opens.
     pub found: gate::Found,
 }
@@ -130,16 +130,16 @@ pub fn run(
     look: Appearance,
     spaces: Spaces,
     dirs: Option<WindowDirs>,
-    start: super::ask::Open,
+    start: crate::ui::ask::Open,
 ) -> Result<(), ds_blitz::LaunchError> {
     let _ = PROFILE.set(program.profile.clone());
     let _ = WATCHING_HERE.set(program.resident.watching_here);
     let cache = mail_client::config::cache_dir();
     let icons = cache
         .as_ref()
-        .map(|dir| super::provider_chip::read(&dir.join("providers")))
+        .map(|dir| mail_ui_kit::provider_chip::read(&dir.join("providers")))
         .unwrap_or_default();
-    let brand = cache.map(|dir| super::brand::BrandCache(dir.join("bimi")));
+    let brand = cache.map(|dir| mail_ui_reader::brand::BrandCache(dir.join("bimi")));
     let found = gate::Found(dirs.as_ref().map(gate::found).unwrap_or_default());
     let opening = Opening {
         program,
@@ -231,7 +231,7 @@ pub(super) fn ShellRoot() -> Element {
     use_context_provider(|| ReadSignal::new(styles));
     // mailo's own settings (`mailo/settings.toml`), watched the same way: detent writes the same
     // file, and the window follows it.
-    super::prefs::use_window_settings();
+    mail_ui_kit::prefs::use_window_settings();
     rsx! { gate::Gate {} }
 }
 
@@ -241,7 +241,7 @@ pub(super) fn ShellRoot() -> Element {
 /// the first window asked: what it carries in from outside comes through the hand-off's queue.
 #[component]
 pub(super) fn ReopenedRoot() -> Element {
-    use_context_provider(super::ask::Open::raise);
+    use_context_provider(crate::ui::ask::Open::raise);
     use_context_provider(gate::Found::default);
     rsx! { ShellRoot {} }
 }
@@ -256,8 +256,8 @@ fn Shell() -> Element {
     let loaded = try_consume_context::<Loaded>().unwrap_or_default();
     let icons = use_signal(|| loaded);
     use_context_provider(|| icons);
-    crate::ui::provider_chip::use_fetch_missing(icons);
-    super::host::use_window_host();
+    mail_ui_kit::provider_chip::use_fetch_missing(icons);
+    mail_ui_kit::host::use_window_host();
     rsx! { App {} }
 }
 

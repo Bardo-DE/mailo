@@ -4,11 +4,11 @@
 
 use super::super::tests::opened_on;
 use crate::ui::fixtures::{Work, click, drain_seen, type_into, work};
-use crate::ui::space::{Spaces, stored};
-use crate::ui::view::PageId;
 use dioxus::dioxus_core::VirtualDom;
 use ds::style::appearance::theme::Theme;
 use ds::style::space::presets::PRESETS;
+use mail_ui_kit::space::{Spaces, stored};
+use mail_ui_kit::view::PageId;
 use mail_ui_model::copy;
 
 /// The Spaces as the file holds them now.
@@ -210,8 +210,8 @@ fn a_new_space_can_be_deleted_after_asking() {
 fn the_window_opens_on_the_space_s_page_it_is_asked_for() {
     let built = work();
     let first = on_disk(&built).current().id;
-    let asked = crate::ui::settings_window::SettingsAsked::default();
-    asked.ask(crate::ui::settings_window::SettingsAt::Space(first));
+    let asked = mail_ui_kit::settings_at::SettingsAsked::default();
+    asked.ask(mail_ui_kit::settings_at::SettingsAt::Space(first));
     crate::ui::fixtures::dispatching();
     let mut dom = VirtualDom::new(crate::ui::settings_window::settings_root)
         .with_root_context(crate::ui::fixtures::client(&built.store))

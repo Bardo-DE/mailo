@@ -17,32 +17,21 @@ mod tiles;
 pub(super) use self::folder_act::{folder_places, known_labels};
 use self::folder_tree::{Show, arrange, scope};
 use self::folders::FolderList;
+pub(in crate::ui) use self::panes::place_icon;
 use self::panes::{Favourites, PlaceList, counted_of, pins_of};
-pub(in crate::ui) use self::panes::{hex_colour, place_icon};
 use self::tiles::{AccountTiles, tile_filter, tile_rows};
-use crate::ui::live::use_live;
-use crate::ui::space::{Handle, Mail};
-use crate::ui::view::Shell;
 use dioxus::prelude::*;
 use ds::components::app::edge_peek::EdgePeek;
 use ds::components::app::spaces::{SpaceHead, SpacesFoot};
 use ds::prelude::*;
 use ds::root::common::Common;
-use ds::root::pass_through::{DataAttr, DataName, ExtraClass};
+use ds::root::pass_through::ExtraClass;
 use ds::style::scope::use_scope;
 use mail_client::profile::ProfileId;
+use mail_ui_kit::live::use_live;
+use mail_ui_kit::space::{Handle, Mail};
+use mail_ui_kit::view::Shell;
 use mail_ui_model::copy;
-
-/// A `data-<name>` of mailo's own on a quire component: where a hover card or a test finds the
-/// thing the element stands for.
-pub(super) fn tagged(name: &'static str, value: impl Into<String>) -> Common {
-    Common {
-        data: DataName::parse(name)
-            .map(|name| vec![DataAttr::new(name, value)])
-            .unwrap_or_default(),
-        ..Common::default()
-    }
-}
 
 /// Go to the place at `index`, from the first page of its list: the one way a click, a ⌘K pick
 /// or a drop of the sidebar's own rows turns the window to another place.
@@ -132,7 +121,7 @@ pub(super) fn Places(
     });
     // Whether a message is waiting for its time on this Space's accounts: the Scheduled place is
     // drawn only then. Read again as a send is scheduled or taken back.
-    let desk = try_use_context::<crate::ui::compose::Desk>();
+    let desk = try_use_context::<mail_ui_compose::compose::Desk>();
     let held = use_live(move || {
         let accounts = accounts.read();
         let sending: Vec<(String, porter_core::AccountId)> = accounts
@@ -145,7 +134,7 @@ pub(super) fn Places(
                     .collect()
             })
             .unwrap_or_default();
-        mail_client::query::DraftsOf(crate::ui::compose::sending_in(&sending, &in_scope()))
+        mail_client::query::DraftsOf(mail_ui_compose::compose::sending_in(&sending, &in_scope()))
     });
     let scheduled = use_memo(move || {
         // A send just held for later is a place before the client has read it back.
@@ -154,13 +143,13 @@ pub(super) fn Places(
                 .outbox
                 .read()
                 .as_ref()
-                .is_some_and(|sent| sent.when != crate::ui::compose::When::Now)
+                .is_some_and(|sent| sent.when != mail_ui_compose::compose::When::Now)
         {
             return true;
         }
-        held.read()
-            .value()
-            .is_some_and(|drafts| !crate::ui::compose::scheduled_in(drafts.to_vec()).is_empty())
+        held.read().value().is_some_and(|drafts| {
+            !mail_ui_compose::compose::scheduled_in(drafts.to_vec()).is_empty()
+        })
     });
     let show = use_signal(|| Show::Followed);
     let folders = use_memo(move || {
@@ -237,7 +226,7 @@ pub(super) fn Places(
                     style: carried.clone(),
                     SpaceHead { handle }
                 }
-                crate::ui::downloads::DownloadsButton { shell }
+                mail_ui_kit::downloads::DownloadsButton { shell }
             }
             div { class: moved("slide"), oncontextmenu: space_menu,
                 "data-swipe": swiping,
