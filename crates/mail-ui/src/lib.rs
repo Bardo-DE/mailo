@@ -11,6 +11,7 @@
 //! what is said of a finished import, export or push, are `mail-os`'s.
 
 pub mod damage;
+pub mod desktop;
 pub mod handoff;
 pub mod settings;
 #[cfg(feature = "testing")]
