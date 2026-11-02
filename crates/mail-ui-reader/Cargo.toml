@@ -69,8 +69,8 @@ ds = { git = "https://github.com/PoHsuanLai/quire.git", rev = "2b3d8aff2c4808016
 # spelling as quire, so one quire is built). `anyview-core` is the vocabulary (`Input`, `ReadAt`:
 # how the store's bytes go in); `anyview-peek` the peek worker and, with `pane`, the card that draws
 # what was peeked. Headless otherwise: no media player, no D-Bus.
-anyview-core = { git = "https://github.com/PoHsuanLai/anyview.git", rev = "2666d7834c8d5089dd33c715ff3222b4148232da", optional = true }
-anyview-peek = { git = "https://github.com/PoHsuanLai/anyview.git", rev = "2666d7834c8d5089dd33c715ff3222b4148232da", default-features = false, features = ["pane"], optional = true }
+anyview-core = { git = "https://github.com/PoHsuanLai/anyview.git", rev = "f9a04eee89dac6b9329748a4ee72a6422db7e774", optional = true }
+anyview-peek = { git = "https://github.com/PoHsuanLai/anyview.git", rev = "f9a04eee89dac6b9329748a4ee72a6422db7e774", default-features = false, features = ["pane"], optional = true }
 # The window: quire's Blitz host (the window, its fonts, focus, clipboard, PDF output), and
 # `print`: the system's print dialog for a PDF (the desktop portal on Linux, else the PDF opened
 # in the viewer); `spell`: the composer's spelling, against the system's Hunspell dictionaries
