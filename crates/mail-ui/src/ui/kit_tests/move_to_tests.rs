@@ -18,7 +18,7 @@ use crate::ui::fixtures::{
     FakePointer, INSIDE_THE_SHELL, Seen, chord, click, dispatching, empty, listed_subjects,
     menu_names, open_row_menu, pick_named, pointer, rebuild_into, row_named,
 };
-use crate::ui::folder_open::Fetcher;
+use mail_ui_kit::fetching::folder_open::Fetcher;
 use mail_ui_kit::move_to::{destinations, folder_label, items};
 use mail_ui_kit::view::folder_filter;
 

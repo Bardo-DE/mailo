@@ -9,7 +9,7 @@ use super::app::App;
 use dioxus::prelude::*;
 use ds::base::spawner::Spawner;
 use ds::style::kit::{StyleHomes, Styles, UserStyle};
-use ds_settings::{AppName, ConfigRoot, Store, SystemPrefsSource, use_environment};
+use ds_settings::use_environment;
 use mail_client::Client;
 use mail_client::profile::ProfileId;
 use mail_client::provider::icon::Loaded;
@@ -89,25 +89,6 @@ impl Resident {
     }
 }
 
-static PROFILE: std::sync::OnceLock<ProfileId> = std::sync::OnceLock::new();
-static WATCHING_HERE: std::sync::OnceLock<fn() -> bool> = std::sync::OnceLock::new();
-
-/// Whose mail the running program is over: the default Profile's until [`run`] records it.
-#[cfg(not(test))]
-pub(in crate::ui) fn profile() -> ProfileId {
-    PROFILE
-        .get()
-        .cloned()
-        .unwrap_or_else(|| mail_client::profile::Profile::default().id().clone())
-}
-
-/// Whether the program's own watch, in this process, holds the lock: a window of this process asks
-/// it before it knocks on the lock's door.
-#[cfg(not(test))]
-pub(in crate::ui) fn watching_here() -> bool {
-    WATCHING_HERE.get().is_some_and(|here| here())
-}
-
 /// What the window is opened with.
 pub(super) struct Opening {
     pub program: Program,
@@ -132,8 +113,8 @@ pub fn run(
     dirs: Option<WindowDirs>,
     start: crate::ui::ask::Open,
 ) -> Result<(), ds_blitz::LaunchError> {
-    let _ = PROFILE.set(program.profile.clone());
-    let _ = WATCHING_HERE.set(program.resident.watching_here);
+    mail_ui_kit::add_account::record_opener(super::add_account::quire);
+    mail_ui_kit::program::record(program.profile.clone(), program.resident.watching_here);
     let cache = mail_client::config::cache_dir();
     let icons = cache
         .as_ref()
@@ -154,36 +135,7 @@ pub fn run(
     native::run(opening)
 }
 
-/// Where the launched window reads the desktop's appearance from: the person's own
-/// (`ConfigRoot::Xdg`, the settings portal), or, in a test, a scratch directory and fixed
-/// preferences. A root context; a window without one reads the person's.
-#[derive(Debug, Clone)]
-pub struct DesktopSettings {
-    pub root: ConfigRoot,
-    pub prefs: SystemPrefsSource,
-}
-
-impl Default for DesktopSettings {
-    fn default() -> Self {
-        DesktopSettings {
-            root: ConfigRoot::Xdg,
-            prefs: SystemPrefsSource::Portal,
-        }
-    }
-}
-
-impl DesktopSettings {
-    /// The settings in force for this window: its context, else the person's.
-    pub(in crate::ui) fn current() -> Self {
-        try_consume_context::<DesktopSettings>().unwrap_or_default()
-    }
-
-    /// The desktop's one store, `quire/` in the config root, which the shell and detent read
-    /// and write too. mailo keeps no appearance file of its own.
-    pub(in crate::ui) fn store(&self) -> Store {
-        Store::new(self.root.clone(), AppName::QUIRE)
-    }
-}
+pub use mail_ui_kit::program::DesktopSettings;
 
 /// The launched window's root: the window's settings, then [`Shell`].
 ///

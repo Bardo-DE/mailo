@@ -36,7 +36,7 @@ pub(in crate::ui) fn people_for(store: &Arc<SqliteStore>, query: &str) -> Vec<St
 #[test]
 fn a_person_the_ranker_put_on_top_is_the_books_best_match() {
     // Nobody but the book says who "da" is: the menu's people are its answer, in its order.
-    let (store, _dir) = crate::ui::contacts::tests::the_book();
+    let (store, _dir) = crate::ui::settings_tests::contacts::the_book();
     let drawn = people_for(&store, "da");
     let book: Vec<String> = mail_ui_kit::book::suggest(&crate::ui::fixtures::client(&store), "da")
         .into_iter()
@@ -317,7 +317,7 @@ fn Runs(command: &'static dyn Command) -> Element {
 /// Settings… is the one row for Settings: it opens the window, which keeps its own pages.
 #[tokio::test]
 async fn settings_opens_the_settings_window() {
-    use crate::ui::settings_window::tests::Asked;
+    use crate::ui::settings_tests::window::Asked;
     use mail_ui_kit::settings_at::SettingsWindows;
     let command: &'static dyn Command = &Settings;
     crate::ui::fixtures::dispatching();

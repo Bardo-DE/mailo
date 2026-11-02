@@ -165,3 +165,10 @@ pub fn known_accounts(client: &Client) -> Result<Vec<AccountId>, mail_client::Ca
 pub fn accounts(client: &Client) -> Vec<AccountId> {
     account_rows(client).into_iter().map(|row| row.id).collect()
 }
+
+/// Every account there is, in order, and how the window names it.
+pub fn account_names(rows: &[AccountRow]) -> Vec<(AccountId, String)> {
+    rows.iter()
+        .map(|row| (row.id.clone(), row.shown()))
+        .collect()
+}

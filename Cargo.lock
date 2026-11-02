@@ -5553,8 +5553,10 @@ dependencies = [
  "mail-ui",
  "mail-ui-compose",
  "mail-ui-kit",
+ "mail-ui-list",
  "mail-ui-model",
  "mail-ui-reader",
+ "mail-ui-settings",
  "mailo-archive",
  "mailo-crypto",
  "mailo-domain",
@@ -5658,6 +5660,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "mail-ui-list"
+version = "0.1.0"
+dependencies = [
+ "chordkit",
+ "chrono",
+ "dioxus",
+ "dioxus-ssr",
+ "ds",
+ "log",
+ "mail-client",
+ "mail-ui-kit",
+ "mail-ui-model",
+ "mailo-domain",
+ "mailo-logic",
+ "mailo-proto",
+ "porter-core",
+ "regex",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "mail-ui-model"
 version = "0.1.0"
 dependencies = [
@@ -5718,6 +5742,40 @@ dependencies = [
  "tempfile",
  "tokio",
  "url",
+ "uuid",
+]
+
+[[package]]
+name = "mail-ui-settings"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "chordkit",
+ "chrono",
+ "dioxus",
+ "dioxus-ssr",
+ "ds",
+ "ds-blitz",
+ "ds-settings",
+ "log",
+ "mail-client",
+ "mail-os",
+ "mail-ui-kit",
+ "mail-ui-model",
+ "mailo-domain",
+ "mailo-editor",
+ "mailo-logic",
+ "mailo-mime",
+ "mailo-pim",
+ "mailo-proto",
+ "mailo-reader",
+ "porter-core",
+ "porter-provider",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "toml",
  "uuid",
 ]
 

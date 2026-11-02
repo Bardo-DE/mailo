@@ -10,7 +10,6 @@
 
 use super::join::{self, Plus};
 use super::tile_menu::TileMenu;
-use crate::ui::fetching::Fetching;
 use crate::ui::reauth::Reauth;
 use dioxus::prelude::*;
 use ds::components::app::pin_tile::{PinFace, PinStatus};
@@ -24,6 +23,7 @@ use mail_client::provider::{Provider, provider};
 use mail_client::query::{Account, Counted, Counts};
 use mail_domain::{Filter, ReadState};
 use mail_ui_kit::data::account_rows;
+use mail_ui_kit::fetching::Fetching;
 use mail_ui_kit::menu::Floating;
 use mail_ui_kit::provider_chip::{MarkAt, mark_of, mark_style};
 use mail_ui_kit::space::{Handle, Space};

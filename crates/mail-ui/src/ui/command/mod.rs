@@ -8,7 +8,6 @@
 //! [`spotlight`], its keys [`keys`]; the commands are [`commands`], one type each; this file is
 //! what a pick does.
 
-mod bar;
 mod commands;
 mod items;
 mod keys;
@@ -20,13 +19,16 @@ mod spotlight;
 mod suggest;
 mod templates;
 
-pub(in crate::ui) use bar::{Affordance, SearchBox, SearchHead, affordance, clear};
-#[cfg(test)]
-pub(in crate::ui) use bar::{BOX_LABEL, CLEAR_LABEL};
 pub(in crate::ui) use commands::{Acts, Command, Settings, Sidebar, TidyUp};
 #[cfg(test)]
-pub(in crate::ui) use spotlight::{FIELD, LABEL};
-pub(in crate::ui) use spotlight::{Spotlight, summon};
+pub(in crate::ui) use mail_ui_kit::summon::FIELD;
+pub(in crate::ui) use mail_ui_kit::summon::summon;
+pub(in crate::ui) use mail_ui_list::bar::{Affordance, affordance, clear};
+#[cfg(test)]
+pub(in crate::ui) use mail_ui_list::bar::{BOX_LABEL, CLEAR_LABEL};
+#[cfg(test)]
+pub(in crate::ui) use spotlight::LABEL;
+pub(in crate::ui) use spotlight::Spotlight;
 
 use dioxus::prelude::*;
 use items::Pick;

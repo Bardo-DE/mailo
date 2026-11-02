@@ -12,13 +12,13 @@
 //! the mark is the way back: its tip says Sign In Again, and a press asks about it again in the
 //! sign-in prompt instead of syncing.
 
-use crate::ui::fetching::{Fetching, sync_availability, use_status};
 use crate::ui::reauth::Reauth;
 use dioxus::prelude::*;
 use ds::components::controls::button_model::{Bezel, BusyLook, ImagePosition};
 use ds::prelude::*;
 use mail_client::fetch::Link;
 use mail_ui_kit::data::syncs_nothing;
+use mail_ui_kit::fetching::{Fetching, sync_availability, use_status};
 use mail_ui_kit::press::on_primary;
 use mail_ui_kit::view::Shell;
 use mail_ui_model::copy;
@@ -112,7 +112,7 @@ pub(super) fn SyncMark(shell: Signal<Shell>) -> Element {
                     let asked = try_consume_context::<Reauth>()
                         .is_some_and(|reauth| reauth.ask_again(&needing));
                     if !asked {
-                        crate::ui::fetching::sync_now(&shell.read());
+                        mail_ui_kit::fetching::sync_now(&shell.read());
                     }
                 }),
             }

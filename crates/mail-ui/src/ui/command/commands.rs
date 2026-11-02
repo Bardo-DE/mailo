@@ -371,7 +371,7 @@ impl Command for SyncNow {
     }
 
     fn run(&self, acts: Acts) {
-        crate::ui::fetching::sync_now(&acts.shell.read());
+        mail_ui_kit::fetching::sync_now(&acts.shell.read());
         close(acts.shell);
     }
 }

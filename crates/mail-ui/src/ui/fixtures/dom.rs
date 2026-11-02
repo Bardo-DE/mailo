@@ -318,6 +318,7 @@ impl dioxus::html::HtmlEventConverter for TestEvents {
 pub(in crate::ui) fn dispatching() {
     static ONCE: std::sync::Once = std::sync::Once::new();
     ONCE.call_once(|| {
+        mail_ui_list::list::mount_every_row();
         dioxus::html::set_event_converter(Box::new(TestEvents));
     });
 }
