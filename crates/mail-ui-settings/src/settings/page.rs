@@ -142,7 +142,7 @@ impl Page for Signatures {
     }
 
     fn icon(&self) -> Icon {
-        Icon::Pen
+        Icon::PenLine
     }
 
     fn body(&self, shell: Signal<Shell>) -> Element {
