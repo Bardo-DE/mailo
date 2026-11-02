@@ -4,18 +4,18 @@
 
 use super::super::tests::opened_on;
 use super::row_id;
-use crate::ui::copy;
 use crate::ui::fixtures::{Seen, Work, click, drain_seen, identify, settle_quiet, type_into, work};
-use crate::ui::view::PageId;
 use dioxus::dioxus_core::VirtualDom;
-use mail_core::signature;
+use mail_client::testing::core::signature;
 use mail_domain::{IdentityId, Signature};
+use mail_ui_kit::view::PageId;
+use mail_ui_model::copy;
 
 /// A signature called "Work" on the fixture's first address that sends, made before the window
 /// opens.
 fn work_signature(built: &Work) -> Signature {
     // The reference fixture's accounts are plans without identities, as an account is stored.
-    let (address, account) = mail_core::compose::sending_accounts(&built.store)
+    let (address, account) = mail_client::testing::core::compose::sending_accounts(&built.store)
         .into_iter()
         .next()
         .expect("the fixture has an account that sends");
@@ -65,7 +65,7 @@ async fn a_deleted_signature_is_said_with_an_undo_that_puts_it_back() {
     );
 
     // What the Undo puts back.
-    crate::ui::motion::Restore::Signature(made.clone())
+    mail_ui_kit::motion::Restore::Signature(made.clone())
         .put_back(&crate::ui::fixtures::client(&built.store))
         .unwrap();
     assert_eq!(built.store.signature(made.id).unwrap(), made);

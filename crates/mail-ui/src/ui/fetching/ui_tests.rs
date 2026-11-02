@@ -7,7 +7,7 @@ use super::tests::{
 };
 use crate::ui::fixtures::{Seen, click, settle_quiet, settle_quiet_seen};
 use dioxus::prelude::{ScopeId, VirtualDom, consume_context};
-use mail_core::fetch::{Link, Trigger};
+use mail_client::testing::core::fetch::{Link, Trigger};
 use std::sync::atomic::Ordering;
 
 /// The opening tag of the element that carries `needle`.
@@ -124,7 +124,7 @@ async fn a_refused_account_is_asked_about_once_and_signs_in_from_the_dialog_or_t
     // The sidebar foot's mark is the way back: it says so, and a press asks again.
     click(
         &mut dom,
-        seen.one("aria-label", crate::ui::copy::aria::SIGN_IN_AGAIN),
+        seen.one("aria-label", mail_ui_model::copy::aria::SIGN_IN_AGAIN),
     );
     settle_quiet(&mut dom).await;
     let page = dioxus_ssr::render(&dom);
@@ -143,10 +143,13 @@ async fn a_warning_is_said_by_the_sync_mark_and_not_over_the_list() {
     // The account waits for a sign-in, so the mark is the way to it.
     let mark = tag_with(
         &page,
-        &format!("aria-label=\"{}\"", crate::ui::copy::aria::SIGN_IN_AGAIN),
+        &format!(
+            "aria-label=\"{}\"",
+            mail_ui_model::copy::aria::SIGN_IN_AGAIN
+        ),
     );
     assert!(
-        mark.contains(crate::ui::copy::aria::SIGN_IN_AGAIN),
+        mark.contains(mail_ui_model::copy::aria::SIGN_IN_AGAIN),
         "{mark}"
     );
     assert!(
@@ -169,7 +172,7 @@ async fn the_sync_button_is_busy_while_a_pass_runs_and_not_after() {
     let (store, _dir) = account(true);
     let (passer, script) = passer();
     let (mut dom, seen) = window(store, passer);
-    let button = &format!("aria-label=\"{}\"", crate::ui::copy::aria::SYNC_NOW);
+    let button = &format!("aria-label=\"{}\"", mail_ui_model::copy::aria::SYNC_NOW);
     let page = dioxus_ssr::render(&dom);
     assert!(
         !tag_with(&page, button).contains(r#"aria-busy="true""#),
@@ -178,7 +181,7 @@ async fn the_sync_button_is_busy_while_a_pass_runs_and_not_after() {
 
     click(
         &mut dom,
-        seen.one("aria-label", crate::ui::copy::aria::SYNC_NOW),
+        seen.one("aria-label", mail_ui_model::copy::aria::SYNC_NOW),
     );
     settle_quiet(&mut dom).await;
     assert_eq!(script.runs.load(Ordering::SeqCst), 1);
@@ -217,7 +220,7 @@ async fn an_account_removed_in_settings_leaves_the_links() {
 
     let account = acct_account();
     let secrets = porter_secrets::MemorySecrets::default();
-    mail_core::account::remove(&store, &secrets, account)
+    mail_client::testing::core::account::remove(&store, &secrets, account)
         .await
         .unwrap_or_else(|why| panic!("{why:?}"));
     settle_quiet_seen(&mut dom).await;
@@ -239,7 +242,7 @@ async fn sync_while_a_pass_runs_says_it_is_already_checking() {
     assert!(!page.contains(super::ALREADY_SYNCING), "said unasked");
 
     dom.in_scope(ScopeId::APP, || {
-        super::sync_now(&crate::ui::view::Shell::default());
+        super::sync_now(&mail_ui_kit::view::Shell::default());
     });
     // The toast is quire's, and its host lays it out a frame after the push.
     let mut page = String::new();

@@ -6,26 +6,13 @@
 //! opens or picks it, and it draws no buttons: its actions are in its menu ([`menu`]), opened by
 //! a right click. Split from [`super::app`].
 
-pub(in crate::ui) mod act;
 pub(in crate::ui) mod listed;
 #[cfg(test)]
 mod listed_tests;
-pub(in crate::ui) mod menu;
 #[cfg(test)]
 mod tests;
 
 use super::marked::{Piece, pieces};
-use super::menus::FurtherMenus;
-use super::motion::{act_kind, drag, motion};
-use super::ops::{Writes, open_composer};
-use super::picks::drawn_order;
-use crate::ui::compose::{cancel_scheduled, delete_stored_draft};
-use crate::ui::copy;
-use crate::ui::provider_chip::ProvChip;
-use crate::ui::selection::Click;
-use crate::ui::view::Marks;
-use crate::ui::view::{Opened, Shell};
-use act::press;
 use chordkit::Platform;
 use dioxus::prelude::*;
 use ds::base::command::holds_primary;
@@ -43,7 +30,18 @@ use ds::style::icon::render::Glyph;
 use listed::{Listed, Opens, RowModel};
 use mail_client::provider::Provider;
 use mail_domain::*;
-use menu::{Pick, RowMenu};
+use mail_ui_compose::compose::{cancel_scheduled, delete_stored_draft};
+use mail_ui_kit::menus::FurtherMenus;
+use mail_ui_kit::motion::drawn_order;
+use mail_ui_kit::motion::{act_kind, drag, motion};
+use mail_ui_kit::ops::{Writes, open_composer};
+use mail_ui_kit::provider_chip::ProvChip;
+use mail_ui_kit::row_act::{self as act, press};
+use mail_ui_kit::row_menu::{Pick, RowMenu};
+use mail_ui_kit::view::Marks;
+use mail_ui_kit::view::{Opened, Shell};
+use mail_ui_model::copy;
+use mail_ui_model::selection::Click;
 use std::ops::Range;
 
 /// `text` as quire's line, with a search's `marks` as `Mark` runs; plain when nothing is marked.
@@ -108,15 +106,15 @@ pub(super) fn ListRow(
     let mut menu_rows = listed.menu(chrono::Utc::now());
     if let Some((email, _)) = sender
         .as_ref()
-        .filter(|(email, _)| crate::ui::vip::markable(&shell.read(), email))
+        .filter(|(email, _)| mail_ui_kit::vip::markable(&shell.read(), email))
     {
         menu_rows.push(DsMenuItem::Separator);
         menu_rows.push(
             DsMenuItem::new(
                 Pick::Vip,
-                crate::ui::vip::menu_words(&shell.read().vips, email),
+                mail_ui_kit::vip::menu_words(&shell.read().vips, email),
             )
-            .with_image(MenuImage::Icon(crate::ui::vip::GLYPH)),
+            .with_image(MenuImage::Icon(mail_ui_kit::vip::GLYPH)),
         );
     }
     let dragged = thread.as_ref().is_some_and(|summary| {
@@ -148,7 +146,7 @@ pub(super) fn ListRow(
     let via = match (vip, via) {
         (false, via) => via,
         (true, via) => Some(rsx! {
-            crate::ui::vip::VipMark {}
+            mail_ui_kit::vip::VipMark {}
             {via}
         }),
     };
@@ -162,7 +160,7 @@ pub(super) fn ListRow(
             (
                 Check::On,
                 EventHandler::new(move |_: Check| {
-                    let client = crate::ui::live::client();
+                    let client = mail_ui_kit::live::client();
                     act_kind(&client, shell, id, OpKind::Unstar);
                 }),
             )
@@ -185,16 +183,16 @@ pub(super) fn ListRow(
             onmounted: move |event: MountedEvent| row_box.set(Some(MountedRef(event.data()))),
             oncontextmenu: move |event: MouseEvent| {
                 event.prevent_default();
-                row_menu.set(Some(point_rect(event.client_coordinates())));
+                row_menu.set(Some(mail_ui_kit::menu::point_rect(event.client_coordinates())));
             },
             // Shift+Enter on a focused conversation opens it in a window of its own. Stopped
             // here, so the window's own Shift+Enter does not open the open conversation as well.
             onkeydown: move |event: KeyboardEvent| {
-                let opens = crate::ui::actions::heard(keys, &event, false)
-                    == Some(crate::ui::actions::Heard::Own(crate::ui::actions::Own::OpenInWindow));
+                let opens = mail_ui_kit::actions::heard(keys, &event, false)
+                    == Some(mail_ui_kit::actions::Heard::Own(mail_ui_kit::actions::Own::OpenInWindow));
                 if let (true, Some(id)) = (opens, id) {
                     event.stop_propagation();
-                    super::window::open_in_window(id);
+                    mail_ui_kit::window::open_in_window(id);
                 }
             },
             ThreadRow {
@@ -206,7 +204,7 @@ pub(super) fn ListRow(
                 time: model.time,
                 tags,
                 star,
-                star_shortcut: crate::ui::actions::tip(crate::ui::view::Shortcut::ToggleStar),
+                star_shortcut: mail_ui_kit::actions::tip(mail_ui_kit::view::Shortcut::ToggleStar),
                 strip: None,
                 more: None,
                 onclick: move |press: Press| {
@@ -216,14 +214,14 @@ pub(super) fn ListRow(
                     match open_on.open(click) {
                         Opens::Thread(id, click) => shell.write().click(id, click, &drawn_order()),
                         Opens::Message(id, message) => {
-                            let at = super::picks::drawn_messages()
+                            let at = mail_ui_kit::motion::drawn_messages()
                                 .iter()
                                 .position(|shown| *shown == message)
                                 .unwrap_or_default();
                             shell.write().open_message(id, message, at);
                         }
                         Opens::Range(message) => {
-                            if let Some(at) = super::picks::drawn_messages()
+                            if let Some(at) = mail_ui_kit::motion::drawn_messages()
                                 .iter()
                                 .position(|shown| *shown == message)
                             {
@@ -231,7 +229,7 @@ pub(super) fn ListRow(
                             }
                         }
                         Opens::Draft(id) => {
-                            let client = crate::ui::live::client();
+                            let client = mail_ui_kit::live::client();
                             let _ = open_composer(&client, shell, Writes::Draft(id));
                         }
                     }
@@ -262,8 +260,8 @@ pub(super) fn ListRow(
                             (Pick::Vip, Some(_), _) => {
                                 if let Some((email, name)) = &sender {
                                     let mark = mail_client::vip::toggled(&shell.peek().vips, email);
-                                    let marking = crate::ui::vip::Marking { shell };
-                                    crate::ui::vip::set(marking, email, name.as_deref(), mark);
+                                    let marking = mail_ui_kit::vip::Marking { shell };
+                                    mail_ui_kit::vip::set(marking, email, name.as_deref(), mark);
                                 }
                             }
                             // A refusal is said in the toast; the message stays as it was.
@@ -318,20 +316,6 @@ fn Tags(summary: ThreadSummary, chips: Vec<String>, shown: bool) -> Element {
                 Glyph { icon: Icon::Paperclip, size: IconSize::Compact }
             }
         }
-    }
-}
-
-/// A point in the window as the rect a context menu is placed against.
-pub(in crate::ui) fn point_rect(at: dioxus::html::geometry::ClientPoint) -> Rect {
-    Rect {
-        origin: Point {
-            x: Px(at.x as f32),
-            y: Px(at.y as f32),
-        },
-        size: Size {
-            width: Px(0.0),
-            height: Px(0.0),
-        },
     }
 }
 

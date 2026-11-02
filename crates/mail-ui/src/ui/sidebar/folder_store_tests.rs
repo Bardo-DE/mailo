@@ -11,16 +11,16 @@ use crate::ui::fixtures::{
 use chrono::Utc;
 use dioxus::prelude::*;
 use dioxus_core::ElementId;
-use mail_core::act::take_back;
-use mail_core::folder::Refusal;
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::core::act::take_back;
+use mail_client::testing::core::folder::Refusal;
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::id::account_id_from_uuid;
 use mail_domain::*;
 use porter_core::AccountId;
 use std::sync::Arc;
 
 fn configure(store: &SqliteStore, id: AccountId, preset: presets::Preset) {
-    mail_store::testing::seed_account_plan(
+    mail_client::testing::seed::seed_account_plan(
         store,
         id.clone(),
         &preset.plan.address,
@@ -66,7 +66,13 @@ fn imap_store() -> (Arc<SqliteStore>, tempfile::TempDir) {
         .unwrap();
     // Its folders were listed by a pass, so it has been fetched: the list is not waiting for a
     // first mail, which would draw its placeholder rows beside the menus these tests open.
-    mail_store::testing::seed_sync_state(&store, acct_imap(), "INBOX", &SyncCursor::Pop, None);
+    mail_client::testing::seed::seed_sync_state(
+        &store,
+        acct_imap(),
+        "INBOX",
+        &SyncCursor::Pop,
+        None,
+    );
     (store, dir)
 }
 
@@ -88,11 +94,11 @@ fn add_pop(store: &SqliteStore) {
 fn drawn(store: &Arc<SqliteStore>) -> String {
     arrange(
         &load(
-            &crate::ui::live::read_now(
+            &mail_ui_kit::live::read_now(
                 &crate::ui::fixtures::client(store),
                 mail_client::query::Accounts,
             ),
-            &crate::ui::space::Scope::Accounts(vec![acct_imap()]),
+            &mail_ui_kit::space::Scope::Accounts(vec![acct_imap()]),
         ),
         Show::Followed,
     )
@@ -357,7 +363,7 @@ async fn the_section_draws_nested_folders_and_leaves_out_places_and_unfollowed_o
         "{page}"
     );
     assert!(
-        page.contains(crate::ui::copy::menus::SHOW_ALL_FOLDERS),
+        page.contains(mail_ui_model::copy::menus::SHOW_ALL_FOLDERS),
         "{page}"
     );
 }
@@ -387,7 +393,7 @@ async fn the_menu_and_the_field_are_the_shared_ones_and_styled() {
     }
     let menu = dioxus_ssr::render(&dom);
     assert!(menu.contains("class=\"ds-menu"), "{menu}");
-    use crate::ui::copy::menus;
+    use mail_ui_model::copy::menus;
     for item in [
         menus::NEW_FOLDER_INSIDE,
         menus::RENAME,
@@ -400,7 +406,7 @@ async fn the_menu_and_the_field_are_the_shared_ones_and_styled() {
     let first = seen.fixed("class", "ds-menu-item")[0];
     let picked = click(&mut dom, first);
     let seen = picked.merge(later(&mut dom).await);
-    let field = seen.one("aria-placeholder", crate::ui::copy::fields::NEW_FOLDER);
+    let field = seen.one("aria-placeholder", mail_ui_model::copy::fields::NEW_FOLDER);
     type_into(&mut dom, field, "a/b");
     chord(&mut dom, "Enter", Modifiers::empty(), field);
     let naming = dioxus_ssr::render(&dom);
@@ -434,7 +440,7 @@ async fn renaming_projects() -> (VirtualDom, ElementId, Arc<SqliteStore>, tempfi
     let picked = click(&mut dom, rename);
     let field = picked
         .merge(later(&mut dom).await)
-        .one("aria-placeholder", crate::ui::copy::fields::FOLDER_NAME);
+        .one("aria-placeholder", mail_ui_model::copy::fields::FOLDER_NAME);
     (dom, field, store, dir)
 }
 

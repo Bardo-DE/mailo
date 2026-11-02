@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use chrono::Utc;
 use dioxus::prelude::*;
 use dioxus_core::VirtualDom;
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::*;
 use porter_core::AccountId;
 
@@ -19,13 +19,13 @@ use super::away_tests::{answering, own_server};
 use super::list::RunProgress;
 use super::server::{AwaySetter, Pusher, reach};
 use super::work::{self, Draft};
-use crate::ui::copy;
-use crate::ui::data::{AccountRow, account_rows};
-use crate::ui::files::Phase;
 use crate::ui::fixtures::{
     Seen, acct_account, click, dispatching, drain_seen, rebuild_into, right_click, type_into,
 };
-use crate::ui::view::{RulesAt, Shell, VacationAt};
+use mail_ui_kit::data::{AccountRow, account_rows};
+use mail_ui_kit::files::Phase;
+use mail_ui_kit::view::{RulesAt, Shell, VacationAt};
+use mail_ui_model::copy;
 
 /// The first render, then the ones after it, keeping every attribute they set: what floats in
 /// quire's overlay, and a page the stack pushes, are drawn the frames after the one that asked
@@ -49,7 +49,7 @@ async fn landed(dom: &mut VirtualDom, mut seen: Seen) -> Seen {
 #[component]
 fn Page(account: Option<AccountId>, at: RulesAt, #[props(default)] vacation: bool) -> Element {
     let shell = use_signal(|| Shell {
-        rules: crate::ui::view::RulesPage {
+        rules: mail_ui_kit::view::RulesPage {
             account: account.clone(),
             path: PanePath::new(RulesAt::List).pushed(at.clone()),
         },
@@ -61,7 +61,7 @@ fn Page(account: Option<AccountId>, at: RulesAt, #[props(default)] vacation: boo
         },
         ..Shell::default()
     });
-    crate::ui::motion::use_motion();
+    mail_ui_kit::motion::use_motion();
     // Inside a quire root, as the window has it: the menus float in its overlay, and a toast is
     // said through the window's host.
     rsx! {
@@ -74,7 +74,7 @@ fn Page(account: Option<AccountId>, at: RulesAt, #[props(default)] vacation: boo
             } else {
                 RulesPage { shell }
             }
-            crate::ui::motion::Toast { shell }
+            mail_ui_kit::motion::Toast { shell }
         }
     }
 }
@@ -486,7 +486,7 @@ async fn a_jmap_account_s_reply_is_set_on_its_server_and_no_script_is_pushed() {
     dispatching();
     let (store, _dir) = crate::ui::fixtures::empty();
     let row = jmap_account(&store);
-    let kept = mail_core::rules::server::vacation_for(
+    let kept = mail_client::testing::core::rules::server::vacation_for(
         &super::server::configured(&crate::ui::fixtures::client(&store), &row, Utc::now()),
         "Away",
         "Back on Monday.",
@@ -500,7 +500,8 @@ async fn a_jmap_account_s_reply_is_set_on_its_server_and_no_script_is_pushed() {
     let set = Arc::new(AtomicUsize::new(0));
     let setter = AwaySetter(Arc::new({
         let set = set.clone();
-        move |client: &mail_client::Client, account: &mail_core::sync::Configured| {
+        move |client: &mail_client::Client,
+              account: &mail_client::testing::core::sync::Configured| {
             set.fetch_add(1, Ordering::SeqCst);
             // The switch kept the reply off here first, and that is what the server is given.
             assert_eq!(client.stored().vacation(account.id.clone()).unwrap(), None);
@@ -535,7 +536,7 @@ async fn switching_off_a_reply_that_was_never_kept_here_sets_nothing_on_the_serv
     let set = Arc::new(AtomicUsize::new(0));
     let setter = AwaySetter(Arc::new({
         let set = set.clone();
-        move |_: &mail_client::Client, _: &mail_core::sync::Configured| {
+        move |_: &mail_client::Client, _: &mail_client::testing::core::sync::Configured| {
             set.fetch_add(1, Ordering::SeqCst);
             Ok(())
         }
@@ -584,7 +585,7 @@ fn OnePhase(phase: Phase) -> Element {
 async fn every_state(store: &Arc<SqliteStore>) -> String {
     let row = own_server(store);
     two_rules(store, row.id.clone());
-    let kept = mail_core::rules::server::vacation_for(
+    let kept = mail_client::testing::core::rules::server::vacation_for(
         &super::server::configured(&crate::ui::fixtures::client(store), &row, Utc::now()),
         "Away until October",
         "Back on the 12th.",
@@ -681,7 +682,7 @@ pub(in crate::ui) async fn drawn_states() -> String {
 /// name, its place in the order and its switch.
 #[tokio::test]
 async fn undo_puts_a_deleted_rule_back_as_it_was() {
-    use crate::ui::motion::{Follow, Motion, Restore};
+    use mail_ui_kit::motion::{Follow, Motion, Restore};
     dispatching();
     let (store, _dir) = crate::ui::fixtures::empty();
     let row = own_server(&store);

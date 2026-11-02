@@ -11,18 +11,19 @@ repository = "https://github.com/PoHsuanLai/mailo"
 authors = ["Po Hsuan Lai <pohsuanlai0208@gmail.com>"]
 
 # What the desktop's intent router asks of mailo (`dist/intents/org.quire.Mail.toml`). It does not
-# name `mail-cli` and the command line does not name it. It reads the window's vocabulary from
-# `mail-ui` (`ui::ask`, the handoff, `ui::discarding_draft`, the app id), which is why that
-# dependency stays.
+# name `mail-cli` and the command line does not name it. It reads the words of a finished operation
+# from `mail-ui-model`, and the window's own vocabulary from `mail-ui` (`ui::ask`, the handoff,
+# `ui::discarding_draft`, the app id), which is why that dependency stays: `ask`'s `Ask` is
+# applied to the window itself, and the handoff delivers it.
 
 [dependencies]
 mail-core = { workspace = true, features = ["pdf", "keyring"] }
 mail-domain.workspace = true
 mail-logic.workspace = true
-mail-store.workspace = true
 mail-client.workspace = true
 mail-edge.workspace = true
 mail-ui.workspace = true
+mail-ui-model.workspace = true
 porter-core.workspace = true
 chrono.workspace = true
 log.workspace = true
@@ -43,7 +44,8 @@ toml = "1"
 mail-os.workspace = true
 # A provider over a store in a scratch directory, never the person's.
 tempfile = "3"
-mail-store = { workspace = true, features = ["testing"] }
+# The seeds and doubles a test arranges the provider's world with (`mail_core::fixtures`).
+mail-core = { workspace = true, features = ["testing"] }
 
 [lints]
 workspace = true

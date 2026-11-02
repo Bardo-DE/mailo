@@ -38,7 +38,13 @@ fn seeded() -> (Arc<SqliteStore>, tempfile::TempDir) {
         at(0),
     )
     .plan;
-    mail_store::testing::seed_account_plan(&store, acct_account(), "me@example.test", &plan, None);
+    mail_core::fixtures::seed::seed_account_plan(
+        &store,
+        acct_account(),
+        "me@example.test",
+        &plan,
+        None,
+    );
     (Arc::new(store), dir)
 }
 

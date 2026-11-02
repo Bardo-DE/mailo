@@ -4,7 +4,7 @@ use super::super::app::App;
 use crate::ui::fixtures::{acct_account, dispatching, seeded};
 use dioxus::prelude::*;
 use dioxus_core::{NoOpMutations, VirtualDom};
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::*;
 use searching_in_the_window::listed;
 use std::sync::Arc;
@@ -108,7 +108,7 @@ mod searching_in_the_window {
             .last()
             .expect("the search panel's field");
         crate::ui::fixtures::type_into(&mut dom, field, typed);
-        tokio::time::advance(crate::ui::debounce::QUIET).await;
+        tokio::time::advance(mail_ui_kit::debounce::QUIET).await;
         // The list may already look like the answer before the search lands (the Inbox can hold
         // just the one conversation), so wait for the panel to show what was typed as well: the
         // whole state the tests go on to read, not the first part of it to arrive.
@@ -190,8 +190,8 @@ fn a_row_is_as_tall_as_the_lines_it_draws() {
 /// could not be run.
 #[test]
 fn the_search_shown_says_where_it_looked() {
-    use super::super::list_search::Scope;
     use super::{Said, searched};
+    use mail_ui_kit::list_search::Scope;
     let broken = regex::Regex::new(&String::from("("))
         .expect_err("an unclosed group")
         .to_string();
@@ -272,7 +272,7 @@ async fn the_unread_filter_key_waits_for_an_open_menu() {
     let page = until(&mut dom, |page| page.contains("ds-list-item")).await;
     assert!(!page.contains(FILTER_ROW), "the row before any key");
 
-    let more = seen.one("aria-label", crate::ui::copy::aria::MORE);
+    let more = seen.one("aria-label", mail_ui_model::copy::aria::MORE);
     click(&mut dom, more);
     let _ = drain_seen(&mut dom);
     crate::ui::fixtures::chord(&mut dom, "u", PRIMARY | Modifiers::ALT, shell);

@@ -2,11 +2,11 @@
 //! row and deleted after asking; a group made from New Group and given a member.
 
 use super::key_of;
-use crate::ui::copy;
 use crate::ui::fixtures::{click, drain_seen, type_into, work};
 use crate::ui::settings_window::tests::opened_on;
-use crate::ui::view::PageId;
-use mail_core::Store;
+use mail_client::testing::Store;
+use mail_ui_kit::view::PageId;
+use mail_ui_model::copy;
 
 #[test]
 fn a_contact_is_made_edited_and_deleted_from_its_page() {
@@ -50,7 +50,9 @@ fn a_contact_is_made_edited_and_deleted_from_its_page() {
     let seen = click(&mut dom, save)
         .merge(drain_seen(&mut dom))
         .merge(seen);
-    let kept = mail_core::contacts::people::details(&built.store.card(&card.id).unwrap().unwrap());
+    let kept = mail_client::testing::core::contacts::people::details(
+        &built.store.card(&card.id).unwrap().unwrap(),
+    );
     assert_eq!(kept.phones, ["+1 555 0100"]);
     assert_eq!(
         kept.emails,

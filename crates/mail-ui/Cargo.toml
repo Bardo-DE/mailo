@@ -11,15 +11,6 @@ repository = "https://github.com/PoHsuanLai/mailo"
 authors = ["Po Hsuan Lai <pohsuanlai0208@gmail.com>"]
 
 [features]
-# Desktop extras (design/36 rule 3): what only our desktop has. Here: a saved file opens in
-# anyview, the desktop's viewer, over the session bus (`ui/downloads/open.rs`), with the system's
-# app when anyview does not answer. Off, a file opens in the system's app alone.
-quire-desktop = []
-# anyview's peek and card (github.com/PoHsuanLai/anyview) for the attachments mailo does not draw
-# itself: a picture in the reader's strip and a card in Peek, both over the stored bytes
-# (`ui/reading/anyview.rs`). Off, the strip shows a picture's or a PDF's thumbnail and Peek those,
-# the calendars, contacts and messages mailo reads itself, and "no preview" for the rest.
-anyview = ["dep:anyview-peek", "dep:anyview-core"]
 # What `mail-app`'s integration tests drive the window with (`testing`): off in the program.
 testing = ["dep:ds-harness"]
 
@@ -45,6 +36,14 @@ mail-client = { workspace = true, features = ["desktop"] }
 # The seams with the operating system that draw nothing: the launcher's count, the login item, the
 # mail-link handler and what an operation says.
 mail-os.workspace = true
+# What the window knows and says without drawing: the settings files, its words, what is picked.
+mail-ui-model.workspace = true
+# The window below its parts: its shell state, hooks, motion and shared controls.
+mail-ui-kit.workspace = true
+# The reader: a conversation drawn, and what is drawn from one, beside the window's other parts.
+mail-ui-reader.workspace = true
+# The composer: a message being written, beside the reader and below the window.
+mail-ui-compose.workspace = true
 # The OpenPGP and S/MIME halves are features of the library; this crate uses both.
 mail-mime.workspace = true
 mail-reader.workspace = true
@@ -79,12 +78,6 @@ ds-settings = { git = "https://github.com/PoHsuanLai/quire.git", rev = "e19728b7
 # The account sheets' views: `ds_shell::accounts`, the parts `sill` draws the same sheet with.
 # Only the accounts module is used; the shell's own surfaces (bar, dock, lock) are not drawn here.
 ds-shell = { git = "https://github.com/PoHsuanLai/quire.git", rev = "e19728b7ee9e369d360c646bf5e7ed559bc3d6f9" }  # e19728b7 (v0.3.58; forks blitz 841386a7, blitz-kit fd08b468)
-# anyview, the viewer's light tier, at the rev of its main that names the quire rev above (the same
-# spelling as quire, so one quire is built). `anyview-core` is the vocabulary (`Input`, `ReadAt`:
-# how the store's bytes go in); `anyview-peek` the peek worker and, with `pane`, the card that draws
-# what was peeked. Headless otherwise: no media player, no D-Bus.
-anyview-core = { git = "https://github.com/PoHsuanLai/anyview.git", rev = "3d5c3a453a866791fe691ed8fdc72a57fa62383d", optional = true }
-anyview-peek = { git = "https://github.com/PoHsuanLai/anyview.git", rev = "3d5c3a453a866791fe691ed8fdc72a57fa62383d", default-features = false, features = ["pane"], optional = true }
 # `mailo.toml`, and the `appearance.toml` written once on the first run after the move.
 toml = "1"
 # The test driver (`Harness`, `Driver`, `Query`, `snapshot`; `pdf` is `Harness::pdf` for the print
@@ -98,10 +91,6 @@ ds-blitz = { git = "https://github.com/PoHsuanLai/quire.git", rev = "e19728b7ee9
 blitz-dom = { workspace = true }
 dioxus-native-dom = { workspace = true }
 base64 = "0.22"
-# A picture on the clipboard, pasted into the composer's body (`ui/pasted_image.rs`): quire's
-# clipboard reads text, HTML and files only. The arboard quire's window already reads the
-# clipboard with, its `image-data` read switched on (TIFF decoding on a Mac, PNG elsewhere).
-arboard = { version = "3.6", default-features = false, features = ["image-data"] }
 # The pasted picture's pixels written out as PNG, the one form the body's picture is stored in.
 # Already in the lock through blitz-dom and arboard.
 image = { version = "0.25", default-features = false, features = ["png"] }
@@ -121,8 +110,7 @@ url = "2"
 # On Linux and the BSDs, through the desktop portal (and so from inside a Flatpak), with no GTK.
 [target.'cfg(not(any(target_os = "macos", windows)))'.dependencies]
 rfd = { version = "=0.17.2", default-features = false, features = ["xdg-portal"] }
-# Another program's ask to open a conversation (`handoff/bus.rs`) and the portal that opens a file
-# (`ui/downloads/open.rs`): the session bus. Already in the lock through notify-rust and the
+# Another program's ask to open a conversation (`handoff/bus.rs`): the session bus. Already in the lock through notify-rust and the
 # keyring's Secret Service store, at this version and with these (its default) features. MIT.
 zbus = "5.19"
 
@@ -137,16 +125,15 @@ rfd = { version = "=0.17.2", default-features = false }
 [dev-dependencies]
 # The test driver (`ds-harness`) behind `testing`, on for the window's own tests.
 mail-ui = { path = ".", features = ["testing"] }
+# The doubles the kit's hooks are driven with (a host that records its asks, a dialog that answers).
+mail-ui-kit = { workspace = true, features = ["testing"] }
+mail-ui-reader = { workspace = true, features = ["testing"] }
+mail-ui-compose = { workspace = true, features = ["testing"] }
 # The values a test starts from (`mail_domain::testing`): the program never has them.
 mail-domain = { workspace = true, features = ["testing"] }
-# Seeding a store without writing SQL (`mail_store::testing`): the program never has it.
-mail-store = { workspace = true, features = ["testing"] }
-# A test's double at a seam keeping what a server gave in the window's store
-# (`Client::store_for_test`): the program never has it.
+# The store a test seeds and the doubles it swaps in (`mail_client::testing`), and the client's
+# own seam for a server's answers (`Client::store_for_test`): the program has neither.
 mail-client = { workspace = true, features = ["testing"] }
-# The doubles at the runtime's seams (`mail_core::testing`): the program never has them.
-mail-core = { workspace = true, features = ["testing"] }
-mail-agent = { workspace = true, features = ["desktop"] }
 porter-secrets = { workspace = true, features = ["testing"] }
 # Read back by the window's own tests (reader blocks, print, PGP/S-MIME composer); not used by the
 # window itself, which gets them from `mail-core` and quire.
@@ -175,7 +162,6 @@ mail-crypto = { workspace = true, features = ["testing"] }
 # The Maildir naming the import and export tests read a file with.
 mail-archive.workspace = true
 # What a test reads back of a key the keyring holds (`ui/pgp/tests.rs`).
-mail-runtime = { workspace = true }
 
 [lints]
 workspace = true

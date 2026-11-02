@@ -11,9 +11,9 @@ use std::sync::Arc;
 /// Returns when the window closes, or at once when it could not open.
 pub fn open(
     store: Arc<SqliteStore>,
-    look: mail_ui::ui::view::Appearance,
-    spaces: mail_ui::ui::space::Spaces,
-    dirs: Option<mail_ui::ui::appearance::WindowDirs>,
+    look: mail_ui_kit::view::Appearance,
+    spaces: mail_ui_kit::space::Spaces,
+    dirs: Option<mail_ui_kit::appearance::WindowDirs>,
     start: mail_ui::ui::ask::Open,
 ) -> Result<(), mail_ui::ui::LaunchError> {
     // The desktop launcher's copy of the recent conversations and the address book, kept while
@@ -35,7 +35,7 @@ pub fn open(
     // The one client every window reads mail through, reaching the servers as the program does.
     let client = mail_client::Client::open(store.clone(), mail_client::ClientConfig::default());
     client.reach(mail_client::Reach::new(|store| {
-        mail_edge::mail(&store).with_junk(mail_ui::settings::junk_policy())
+        mail_edge::mail(&store).with_junk(mail_ui_model::settings::junk_policy())
     }));
     let resident = mail_ui::ui::Resident {
         stays,

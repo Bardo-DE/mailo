@@ -5,10 +5,10 @@
 //! [`Page::body`]; the others draw a page of their own.
 
 use super::pages::{self, Line, Section};
-use crate::ui::copy;
-use crate::ui::view::{PageId, Shell};
 use dioxus::prelude::*;
 use ds::prelude::*;
+use mail_ui_kit::view::{PageId, Shell};
+use mail_ui_model::copy;
 
 /// A page of Settings.
 pub(in crate::ui) trait Page: Sync {
@@ -70,7 +70,7 @@ impl Page for General {
                 title: Some(copy::headers::MAIL),
                 lines: &[
                     Line::DefaultMail,
-                    Line::Key(crate::settings::WHILE_QUIT),
+                    Line::Key(mail_ui_model::settings::WHILE_QUIT),
                     Line::Key("search.server_automatically"),
                 ],
             },
@@ -162,7 +162,7 @@ impl Page for Spaces {
     }
 
     fn body(&self, shell: Signal<Shell>) -> Element {
-        match try_consume_context::<crate::ui::space::Handle>() {
+        match try_consume_context::<mail_ui_kit::space::Handle>() {
             Some(handle) => rsx! { super::spaces::Spaces { shell, handle } },
             None => rsx! {},
         }

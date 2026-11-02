@@ -1,7 +1,7 @@
 //! Remind me if no reply, in the window: the sweep that brings a conversation back. A reminder is
 //! set under the composer's Send ▾ alone. And the timer that shows a snoozed one come back.
 //!
-//! The deciding is [`mail_client::follow_up`]'s; this is when it runs and how it is shown.
+//! The deciding is [`mail_logic::follow_up`]'s; this is when it runs and how it is shown.
 
 use chrono::{DateTime, Utc};
 use dioxus::prelude::*;
@@ -21,10 +21,10 @@ pub struct Notices(pub Arc<dyn Notifier>);
 /// (a test's lone component) has them on, as the setting's default is.
 pub(in crate::ui) fn speaking(
     notices: Option<&Notices>,
-    settings: Option<Signal<crate::settings::MailSettings>>,
+    settings: Option<Signal<mail_ui_model::settings::MailSettings>>,
 ) -> Option<Arc<dyn Notifier>> {
     let on = settings.is_none_or(|settings| {
-        settings.peek().notifications.new_mail == crate::settings::NewMail::On
+        settings.peek().notifications.new_mail == mail_ui_model::settings::NewMail::On
     });
     notices.filter(|_| on).map(|notices| notices.0.clone())
 }
@@ -76,7 +76,7 @@ pub(in crate::ui) fn use_reminders() {
     // again before its turn waits only for what is left of the time, not for all of it.
     let mut began = use_hook(|| CopyValue::new(None::<DateTime<Utc>>));
     let _sweeping = use_resource(move || {
-        let _ = crate::ui::live::moved_for(
+        let _ = mail_ui_kit::live::moved_for(
             mail_client::Topics::SUMMARIES
                 | mail_client::Topics::FOLLOW_UPS
                 | mail_client::Topics::CLOCK,
@@ -85,16 +85,16 @@ pub(in crate::ui) fn use_reminders() {
             loop {
                 let last = *began.peek();
                 if let Some(turn) = last.map(|last| last + SWEEP_EVERY)
-                    && let Ok(left) = (turn - super::clock::now()).to_std()
+                    && let Ok(left) = (turn - mail_ui_kit::clock::now()).to_std()
                 {
                     ds::base::time::clock::sleep(left).await;
                 }
-                let now = super::clock::now();
+                let now = mail_ui_kit::clock::now();
                 began.set(Some(now));
-                let client = crate::ui::live::client();
+                let client = mail_ui_kit::live::client();
                 let notices = speaking(
                     try_consume_context::<Notices>().as_ref(),
-                    try_consume_context::<Signal<crate::settings::MailSettings>>(),
+                    try_consume_context::<Signal<mail_ui_model::settings::MailSettings>>(),
                 );
                 let swept = tokio::task::spawn_blocking(move || {
                     let swept = client
@@ -131,13 +131,14 @@ pub(in crate::ui) fn use_reminders() {
 /// [`use_reminders`]'s is; what the client marks stale moves the store, which starts this
 /// again with the next one.
 pub(in crate::ui) fn use_snooze_wake() {
-    let client = super::live::use_client();
+    let client = mail_ui_kit::live::use_client();
     let bridging =
-        !client.keeps_time() || try_consume_context::<super::clock::WallClock>().is_some();
+        !client.keeps_time() || try_consume_context::<mail_ui_kit::clock::WallClock>().is_some();
     let _waking = use_resource(move || {
         let client = client.clone();
-        let _ =
-            crate::ui::live::moved_for(mail_client::Topics::SUMMARIES | mail_client::Topics::CLOCK);
+        let _ = mail_ui_kit::live::moved_for(
+            mail_client::Topics::SUMMARIES | mail_client::Topics::CLOCK,
+        );
         async move {
             if !bridging {
                 return;
@@ -146,9 +147,9 @@ pub(in crate::ui) fn use_snooze_wake() {
                 return;
             };
             loop {
-                let now = super::clock::now();
+                let now = mail_ui_kit::clock::now();
                 if at <= now {
-                    super::live::clock_moved(&client);
+                    mail_ui_kit::live::clock_moved(&client);
                     return;
                 }
                 ds::base::time::clock::sleep(wait(Some(at), now)).await;

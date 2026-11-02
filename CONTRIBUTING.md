@@ -155,14 +155,14 @@ for s in scripts/check-*.sh; do bash "$s"; done
 - `check-boundary.sh`: the pure crates reach none of tokio, rusqlite, dioxus, reqwest, the
   keyring or the bus; `mail-core` reaches nothing that draws; `mail-store`, `mail-net`, `mail-secrets`,
   `mail-runtime` and `mail-engine` reach no anyview, `mail-net` and `mail-secrets` reach no
-  `mail-store`, and no driver crate reaches `mail-engine`; `ui` and `cli` do not name each other. It also ratchets the lines in
-  `mail-app` that name a lower crate instead of `mail_core` (`scripts/app-lower-crate-uses.txt`)
-  and the `mail-core` code listed in `scripts/core-prose-allowlist.txt` and
+  `mail-store`, and no driver crate reaches `mail-engine`; `ui` and `cli` do not name each other. The app crates (`mail-app`, `mail-cli`, `mail-intents`, `mail-edge`) and the window's crates name
+  no store, runtime, engine or wire crate in their Cargo.toml, dev-dependencies included. It also ratchets
+  the `mail-core` code listed in `scripts/core-prose-allowlist.txt` and
   `scripts/core-result-string-allowlist.txt`.
 - `check-discards.sh`: in the library crates, a `let _ =`, `.ok()` or `unwrap_or_default()` with
   no comment on or above its line is counted against `scripts/discards.txt`. A fallible result
   is propagated, shown to the person, logged with `Logged::or_log`, or ignored with a reason.
-- `check-copy.sh`: visible string literals under `crates/mail-ui/src/ui` outside `ui/copy/` are
+- `check-copy.sh`: visible string literals under `crates/mail-ui/src/ui` outside `crates/mail-ui-model/src/copy/` are
   counted against `scripts/copy-literals.txt`.
 - `check-fork-patches.sh`: the `[patch.crates-io]` block matches quire's at the pinned rev.
 - `check-nodef.sh`: every library crate builds with no default features.
@@ -177,7 +177,7 @@ invariant or the reason, not the history of how the code got here, and no ticket
 behaviour, not another client's source: "Gmail answers `X`", pointing at a trace, not
 "taken from mbsync". A quirk without a trace is a rumour.
 
-Every word the window shows lives in `crates/mail-ui/src/ui/copy/`, one module per kind. Title
+Every word the window shows lives in `crates/mail-ui-model/src/copy/`, one module per kind. Title
 Case for buttons, menu items, tooltips, titles and accessible names; sentence case for sentences.
 Ellipsis is `…` and the apostrophe `’`. `docs/design-language.md` has the rest.
 

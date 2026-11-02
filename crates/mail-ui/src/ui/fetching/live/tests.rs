@@ -8,11 +8,11 @@ use crate::ui::fixtures::{dispatching, empty};
 use chrono::Utc;
 use dioxus::prelude::*;
 use dioxus_core::VirtualDom;
-use mail_core::SqliteStore;
-use mail_core::Store as _;
-use mail_core::fetch::{Link, Live, Pause, Trigger};
-use mail_core::schedule::{Heard, Lost, Stop};
-use mail_core::sync::report::{AccountReport, Counts, PassEnd};
+use mail_client::testing::SqliteStore;
+use mail_client::testing::Store as _;
+use mail_client::testing::core::fetch::{Link, Live, Pause, Trigger};
+use mail_client::testing::core::schedule::{Heard, Lost, Stop};
+use mail_client::testing::core::sync::report::{AccountReport, Counts, PassEnd};
 use mail_domain::id::account_id_from_uuid;
 use mail_domain::*;
 use porter_core::AccountId;
@@ -42,14 +42,20 @@ fn account() -> (Arc<SqliteStore>, tempfile::TempDir) {
         login: None,
     };
     let preset = presets::manual("me@nowhere.example", &manual, Utc::now());
-    mail_store::testing::seed_account_plan(
+    mail_client::testing::seed::seed_account_plan(
         &store,
         acct_account(),
         &preset.plan.address,
         &preset.plan,
         Some(Utc::now()),
     );
-    mail_store::testing::seed_sync_state(&store, acct_account(), "INBOX", &SyncCursor::Pop, None);
+    mail_client::testing::seed::seed_sync_state(
+        &store,
+        acct_account(),
+        "INBOX",
+        &SyncCursor::Pop,
+        None,
+    );
     store
         .put_caps(acct_account(), &preset.expected_caps, Utc::now())
         .unwrap();
@@ -194,7 +200,7 @@ impl Script {
 #[component]
 fn Probe() -> Element {
     // As `App` does: a client that reads here acts on what was committed from the first frame.
-    use_hook(crate::ui::live::moved_peek);
+    use_hook(mail_ui_kit::live::moved_peek);
     super::super::use_fetching();
     rsx! {}
 }
@@ -232,7 +238,7 @@ fn link(dom: &VirtualDom) -> Link {
 }
 
 fn moved(dom: &VirtualDom) -> u64 {
-    dom.in_scope(ScopeId::APP, crate::ui::live::moved_peek)
+    dom.in_scope(ScopeId::APP, mail_ui_kit::live::moved_peek)
 }
 
 fn is_live(dom: &VirtualDom) -> bool {

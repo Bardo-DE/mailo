@@ -16,31 +16,26 @@ mod client;
 mod clock;
 mod error;
 mod external;
+mod fault;
 pub mod fetch;
+mod keys;
 mod live;
 mod net;
 mod pure;
 pub mod query;
 mod stored;
+#[cfg(feature = "testing")]
+pub mod testing;
 
 pub use act::{Act, Acted, Destroy, Perform, TakeBack, Ticket};
 pub use caches::{Framing, Looking};
 pub use client::{Client, ClientConfig, FetchRun, WeakClient};
 pub use error::ClientError;
 pub use external::on_write;
+pub use fault::{CallError, Fault};
+pub use keys::SigningKeys;
 pub use live::{Live, Query, Snapshot, bucket_of};
 pub use mail_store::{Generation, Topics};
-pub use net::{Net, Reach, SignIn};
+pub use net::{Net, Proof, Reach, SignIn};
 pub use pure::*;
 pub use stored::Stored;
-
-/// The words of the crates below that a caller names beside the client's own: the failures its
-/// calls return and the seams it is handed. Imported from here, so that what the client's crate
-/// root holds is the client's own API.
-pub mod prelude {
-    pub use mail_core::{
-        AccountSecrets, ClientRegistry, CoreError, Environment, NoKeyring, OAuthClients, Program,
-        Pushed, Searched, SigningStore,
-    };
-    pub use mail_store::StoreError;
-}

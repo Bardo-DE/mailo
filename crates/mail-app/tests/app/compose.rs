@@ -10,7 +10,7 @@ use mail_core::compose;
 use mail_core::{SqliteStore, Store};
 use mail_domain::id::account_id_from_uuid;
 use mail_domain::*;
-use mail_ui::ui::view;
+use mail_ui_kit::view;
 use porter_core::AccountId;
 
 const IDENTITY: IdentityId =
@@ -51,14 +51,14 @@ fn seeded() -> (SqliteStore, tempfile::TempDir) {
     plan.identities = vec![identity()];
 
     {
-        mail_store::testing::seed_account_plan(
+        mail_core::fixtures::seed::seed_account_plan(
             &store,
             acct_account(),
             "me@example.test",
             &plan,
             None,
         );
-        mail_store::testing::seed_identity_for(
+        mail_core::fixtures::seed::seed_identity_for(
             &store,
             IDENTITY,
             acct_account(),
@@ -546,7 +546,7 @@ fn an_account_with_no_identity_says_so_instead_of_inventing_a_sender() {
     // address is how mail goes out under an address the user does not own, so replying must
     // stop and say what is wrong. The message is there, so it is the identity check that fires.
     let (store, _dir) = seeded();
-    mail_store::testing::delete_identities(&store, acct_account());
+    mail_core::fixtures::seed::delete_identities(&store, acct_account());
 
     let err = compose::draft_reply(&store, ORIGINAL, ReplyScope::Sender, "hi", at(10))
         .expect_err("no identity to send as")
@@ -1532,14 +1532,14 @@ mod choosing_the_sender {
         )
         .plan;
         plan.address = "work@example.test".to_owned();
-        mail_store::testing::seed_account_plan(
+        mail_core::fixtures::seed::seed_account_plan(
             store,
             acct_second(),
             "work@example.test",
             &plan,
             Some(chrono::Utc::now() + chrono::Duration::seconds(1)),
         );
-        mail_store::testing::seed_identity_for(
+        mail_core::fixtures::seed::seed_identity_for(
             store,
             SECOND_IDENTITY,
             acct_second(),
@@ -1621,7 +1621,7 @@ mod choosing_the_sender {
     fn moving_to_an_account_with_no_identity_leaves_the_draft_alone() {
         let (store, _dir) = seeded();
         also(&store);
-        mail_store::testing::delete_identities(&store, acct_second());
+        mail_core::fixtures::seed::delete_identities(&store, acct_second());
         let draft = compose::draft_new(&store, acct_account(), &[], "", "", at(10)).unwrap();
 
         compose::move_draft_to(&store, draft.id, acct_second(), at(11))

@@ -19,7 +19,7 @@ use super::map::{
     Action, Sheet, Step, acted, choice_label, fault_of, kind_of, list_key, mark_of, provider_label,
     role_of, service_key, shown, step_of, typed,
 };
-use mail_core::account::draft::ListKey;
+use mail_client::testing::core::account::draft::ListKey;
 
 fn id(text: &str) -> ProviderId {
     ProviderId::parse(text).unwrap()

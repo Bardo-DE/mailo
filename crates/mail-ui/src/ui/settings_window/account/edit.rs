@@ -9,11 +9,6 @@
 //! A folder picked for a role is laid over what the server says (the client's `with_picks`), so
 //! the next refresh of the server's folders keeps it; "Automatic" gives the role back.
 
-use crate::ui::common::{Problem, classed};
-use crate::ui::copy;
-use crate::ui::copy::fields::account as field;
-use crate::ui::copy::status::account as said;
-use crate::ui::data::AccountRow;
 use dioxus::prelude::*;
 use ds::components::fields::field_row::FieldRow;
 use ds::components::menus::item::item::MenuItem;
@@ -22,17 +17,20 @@ use ds::prelude::*;
 use ds::root::common::Common;
 use mail_client::Syncing;
 use mail_domain::MailboxRole;
+use mail_ui_kit::common::{Problem, classed};
+use mail_ui_kit::data::AccountRow;
+use mail_ui_model::copy;
+use mail_ui_model::copy::fields::account as field;
+use mail_ui_model::copy::status::account as said;
 
 /// Write one preference with `write`, off the thread that draws (the store's writer may be
 /// held by a sync): what names the account reads it again when the client sees the store move,
 /// and a write that fails is said in `failed`.
 fn keep(
-    write: impl FnOnce(&mail_client::Stored<'_>) -> Result<(), mail_client::prelude::StoreError>
-    + Send
-    + 'static,
+    write: impl FnOnce(&mail_client::Stored<'_>) -> Result<(), mail_client::CallError> + Send + 'static,
     mut failed: Signal<Option<String>>,
 ) {
-    let Some(client) = crate::ui::live::try_client() else {
+    let Some(client) = mail_ui_kit::live::try_client() else {
         return;
     };
     spawn(async move {
@@ -119,7 +117,7 @@ pub(super) fn About(row: AccountRow) -> Element {
 /// Whether labels can be kept on `row`'s server as keywords, and whether the person said to: an
 /// IMAP account whose server is not Gmail, which has labels of its own.
 fn keeping_labels(row: &AccountRow) -> (bool, bool) {
-    let Some(client) = crate::ui::live::try_client() else {
+    let Some(client) = mail_ui_kit::live::try_client() else {
         return (false, false);
     };
     let offered = row.plan.incoming.caps().writes_mailboxes
@@ -148,7 +146,7 @@ const ROLES: [(MailboxRole, &str); 5] = [
 pub(super) fn FolderRoles(row: AccountRow) -> Element {
     let failed = use_signal(|| None::<String>);
     let mut unread_seen = use_signal(|| false);
-    let Some(client) = crate::ui::live::try_client() else {
+    let Some(client) = mail_ui_kit::live::try_client() else {
         return rsx! {};
     };
     if !row.plan.incoming.caps().lists_folders {

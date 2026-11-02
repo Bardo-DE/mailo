@@ -2,20 +2,19 @@
 //! says, and the Space menu's Add Account end to end with a sign-in of the test's.
 
 use super::direct::{
-    AddPick, DirectSignIns, Entry, SignInDirectly, Signing, add_menu, entry, entry_for_plan,
+    AddPick, DirectSignIns, Entry, Retry, SignInDirectly, Signing, add_menu, entry, entry_for_plan,
     offered_redirects, picked, redirects, told,
 };
-use super::provider::offered_specs;
 use super::{AddAccountWindows, Ask, Join, OpenAddAccount};
 use crate::ui::fixtures::settle_quiet_seen;
 use crate::ui::fixtures::{dispatching, empty, rebuild_into};
-use crate::ui::motion::Follow;
 use dioxus::prelude::*;
 use dioxus_core::VirtualDom;
 use ds::prelude::MenuItem;
-use mail_core::account::{Mode, SignInError};
-use mail_core::{ClientRegistry, Environment};
+use mail_client::testing::core::account::{Mode, SignInError};
+use mail_client::testing::core::{ClientRegistry, Environment};
 use mail_domain::AuthPlan;
+use mail_ui_model::add_account::provider::offered_specs;
 use porter_provider::Issuer;
 use std::sync::{Arc, Mutex};
 
@@ -136,26 +135,26 @@ fn the_toast_says_how_it_ended_in_plain_words() {
         &'a str,
         Mode,
         Result<String, SignInError>,
-        Option<(&'a str, Follow)>,
+        Option<(&'a str, Option<Retry>)>,
     );
     let cases: Vec<Case> = vec![
         (
             "added",
             Mode::Add,
             Ok("you@example.test".to_owned()),
-            Some(("Added you@example.test", Follow::Nothing)),
+            Some(("Added you@example.test", None)),
         ),
         (
             "signed in again",
             again.clone(),
             Ok("you@example.test".to_owned()),
-            Some(("Signed in to you@example.test", Follow::Nothing)),
+            Some(("Signed in to you@example.test", None)),
         ),
         (
             "closed in the browser",
             Mode::Add,
             Err(SignInError::Declined),
-            Some(("Sign-in cancelled", Follow::Nothing)),
+            Some(("Sign-in cancelled", None)),
         ),
         // Replaced by another pick, or never heard back from: nothing was on screen waiting.
         ("replaced", Mode::Add, Err(SignInError::Cancelled), None),
@@ -166,7 +165,7 @@ fn the_toast_says_how_it_ended_in_plain_words() {
             Err(SignInError::NoClient(google)),
             Some((
                 "Mail has no sign-in set up for Google.",
-                Follow::SignIn(super::Retry::Window(Ask {
+                Some(Retry::Window(Ask {
                     address: Some("you@example.test".to_owned()),
                     join: Join::Nowhere,
                 })),
@@ -202,7 +201,12 @@ impl Fake {
 
 impl SignInDirectly for Fake {
     fn has_client(&self, issuer: Issuer) -> bool {
-        mail_core::account::oauth_client(issuer, &Environment::default(), &self.clients).is_some()
+        mail_client::testing::core::account::oauth_client(
+            issuer,
+            &Environment::default(),
+            &self.clients,
+        )
+        .is_some()
     }
 
     fn sign_in(&self, issuer: Issuer, mode: Mode) -> Signing {
@@ -214,17 +218,19 @@ impl SignInDirectly for Fake {
 }
 
 /// Keep `address` as a Google account, as the sign-in's add does (here with no sign-in to keep).
-async fn keep_account(store: &mail_core::SqliteStore, address: &str) {
+async fn keep_account(store: &mail_client::testing::SqliteStore, address: &str) {
     let now = chrono::Utc::now();
     let preset = mail_domain::presets::preset_for_issuer(Issuer::Google, address, now).unwrap();
-    mail_core::account::add_with_password(
+    mail_client::testing::core::account::add_with_password(
         store,
         address,
-        Some(&mail_core::account::Setup::Discovered(Box::new(preset))),
+        Some(&mail_client::testing::core::account::Setup::Discovered(
+            Box::new(preset),
+        )),
         false,
         false,
         now,
-        mail_core::account::Credentials {
+        mail_client::testing::core::account::Credentials {
             password: None,
             saved: &ClientRegistry::default(),
             secrets: &porter_secrets::MemorySecrets::default(),
@@ -279,7 +285,7 @@ fn names(rows: &[(String, AddPick)]) -> Vec<&str> {
 async fn google_from_the_space_menu_signs_in_in_the_browser_with_no_window() {
     dispatching();
     let (store, _dir) = empty();
-    let fake = Arc::new(Fake::with(mail_core::testing::fake_clients_for(&[
+    let fake = Arc::new(Fake::with(mail_client::testing::fake_clients_for(&[
         Issuer::Google,
     ])));
     let windows = Windows::default();
@@ -347,7 +353,7 @@ async fn google_from_the_space_menu_signs_in_in_the_browser_with_no_window() {
 async fn added_joining(join: Join) -> String {
     dispatching();
     let (store, _dir) = empty();
-    let fake = Arc::new(Fake::with(mail_core::testing::fake_clients_for(&[
+    let fake = Arc::new(Fake::with(mail_client::testing::fake_clients_for(&[
         Issuer::Google,
     ])));
     let mut dom = VirtualDom::new(crate::ui::app::App)
@@ -390,7 +396,7 @@ async fn an_account_added_joins_the_space_it_was_added_from_or_none() {
 async fn other_account_and_a_provider_without_a_client_open_the_window() {
     dispatching();
     let (store, _dir) = empty();
-    let fake = Arc::new(Fake::with(mail_core::testing::fake_clients_for(&[
+    let fake = Arc::new(Fake::with(mail_client::testing::fake_clients_for(&[
         Issuer::Google,
     ])));
     let windows = Windows::default();
@@ -427,7 +433,7 @@ async fn with_clients_at_hand_add_account_names_google_and_microsoft() {
     let (store, _dir) = empty();
     // Both stand-ins at hand, as an installation with both clients has: each is named, and a pick goes
     // to the sign-in (here the test's recorder), never to the window.
-    let fake = Arc::new(Fake::with(mail_core::testing::fake_clients()));
+    let fake = Arc::new(Fake::with(mail_client::testing::fake_clients()));
     let windows = Windows::default();
     let mut dom = VirtualDom::new(crate::ui::app::App)
         .with_root_context(crate::ui::fixtures::client(&store))
@@ -476,8 +482,8 @@ async fn a_root_without_the_programs_sign_in_offers_no_redirect_and_reaches_noth
         assert!(offered.is_empty(), "{name}: offered {offered:?}");
         // The keys' seams too: no lookup and no keyring of the user's.
         let looked = dom.in_scope(ScopeId::APP, || {
-            let seams = crate::ui::pgp::seams();
-            (seams.lookup)(&crate::ui::live::client(), "ada@example.test")
+            let seams = mail_ui_kit::pgp::seams();
+            (seams.lookup)(&mail_ui_kit::live::client(), "ada@example.test")
         });
         assert!(looked.is_err(), "{name}: a lookup was made");
         if !*recorded {

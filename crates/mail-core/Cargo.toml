@@ -30,7 +30,7 @@ oo7 = ["mail-secrets/oo7"]
 # preview ("could not be read") and everything else previews as before.
 pdf = ["dep:pdfrum"]
 # The doubles a front end's tests swap in (`mail_core::testing`, mail-secrets'): off in the program.
-testing = ["mail-runtime/testing", "mail-secrets/testing"]
+testing = ["mail-runtime/testing", "mail-secrets/testing", "mail-store/testing"]
 
 [dependencies]
 porter-core.workspace = true

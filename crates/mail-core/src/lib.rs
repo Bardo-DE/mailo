@@ -62,6 +62,7 @@ pub mod sync;
 pub mod template;
 pub mod transfer;
 pub mod unsubscribe;
+pub mod upkeep;
 pub mod vip;
 
 pub use environment::{Environment, Program};
@@ -90,7 +91,18 @@ pub use mail_secrets::{
     AccountSecrets, ClientRegistry, KeyringSigningStore, NoKeyring, SigningStore, off_runtime,
 };
 /// The store a front end opens and hands to mail-core.
-pub use mail_store::{AccountPrefs, SqliteStore, Store, StoreError, Syncing};
+pub use mail_store::{AccountPrefs, Origin, OutboxEntry, SqliteStore, Store, StoreError, Syncing};
+
+/// What a front end's integration tests arrange the world with beyond the credentials' doubles:
+/// rows seeded into a store without writing SQL, the runtime's pieces read back, and an engine.
+#[cfg(feature = "testing")]
+pub mod fixtures {
+    pub use mail_engine::AccountEngine;
+    pub use mail_runtime::assemble::absorb_rebuilt_into;
+    pub use mail_runtime::bimi;
+    pub use mail_runtime::pgp::secret_key;
+    pub use mail_store::testing as seed;
+}
 
 #[cfg(test)]
 mod password_tests;

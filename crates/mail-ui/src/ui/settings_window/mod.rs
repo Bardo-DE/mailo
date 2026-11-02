@@ -5,7 +5,7 @@
 //!
 //! Pages: General, Accounts, Contacts, Signatures, Spaces, Composing, Viewing, Notifications, Privacy, Junk Mail, Rules,
 //! Vacation Reply and Keyboard. General, Composing, Viewing, Notifications, Privacy and Junk Mail draw
-//! mailo's settings schema (`crate::settings`) as groups of rows ([`pages`], each row a key's,
+//! mailo's settings schema (`mail_ui_model::settings`) as groups of rows ([`pages`], each row a key's,
 //! drawn by [`keys`]), the same keys detent draws on mailo's page and writes to the same
 //! `mailo/settings.toml`. Accounts lists each account, whose row pushes its own page into the
 //! pane ([`account`]): its mail kept here, its encryption keys, and its removal. Signatures lists
@@ -47,150 +47,28 @@ mod syncing;
 mod vips;
 
 pub(in crate::ui) use account::Seams as AccountSeams;
-pub(in crate::ui) use keys::with_value;
 pub(in crate::ui) use page::PAGES;
 pub use root::settings_root;
 
-use crate::ui::copy;
-use crate::ui::space::SpaceId;
-use crate::ui::view::{
-    AccountStep, AccountsPage, AccountsPane, ContactsPage, PageId, RulesAt, Shell, SpacesPage,
-    VacationAt,
-};
 use dioxus::prelude::*;
 use ds::components::chrome::sidebar::Sidebar;
 use ds::components::chrome::sidebar_model::SidebarSection;
 use ds::prelude::*;
 use ds_blitz::{WindowHandle, WindowSpec};
-use porter_core::AccountId;
+use mail_ui_kit::settings_at::{OpenSettings, SettingsAsked, SettingsAt, SettingsWindows};
+use mail_ui_kit::view::{
+    AccountStep, AccountsPane, ContactsPage, PageId, RulesAt, Shell, SpacesPage, VacationAt,
+};
+use mail_ui_model::copy;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
-use tokio::sync::watch;
 
 /// What the window and its command are called.
 pub(in crate::ui) const TITLE: &str = copy::titles::SETTINGS;
 
 /// The size the window opens at, in logical pixels.
 const SIZE: (u32, u32) = (780, 620);
-
-/// Where the Settings window is asked to be: a page, one account's page pushed over Accounts,
-/// one Space's pushed over Spaces, or one person's card pushed over Contacts.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SettingsAt {
-    Page(PageId),
-    Account(AccountId),
-    Space(SpaceId),
-    Card(mail_client::contacts::CardId),
-}
-
-impl SettingsAt {
-    /// The page of the sidebar it is on.
-    pub(in crate::ui) fn page(&self) -> PageId {
-        match self {
-            SettingsAt::Page(page) => *page,
-            SettingsAt::Account(_) => PageId::ACCOUNTS,
-            SettingsAt::Space(_) => PageId::SPACES,
-            SettingsAt::Card(_) => PageId::CONTACTS,
-        }
-    }
-
-    /// The Accounts pane as it stands there: the list, or the account's page over it.
-    pub(in crate::ui) fn pane(&self) -> AccountsPane {
-        match self {
-            SettingsAt::Page(_) | SettingsAt::Space(_) | SettingsAt::Card(_) => {
-                AccountsPane::default()
-            }
-            SettingsAt::Account(account) => AccountsPane {
-                path: PanePath::new(AccountsPage::List)
-                    .pushed(AccountsPage::Account(account.clone())),
-                step: AccountStep::Showing,
-            },
-        }
-    }
-}
-
-impl SettingsAt {
-    /// The Spaces pane as it stands there: the list, or the Space's page over it.
-    pub(in crate::ui) fn spaces_pane(&self) -> PanePath<SpacesPage> {
-        let list = PanePath::new(SpacesPage::List);
-        match self {
-            SettingsAt::Space(space) => list.pushed(SpacesPage::Space(*space)),
-            SettingsAt::Page(_) | SettingsAt::Account(_) | SettingsAt::Card(_) => list,
-        }
-    }
-
-    /// The Contacts pane as it stands there: the people and groups, or a card over them.
-    pub(in crate::ui) fn contacts_pane(&self) -> PanePath<ContactsPage> {
-        let list = PanePath::new(ContactsPage::List);
-        match self {
-            SettingsAt::Card(card) => list.pushed(ContactsPage::Person(card.clone())),
-            SettingsAt::Page(_) | SettingsAt::Account(_) | SettingsAt::Space(_) => list,
-        }
-    }
-}
-
-impl Default for SettingsAt {
-    fn default() -> Self {
-        SettingsAt::Page(PageId::default())
-    }
-}
-
-/// Whatever opens the Settings window: quire's event loop in the launched window, a recorder in
-/// a test.
-pub trait OpenSettings: Send + Sync + 'static {
-    /// Open the Settings window, or raise it when it is open, turned to `at` when it is asked
-    /// for and where it is otherwise.
-    fn open(&self, at: Option<SettingsAt>);
-}
-
-/// Where the Settings window is next, as a root context every window shares: the main window puts
-/// where it asks for here, a Settings window opening starts there, and an open one turns to it.
-/// Without one (a test's single window) the window opens on General.
-#[derive(Clone)]
-pub struct SettingsAsked(Arc<watch::Sender<SettingsAt>>);
-
-impl Default for SettingsAsked {
-    fn default() -> Self {
-        SettingsAsked(Arc::new(watch::channel(SettingsAt::default()).0))
-    }
-}
-
-impl std::fmt::Debug for SettingsAsked {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("SettingsAsked")
-            .field(&*self.0.borrow())
-            .finish()
-    }
-}
-
-impl SettingsAsked {
-    /// Where it was asked to be last.
-    pub(in crate::ui) fn at(&self) -> SettingsAt {
-        self.0.borrow().clone()
-    }
-
-    /// Ask for `at`. Sent even when it is where it was asked to be last: the window may have been
-    /// turned elsewhere since.
-    pub(in crate::ui) fn ask(&self, at: SettingsAt) {
-        self.0.send_replace(at);
-    }
-
-    /// What a Settings window hears each ask through.
-    pub(in crate::ui) fn heard(&self) -> watch::Receiver<SettingsAt> {
-        self.0.subscribe()
-    }
-}
-
-/// Where ⌘, goes, as a root context. Without one it is quire's `open_window`.
-#[derive(Clone)]
-pub struct SettingsWindows(pub Arc<dyn OpenSettings>);
-
-impl std::fmt::Debug for SettingsWindows {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("SettingsWindows")
-    }
-}
 
 /// The Settings window this window opened, kept so that opening it again raises it.
 #[derive(Clone, Default)]
@@ -199,44 +77,24 @@ pub(in crate::ui) struct SettingsOpened(Rc<RefCell<Option<WindowHandle>>>);
 /// Keep the Settings window this one opens. Called once, from `App`.
 pub(in crate::ui) fn use_settings_opened() {
     use_context_provider(SettingsOpened::default);
-}
-
-/// Open Settings, or raise it on the page it shows.
-pub(in crate::ui) fn open() {
-    ask(None);
-}
-
-/// Open Settings on `page`, or raise it and turn it to `page`.
-pub(in crate::ui) fn open_at(page: PageId) {
-    ask(Some(SettingsAt::Page(page)));
-}
-
-/// Open Settings on `account`'s page, pushed over Accounts, or raise it and turn it there.
-pub(in crate::ui) fn open_account(account: AccountId) {
-    ask(Some(SettingsAt::Account(account)));
-}
-
-/// Open Settings on `space`'s page, pushed over Spaces, or raise it and turn it there: the
-/// Space's menu's Edit Space….
-pub(in crate::ui) fn open_space(space: SpaceId) {
-    ask(Some(SettingsAt::Space(space)));
-}
-
-/// Open Settings on `card`'s page, pushed over Contacts, or raise it and turn it there: a
-/// sender's Show Contact Card.
-pub(in crate::ui) fn open_card(card: mail_client::contacts::CardId) {
-    ask(Some(SettingsAt::Card(card)));
-}
-
-fn ask(at: Option<SettingsAt>) {
-    match try_consume_context::<SettingsWindows>() {
-        Some(windows) => windows.0.open(at),
-        None => {
-            if let (Some(at), Some(asked)) = (at, try_consume_context::<SettingsAsked>()) {
-                asked.ask(at);
-            }
-            quire();
+    // Where "Settings" goes when the program gave nothing else: quire's event loop.
+    use_hook(|| {
+        if try_consume_context::<SettingsWindows>().is_none() {
+            provide_context(SettingsWindows(Arc::new(Quire)));
         }
+    });
+}
+
+/// [`OpenSettings`] as the program has it: the window asked for, quire's event loop, raised if
+/// it is already open.
+struct Quire;
+
+impl OpenSettings for Quire {
+    fn open(&self, at: Option<SettingsAt>) {
+        if let (Some(at), Some(asked)) = (at, try_consume_context::<SettingsAsked>()) {
+            asked.ask(at);
+        }
+        quire();
     }
 }
 
@@ -291,9 +149,9 @@ fn quire() {
         }
         Err(why) => {
             log::warn!("the Settings window would not open: {why}");
-            crate::ui::motion::tell(
-                crate::ui::copy::toasts::would_not_open(TITLE),
-                crate::ui::motion::Follow::Nothing,
+            mail_ui_kit::motion::tell(
+                mail_ui_model::copy::toasts::would_not_open(TITLE),
+                mail_ui_kit::motion::Follow::Nothing,
             );
         }
     }

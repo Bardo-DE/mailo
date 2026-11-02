@@ -3,14 +3,15 @@
 //! writes `settings.toml`, and every page draws in the window. An account's page in the Accounts
 //! pane is `account`'s (`account/tests.rs`).
 
-use super::{OpenSettings, SettingsAt, SettingsWindows, settings_root};
-use crate::settings::{BrandLogos, LoadRemoteImages, MailSettings, Spelling};
+use super::settings_root;
 use crate::ui::app::App;
 use crate::ui::fixtures::{
     INSIDE_THE_SHELL, Seen, Work, chord, click, dispatching, drain_seen, rebuild_into, work,
 };
-use crate::ui::view::PageId;
 use dioxus::dioxus_core::{self, VirtualDom};
+use mail_ui_kit::settings_at::{OpenSettings, SettingsAt, SettingsWindows};
+use mail_ui_kit::view::PageId;
+use mail_ui_model::settings::{BrandLogos, LoadRemoteImages, MailSettings, Spelling};
 use std::sync::{Arc, Mutex};
 
 /// The Settings window over `built`, on `page`.
@@ -47,7 +48,7 @@ fn trusted_senders(built: &Work) -> (VirtualDom, Seen) {
 
 /// What `settings.toml` in the fixture's config directory holds now.
 fn stored(built: &Work) -> MailSettings {
-    crate::settings::store(crate::settings::root_for(&built.dirs.config))
+    mail_ui_model::settings::store(mail_ui_model::settings::root_for(&built.dirs.config))
         .load::<MailSettings>()
         .value
 }
@@ -96,10 +97,10 @@ async fn command_comma_and_the_foot_menu_ask_for_the_settings_window() {
     assert_eq!(asked.asks(), [None], "⌘, asked for nothing");
     let opened = click(
         &mut dom,
-        seen.one("aria-label", crate::ui::copy::aria::SIDEBAR_MENU),
+        seen.one("aria-label", mail_ui_model::copy::aria::SIDEBAR_MENU),
     );
     let opened = crate::ui::fixtures::settle(&mut dom, opened);
-    crate::ui::fixtures::pick_named(&mut dom, &opened, crate::ui::copy::menus::SETTINGS).await;
+    crate::ui::fixtures::pick_named(&mut dom, &opened, mail_ui_model::copy::menus::SETTINGS).await;
     assert_eq!(
         asked.asks(),
         [None, None],
@@ -116,7 +117,7 @@ async fn command_comma_and_the_foot_menu_ask_for_the_settings_window() {
 const KEYED: &[(PageId, &[&str])] = &[
     (
         PageId::GENERAL,
-        &[crate::ui::copy::headers::MAIL, "Search server"],
+        &[mail_ui_model::copy::headers::MAIL, "Search server"],
     ),
     (
         PageId::COMPOSING,
@@ -134,7 +135,7 @@ const KEYED: &[(PageId, &[&str])] = &[
             "Prefer plain text",
             "Mark as read",
             "Message text size",
-            crate::ui::copy::headers::MESSAGE_LIST,
+            mail_ui_model::copy::headers::MESSAGE_LIST,
         ],
     ),
     (
@@ -142,19 +143,19 @@ const KEYED: &[(PageId, &[&str])] = &[
         &[
             "Notifications",
             "Notify for",
-            crate::ui::copy::titles::VIPS,
+            mail_ui_model::copy::titles::VIPS,
             "Notify in",
             "Sound",
             "Badge counts",
-            crate::ui::copy::headers::NOTIFY_FOR_ACCOUNTS,
+            mail_ui_model::copy::headers::NOTIFY_FOR_ACCOUNTS,
         ],
     ),
     (
         PageId::PRIVACY,
         &[
             "Load remote images",
-            crate::ui::copy::titles::TRUSTED_SENDERS,
-            crate::ui::copy::headers::REMOTE_CONTENT,
+            mail_ui_model::copy::titles::TRUSTED_SENDERS,
+            mail_ui_model::copy::headers::REMOTE_CONTENT,
             "Protect mail activity",
         ],
     ),
@@ -163,7 +164,7 @@ const KEYED: &[(PageId, &[&str])] = &[
         &[
             "Filter Junk Mail",
             "When Mail Is Junk",
-            crate::ui::copy::headers::NEVER_JUNK_MAIL_FROM,
+            mail_ui_model::copy::headers::NEVER_JUNK_MAIL_FROM,
             "Contacts",
             "Mail Addressed to My Full Name",
             "Filter Before My Rules",
@@ -213,7 +214,7 @@ fn every_schema_key_is_on_one_page_or_left_to_detent_on_purpose() {
         "reading.trusted_image_senders",
         "notifications.muted_accounts",
     ];
-    for key in crate::settings::schema().key {
+    for key in mail_ui_model::settings::schema().key {
         let path = key.path.0.as_str();
         let times = named.iter().filter(|named| **named == path).count();
         assert!(
@@ -223,7 +224,7 @@ fn every_schema_key_is_on_one_page_or_left_to_detent_on_purpose() {
     }
     for path in named {
         assert!(
-            crate::settings::schema()
+            mail_ui_model::settings::schema()
                 .key
                 .iter()
                 .any(|key| key.path.0 == path),
@@ -270,7 +271,7 @@ async fn page_controls_write_settings_toml() {
 async fn an_account_s_switch_in_notifications_mutes_and_unmutes_it() {
     let built = work();
     let client = crate::ui::fixtures::client(&built.store);
-    let address = crate::ui::data::account_rows(&client)
+    let address = mail_ui_kit::data::account_rows(&client)
         .first()
         .map(|row| row.address.clone())
         .expect("the fixture has an account");
@@ -343,7 +344,7 @@ fn general_with_login(built: &Work, item: Arc<LoginRecorder>) -> (VirtualDom, Se
 /// handed to the login item: on registers `mailo watch` at login, off unregisters it.
 #[tokio::test]
 async fn check_for_mail_when_quit_registers_and_unregisters_the_login_item() {
-    use crate::settings::WhileQuit;
+    use mail_ui_model::settings::WhileQuit;
     let built = work();
     let item = Arc::new(LoginRecorder::default());
     let (mut dom, seen) = general_with_login(&built, item.clone());
@@ -367,7 +368,7 @@ async fn check_for_mail_when_quit_registers_and_unregisters_the_login_item() {
 /// A login item the system would not keep turns the switch off again, and says why.
 #[tokio::test]
 async fn a_login_item_the_system_refuses_leaves_the_switch_off_and_says_so() {
-    use crate::settings::WhileQuit;
+    use mail_ui_model::settings::WhileQuit;
     let built = work();
     let item = Arc::new(LoginRecorder {
         refuse: true,
@@ -381,7 +382,7 @@ async fn a_login_item_the_system_refuses_leaves_the_switch_off_and_says_so() {
     assert_eq!(stored(&built).sync.while_quit, WhileQuit::Off);
     let page = dioxus_ssr::render(&dom);
     assert!(
-        page.contains(crate::ui::copy::titles::LOGIN_ITEM_NOT_CHANGED)
+        page.contains(mail_ui_model::copy::titles::LOGIN_ITEM_NOT_CHANGED)
             && page.contains("Operation not permitted"),
         "{page}"
     );
@@ -401,16 +402,16 @@ async fn without_a_login_item_there_is_no_switch() {
 /// Each page, by the sidebar's row, and a line only that page draws.
 const PAGES: &[(PageId, &str)] = &[
     (PageId::GENERAL, "Search server"),
-    (PageId::ACCOUNTS, crate::ui::copy::controls::ADD_ACCOUNT),
-    (PageId::CONTACTS, crate::ui::copy::controls::NEW_CONTACT),
+    (PageId::ACCOUNTS, mail_ui_model::copy::controls::ADD_ACCOUNT),
+    (PageId::CONTACTS, mail_ui_model::copy::controls::NEW_CONTACT),
     (PageId::SIGNATURES, "id=\"signatures-pane\""),
-    (PageId::SPACES, crate::ui::copy::controls::NEW_SPACE),
+    (PageId::SPACES, mail_ui_model::copy::controls::NEW_SPACE),
     (PageId::COMPOSING, "Check spelling"),
     (PageId::VIEWING, "Brand logos"),
     (PageId::NOTIFICATIONS, "aria-label=\"Notifications\""),
     (PageId::PRIVACY, "Load remote images"),
     (PageId::JUNK_MAIL, "Filter Junk Mail"),
-    (PageId::RULES, crate::ui::copy::controls::NEW_RULE),
+    (PageId::RULES, mail_ui_model::copy::controls::NEW_RULE),
     (PageId::VACATION, "id=\"vacation-pane\""),
     (PageId::KEYBOARD, "Change the key for"),
 ];
@@ -423,19 +424,19 @@ fn settings_has_13_pages_in_that_order() {
             .map(|page| page.name())
             .collect::<Vec<_>>(),
         [
-            crate::ui::copy::titles::GENERAL,
-            crate::ui::copy::titles::ACCOUNTS,
-            crate::ui::copy::titles::CONTACTS,
-            crate::ui::copy::titles::SIGNATURES,
-            crate::ui::copy::titles::SPACES,
-            crate::ui::copy::titles::COMPOSING,
-            crate::ui::copy::titles::VIEWING,
-            crate::ui::copy::titles::NOTIFICATIONS,
-            crate::ui::copy::titles::PRIVACY,
-            crate::ui::copy::titles::JUNK_MAIL,
-            crate::ui::copy::titles::RULES,
+            mail_ui_model::copy::titles::GENERAL,
+            mail_ui_model::copy::titles::ACCOUNTS,
+            mail_ui_model::copy::titles::CONTACTS,
+            mail_ui_model::copy::titles::SIGNATURES,
+            mail_ui_model::copy::titles::SPACES,
+            mail_ui_model::copy::titles::COMPOSING,
+            mail_ui_model::copy::titles::VIEWING,
+            mail_ui_model::copy::titles::NOTIFICATIONS,
+            mail_ui_model::copy::titles::PRIVACY,
+            mail_ui_model::copy::titles::JUNK_MAIL,
+            mail_ui_model::copy::titles::RULES,
             "Vacation Reply",
-            crate::ui::copy::titles::KEYBOARD,
+            mail_ui_model::copy::titles::KEYBOARD,
         ]
     );
 }
@@ -474,7 +475,7 @@ async fn vacation_reply_lists_the_accounts_and_a_row_pushes_its_reply() {
     let built = work();
     let (mut dom, seen) = opened_on(&built, PageId::VACATION);
     let list = dioxus_ssr::render(&dom);
-    let rows: Vec<_> = crate::ui::data::account_rows(&crate::ui::fixtures::client(&built.store))
+    let rows: Vec<_> = mail_ui_kit::data::account_rows(&crate::ui::fixtures::client(&built.store))
         .into_iter()
         .filter(|row| !row.is_local())
         .collect();
@@ -521,18 +522,18 @@ async fn vacation_reply_lists_the_accounts_and_a_row_pushes_its_reply() {
 const ADDS: &[(PageId, &str, &str)] = &[
     (
         PageId::ACCOUNTS,
-        crate::ui::copy::controls::ADD_ACCOUNT,
-        crate::ui::copy::aria::ADD_ACCOUNT,
+        mail_ui_model::copy::controls::ADD_ACCOUNT,
+        mail_ui_model::copy::aria::ADD_ACCOUNT,
     ),
     (
         PageId::SPACES,
-        crate::ui::copy::controls::NEW_SPACE,
-        crate::ui::copy::aria::ADD_A_SPACE,
+        mail_ui_model::copy::controls::NEW_SPACE,
+        mail_ui_model::copy::aria::ADD_A_SPACE,
     ),
     (
         PageId::RULES,
-        crate::ui::copy::controls::NEW_RULE,
-        crate::ui::copy::aria::ADD_A_RULE,
+        mail_ui_model::copy::controls::NEW_RULE,
+        mail_ui_model::copy::aria::ADD_A_RULE,
     ),
 ];
 
@@ -572,7 +573,7 @@ async fn every_add_row_stands_in_a_list_of_its_own_led_by_the_plain_plus() {
 #[tokio::test]
 async fn an_open_window_turns_to_the_page_asked_for() {
     let built = work();
-    let asked = super::SettingsAsked::default();
+    let asked = mail_ui_kit::settings_at::SettingsAsked::default();
     asked.ask(SettingsAt::Page(PageId::RULES));
     dispatching();
     let mut dom = VirtualDom::new(settings_root)
@@ -613,7 +614,7 @@ async fn each_trusted_sender_is_a_row_whose_remove_stops_its_images() {
         "news@example.test".to_owned(),
         "bob@example.test".to_owned(),
     ];
-    crate::settings::store(crate::settings::root_for(&built.dirs.config))
+    mail_ui_model::settings::store(mail_ui_model::settings::root_for(&built.dirs.config))
         .save(&settings)
         .unwrap_or_else(|why| panic!("{why:?}"));
     let (mut dom, seen) = trusted_senders(&built);
@@ -627,7 +628,7 @@ async fn each_trusted_sender_is_a_row_whose_remove_stops_its_images() {
         &mut dom,
         seen.one(
             "aria-label",
-            &crate::ui::copy::aria::stop_loading_images("news@example.test"),
+            &mail_ui_model::copy::aria::stop_loading_images("news@example.test"),
         ),
     );
     assert_eq!(
@@ -641,13 +642,13 @@ async fn trusting_senders_with_none_yet_says_there_are_none() {
     let built = work();
     let mut settings = MailSettings::default();
     settings.reading.remote_images = LoadRemoteImages::Trusted;
-    crate::settings::store(crate::settings::root_for(&built.dirs.config))
+    mail_ui_model::settings::store(mail_ui_model::settings::root_for(&built.dirs.config))
         .save(&settings)
         .unwrap_or_else(|why| panic!("{why:?}"));
     let (dom, _) = trusted_senders(&built);
     let page = dioxus_ssr::render(&dom);
     assert!(
-        page.contains(crate::ui::copy::empty::NO_TRUSTED_SENDERS),
+        page.contains(mail_ui_model::copy::empty::NO_TRUSTED_SENDERS),
         "{page}"
     );
 }
@@ -656,7 +657,7 @@ async fn trusting_senders_with_none_yet_says_there_are_none() {
 /// into, and Use Downloads puts the default back. The dialog is the test's: no real one opens.
 #[tokio::test]
 async fn choose_sets_the_downloads_folder_and_use_downloads_clears_it() {
-    use crate::ui::pick::{Ask, Dialogs};
+    use mail_ui_kit::pick::{Ask, Dialogs};
     let built = work();
     let folder = tempfile::tempdir().unwrap_or_else(|why| panic!("a temp dir: {why}"));
     let (dialogs, asked) = Dialogs::answering(vec![folder.path().to_path_buf()]);
@@ -702,7 +703,7 @@ async fn choose_sets_the_downloads_folder_and_use_downloads_clears_it() {
 /// takes the mark off, and the store is what both write.
 #[tokio::test]
 async fn the_vips_page_offers_the_pinned_people_and_removes_a_vip() {
-    use mail_core::Store as _;
+    use mail_client::testing::Store as _;
     let built = work();
     let (mut dom, seen) = opened_on(&built, PageId::NOTIFICATIONS);
     let seen = click(
@@ -714,9 +715,9 @@ async fn the_vips_page_offers_the_pinned_people_and_removes_a_vip() {
     )
     .merge(drain_seen(&mut dom));
     let page = dioxus_ssr::render(&dom);
-    assert!(page.contains(crate::ui::copy::empty::NO_VIPS), "{page}");
+    assert!(page.contains(mail_ui_model::copy::empty::NO_VIPS), "{page}");
     assert!(
-        page.contains(crate::ui::copy::headers::PINNED_IN_SPACES),
+        page.contains(mail_ui_model::copy::headers::PINNED_IN_SPACES),
         "{page}"
     );
     let dana = "dana@example.com";
@@ -733,7 +734,7 @@ async fn the_vips_page_offers_the_pinned_people_and_removes_a_vip() {
     // reads the store again.
     let mut seen = click(
         &mut dom,
-        seen.one("aria-label", &crate::ui::copy::aria::add_vip(dana)),
+        seen.one("aria-label", &mail_ui_model::copy::aria::add_vip(dana)),
     )
     .merge(drain_seen(&mut dom));
     let quiet = std::time::Duration::from_millis(100);
@@ -746,13 +747,13 @@ async fn the_vips_page_offers_the_pinned_people_and_removes_a_vip() {
     assert_eq!(held(&built), [dana]);
     let page = dioxus_ssr::render(&dom);
     assert!(
-        !page.contains(&crate::ui::copy::aria::add_vip(dana)),
+        !page.contains(&mail_ui_model::copy::aria::add_vip(dana)),
         "she is still offered: {page}"
     );
     let mut seen = seen;
     click(
         &mut dom,
-        seen.one("aria-label", &crate::ui::copy::aria::remove_vip(dana)),
+        seen.one("aria-label", &mail_ui_model::copy::aria::remove_vip(dana)),
     );
     crate::ui::fixtures::settle_until(&mut dom, &mut seen, quiet, bound, |_| {
         held(&built).is_empty()
@@ -764,7 +765,7 @@ async fn the_vips_page_offers_the_pinned_people_and_removes_a_vip() {
 #[tokio::test]
 async fn turning_to_another_page_leaves_a_pushed_page_behind() {
     let built = work();
-    let asked = super::SettingsAsked::default();
+    let asked = mail_ui_kit::settings_at::SettingsAsked::default();
     asked.ask(SettingsAt::Page(PageId::PRIVACY));
     dispatching();
     let mut dom = VirtualDom::new(settings_root)
@@ -796,7 +797,7 @@ async fn turning_to_another_page_leaves_a_pushed_page_behind() {
 #[test]
 fn privacy_draws_only_the_rows_of_the_way_chosen() {
     use super::pages::{Line, drawn};
-    use crate::settings::Protect;
+    use mail_ui_model::settings::Protect;
     let relay = [
         Line::Key("privacy.relay_kind"),
         Line::Address("privacy.relay"),
@@ -827,7 +828,7 @@ fn privacy_draws_only_the_rows_of_the_way_chosen() {
 #[test]
 fn the_mark_read_wait_is_drawn_only_after_a_delay() {
     use super::pages::{Line, shown};
-    use crate::settings::MarkRead;
+    use mail_ui_model::settings::MarkRead;
     for mark in [MarkRead::OnOpen, MarkRead::AfterDelay, MarkRead::Never] {
         let mut settings = MailSettings::default();
         settings.reading.mark_read = mark;
@@ -845,18 +846,20 @@ fn the_mark_read_wait_is_drawn_only_after_a_delay() {
 /// chosen does not show the other's rows.
 #[tokio::test]
 async fn an_address_that_cannot_be_used_is_said_under_its_field() {
-    use crate::settings::{Protect, RouteProblem};
+    use mail_ui_model::settings::{Protect, RouteProblem};
     let built = work();
     let mut settings = MailSettings::default();
     settings.privacy.protect = Protect::Relay;
     settings.privacy.relay = "http://relay.example.test".to_owned();
-    crate::settings::store(crate::settings::root_for(&built.dirs.config))
+    mail_ui_model::settings::store(mail_ui_model::settings::root_for(&built.dirs.config))
         .save(&settings)
         .unwrap_or_else(|why| panic!("{why:?}"));
     let (dom, _) = opened_on(&built, PageId::PRIVACY);
     let page = dioxus_ssr::render(&dom);
     assert!(
-        page.contains(crate::ui::copy::fields::route_problem(RouteProblem::Relay)),
+        page.contains(mail_ui_model::copy::fields::route_problem(
+            RouteProblem::Relay
+        )),
         "{page}"
     );
     // The rows, not the words: the Protect popup names every way (Off, Relay, Proxy) whichever
@@ -867,7 +870,9 @@ async fn an_address_that_cannot_be_used_is_said_under_its_field() {
     );
     assert!(!page.contains("aria-label=\"Proxy\""), "{page}");
     assert!(
-        !page.contains(crate::ui::copy::fields::route_problem(RouteProblem::Proxy)),
+        !page.contains(mail_ui_model::copy::fields::route_problem(
+            RouteProblem::Proxy
+        )),
         "{page}"
     );
 }

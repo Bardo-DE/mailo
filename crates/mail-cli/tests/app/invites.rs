@@ -85,7 +85,7 @@ fn seeded(raw: Option<Vec<u8>>) -> (Arc<SqliteStore>, tempfile::TempDir, ThreadI
     let dir = tempfile::tempdir().unwrap();
     let store = SqliteStore::in_memory(dir.path()).unwrap();
     {
-        mail_store::testing::seed_account(&store, acct_account(), "me@example.test");
+        mail_core::fixtures::seed::seed_account(&store, acct_account(), "me@example.test");
         let identity = |id, name: &str, email: &str, reply_to, default| Identity {
             id,
             account: acct_account(),
@@ -97,7 +97,7 @@ fn seeded(raw: Option<Vec<u8>>) -> (Arc<SqliteStore>, tempfile::TempDir, ThreadI
             signature: None,
             default,
         };
-        mail_store::testing::seed_identity(
+        mail_core::fixtures::seed::seed_identity(
             &store,
             &identity(
                 IDENTITY,
@@ -110,7 +110,7 @@ fn seeded(raw: Option<Vec<u8>>) -> (Arc<SqliteStore>, tempfile::TempDir, ThreadI
                 IsDefault::Default,
             ),
         );
-        mail_store::testing::seed_identity(
+        mail_core::fixtures::seed::seed_identity(
             &store,
             &identity(
                 ALIAS,

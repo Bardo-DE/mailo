@@ -38,8 +38,8 @@ fn seeded() -> (Arc<SqliteStore>, tempfile::TempDir) {
     let dir = tempfile::tempdir().unwrap();
     let store = SqliteStore::in_memory(dir.path()).unwrap();
     {
-        mail_store::testing::seed_account(&store, acct_account(), "me@example.test");
-        mail_store::testing::seed_identity_for(
+        mail_core::fixtures::seed::seed_account(&store, acct_account(), "me@example.test");
+        mail_core::fixtures::seed::seed_identity_for(
             &store,
             IDENTITY,
             acct_account(),
@@ -69,7 +69,7 @@ fn a_draft(store: &SqliteStore) -> Draft {
     .unwrap()
 }
 
-fn submissions(store: &SqliteStore) -> Vec<mail_store::OutboxEntry> {
+fn submissions(store: &SqliteStore) -> Vec<mail_core::OutboxEntry> {
     let far = now() + chrono::TimeDelta::try_days(3650).unwrap();
     store.outbox_due(acct_account(), far).unwrap()
 }

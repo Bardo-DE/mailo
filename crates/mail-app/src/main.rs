@@ -144,7 +144,7 @@ fn main() {
     // Messages an older parser misread are re-read from their stored bytes, once, here — the
     // one place every command and the window pass through. Usually an empty queue and one
     // query. A failure is reported and does not stop the command: the mail is still readable.
-    if let Err(e) = mail_runtime::reparse_queued(&store) {
+    if let Err(e) = mail_core::upkeep::reparse_queued(&store) {
         eprintln!("could not re-read stored headers: {e}");
     }
     // Plain drafts kept before every draft's text was flowed text are made so, once.
@@ -152,7 +152,7 @@ fn main() {
         eprintln!("could not rewrite stored drafts as flowed text: {e}");
     }
     // OpenPGP keys kept before their dates were recorded have them read from their bytes, once.
-    if let Err(e) = mail_runtime::pgp::date_keys(&store) {
+    if let Err(e) = mail_core::upkeep::date_keys(&store) {
         eprintln!("could not read the dates of stored OpenPGP keys: {e}");
     }
 
@@ -174,9 +174,9 @@ fn main() {
     }
     {
         let config = mail_core::config::config_dir();
-        let look = mail_ui::ui::view::Appearance {
-            marks: mail_ui::settings::person_root()
-                .map(|root| mail_ui::settings::load(&root))
+        let look = mail_ui_kit::view::Appearance {
+            marks: mail_ui_model::settings::person_root()
+                .map(|root| mail_ui_model::settings::load(&root))
                 .unwrap_or_default()
                 .window
                 .provider_marks
@@ -186,23 +186,23 @@ fn main() {
         // were theirs.
         let legacy = config
             .as_deref()
-            .map(mail_ui::ui::appearance::legacy)
+            .map(mail_ui_kit::appearance::legacy)
             .unwrap_or_default();
         // The look is the desktop's (`quire/appearance.toml`), which the window follows live.
         // What mailo kept for itself is brought over once, when the desktop has none, and
         // never written again.
-        if let (Some(from), Some(to)) = (config.as_deref(), mail_ui::ui::appearance::desktop_dir())
+        if let (Some(from), Some(to)) = (config.as_deref(), mail_ui_kit::appearance::desktop_dir())
         {
-            mail_ui::ui::appearance::adopt(from, &to);
+            mail_ui_kit::appearance::adopt(from, &to);
         }
         let ids = account_ids(&store);
         let dirs = config.and_then(|config| {
             mail_core::config::state_dir()
-                .map(|state| mail_ui::ui::appearance::WindowDirs { config, state })
+                .map(|state| mail_ui_kit::appearance::WindowDirs { config, state })
         });
         // The stored Spaces, or a first run over the accounts, written where the window
         // keeps them.
-        let spaces = mail_ui::ui::space::boot(dirs.as_ref(), &ids, &legacy);
+        let spaces = mail_ui_kit::space::boot(dirs.as_ref(), &ids, &legacy);
         if let Err(why) = mail_app::window::open(
             store,
             look,
@@ -232,7 +232,7 @@ struct Paths {
 }
 
 /// The directories Profiles' paths are under: mailo's data directory (`$XDG_DATA_HOME/mailo` on
-/// Linux, the local application data folder on macOS and Windows; `mail_secrets::places`) and its
+/// Linux, the local application data folder on macOS and Windows; `mail_core::config`) and its
 /// config directory.
 /// The folders mailo keeps: the data and config roots, and the state and cache folders where they
 /// are elsewhere (on Linux each place is its own folder).
@@ -254,7 +254,7 @@ fn places_kept(roots: &mail_core::profile::Roots) -> Vec<std::path::PathBuf> {
 
 fn roots() -> Option<mail_core::profile::Roots> {
     Some(mail_core::profile::Roots {
-        data: mail_secrets::places::dir(mail_secrets::places::Place::Data)?,
+        data: mail_core::config::data_dir()?,
         config: mail_core::config::config_dir()?,
     })
 }

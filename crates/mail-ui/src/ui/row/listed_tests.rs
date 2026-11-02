@@ -1,15 +1,15 @@
 //! What a row says, its menu and what a click on it opens, for each kind of row.
 
 use super::listed::{Listed, Opens};
-use super::menu::{self, Pick};
-use crate::ui::copy;
-use crate::ui::list_search::RowHit;
-use crate::ui::selection::Click;
 use chrono::{DateTime, TimeZone, Utc};
 use ds::components::app::thread_height::ThreadLines;
 use ds::components::menus::item::item::MenuItem;
 use ds::prelude::*;
 use mail_domain::*;
+use mail_ui_kit::list_search::RowHit;
+use mail_ui_kit::row_menu::{self as menu, Pick};
+use mail_ui_model::copy;
+use mail_ui_model::selection::Click;
 
 fn now() -> DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 10, 19, 12, 0, 0).unwrap()
@@ -120,7 +120,7 @@ fn each_row_draws_the_lines_it_has() {
     let row = held.row(None, true, now(), &Utc, mail_logic::when::Clock::H24);
     assert_eq!(
         row.time,
-        crate::ui::menus::when_words(at, now(), &Utc, mail_logic::when::Clock::H24)
+        mail_ui_kit::menus::when_words(at, now(), &Utc, mail_logic::when::Clock::H24)
     );
     assert_eq!(row.label, copy::aria::open_row(copy::empty::NO_SUBJECT));
     assert_eq!(held.held(), Some(at));

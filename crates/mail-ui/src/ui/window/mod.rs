@@ -7,8 +7,9 @@
 //! the reader and nothing else (`root.rs`). Its consent to remote images starts empty: it is its
 //! own reader, holding its own grant (`ui/original/consent.rs`).
 //!
-//! The call goes through [`Windows`] when the window was given one, which is how a test sees
-//! what would open: quire's harness has no event loop to open a window on
+//! The call goes through [`Windows`] (`mail_ui_kit::window`, which the reader and the list ask
+//! through): quire's event loop unless the window was given one, which is how a test sees what
+//! would open: quire's harness has no event loop to open a window on
 //! (`OpenWindowError::NoHost`).
 
 mod note;
@@ -17,69 +18,47 @@ mod root;
 pub use root::{MessageOpen, message_root};
 
 use dioxus::prelude::*;
-use ds::prelude::Icon;
 use ds_blitz::{WindowHandle, WindowLife, WindowSpec};
 use mail_domain::ThreadId;
+use mail_ui_kit::window::{Ask, OpenWindow, Windows};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
-
-/// A conversation to open in a window of its own, and the window's title.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Ask {
-    pub thread: ThreadId,
-    /// The conversation's subject.
-    pub title: String,
-}
-
-/// Whatever opens a conversation's window: quire's event loop in the launched window, a recorder
-/// in a test.
-pub trait OpenWindow: Send + Sync + 'static {
-    /// Open `ask`'s conversation in a window of its own.
-    fn open(&self, ask: Ask);
-}
-
-/// Where "Open in new window" goes, as a root context. Without one it is quire's
-/// `open_window_with`. Cloning shares it.
-#[derive(Clone)]
-pub struct Windows(pub Arc<dyn OpenWindow>);
-
-impl std::fmt::Debug for Windows {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("Windows")
-    }
-}
 
 /// The windows this window has opened, by conversation: opening one already open raises it.
 /// Held by the window that opened them; a `WindowHandle` is quire's and stays on this thread.
 #[derive(Clone, Default)]
 pub(in crate::ui) struct Opened(Rc<RefCell<HashMap<ThreadId, WindowHandle>>>);
 
-/// Keep the windows this one opens. Called once, from `App`.
+/// Keep the windows this one opens, and, when the program gave none, open them through quire.
+/// Called once, from `App`.
 pub(in crate::ui) fn use_opened() {
     use_context_provider(Opened::default);
+    use_windows();
+}
+
+/// Where "Open in new window" goes when nothing else was given: quire's event loop. A test hands
+/// the window a [`Windows`] of its own as a root context, and this leaves it be.
+pub(in crate::ui) fn use_windows() {
+    use_hook(|| {
+        if try_consume_context::<Windows>().is_none() {
+            provide_context(Windows(Arc::new(Quire)));
+        }
+    });
+}
+
+/// [`OpenWindow`] as the program has it: quire's event loop, raising a window already open.
+struct Quire;
+
+impl OpenWindow for Quire {
+    fn open(&self, ask: Ask) {
+        quire(ask);
+    }
 }
 
 /// The size a conversation's window opens at, in logical pixels.
 const SIZE: (u32, u32) = (760, 720);
-
-/// Open `thread` in a window of its own, titled with its subject. A conversation the client no
-/// longer has opens nothing.
-pub(in crate::ui) fn open_in_window(thread: ThreadId) {
-    let client = crate::ui::live::client();
-    let Ok(loaded) = client.stored().thread(thread) else {
-        return;
-    };
-    let ask = Ask {
-        thread,
-        title: mail_domain::subject_or_none(&loaded.summary.subject).into_owned(),
-    };
-    match try_consume_context::<Windows>() {
-        Some(windows) => windows.0.open(ask),
-        None => quire(ask),
-    }
-}
 
 /// Whether a window opened earlier is one to raise rather than open again. The Settings and
 /// Add Account windows ask the same question.
@@ -106,29 +85,15 @@ fn quire(ask: Ask) {
         }
         Err(why) => {
             log::warn!("a conversation's window would not open: {why}");
-            super::motion::tell(
-                super::copy::toasts::would_not_open(super::copy::toasts::A_NEW_WINDOW),
-                super::motion::Follow::Nothing,
+            mail_ui_kit::motion::tell(
+                mail_ui_model::copy::toasts::would_not_open(
+                    mail_ui_model::copy::toasts::A_NEW_WINDOW,
+                ),
+                mail_ui_kit::motion::Follow::Nothing,
             );
         }
     }
 }
-
-/// What the menu row that opens a conversation in its own window is called.
-pub(in crate::ui) const OPEN_NAME: &str = "Open in new window";
-
-/// The menu row that opens a conversation in its own window, with the key that does it as
-/// `keymap` has it (no key beside it when the keymap binds none).
-pub(in crate::ui) fn menu_item(keymap: &chordkit::Keymap) -> super::menu::MenuItem {
-    let shortcut = super::actions::hint_own(keymap, super::actions::Own::OpenInWindow);
-    super::menu::MenuItem {
-        right: shortcut.map_or(super::menu::Right::None, super::menu::Right::Shortcut),
-        ..super::menu::MenuItem::icon(OPEN_KEY, Icon::Window, OPEN_NAME)
-    }
-}
-
-/// The menu row's key.
-pub(in crate::ui) const OPEN_KEY: &str = "open-window";
 
 #[cfg(test)]
 mod tests {

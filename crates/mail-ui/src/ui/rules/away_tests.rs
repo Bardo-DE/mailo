@@ -5,16 +5,16 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use chrono::{TimeZone, Utc};
-use mail_core::Pushed;
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::id::account_id_from_uuid;
 use mail_domain::*;
+use mail_proto::sieve::Pushed;
 use mail_proto::sieve::{Compiled, SieveCaps, SieveOutcome, Unmappable, VacationPlaced};
 use porter_core::AccountId;
 
 use super::away::{self, Away, Reply};
 use super::server::{Push, put, reach};
-use crate::ui::data::{AccountRow, account_rows};
+use mail_ui_kit::data::{AccountRow, account_rows};
 
 /// A mail server of the user's own, reached with a password: one that offers ManageSieve.
 pub(super) fn acct_own() -> AccountId {
@@ -40,7 +40,7 @@ pub(super) fn own_server(store: &Arc<SqliteStore>) -> AccountRow {
 
 /// `plan` kept as account `id`, as `account add` keeps one, and its row.
 pub(super) fn seeded(store: &Arc<SqliteStore>, id: AccountId, plan: &AccountPlan) -> AccountRow {
-    mail_store::testing::seed_account_plan(
+    mail_client::testing::seed::seed_account_plan(
         store,
         id.clone(),
         &plan.address,

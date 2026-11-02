@@ -10,9 +10,9 @@ use chrono::Utc;
 use dioxus::prelude::*;
 use dioxus_core::VirtualDom;
 use ds::motion::detail::operation::Operation;
-use mail_core::fetch::{Count, Event, First, Link, Step, Trigger};
-use mail_core::sync::report::{AccountReport, Counts, PassEnd, Progress};
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::core::fetch::{Count, Event, First, Link, Step, Trigger};
+use mail_client::testing::core::sync::report::{AccountReport, Counts, PassEnd, Progress};
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::id::account_id_from_uuid;
 use mail_domain::*;
 use porter_core::AccountId;
@@ -35,7 +35,7 @@ pub(super) fn account(fetched: bool) -> (Arc<SqliteStore>, tempfile::TempDir) {
         login: None,
     };
     let preset = presets::manual("me@nowhere.example", &manual, Utc::now());
-    mail_store::testing::seed_account_plan(
+    mail_client::testing::seed::seed_account_plan(
         &store,
         acct_account(),
         &preset.plan.address,
@@ -43,7 +43,7 @@ pub(super) fn account(fetched: bool) -> (Arc<SqliteStore>, tempfile::TempDir) {
         Some(Utc::now()),
     );
     if fetched {
-        mail_store::testing::seed_sync_state(
+        mail_client::testing::seed::seed_sync_state(
             &store,
             acct_account(),
             "INBOX",
@@ -83,7 +83,7 @@ pub(super) fn refused() -> PassEnd {
         address: "me@nowhere.example".to_owned(),
         retry: Retry::NeedsReauth,
         why: "the server refused the password".to_owned(),
-        pause: mail_core::fetch::Pause::ServerBusy,
+        pause: mail_client::testing::core::fetch::Pause::ServerBusy,
         offer: None,
     }
 }
@@ -94,7 +94,7 @@ pub(super) fn unreachable() -> PassEnd {
         address: "me@nowhere.example".to_owned(),
         retry: Retry::After(Duration::from_secs(5)),
         why: "cannot connect".to_owned(),
-        pause: mail_core::fetch::Pause::Unreachable,
+        pause: mail_client::testing::core::fetch::Pause::Unreachable,
         offer: None,
     }
 }
@@ -191,7 +191,7 @@ async fn pressing_sync_runs_one_pass_that_reports_and_ends() {
 
     click(
         &mut dom,
-        seen.one("aria-label", crate::ui::copy::aria::SYNC_NOW),
+        seen.one("aria-label", mail_ui_model::copy::aria::SYNC_NOW),
     );
     settle_quiet(&mut dom).await;
     assert_eq!(script.runs.load(Ordering::SeqCst), 1);
@@ -214,7 +214,7 @@ async fn pressing_sync_runs_one_pass_that_reports_and_ends() {
     // A second press is the same request: nothing new starts.
     click(
         &mut dom,
-        seen.one("aria-label", crate::ui::copy::aria::SYNC_NOW),
+        seen.one("aria-label", mail_ui_model::copy::aria::SYNC_NOW),
     );
     settle_quiet(&mut dom).await;
     assert_eq!(
@@ -334,7 +334,7 @@ async fn a_first_pass_that_fails_is_still_the_first_when_it_is_tried_again() {
 #[component]
 fn Probe() -> Element {
     // As `App` does: a client that reads here acts on what was committed from the first frame.
-    use_hook(crate::ui::live::moved_peek);
+    use_hook(mail_ui_kit::live::moved_peek);
     super::use_fetching();
     rsx! {}
 }
@@ -363,7 +363,7 @@ async fn the_accounts_that_come_and_go_get_and_lose_their_link() {
         login: None,
     };
     let preset = presets::manual("two@other.example", &manual, Utc::now());
-    mail_store::testing::seed_account_plan(
+    mail_client::testing::seed::seed_account_plan(
         &store,
         acct_later(),
         &preset.plan.address,
@@ -392,7 +392,7 @@ async fn the_accounts_that_come_and_go_get_and_lose_their_link() {
     );
 
     // Gone: its link goes, and the pass it was running is cancelled and forgotten.
-    mail_store::testing::delete_account_row(&store, acct_later());
+    mail_client::testing::seed::delete_account_row(&store, acct_later());
     settle_quiet(&mut dom).await;
     assert_eq!(
         dom.in_scope(ScopeId::APP, || fetching(&dom).link(acct_later())),
@@ -406,10 +406,10 @@ async fn the_accounts_that_come_and_go_get_and_lose_their_link() {
 
 /// What a test's window was told to say aloud.
 #[derive(Default)]
-struct Recorder(Mutex<Vec<mail_core::notify::Notification>>);
+struct Recorder(Mutex<Vec<mail_client::testing::core::notify::Notification>>);
 
-impl mail_core::notify::Notifier for Recorder {
-    fn show(&self, notification: &mail_core::notify::Notification) {
+impl mail_client::testing::core::notify::Notifier for Recorder {
+    fn show(&self, notification: &mail_client::testing::core::notify::Notification) {
         self.0.lock().unwrap().push(notification.clone());
     }
 }
@@ -480,8 +480,8 @@ async fn new_mail_the_window_fetched_is_announced_while_notifications_are_on() {
         let seen = rebuild_into(&mut dom);
         if !on {
             dom.in_scope(ScopeId::APP, || {
-                crate::ui::prefs::change(|settings| {
-                    settings.notifications.new_mail = crate::settings::NewMail::Off;
+                mail_ui_kit::prefs::change(|settings| {
+                    settings.notifications.new_mail = mail_ui_model::settings::NewMail::Off;
                 })
             })
             .unwrap();
@@ -490,7 +490,7 @@ async fn new_mail_the_window_fetched_is_announced_while_notifications_are_on() {
         }
         click(
             &mut dom,
-            seen.one("aria-label", crate::ui::copy::aria::SYNC_NOW),
+            seen.one("aria-label", mail_ui_model::copy::aria::SYNC_NOW),
         );
         settle_quiet(&mut dom).await;
         let said = recorder.0.lock().unwrap().clone();

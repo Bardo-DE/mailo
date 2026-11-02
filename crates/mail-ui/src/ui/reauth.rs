@@ -2,7 +2,7 @@
 //!
 //! One account that needs the person is told once, in a dialog when the window opens, instead of
 //! by a mark on every surface that happens to list it. The dialog asks about every account the
-//! links say is waiting ([`crate::ui::fetching::needs_you`]), once they have all said how they
+//! links say is waiting ([`mail_ui_kit::need::needs_you`]), once they have all said how they
 //! stand. Sign In goes to the browser or the Add Account window. Later puts the dialog off for
 //! the rest of the session: it comes back for an account only when that account recovers and
 //! needs the person again, or when the sidebar foot's sync mark is pressed. A lone account is
@@ -13,11 +13,7 @@
 //! Graph, which signs it in again for Graph in the browser. Everything else a connection can
 //! suffer it retries by itself, and the sidebar foot's mark says while it does.
 
-use crate::ui::common::in_card;
-use crate::ui::copy;
-use crate::ui::data::account_rows;
-use crate::ui::fetching::{Fetching, Need, Needing};
-use crate::ui::press::{SheetClose, on_primary};
+use crate::ui::fetching::Fetching;
 use dioxus::prelude::*;
 use ds::components::content::label::{Label, LabelStyle};
 use ds::components::lists::row::row::Outline;
@@ -28,11 +24,14 @@ use ds::root::common::Common;
 use ds::style::tokens::control_size::ControlSize;
 use mail_client::fetch::Link;
 use mail_client::sync::report::Offer;
+use mail_ui_kit::common::in_card;
+use mail_ui_kit::data::account_rows;
+use mail_ui_kit::need::{Need, Needing};
+use mail_ui_kit::press::{SheetClose, on_primary};
+use mail_ui_kit::reauth::{SIGN_IN, SignAgain};
+use mail_ui_model::copy;
 use porter_core::AccountId;
 use std::collections::{BTreeMap, BTreeSet};
-
-/// The button that signs in.
-pub(in crate::ui) const SIGN_IN: &str = "Sign In";
 
 /// The button that puts the question off.
 const LATER: &str = "Later";
@@ -110,6 +109,9 @@ pub(in crate::ui) fn use_reauth() -> Reauth {
         settled,
         answered,
     });
+    // What the parts that offer a sign-in ask through, without naming this window's state.
+    let again = use_callback(move |(address, need): (String, Need)| reauth.sign_in(&address, need));
+    use_context_provider(|| SignAgain(again));
     // The first moment nobody is still at the beginning: from then on it can be said who waits.
     use_effect(move || {
         let Some(fetching) = fetching else { return };
@@ -124,7 +126,7 @@ pub(in crate::ui) fn use_reauth() -> Reauth {
         let Some(fetching) = fetching else { return };
         let links = fetching.all_links();
         if let Some(needing) = &said_to {
-            needing.say(crate::ui::fetching::needs_you(&links));
+            needing.say(mail_ui_kit::need::needs_you(&links));
         }
         let mut put_off = put_off;
         let kept = still_put_off(&put_off.peek(), &links);
@@ -148,7 +150,7 @@ pub(in crate::ui) fn use_reauth() -> Reauth {
     // The Add Account window signed an account in, or changed its settings: the store moves when
     // it does, and a window closed with nothing added leaves the sign-in waiting.
     use_effect(move || {
-        let now = crate::ui::live::moved();
+        let now = mail_ui_kit::live::moved();
         let Some(fetching) = fetching else { return };
         let mut signing = signing;
         let done: Vec<AccountId> = signing
@@ -230,7 +232,7 @@ impl Reauth {
     /// link.
     pub(in crate::ui) fn use_graph(self, account: AccountId, name: String) {
         let (Some(client), Some(fetching)) = (
-            crate::ui::live::try_client(),
+            mail_ui_kit::live::try_client(),
             try_consume_context::<Fetching>(),
         ) else {
             return;
@@ -241,9 +243,6 @@ impl Reauth {
             let switching = account.clone();
             // The sign-in waits on a browser: a blocking thread's to wait for.
             let answer = tokio::task::spawn_blocking(move || {
-                let net = client.net();
-                let (environment, secrets) = (net.environment(), net.secrets());
-                let saved = net.oauth_clients().saved();
                 let browse = |url: &str| {
                     if let Err(why) = webbrowser::open(url) {
                         log::warn!("the browser would not open the Microsoft sign-in: {why}");
@@ -254,11 +253,8 @@ impl Reauth {
                     .switch_to_graph(
                         switching,
                         chrono::Utc::now(),
-                        mail_client::account::Credentials {
+                        mail_client::Proof {
                             password: None,
-                            saved: &saved,
-                            secrets: secrets.as_ref(),
-                            environment: &environment,
                             on_url: &browse,
                             signed: None,
                         },
@@ -276,9 +272,9 @@ impl Reauth {
                 Some(Err(why)) => copy::toasts::graph_refused(&name, &why),
                 None => copy::toasts::graph_refused(&name, ""),
             };
-            crate::ui::motion::tell(
+            mail_ui_kit::motion::tell(
                 said.trim_end().to_owned(),
-                crate::ui::motion::Follow::Nothing,
+                mail_ui_kit::motion::Follow::Nothing,
             );
         });
     }
@@ -287,7 +283,7 @@ impl Reauth {
     /// account is not asked about again while it is being signed in. Call it from an event
     /// handler.
     pub(in crate::ui) fn sign_in(self, address: &str, need: Need) {
-        let client = crate::ui::live::client();
+        let client = mail_ui_kit::live::client();
         let Some(account) = account_rows(&client)
             .into_iter()
             .find(|row| row.address == address)
@@ -315,7 +311,7 @@ impl Reauth {
         put_off.write().insert(account.clone());
         signing
             .write()
-            .insert(account, crate::ui::live::moved_peek());
+            .insert(account, mail_ui_kit::live::moved_peek());
     }
 }
 
@@ -325,7 +321,7 @@ pub(in crate::ui) fn ReauthPrompt() -> Element {
     let Some(reauth) = try_consume_context::<Reauth>() else {
         return rsx! {};
     };
-    let accounts = crate::ui::data::use_account_rows();
+    let accounts = mail_ui_kit::data::use_account_rows();
     let names: BTreeMap<AccountId, String> = accounts
         .read()
         .iter()
@@ -359,7 +355,7 @@ pub(in crate::ui) fn ReauthPrompt() -> Element {
                                 AlertRole::Cancel,
                                 EventHandler::new(move |()| reauth.later()),
                             )
-                            .with_common(crate::ui::sidebar::tagged("answer", "later")),
+                            .with_common(mail_ui_kit::common::tagged("answer", "later")),
                         ],
                     }
                 }
@@ -388,7 +384,7 @@ pub(in crate::ui) fn ReauthPrompt() -> Element {
                             AlertRole::Cancel,
                             EventHandler::new(move |()| reauth.later()),
                         )
-                        .with_common(crate::ui::sidebar::tagged("answer", "later")),
+                        .with_common(mail_ui_kit::common::tagged("answer", "later")),
                     ],
                 }
             }

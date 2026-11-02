@@ -10,7 +10,7 @@ use mail_core::query;
 use mail_core::{Arrival, absorb};
 use mail_core::{SqliteStore, Store};
 use mail_domain::*;
-use mail_ui::ui::view;
+use mail_ui_kit::view;
 
 fn taipei() -> chrono::FixedOffset {
     chrono::FixedOffset::east_opt(8 * 3600).unwrap()
@@ -172,7 +172,7 @@ mod what_the_store_returns {
     fn seeded() -> (SqliteStore, tempfile::TempDir) {
         let dir = tempfile::tempdir().unwrap();
         let store = SqliteStore::in_memory(dir.path()).unwrap();
-        mail_store::testing::seed_account(&store, acct_account(), "me@example.test");
+        mail_core::fixtures::seed::seed_account(&store, acct_account(), "me@example.test");
 
         let mail: [(&str, &str, &str, &str); 3] = [
             (
@@ -412,7 +412,7 @@ mod a_label_typed_into_the_window_finds_the_mail {
     fn seeded() -> (SqliteStore, tempfile::TempDir) {
         let dir = tempfile::tempdir().unwrap();
         let store = SqliteStore::in_memory(dir.path()).unwrap();
-        mail_store::testing::seed_account(&store, acct_account(), "me@example.test");
+        mail_core::fixtures::seed::seed_account(&store, acct_account(), "me@example.test");
 
         for (n, subject) in ["flight to taipei", "the invoice"].iter().enumerate() {
             let raw = format!(

@@ -22,11 +22,24 @@ FORBIDDEN_CORE=(dioxus ds ds-settings ds-blitz blitz-dom dioxus-native-dom anyvi
 # handler, what an operation says): it does no drawing, so it may never reach the toolkit or the
 # renderer, nor `mail-ui`, which would pull both in. The window and the command line share it.
 OS=(mail-os)
-FORBIDDEN_OS=(dioxus ds ds-settings ds-blitz blitz-dom dioxus-native-dom anyview-core anyview-peek mail-ui)
+FORBIDDEN_OS=(dioxus ds ds-settings ds-blitz blitz-dom dioxus-native-dom anyview-core anyview-peek mail-ui mail-ui-kit mail-ui-reader mail-ui-compose)
+# `mail-ui-model` (the window's state, words and settings files, drawing nothing) and `mail-cli` (the
+# terminal) hold to the same rule, and neither may reach `mail-ui`, the window itself, or `mail-ui-kit` or the feature crates,
+# what it is drawn from. quire's
+# `ds-settings` (the settings-file library, built without its `dioxus` feature) is allowed: it is
+# what the settings files are read with.
+NODRAW=(mail-ui-model mail-cli)
+FORBIDDEN_NODRAW=(dioxus ds ds-shell ds-motion ds-blitz blitz-dom dioxus-native-dom anyview-core anyview-peek mail-ui mail-ui-kit mail-ui-reader mail-ui-compose)
 fail=0
+# The crates the window is made of, bottom to top but the shell: the kit, then the feature crates.
+# A feature crate is added to FEATURES when it is made.
+FEATURES=(mail-ui-reader mail-ui-compose)
+WINDOW=(mail-ui-kit ${FEATURES[@]+"${FEATURES[@]}"} mail-ui)
+WINDOW_SRC=(crates/mail-ui-kit/src)
+for crate in ${FEATURES[@]+"${FEATURES[@]}"}; do WINDOW_SRC+=("crates/$crate/src"); done
 
 # A name `cargo tree` does not know prints nothing, which would read as a boundary that holds.
-for crate in "${PURE[@]}" "${CORE[@]}" "${OS[@]}" mail-store mail-net mail-secrets mail-runtime mail-engine; do
+for crate in "${PURE[@]}" "${CORE[@]}" "${OS[@]}" "${NODRAW[@]}" mail-store mail-net mail-secrets mail-runtime mail-engine; do
   if ! cargo tree -p "$crate" --depth 0 >/dev/null 2>&1; then
     echo "no package named $crate: update the names in this script"
     exit 1
@@ -77,9 +90,24 @@ if [ "$os_fail" -eq 0 ]; then
 fi
 fail=$((fail | os_fail))
 
+nodraw_fail=0
+for crate in "${NODRAW[@]}"; do
+  for dep in "${FORBIDDEN_NODRAW[@]}"; do
+    if cargo tree -p "$crate" -i "$dep" 2>/dev/null | grep -q .; then
+      echo "LEAK: $crate depends on $dep"
+      cargo tree -p "$crate" -i "$dep" 2>/dev/null | head -20
+      nodraw_fail=1
+    fi
+  done
+done
+if [ "$nodraw_fail" -eq 0 ]; then
+  echo "no-drawing boundary holds: ${NODRAW[*]} reach none of ${FORBIDDEN_NODRAW[*]}"
+fi
+fail=$((fail | nodraw_fail))
+
 # `mail-store`, `mail-net`, `mail-secrets`, `mail-runtime`, `mail-engine` and `mail-agent` sit between the pure
-# crates and the core, and draw nothing either: anyview, which peeks at a file and draws a card, is `mail-ui`'s alone (its
-# `anyview` feature).
+# crates and the core, and draw nothing either: anyview, which peeks at a file and draws a card, is
+# `mail-ui-reader`'s alone (its `anyview` feature).
 lower_fail=0
 for crate in mail-store mail-net mail-secrets mail-runtime mail-engine mail-agent; do
   for dep in anyview-core anyview-peek; do
@@ -95,27 +123,22 @@ if [ "$lower_fail" -eq 0 ]; then
 fi
 fail=$((fail | lower_fail))
 
-# Within the window (`mail-ui`), anyview is named by the reader's attachment code only
-# (`ui/reading`), behind the `anyview` feature: the strip's thumbnail, Peek's card, and the adapter
+# Within the window, anyview is named by the reader's attachment code only
+# (`mail-ui-reader`'s `reading`), behind the `anyview` feature: the strip's thumbnail, Peek's card, and the adapter
 # between them.
 if grep -rnE '\banyview_(core|peek)\b' crates --include='*.rs' \
-  | grep -vE '^crates/mail-ui/src/ui/reading/(anyview|thumb|peek/part)\.rs:|^crates/mail-app/tests/app/native_anyview\.rs:' \
+  | grep -vE '^crates/mail-ui-reader/src/reading/(anyview|thumb|peek/part)\.rs:|^crates/mail-app/tests/app/native_anyview\.rs:' \
   | grep -vE '^[^:]+:[0-9]+:[[:space:]]*//'; then
-  echo "anyview_core and anyview_peek belong to ui/reading's anyview.rs, thumb.rs and peek/part.rs: see scripts/check-boundary.sh"
+  echo "anyview_core and anyview_peek belong to mail-ui-reader's reading/anyview.rs, thumb.rs and peek/part.rs: see scripts/check-boundary.sh"
   fail=1
 fi
 
-# The window (`mail-ui`'s `ui`) and the terminal (`mail-cli`) never name each other: what
-# they share is `mail-core`'s (or, for the settings files, the top of `mail-ui`, and the words of a
-# finished import, `mail-os`). A path into `mail_ui::ui` from the terminal is a helper that belongs in
-# `mail-core` (or, if it is truly neither's, nowhere yet). The window cannot name the terminal at
-# all: `mail-ui` has no `mail-cli` in its Cargo.toml, and `mail-cli` and `mail-intents` hold no
-# dioxus, ds-*, blitz or quire (below). `mail-cli` and `mail-intents` do not depend on each other
+# The window (`mail-ui`) and the terminal (`mail-cli`) never name each other: what they share is
+# `mail-core`'s, `mail-ui-model`'s (the settings files) and `mail-os`'s (the words of a finished
+# import). That `mail-cli` does not depend on `mail-ui` is a Cargo fact (above), as is its having no
+# dioxus, ds or blitz behind it. The window cannot name the terminal at all: `mail-ui` has no
+# `mail-cli` in its Cargo.toml, and `mail-cli` and `mail-intents` do not depend on each other
 # either: `mailo intents` is dispatched by `mail-app`.
-if grep -rnE "\bmail_ui::ui\b" crates/mail-cli/src/; then
-  echo "crates/mail-cli/src must not name the window (mail_ui::ui): move the shared helper to mail-core"
-  fail=1
-fi
 dep_names() { # <crate> <pattern>: the crate's [dependencies] lines (dev aside) that match
   awk '/^\[/ { dev = ($0 ~ /dev-dependencies/) } !dev && /^[A-Za-z]/' "crates/$1/Cargo.toml" | grep -E "$2"
 }
@@ -127,8 +150,12 @@ for crate in mail-cli mail-intents mail-edge; do
 done
 if dep_names mail-cli '^mail-(intents|app)[ .=]' || dep_names mail-intents '^mail-(cli|app)[ .=]' \
   || dep_names mail-edge '^mail-(cli|intents|ui|client|app)[ .=]' \
-  || dep_names mail-ui '^mail-(cli|intents|edge|app)[ .=]'; then
-  echo "mail-cli, mail-intents, mail-edge and mail-ui must not depend on each other or on mail-app: mail-app is the process over them"
+  || dep_names mail-ui '^mail-(cli|intents|edge|app)[ .=]' \
+  || dep_names mail-ui-kit '^mail-(cli|intents|edge|app)[ .=]' \
+  || dep_names mail-ui-reader '^mail-(cli|intents|edge|app)[ .=]' \
+  || dep_names mail-ui-compose '^mail-(cli|intents|edge|app)[ .=]' \
+  || dep_names mail-ui-model '^mail-(cli|intents|edge|app)[ .=]'; then
+  echo "mail-cli, mail-intents, mail-edge, mail-ui, mail-ui-kit, mail-ui-reader, mail-ui-compose and mail-ui-model must not depend on each other or on mail-app: mail-app is the process over them"
   fail=1
 fi
 
@@ -242,23 +269,15 @@ if grep -nE '^[[:space:]]*rpassword' crates/mail-core/Cargo.toml; then
 fi
 
 # The app-side crates (`mail-app`, `mail-cli`, `mail-intents`, `mail-edge`) reach the logic through
-# `mail-core`'s `Mail` handle. They still name `mail-runtime` and `mail-store` directly in many
-# places (the store is the window's own model, and the signing keys, places and engines are used by
-# the window); that is a ratchet, not a clean line: the counts below may go down and never up.
-# Lines naming the crate, tests included. crates/mail-edge/src/lib.rs is the one place that builds
-# the handle. scripts/app-lower-crate-uses.txt holds "<app crate> <lower crate> <count>".
-while read -r app lower allowed; do
-  [ -z "$app" ] && continue
-  case "$app" in \#*) continue ;; esac
-  now=$(grep -rE "\b${lower}\b" "crates/$app/src" "crates/$app/tests" --include='*.rs' 2>/dev/null | wc -l)
-  if [ "$now" -gt "$allowed" ]; then
-    echo "$app names $lower on $now lines, over the $allowed in scripts/app-lower-crate-uses.txt: go through mail_core (add the call there) instead"
-    fail=1
-  elif [ "$now" -lt "$allowed" ]; then
-    echo "$app names $lower on only $now lines: lower the $allowed in scripts/app-lower-crate-uses.txt to $now"
+# `mail-core`'s `Mail` handle and `mail-client`, and name none of the crates below them, in
+# dependencies or dev-dependencies: a test seeds a store through `mail_core::fixtures`. That is a
+# fact of their Cargo.toml, not a count to keep down.
+for app in mail-app mail-cli mail-intents mail-edge; do
+  if grep -E '^(mail-store|mail-net|mail-secrets|mail-runtime|mail-engine)[ .=]' "crates/$app/Cargo.toml" | grep -q .; then
+    echo "crates/$app/Cargo.toml names mail-store, mail-net, mail-secrets, mail-runtime or mail-engine: go through mail-core (add the call or the fixture there)"
     fail=1
   fi
-done < scripts/app-lower-crate-uses.txt
+done
 
 # Names that moved to porter, or went with the types they named, must not creep back in. mailo
 # names accounts, secrets and OAuth issuers with `porter_core` and `porter_provider`'s types
@@ -373,19 +392,51 @@ if [ "$under_fail" -eq 0 ]; then
 fi
 fail=$((fail | under_fail))
 
-# The window names no store: `mail-ui`'s dependencies, dev-dependencies aside (which seed a store as
-# a fixture for its tests), hold no `mail-core`, `mail-agent`, `mail-store`, `mail-net`, `mail-secrets`, `mail-runtime` or `mail-engine`. Everything it knows
-# of mail comes from `mail-client`.
-if awk '/^\[/ { dev = ($0 ~ /dev-dependencies/) } !dev && /^(mail-core|mail-agent|mail-store|mail-net|mail-secrets|mail-runtime|mail-engine)[ .=]/' \
-  crates/mail-ui/Cargo.toml | grep -q .; then
-  echo "crates/mail-ui/Cargo.toml names mail-core, mail-agent, mail-store, mail-net, mail-secrets, mail-runtime or mail-engine outside its dev-dependencies: go through mail-client"
-  fail=1
+# The window names no store: the dependencies of `mail-ui` and of the crates it is made of
+# (`WINDOW`, below) and of `mail-ui-model`, dev-dependencies too, hold no `mail-core`, `mail-agent`,
+# `mail-store`, `mail-net`, `mail-secrets`, `mail-runtime` or `mail-engine`. Everything it knows of
+# mail comes from `mail-client`, and a test that seeds a store does it through `mail_client::testing`.
+for crate in "${WINDOW[@]}" mail-ui-model; do
+  if grep -E '^(mail-core|mail-agent|mail-store|mail-net|mail-secrets|mail-runtime|mail-engine)[ .=]' \
+    "crates/$crate/Cargo.toml" | grep -q .; then
+    echo "crates/$crate/Cargo.toml names mail-core, mail-agent, mail-store, mail-net, mail-secrets, mail-runtime or mail-engine: go through mail-client (mail_client::testing for a test)"
+    fail=1
+  fi
+done
+
+# The window is `mail-ui` (the shell: the app, the windows, the launch) over feature crates
+# (`FEATURES`: what a reader, a composer, a list is) over `mail-ui-kit` (what they share: the shell
+# state, the hooks, motion, the menus), over `mail-ui-model`. A feature crate is not told another's
+# name: what one asks of another goes through the kit's intents and the shell's props, so none
+# depends on a sibling, on the shell, or on the program, and the kit depends on none of them. That
+# is a fact of Cargo, held here by `cargo tree`; it is not a convention.
+for crate in "${WINDOW[@]}"; do
+  if ! cargo tree -p "$crate" --depth 0 >/dev/null 2>&1; then
+    echo "no package named $crate: update WINDOW in this script"
+    exit 1
+  fi
+done
+under_fail=0
+for crate in mail-ui-kit ${FEATURES[@]+"${FEATURES[@]}"}; do
+  # Above (the shell, the program) and beside (every feature crate but itself); the kit is beside
+  # none, and below all of them, so it reaches no feature crate at all.
+  for other in mail-ui mail-app ${FEATURES[@]+"${FEATURES[@]}"}; do
+    [ "$crate" = "$other" ] && continue
+    if cargo tree -p "$crate" -i "$other" 2>/dev/null | grep -q .; then
+      echo "LEAK: $crate depends on $other: the kit and a feature crate reach nothing above or beside them (see scripts/check-boundary.sh)"
+      under_fail=1
+    fi
+  done
+done
+if [ "$under_fail" -eq 0 ]; then
+  echo "window layering holds: mail-ui-kit ${FEATURES[*]:-} reach nothing above or beside them"
 fi
+fail=$((fail | under_fail))
 
 # The reader draws blocks. A raw HTML sink in the UI would put a sender's markup
 # in our document, which is what the block types exist to prevent.
-if grep -rn "dangerous_inner_html" crates/mail-ui/src/ui/; then
-  echo "dangerous_inner_html is forbidden under crates/mail-ui/src/ui/: the reader draws blocks, not raw markup"
+if grep -rn "dangerous_inner_html" crates/mail-ui/src/ui/ "${WINDOW_SRC[@]}"; then
+  echo "dangerous_inner_html is forbidden under the window's crates (crates/mail-ui/src/ui/ and its parts): the reader draws blocks, not raw markup"
   exit 1
 fi
 

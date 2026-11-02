@@ -51,7 +51,7 @@ pub fn submissions(
     store: &SqliteStore,
     account: AccountId,
     now: DateTime<Utc>,
-) -> Vec<mail_store::OutboxEntry> {
+) -> Vec<mail_core::OutboxEntry> {
     store
         .outbox_due(account, now + chrono::TimeDelta::try_days(365).unwrap())
         .unwrap()

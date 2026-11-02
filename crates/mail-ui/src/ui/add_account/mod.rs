@@ -21,18 +21,14 @@
 //! in through the desktop's accountd (a "Continue as" offer) is planned, not here yet.
 
 mod direct;
-mod host;
 mod map;
-mod provider;
 mod size;
 mod window;
 
 pub(in crate::ui) use direct::{
-    AddMenu, AddPick, DirectSignInWatch, Retry, add_from, add_menu, again, offered_redirects,
-    picked, retry,
+    AddMenu, AddPick, DirectSignInWatch, add_from, add_menu, again, offered_redirects, picked,
 };
 pub use direct::{DirectSignIns, SignInDirectly};
-pub use provider::{AddError, AddFault, Request, Seams};
 pub use window::{Browse, Opened, Wiring, add_account_root};
 
 use std::cell::RefCell;
@@ -41,7 +37,7 @@ use std::sync::Arc;
 use dioxus::prelude::*;
 use ds_blitz::{WindowHandle, WindowSpec};
 
-use crate::ui::space::SpaceId;
+use mail_ui_kit::space::SpaceId;
 
 /// What the window and its command are called.
 pub(in crate::ui) const TITLE: &str = "Add Account";
@@ -128,9 +124,9 @@ fn quire(ask: Ask) {
     }
     // Reached only in the launched program: a test's window hands `AddAccountWindows`. The OAuth
     // clients are the ones the program gave the client, as every other sign-in's are.
-    let client = crate::ui::live::client();
+    let client = mail_ui_kit::live::client();
     let props = window::AddAccountWindowProps {
-        wiring: window::Wiring::real(client.clone(), client.net().oauth_clients()),
+        wiring: window::Wiring::real(client.clone()),
         prefill: ask.address,
         join: ask.join,
     };
@@ -141,9 +137,9 @@ fn quire(ask: Ask) {
         Ok(handle) => OPEN.with(|open| *open.borrow_mut() = Some(handle)),
         Err(why) => {
             log::warn!("the Add Account window would not open: {why}");
-            crate::ui::motion::tell(
-                crate::ui::copy::toasts::would_not_open(TITLE),
-                crate::ui::motion::Follow::Nothing,
+            mail_ui_kit::motion::tell(
+                mail_ui_model::copy::toasts::would_not_open(TITLE),
+                mail_ui_kit::motion::Follow::Nothing,
             );
         }
     }
@@ -152,10 +148,6 @@ fn quire(ask: Ask) {
 #[cfg(test)]
 mod direct_tests;
 #[cfg(test)]
-mod host_tests;
-#[cfg(test)]
 mod map_tests;
-#[cfg(test)]
-mod provider_tests;
 #[cfg(test)]
 mod size_tests;

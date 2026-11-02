@@ -1,5 +1,6 @@
-use super::{Control, Pair, control_of, shown, value_of, with_value, word_label};
+use super::{Control, Pair, control_of, shown, value_of, word_label};
 use ds_settings::schema::KeyKind;
+use mail_ui_model::settings::with_value;
 
 fn words(list: &[&str]) -> Vec<String> {
     list.iter().map(|word| (*word).to_owned()).collect()
@@ -65,7 +66,7 @@ fn each_kind_gets_the_control_detent_gives_it() {
 
 #[test]
 fn a_word_reads_as_its_label_or_as_itself() {
-    let schema = crate::settings::schema();
+    let schema = mail_ui_model::settings::schema();
     let marks = schema
         .key
         .iter()
@@ -78,7 +79,7 @@ fn a_word_reads_as_its_label_or_as_itself() {
 
 #[test]
 fn a_value_is_read_and_set_by_its_path() {
-    let schema = crate::settings::schema();
+    let schema = mail_ui_model::settings::schema();
     let spelling = schema
         .key
         .iter()

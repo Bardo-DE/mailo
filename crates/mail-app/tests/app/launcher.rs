@@ -55,7 +55,7 @@ fn seeded() -> (SqliteStore, tempfile::TempDir) {
     let dir = tempfile::tempdir().unwrap();
     let store = SqliteStore::in_memory(dir.path()).unwrap();
     for (account, address) in [(acct_work(), "me@work.test"), (acct_home(), "me@home.test")] {
-        mail_store::testing::seed_account(&store, account.clone(), address);
+        mail_core::fixtures::seed::seed_account(&store, account.clone(), address);
     }
     for id in ["w1", "w2", "w3"] {
         arrive(&store, acct_work(), id, "");

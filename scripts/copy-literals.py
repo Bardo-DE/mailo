@@ -1,13 +1,15 @@
-"""Count the visible string literals in the window's code outside ui/copy/.
+"""Count the visible string literals in the window's code outside copy/.
 
-All the words the window shows live in crates/mail-ui/src/ui/copy/, by kind. This finds the
-string literals that still say something to a person elsewhere under crates/mail-ui/src/ui, so
+All the words the window shows live in crates/mail-ui-model/src/copy/, by kind. This finds the
+string literals that still say something to a person elsewhere under crates/mail-ui/src/ui,
+crates/mail-ui-kit/src, crates/mail-ui-reader/src, crates/mail-ui-compose/src and
+in the model's modules that word the window (not its settings files), so
 scripts/check-copy.sh can hold their number to a ratchet (scripts/copy-literals.txt).
 
 What is a visible literal is a heuristic, kept simple and deterministic:
 
-- Not counted at all: comments, byte strings, ui/copy/ itself, test code (files named tests.rs or
-  *_tests.rs, anything under a tests/ or fixtures/ directory, a file a `#[cfg(test)] mod x;`
+- Not counted at all: comments, byte strings, the copy/ directory itself, test code (files named tests.rs or
+  *_tests.rs, anything under a tests/, fixtures/, kit_tests/ or compose_tests/ directory, a file a `#[cfg(test)] mod x;`
   declares, and the item that follows any `#[cfg(test)]`).
 - Not visible by where it stands: inside an `impl Debug for` block, inside an attribute
   (`#[path = "..."]`), inside a log, panic or
@@ -36,7 +38,18 @@ import sys
 
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 UI = os.path.join("crates", "mail-ui", "src", "ui")
-COPY = os.path.join(UI, "copy")
+# What every part of the window is drawn from (`mail-ui-kit`): walked as the window is.
+KIT = os.path.join("crates", "mail-ui-kit", "src")
+# The reader, the first feature crate beside the kit: walked as the window is.
+READER = os.path.join("crates", "mail-ui-reader", "src")
+# The composer, the second: walked as the window is.
+COMPOSE = os.path.join("crates", "mail-ui-compose", "src")
+MODEL = os.path.join("crates", "mail-ui-model", "src")
+COPY = os.path.join(MODEL, "copy")
+# What is walked: the window's code, and the model beside it. The model's settings files are
+# schema and file names, not the window's words, and its `damage` is the command line's too.
+ROOTS = [UI, KIT, READER, COMPOSE, MODEL]
+LEFT_OUT = [COPY, os.path.join(MODEL, "settings"), os.path.join(MODEL, "damage")]
 
 # Calls whose string arguments are not shown in the window.
 QUIET_CALLS = {
@@ -271,16 +284,23 @@ def test_files():
 
 
 def rust_files(include_tests=False):
-    for base, dirs, files in os.walk(os.path.join(ROOT, UI)):
+    for root in ROOTS:
+        yield from rust_files_under(root, include_tests)
+
+
+def rust_files_under(root, include_tests):
+    for base, dirs, files in os.walk(os.path.join(ROOT, root)):
         rel = os.path.relpath(base, ROOT)
         dirs[:] = sorted(
             d for d in dirs
-            if include_tests or d not in ("tests", "fixtures")
+            if include_tests or d not in ("tests", "fixtures", "kit_tests", "compose_tests")
         )
-        if rel == COPY or rel.startswith(COPY + os.sep):
+        if any(rel == gone or rel.startswith(gone + os.sep) for gone in LEFT_OUT):
             continue
         for name in sorted(files):
             if not name.endswith(".rs"):
+                continue
+            if os.path.join(rel, name) == os.path.join(MODEL, "damage.rs"):
                 continue
             if not include_tests and (name == "tests.rs" or name.endswith("_tests.rs")):
                 continue

@@ -9,21 +9,21 @@
 //! keeps what was typed until it is changed. Keeping one moves the revision, so the window's
 //! scheduler reads again which accounts are pushed to.
 
-use crate::ui::copy::errors;
-use crate::ui::copy::fields::account as row;
-use crate::ui::data::AccountRow;
 use dioxus::prelude::*;
 use ds::components::fields::field_row::FieldRow;
 use ds::components::fields::text_field_model::Invalid;
 use ds::motion::detail::stamp::EventStamp;
 use ds::prelude::*;
 use mail_client::RelayRefused;
-use mail_client::prelude::CoreError;
+use mail_client::{CallError, Fault};
+use mail_ui_kit::data::AccountRow;
+use mail_ui_model::copy::errors;
+use mail_ui_model::copy::fields::account as row;
 
 /// The account's field. Only a Graph account has one (the caller's to know).
 #[component]
 pub(super) fn PushRelay(row: AccountRow) -> Element {
-    let client = crate::ui::live::try_client();
+    let client = mail_ui_kit::live::try_client();
     let id = row.id.clone();
     let kept = {
         let (client, id) = (client.clone(), id.clone());
@@ -76,13 +76,13 @@ pub(super) fn PushRelay(row: AccountRow) -> Element {
 }
 
 /// Why `error` kept the relay from being set, in the window's words.
-fn refused(error: &CoreError) -> &'static str {
-    match error {
-        CoreError::Relay(RelayRefused::NotAnAddress) => errors::RELAY_NOT_AN_ADDRESS,
-        CoreError::Relay(RelayRefused::NotHttps) => errors::RELAY_NOT_HTTPS,
-        CoreError::Relay(RelayRefused::Extras) => errors::RELAY_EXTRAS,
-        other => {
-            log::warn!("the push relay could not be kept: {other}");
+fn refused(error: &CallError) -> &'static str {
+    match error.fault() {
+        Fault::Relay(RelayRefused::NotAnAddress) => errors::RELAY_NOT_AN_ADDRESS,
+        Fault::Relay(RelayRefused::NotHttps) => errors::RELAY_NOT_HTTPS,
+        Fault::Relay(RelayRefused::Extras) => errors::RELAY_EXTRAS,
+        _ => {
+            log::warn!("the push relay could not be kept: {error}");
             errors::RELAY_NOT_KEPT
         }
     }
