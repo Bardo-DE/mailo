@@ -35,6 +35,7 @@ pub mod rules;
 mod smime;
 mod sql;
 mod sqlite;
+mod swept;
 mod term;
 #[cfg(feature = "testing")]
 pub mod testing;
@@ -57,8 +58,9 @@ pub use offline::{Offline, RemotePart};
 pub use opened::OPENED_KEPT;
 pub use passes::{PassFailed, Passes};
 pub use sql::{SqlFilter, SqlValue, compile};
-pub use sqlite::SqliteStore;
+pub use sqlite::{BlobsSwept, Checkpoint, SqliteStore};
 pub use sqlite::{Freed, Kept, MessageRow};
+pub use swept::Swept;
 pub use term::Term;
 
 pub use error::StoreError;
@@ -176,8 +178,8 @@ pub trait Store {
     fn threads(&self, query: &Query, now: DateTime<Utc>)
     -> Result<Page<ThreadSummary>, StoreError>;
 
-    /// How many threads match, without loading them. Sidebar badges need this; loading every
-    /// row to count it is how a mail client becomes unusable.
+    /// How many threads match, without loading them. A count of each place needs this;
+    /// loading every row to count it is how a mail client becomes unusable.
     fn count(&self, filter: &Filter, now: DateTime<Utc>) -> Result<u64, StoreError>;
 
     /// Index terms that begin with `prefix`, most frequent first, at most `limit`.
@@ -381,6 +383,65 @@ pub trait Store {
     /// `HIGHESTMODSEQ` it had been recording all along.
     fn cursor(&self, mailbox: &MailboxRef) -> Result<Option<SyncCursor>, StoreError>;
 
+    /// When each scheduled sweep of this mailbox last finished.
+    ///
+    /// Kept here and not in the engine because the engine is built afresh for every pass, so what
+    /// it remembered was always nothing and every pass swept everything. A mailbox that has no
+    /// cursor yet has not been swept.
+    fn swept(&self, mailbox: &MailboxRef) -> Result<Swept, StoreError>;
+
+    /// The flag sweep of this mailbox finished at `at`. Does nothing for a mailbox that has no
+    /// cursor yet: it is swept again until it has one, which is the safe way to be wrong.
+    fn mark_flags_swept(&self, mailbox: &MailboxRef, at: DateTime<Utc>) -> Result<(), StoreError>;
+
+    /// The sweep for deletions in this mailbox finished at `at`. As [`Store::mark_flags_swept`].
+    fn mark_expunges_swept(
+        &self,
+        mailbox: &MailboxRef,
+        at: DateTime<Utc>,
+    ) -> Result<(), StoreError>;
+
+    /// The mailbox state up to which every message the server listed was held, headers at least.
+    ///
+    /// What an incremental survey resumes from. It is apart from [`Store::cursor`], which a flag
+    /// sweep moves on past messages no pass has fetched yet, so resuming from the cursor would
+    /// lose them. `None` for a mailbox no pass has held in full: the next one lists it all.
+    fn held_through(&self, mailbox: &MailboxRef) -> Result<Option<SyncCursor>, StoreError>;
+
+    /// Everything the server listed in this mailbox, up to `through`, is held. Does nothing for
+    /// a mailbox that has no cursor yet, which is then listed in full again.
+    fn mark_held_through(
+        &self,
+        mailbox: &MailboxRef,
+        through: &SyncCursor,
+    ) -> Result<(), StoreError>;
+
+    /// Which of this mailbox's messages arrived unreadable at `since` or later: those a pass
+    /// does not ask the server for again yet.
+    fn unreadable_since(
+        &self,
+        mailbox: &MailboxRef,
+        since: DateTime<Utc>,
+    ) -> Result<Vec<mail_domain::RemoteRef>, StoreError>;
+
+    /// Record that these messages of the mailbox arrived and could not be read, at `at`.
+    /// Marking one again moves its time on.
+    fn mark_unreadable(
+        &self,
+        mailbox: &MailboxRef,
+        remotes: &[mail_domain::RemoteRef],
+        at: DateTime<Utc>,
+    ) -> Result<(), StoreError>;
+
+    /// The sizes the server gave for the messages held at these addresses, for those it gave one
+    /// ([`Store::hold_server_sizes`]). A body pass orders by size, and an incremental survey has
+    /// not listed the sizes of what an earlier one did.
+    fn server_sizes_at(
+        &self,
+        account: AccountId,
+        remotes: &[mail_domain::RemoteRef],
+    ) -> Result<Vec<(mail_domain::RemoteRef, u64)>, StoreError>;
+
     /// What the server turned out to support, so the next run starts from fact not guess.
     ///
     /// Written once at account creation from the preset's *expectation* and never updated,
@@ -574,13 +635,13 @@ pub trait Store {
     /// in an id is not reported as done.
     fn delete_template(&self, id: TemplateId) -> Result<(), StoreError>;
 
-    /// Every saved view, in the sidebar's order: the order they were first kept, then by id.
+    /// Every saved view, in the order they were first kept, then by id.
     ///
     /// Views are the user's, not an account's: one view can list mail from every account.
     fn views(&self) -> Result<Vec<View>, StoreError>;
 
     /// Keep a view, replacing any with the same id. A new view goes last; a view kept again
-    /// keeps its place in the sidebar.
+    /// keeps its place.
     ///
     /// Not through [`Store::apply`], like a template: a view is a way of looking at mail, not
     /// an edit of any.

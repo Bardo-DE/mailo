@@ -49,6 +49,10 @@ const BANDS: [u64; 3] = [64 * 1024, 1024 * 1024, u64::MAX];
 /// the bytes, and the structure is a few hundred.
 const PARTED_ABOVE: u64 = BANDS[1];
 
+/// How long a message that could not be read is left alone before it is asked for again, in
+/// case it was the server's fault and not the message's.
+const UNREADABLE_RETRY: chrono::TimeDelta = chrono::TimeDelta::days(1);
+
 /// Which leaves of a large message to download with it.
 ///
 /// Every part that could be the body — text, not declared an attachment — whatever its size,
@@ -303,13 +307,6 @@ impl Default for Schedule {
     }
 }
 
-/// When each part of the schedule last ran.
-#[derive(Debug, Clone, Copy, Default)]
-struct LastRun {
-    flags: Option<DateTime<Utc>>,
-    expunges: Option<DateTime<Utc>>,
-}
-
 /// Drives one account.
 pub struct AccountEngine<B: Backend> {
     plan: AccountPlan,
@@ -318,7 +315,6 @@ pub struct AccountEngine<B: Backend> {
     store: Arc<SqliteStore>,
     secrets: Arc<dyn AccountSecrets>,
     schedule: Schedule,
-    last: LastRun,
     /// Where [`Outgoing::Graph`] posts. Graph's own address, except under test.
     graph_url: String,
     /// Keeps an OAuth account's tokens fresh between and within passes. `None` for a password
@@ -461,7 +457,6 @@ impl<B: Backend> AccountEngine<B> {
             store,
             secrets,
             schedule: Schedule::default(),
-            last: LastRun::default(),
             graph_url: crate::graph::SEND_MAIL.to_owned(),
             tokens: None,
             graph: None,
@@ -1803,24 +1798,50 @@ impl<B: Backend> AccountEngine<B> {
         }
         let mut report = SyncReport::default();
 
-        let outcome = self
-            .run(
-                ProtoOp::FetchEnvelopes {
-                    mailbox: mailbox.clone(),
-                    since: FetchSince::Beginning,
-                },
-                cancel,
-            )
-            .await?;
-        if let ProtoOutcome::Ingested(mut ingest) = outcome {
+        // Ask only for what arrived since everything listed was last held, unless a whole
+        // listing is due. A whole one on every pass was the mailbox's every UID and flag, every
+        // few minutes, for every followed mailbox, however large and however quiet.
+        let resumed_from = self.resume_point(mailbox, now)?;
+        let mut resumed = resumed_from.is_some();
+        let mut ingest = self.survey(mailbox, resumed_from.clone(), cancel).await?;
+        if let (Some(from), Some(fresh)) = (
+            &resumed_from,
+            ingest.as_ref().and_then(|ingest| ingest.cursor.as_ref()),
+        ) && UidValidity::between(Some(from), fresh) == UidValidity::Reset
+        {
+            // The server numbers this mailbox afresh: where the survey resumed from means
+            // nothing in it, and every UID held is a different message. Only a whole listing
+            // can say what is there.
+            resumed = false;
+            ingest = self.survey(mailbox, None, cancel).await?;
+        }
+        let held_before = self.store.cursor(mailbox)?;
+        let mut held: Option<std::collections::HashSet<RemoteRef>> = None;
+        if let Some(mut ingest) = ingest {
+            let fresh = ingest.cursor.clone();
             // The backend cannot answer this: it is sans-I/O and has never seen what we stored.
             // It reports what the server said; comparing that against the last sync is the
             // runtime's job, and getting it wrong means every stored UID addresses a different
             // message than we think it does.
-            if let Some(fresh) = &ingest.cursor {
-                ingest.validity = UidValidity::between(self.store.cursor(mailbox)?.as_ref(), fresh);
+            if let Some(fresh) = &fresh {
+                ingest.validity = UidValidity::between(held_before.as_ref(), fresh);
             }
-            self.store.ingest(self.account.clone(), *ingest)?;
+            // A survey that found nothing we do not hold, and left the cursor where it was, has
+            // nothing to write. The server answers a request for what is past the last UID with
+            // the last message it has, held already, so "nothing" is not an empty answer.
+            let mut nothing = false;
+            if resumed && fresh == held_before {
+                let refs: std::collections::HashSet<RemoteRef> =
+                    self.store.remote_refs(mailbox)?.into_iter().collect();
+                nothing = self
+                    .surveyed()
+                    .iter()
+                    .all(|(remote, _)| refs.contains(remote));
+                held = Some(refs);
+            }
+            if !nothing {
+                self.store.ingest(self.account.clone(), *ingest)?;
+            }
         }
 
         // What to fetch comes from the SERVER'S listing, not from the store. On a first sync
@@ -1834,7 +1855,7 @@ impl<B: Backend> AccountEngine<B> {
             // A protocol that cannot enumerate up front: fall back to what we already hold,
             // which the store hands back newest first.
             let first;
-            (wanted, first) = self.unfetched(mailbox, budget as u32)?;
+            (wanted, first) = self.unfetched(mailbox, budget as u32, now)?;
             by_band(&mut wanted[first..]);
         } else {
             // Minus what is already mapped. The survey is *everything on the server*, which is
@@ -1845,9 +1866,18 @@ impl<B: Backend> AccountEngine<B> {
             //
             // A message whose header is stored but whose body is not is *not* wanted here;
             // `fetch_bodies` asks `unfetched` for those, which is the question it answers.
-            let held: std::collections::HashSet<RemoteRef> =
-                self.store.remote_refs(mailbox)?.into_iter().collect();
-            wanted.retain(|(remote, _)| !held.contains(remote));
+            let held = match held {
+                Some(held) => held,
+                None => self.store.remote_refs(mailbox)?.into_iter().collect(),
+            };
+            // And minus what could not be read when it was last asked for, which would be asked
+            // for again now, and fail the same way.
+            let resting: std::collections::HashSet<RemoteRef> = self
+                .store
+                .unreadable_since(mailbox, now - UNREADABLE_RETRY)?
+                .into_iter()
+                .collect();
+            wanted.retain(|(remote, _)| !held.contains(remote) && !resting.contains(remote));
             // The survey is in server order, oldest first: POP3 message numbers and IMAP UIDs
             // both count up as mail arrives. Nothing else is known before the headers are.
             wanted.reverse();
@@ -1899,6 +1929,7 @@ impl<B: Backend> AccountEngine<B> {
                         Err(e) => return Err(e),
                     };
                     report.unreadable(mailbox, stored.unreadable);
+                    self.store.mark_unreadable(mailbox, &stored.skipped, now)?;
                     report.arrived.extend(first_stored(&stored.patch));
                     self.keep_server_sizes(sizes)?;
                 }
@@ -1917,8 +1948,99 @@ impl<B: Backend> AccountEngine<B> {
         // not counted: the message may be among the rest.
         if wanted.is_empty() {
             self.synced.push(mailbox.path.clone());
+            self.mark_held(mailbox)?;
         }
         Ok(report)
+    }
+
+    /// Where the next survey of `mailbox` may start from, rather than at the beginning: the
+    /// state up to which everything the server listed is held ([`Store::held_through`]).
+    ///
+    /// Nothing when there is no such state, when the server numbered the mailbox afresh since,
+    /// or when the listing for deletions is due: a whole listing is what gives the pass a full
+    /// picture of what the server holds, so one is made on that schedule and not on every pass.
+    fn resume_point(
+        &self,
+        mailbox: &MailboxRef,
+        now: DateTime<Utc>,
+    ) -> Result<Option<SyncCursor>, RuntimeError> {
+        let Some(
+            held @ SyncCursor::Imap {
+                uidvalidity,
+                uidnext,
+                ..
+            },
+        ) = self.store.held_through(mailbox)?
+        else {
+            return Ok(None);
+        };
+        // A zero is the server not saying; resuming from it would name nothing.
+        if uidvalidity == 0 || uidnext == 0 {
+            return Ok(None);
+        }
+        let stored = self.store.cursor(mailbox)?;
+        if UidValidity::between(stored.as_ref(), &held) == UidValidity::Reset {
+            return Ok(None);
+        }
+        if due(
+            self.store.swept(mailbox)?.expunges,
+            self.schedule.expunges,
+            now,
+        ) {
+            return Ok(None);
+        }
+        Ok(Some(held))
+    }
+
+    /// Ask `mailbox` what it holds: from `from` on, or all of it.
+    async fn survey(
+        &mut self,
+        mailbox: &MailboxRef,
+        from: Option<SyncCursor>,
+        cancel: &mut Cancel,
+    ) -> Result<Option<Box<mail_domain::Ingest>>, RuntimeError> {
+        let since = match from {
+            Some(cursor) => FetchSince::After { cursor },
+            None => FetchSince::Beginning,
+        };
+        let outcome = self
+            .run(
+                ProtoOp::FetchEnvelopes {
+                    mailbox: mailbox.clone(),
+                    since,
+                },
+                cancel,
+            )
+            .await?;
+        Ok(match outcome {
+            ProtoOutcome::Ingested(ingest) => Some(ingest),
+            _ => None,
+        })
+    }
+
+    /// Everything the last survey listed is held now: the next one need only ask for what comes
+    /// after it. Only where the server numbers messages the way an IMAP server does.
+    fn mark_held(&self, mailbox: &MailboxRef) -> Result<(), RuntimeError> {
+        let Some(SyncCursor::Imap {
+            uidvalidity,
+            uidnext,
+            ..
+        }) = self.store.cursor(mailbox)?
+        else {
+            return Ok(());
+        };
+        // The cursor here is the one the survey just wrote, or the one a pass that found nothing
+        // new left alone; neither has moved on since, so what it names is what was listed. No
+        // modseq: this is a place to start listing from, and the sweep owns that.
+        let through = SyncCursor::Imap {
+            uidvalidity,
+            uidnext,
+            modseq: None,
+        };
+        if self.store.held_through(mailbox)?.as_ref() != Some(&through) {
+            self.store.mark_held_through(mailbox, &through)?;
+        }
+        Ok(())
     }
 
     /// Keep the sizes a survey gave for messages whose headers are now held, so `larger:` and
@@ -2104,7 +2226,18 @@ impl<B: Backend> AccountEngine<B> {
             report.unreadable(mailbox, stored.unreadable);
             report.arrived.extend(first_stored(&stored.patch));
         }
-        self.store.ingest(self.account.clone(), ingest)?;
+        // A delta that said nothing, and left the cursor where it was, has nothing to write.
+        let nothing = ingest.messages.is_empty()
+            && ingest.flags.is_empty()
+            && ingest.flag_colors.is_empty()
+            && ingest.labels.is_empty()
+            && ingest.label_names.is_empty()
+            && ingest.provider_threads.is_empty()
+            && ingest.gone.is_empty()
+            && ingest.cursor == self.store.cursor(mailbox)?;
+        if !nothing {
+            self.store.ingest(self.account.clone(), ingest)?;
+        }
         Ok(report)
     }
 
@@ -2121,7 +2254,7 @@ impl<B: Backend> AccountEngine<B> {
         budget: usize,
     ) -> Result<SyncReport, RuntimeError> {
         let mut report = SyncReport::default();
-        let (mut wanted, first) = self.unfetched(mailbox, budget as u32)?;
+        let (mut wanted, first) = self.unfetched(mailbox, budget as u32, now)?;
         by_band(&mut wanted[first..]);
         wanted.truncate(budget);
         // What the window is showing, all of it, before the rest: within one group a large
@@ -2203,9 +2336,10 @@ impl<B: Backend> AccountEngine<B> {
             // Bodies carry flags too, but the header fetch has already recorded them and a
             // body batch is a subset; ignored rather than applied twice.
             Ok(ProtoOutcome::Fetched { items, .. }) => {
-                let (stored, unreadable) = self.store_bodies(items, mailbox, now)?;
+                let (stored, skipped) = self.store_bodies(items, mailbox, now)?;
                 report.bodies_fetched += stored;
-                report.unreadable(mailbox, unreadable);
+                report.unreadable(mailbox, skipped.len());
+                self.store.mark_unreadable(mailbox, &skipped, now)?;
             }
             Ok(_) => {}
             Err(RuntimeError::Cancelled) => return Ok(false),
@@ -2218,14 +2352,14 @@ impl<B: Backend> AccountEngine<B> {
         Ok(true)
     }
 
-    /// Store whole messages fetched from `mailbox`. How many, and how many of them could not be
+    /// Store whole messages fetched from `mailbox`. How many, and which of them could not be
     /// read as messages.
     fn store_bodies(
         &self,
         items: Vec<(RemoteRef, Vec<u8>)>,
         mailbox: &MailboxRef,
         now: DateTime<Utc>,
-    ) -> Result<(usize, usize), RuntimeError> {
+    ) -> Result<(usize, Vec<RemoteRef>), RuntimeError> {
         let arrivals = items
             .into_iter()
             .map(|(remote, raw)| crate::assemble::Arrival { remote, raw })
@@ -2243,7 +2377,7 @@ impl<B: Backend> AccountEngine<B> {
             false,
             now,
         )?;
-        Ok((count, stored.unreadable))
+        Ok((count, stored.skipped))
     }
 
     /// Fetch one message's body now, whole, and store it.
@@ -2508,7 +2642,11 @@ impl<B: Backend> AccountEngine<B> {
             return Ok(report);
         }
 
-        if due(self.last.flags, self.schedule.flags, now) {
+        // From the store and not from this engine: an engine lives for one pass, and what it
+        // remembered was always nothing, so every pass swept everything.
+        let swept = self.store.swept(mailbox)?;
+
+        if due(swept.flags, self.schedule.flags, now) {
             // No modseq means a full flag fetch: either the server has no CONDSTORE, or its
             // HIGHESTMODSEQ was seen not to advance, which Dovecot 2.0.18 did while EXISTS
             // climbed. Trusting a frozen modseq would mean never seeing another flag change.
@@ -2525,15 +2663,15 @@ impl<B: Backend> AccountEngine<B> {
             {
                 Ok(ProtoOutcome::Ingested(ingest)) => {
                     self.store.ingest(self.account.clone(), *ingest)?;
-                    self.last.flags = Some(now);
+                    self.store.mark_flags_swept(mailbox, now)?;
                 }
-                Ok(_) => self.last.flags = Some(now),
+                Ok(_) => self.store.mark_flags_swept(mailbox, now)?,
                 Err(RuntimeError::Cancelled) => return Ok(report),
                 Err(e) => report.needs_attention.push(e.to_string()),
             }
         }
 
-        if due(self.last.expunges, self.schedule.expunges, now) {
+        if due(swept.expunges, self.schedule.expunges, now) {
             let since = self.resync_from(mailbox);
             match self
                 .run(
@@ -2571,7 +2709,7 @@ impl<B: Backend> AccountEngine<B> {
                         })
                         .collect();
                     self.store.ingest(self.account.clone(), *ingest)?;
-                    self.last.expunges = Some(now);
+                    self.store.mark_expunges_swept(mailbox, now)?;
                 }
                 Ok(ProtoOutcome::Ingested(mut ingest)) => {
                     // The backend can only say what still exists. What we *hold* is the store's
@@ -2579,9 +2717,9 @@ impl<B: Backend> AccountEngine<B> {
                     // empty and a message deleted on another device never disappeared.
                     ingest.gone = self.vanished(mailbox)?;
                     self.store.ingest(self.account.clone(), *ingest)?;
-                    self.last.expunges = Some(now);
+                    self.store.mark_expunges_swept(mailbox, now)?;
                 }
-                Ok(_) => self.last.expunges = Some(now),
+                Ok(_) => self.store.mark_expunges_swept(mailbox, now)?,
                 Err(RuntimeError::Cancelled) => return Ok(report),
                 Err(e) => report.needs_attention.push(e.to_string()),
             }
@@ -2680,13 +2818,41 @@ impl<B: Backend> AccountEngine<B> {
         &self,
         mailbox: &MailboxRef,
         limit: u32,
+        now: DateTime<Utc>,
     ) -> Result<(Vec<(RemoteRef, u64)>, usize), RuntimeError> {
         // Sizes from this session's survey. A message it did not cover — no survey yet, or a
         // protocol that cannot take one — is "size unknown" and sorts into the last band.
-        let sizes: std::collections::HashMap<RemoteRef, u64> =
+        let mut sizes: std::collections::HashMap<RemoteRef, u64> =
             self.surveyed().into_iter().collect();
-        let (order, first) =
-            crate::wanted::backlog(self.store.as_ref(), mailbox, self.since, limit)?;
+        // Those that could not be read when last asked for are left out, and are left out
+        // before the limit is applied: one that stays unread would otherwise keep a place in
+        // every pass's allowance for ever, and a mailbox of them would fetch nothing.
+        let resting: std::collections::HashSet<RemoteRef> = self
+            .store
+            .unreadable_since(mailbox, now - UNREADABLE_RETRY)?
+            .into_iter()
+            .collect();
+        let asked = limit.saturating_add(u32::try_from(resting.len()).unwrap_or(u32::MAX));
+        let (mut order, mut first) =
+            crate::wanted::backlog(self.store.as_ref(), mailbox, self.since, asked)?;
+        first -= order[..first]
+            .iter()
+            .filter(|r| resting.contains(*r))
+            .count();
+        order.retain(|remote| !resting.contains(remote));
+        order.truncate(limit as usize);
+        first = first.min(order.len());
+        // A survey that began where the last one ended did not list the older messages, whose
+        // sizes the store kept when it did.
+        let unlisted: Vec<RemoteRef> = order
+            .iter()
+            .filter(|remote| !sizes.contains_key(*remote))
+            .cloned()
+            .collect();
+        sizes.extend(
+            self.store
+                .server_sizes_at(self.account.clone(), &unlisted)?,
+        );
         let order = order
             .into_iter()
             .map(|remote| {

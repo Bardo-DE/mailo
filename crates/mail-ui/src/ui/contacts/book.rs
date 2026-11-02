@@ -15,7 +15,7 @@ use mail_client::contacts::{Contact, Origin};
 use mail_client::contacts::groups::{GroupError, Labelled, person_of};
 use mail_client::contacts::people::{self, Added, Details, PersonError};
 use mail_client::contacts::{CardId, Group, GroupId, PersonCard};
-use mail_client::rich_text::Person;
+use mail_editor::Person;
 
 /// How many people a suggestion menu offers.
 pub(in crate::ui) const SUGGESTED: usize = 8;
@@ -53,7 +53,7 @@ pub(in crate::ui) fn import(client: &Client, bytes: &[u8]) -> Result<String, Str
         .book()
         .import(bytes)
         .map(|done| {
-            crate::said::contacts::imported(&done)
+            mail_os::said::contacts::imported(&done)
                 .trim()
                 .replace('\n', ". ")
         })

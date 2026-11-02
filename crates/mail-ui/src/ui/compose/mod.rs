@@ -4,7 +4,7 @@
 //! Attach, ⋯ and Send ▾. Every other header row is drawn only while it says something that is not
 //! the default (`props.rs`), and the choices that set them are in the foot's menus (`foot.rs`). A
 //! reply is the same grid and foot under the thread it answers, with no bar and no subject. The body is one
-//! root, quire's `EditSurface`, whose every edit goes through `mail_client::rich_text`; the page never edits
+//! root, quire's `EditSurface`, whose every edit goes through `mail_editor`; the page never edits
 //! text itself. `adapt` turns what the surface hands over into editor events, and [`wire`] applies
 //! them to the page.
 //!
@@ -282,7 +282,7 @@ fn PageView(initial: Page, shell: Signal<Shell>) -> Element {
     let anyway_label = "Send anyway";
     // The plain text is written out only while it is shown: not on every key.
     let flowed = match read.plain {
-        Fold::Open => Some(mail_client::rich_text::to_flowed(&read.session.doc)),
+        Fold::Open => Some(mail_editor::to_flowed(&read.session.doc)),
         Fold::Folded => None,
     };
     drop(read);
@@ -597,7 +597,6 @@ fn deleted(
 ) -> Result<mail_client::undo::Undo, mail_client::prelude::CoreError> {
     life::discard(client, stored.id)?;
     Ok(mail_client::undo::Undo {
-        said: crate::ui::copy::toasts::DRAFT_DELETED.to_owned(),
         thread: None,
         account: stored.account.clone(),
         forward: Patch {
@@ -625,8 +624,11 @@ fn forget(mut shell: Signal<Shell>, desk: Desk, draft: DraftId, undo: mail_clien
     if shell.peek().composing.as_ref().map(|open| open.draft) == Some(draft) {
         shell.write().close_composer();
     }
-    let said = undo.said.clone();
-    crate::ui::motion::record(shell, vec![undo], said);
+    crate::ui::motion::record(
+        shell,
+        vec![undo],
+        crate::ui::copy::toasts::DRAFT_DELETED.to_owned(),
+    );
 }
 
 /// Delete the stored draft `draft`, as Drafts' row menu does, and offer it back. Its composer

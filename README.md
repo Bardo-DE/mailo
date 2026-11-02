@@ -186,13 +186,17 @@ Published libraries (each package is named `mailo-*`; its folder keeps the `crat
 | `mailo-archive` (`crates/mail-archive`) | mbox, Maildir, `.emlx`, Thunderbird and Takeout archives, read and written without touching a file. |
 | `mailo-proto` (`crates/mail-proto`) | Sans-I/O protocol machines for IMAP, POP3, SMTP, ManageSieve, and JMAP's requests and responses: bytes in, "what I need next" out. |
 | `mailo-pim` (`crates/mail-pim`) | vCard, iCalendar invitations and the WebDAV/CardDAV conversation, as text in and values out. |
+| `mailo-editor` (`crates/mail-editor`) | The composer's rich-text document as pure edits: operations, undo, markdown shortcuts, slash commands, and writers to HTML and `format=flowed`. |
 
 Not published, app-side: `mail-store` (SQLite, FTS5, the outbox), `mail-runtime` (tokio and
 sockets), `mail-core` (everything the application does, with no window or terminal),
 `mail-client` (the one door to mail: values already read, kept read as the store changes, and the
 calls the window makes), `mail-ui` (the window, with no store in its dependencies), `mail-appkit`
-(macOS only: the one place that needs `unsafe`, for the AppKit delegate) and `mail-app` (the
-`mailo` binary: it makes the client and hands it to the window, and holds the command line).
+(macOS only: the one place that needs `unsafe`, for the AppKit delegate), `mail-edge` (the
+process's runtime, environment and Profile, as `mail-core` is handed them), `mail-cli` (the command
+line), `mail-intents` (what the desktop's intent router asks of mailo over D-Bus) and `mail-app` (the
+`mailo` binary: it makes the client and hands it to the window, and starts the command line or the
+intents provider).
 
 ## Contributing
 

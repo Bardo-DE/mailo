@@ -483,7 +483,6 @@ fn a_command_is_done_off_the_callers_thread_and_says_its_generation() {
 
     let acted = done(client.act(mail_client::Perform {
         ops: vec![(mail_domain::ThreadId::generate(), mail_domain::Op::Archive)],
-        clock: mail_core::when::Clock::H24,
         alone: Vec::new(),
         then_erase: false,
     }))
@@ -835,7 +834,6 @@ fn what_reads_the_clock_is_read_again_when_a_snooze_ends_with_nobody_asking() {
         &store,
         thread,
         mail_domain::Op::SetSnooze(mail_domain::Snooze::Until(ends)),
-        mail_core::when::Clock::H24,
     )
     .expect("snoozed");
     assert_eq!(client.next_clock(), Some(ends));
@@ -1083,4 +1081,39 @@ fn the_relay_key_is_kept_in_the_keyring() {
         Ok(None),
         "an empty key forgets it"
     );
+}
+
+/// A change that has a bug in it.
+struct Breaks;
+
+impl mail_client::Act for Breaks {
+    type Done = ();
+
+    fn run(self, _: &SqliteStore) {
+        panic!("a bug in a change");
+    }
+}
+
+/// A change that does nothing and says so.
+struct Fine;
+
+impl mail_client::Act for Fine {
+    type Done = u8;
+
+    fn run(self, _: &SqliteStore) -> u8 {
+        7
+    }
+}
+
+#[test]
+fn a_change_that_panics_is_not_done_and_the_next_one_still_is() {
+    let (store, _dir) = on_disk();
+    let client = client(&store);
+
+    assert!(
+        done(client.act(Breaks)).is_none(),
+        "the ticket says not done"
+    );
+    let next = done(client.act(Fine)).expect("the act thread went on");
+    assert_eq!(next.done, 7);
 }

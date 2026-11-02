@@ -7,12 +7,17 @@ members = [
   "crates/mail-archive",
   "crates/mail-proto",
   "crates/mail-pim",
+  "crates/mail-editor",
   "crates/mail-store",
   "crates/mail-runtime",
   "crates/mail-core",
   "crates/mail-client",
   "crates/mail-appkit",
+  "crates/mail-os",
+  "crates/mail-edge",
   "crates/mail-ui",
+  "crates/mail-cli",
+  "crates/mail-intents",
   "crates/mail-app",
 ]
 
@@ -34,13 +39,18 @@ rust-version = "1.92"
 latchkey    = { git = "https://github.com/PoHsuanLai/latchkey", rev = "b10ae1b8c49c55cce2c5affde8f5db76edb66ab4" }
 mail-appkit = { path = "crates/mail-appkit" }
 mail-client = { path = "crates/mail-client" }
+mail-os = { path = "crates/mail-os" }
 mail-ui = { path = "crates/mail-ui" }
+mail-edge = { path = "crates/mail-edge" }
+mail-cli = { path = "crates/mail-cli" }
+mail-intents = { path = "crates/mail-intents" }
 mail-core   = { path = "crates/mail-core", default-features = false }
 mail-domain = { package = "mailo-domain", path = "crates/mail-domain", version = "0.1.0" }
 mail-archive = { package = "mailo-archive", path = "crates/mail-archive", version = "0.1.0" }
 mail-crypto = { package = "mailo-crypto", path = "crates/mail-crypto", version = "0.1.0", default-features = false }
 mail-mime   = { package = "mailo-mime", path = "crates/mail-mime", version = "0.1.0", default-features = false }
 mail-pim    = { package = "mailo-pim", path = "crates/mail-pim", version = "0.1.0" }
+mail-editor = { package = "mailo-editor", path = "crates/mail-editor", version = "0.1.0" }
 mail-proto  = { package = "mailo-proto", path = "crates/mail-proto", version = "0.1.0" }
 mail-runtime = { path = "crates/mail-runtime", default-features = false }
 mail-store  = { path = "crates/mail-store" }
@@ -97,7 +107,12 @@ log         = "0.4"
 # copied verbatim: only the lines mailo names itself. The window reaches the Blitz
 # document through these to focus, select or scroll an element found by selector
 # (`ui/host/native.rs`).
-blitz-dom = { git = "https://github.com/PoHsuanLai/blitz", rev = "841386a71f17673c211217725e75068774517ba8", default-features = false, features = ["svg", "system-fonts", "custom-widget", "accessibility"] }
+#
+# `floats` is mailo's own, past quire's block: Blitz marks a floated element for the float layout
+# whether or not that layout is built, and without it the line breaker handed a paragraph holding
+# one (a newsletter's `<img align="left">`) loops for ever. Features unify, so naming it here turns
+# it on for the one blitz-dom every crate shares (`lanes/floats.rs`).
+blitz-dom = { git = "https://github.com/PoHsuanLai/blitz", rev = "841386a71f17673c211217725e75068774517ba8", default-features = false, features = ["svg", "system-fonts", "custom-widget", "accessibility", "floats"] }
 dioxus-native-dom = { git = "https://github.com/PoHsuanLai/blitz", rev = "841386a71f17673c211217725e75068774517ba8", default-features = false, features = ["svg", "system-fonts", "accessibility"] }
 
 [workspace.lints.rust]

@@ -32,8 +32,8 @@ pub mod auth {
 }
 pub mod bimi {
     pub use mail_core::bimi::{
-        Cached, Lookup, Setting, SystemDns, anchors, brand_logo, cached, client_builder, domain_of,
-        load,
+        Cached, Lookup, Setting, Shared, SystemDns, anchors, brand_logo, cached, client_builder,
+        domain_of, load, shared,
     };
 }
 pub mod compose {
@@ -68,16 +68,6 @@ pub mod discover {
     pub mod providers {
         pub use mail_core::discover::providers::set;
     }
-}
-pub mod rich_text {
-    pub use mail_core::rich_text::{
-        Action, Align, Caret, Check, Doc, ImageRef, InputEvent, Item, Layout, Mark, Marks, Nest,
-        Node, Object, Op, ParaKind, Person, Pos, Presence, Range, Run, SNIPPET, Session, Table,
-        TextColor, TextSize, align_at, apply, apply_all, catalog, filter, grapheme_len, indent,
-        joins_cc, marks_at_start, missing_attachment, node_len, nodes_from_blocks,
-        nodes_from_plain, plain_to_flowed, quote, runs_text, settled, step_size, tab, to_flowed,
-        to_html, turn_into,
-    };
 }
 pub mod export {
     pub use mail_core::export::{Exported, RawHead, Target, usual};
@@ -120,6 +110,14 @@ pub mod notify {
     #[cfg(feature = "desktop")]
     pub mod desktop {
         pub use mail_core::notify::desktop::Desktop;
+        /// What the app hands the macOS notification centre's banners through, and the click it
+        /// hears back.
+        #[cfg(target_os = "macos")]
+        pub use mail_core::notify::desktop::heard;
+    }
+    #[cfg(all(feature = "desktop", target_os = "macos"))]
+    pub mod banner {
+        pub use mail_core::notify::banner::{Banner, Click, Posts, Pressed};
     }
 }
 pub mod offline {
@@ -225,7 +223,7 @@ pub mod trust {
     pub use mail_core::trust::{Destination, destination, spoof};
 }
 pub mod undo {
-    pub use mail_core::undo::{Resend, Undo, UndoHandle, UndoStack, reverse_folder, said_of};
+    pub use mail_core::undo::{Resend, Undo, UndoHandle, UndoStack, reverse_folder};
 }
 pub mod unsubscribe {
     pub use mail_core::unsubscribe::{Found, Outcome, client};

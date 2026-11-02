@@ -5125,34 +5125,28 @@ dependencies = [
  "ds-lint",
  "ds-settings",
  "ds-shell",
- "futures-util",
  "image",
  "latchkey",
  "log",
+ "mail-cli",
  "mail-client",
  "mail-core",
+ "mail-edge",
+ "mail-intents",
+ "mail-os",
  "mail-runtime",
  "mail-store",
  "mail-ui",
- "mailo-archive",
  "mailo-crypto",
  "mailo-domain",
  "mailo-mime",
- "mailo-pim",
- "mailo-proto",
  "pdfrum",
  "porter-core",
- "porter-provider",
  "porter-secrets",
  "rand 0.8.8",
- "rpassword",
- "serde",
- "serde_json",
  "tempfile",
  "tokio",
- "toml",
  "uuid",
- "zbus",
 ]
 
 [[package]]
@@ -5175,6 +5169,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "mail-cli"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "image",
+ "log",
+ "mail-client",
+ "mail-core",
+ "mail-edge",
+ "mail-os",
+ "mail-runtime",
+ "mail-store",
+ "mail-ui",
+ "mailo-archive",
+ "mailo-crypto",
+ "mailo-domain",
+ "mailo-mime",
+ "mailo-pim",
+ "mailo-proto",
+ "porter-core",
+ "porter-provider",
+ "porter-secrets",
+ "rand 0.8.8",
+ "rpassword",
+ "tempfile",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "mail-client"
 version = "0.1.0"
 dependencies = [
@@ -5185,6 +5209,7 @@ dependencies = [
  "mail-runtime",
  "mail-store",
  "mailo-domain",
+ "mailo-editor",
  "mailo-mime",
  "mailo-proto",
  "notify",
@@ -5215,6 +5240,7 @@ dependencies = [
  "mailo-archive",
  "mailo-crypto",
  "mailo-domain",
+ "mailo-editor",
  "mailo-mime",
  "mailo-pim",
  "mailo-proto",
@@ -5240,11 +5266,58 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tokio-tungstenite",
- "unicode-segmentation",
  "url",
  "uuid",
  "zbus",
  "zeroize",
+]
+
+[[package]]
+name = "mail-edge"
+version = "0.1.0"
+dependencies = [
+ "mail-core",
+ "mail-store",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "mail-intents"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "futures-util",
+ "log",
+ "mail-client",
+ "mail-core",
+ "mail-edge",
+ "mail-store",
+ "mail-ui",
+ "mailo-domain",
+ "porter-core",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "toml",
+ "uuid",
+ "zbus",
+]
+
+[[package]]
+name = "mail-os"
+version = "0.1.0"
+dependencies = [
+ "block2 0.6.2",
+ "dispatch2",
+ "mail-appkit",
+ "mail-client",
+ "mailo-domain",
+ "mailo-proto",
+ "objc2 0.6.4",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
+ "zbus",
 ]
 
 [[package]]
@@ -5350,13 +5423,11 @@ dependencies = [
  "arboard",
  "base64 0.22.1",
  "blitz-dom",
- "block2 0.6.2",
  "chordkit",
  "chrono",
  "dioxus",
  "dioxus-native-dom",
  "dioxus-ssr",
- "dispatch2",
  "ds",
  "ds-blitz",
  "ds-harness",
@@ -5368,18 +5439,17 @@ dependencies = [
  "mail-appkit",
  "mail-client",
  "mail-core",
+ "mail-os",
  "mail-runtime",
  "mail-store",
  "mail-ui",
  "mailo-archive",
  "mailo-crypto",
  "mailo-domain",
+ "mailo-editor",
  "mailo-mime",
  "mailo-pim",
  "mailo-proto",
- "objc2 0.6.4",
- "objc2-app-kit 0.3.2",
- "objc2-foundation 0.3.2",
  "pdfrum",
  "porter-capability",
  "porter-client-inproc",
@@ -5466,6 +5536,16 @@ dependencies = [
  "thiserror 2.0.21",
  "url",
  "uuid",
+]
+
+[[package]]
+name = "mailo-editor"
+version = "0.1.0"
+dependencies = [
+ "mailo-domain",
+ "mailo-mime",
+ "proptest",
+ "unicode-segmentation",
 ]
 
 [[package]]
