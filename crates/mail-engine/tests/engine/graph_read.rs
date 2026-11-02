@@ -955,6 +955,7 @@ async fn a_copy_posts_the_copy_and_keeps_the_original_and_the_copy() {
                 id: ChangeId::generate(),
                 changes: vec![Change::LabelUpsert(projects.clone())],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     queue(

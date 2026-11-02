@@ -1414,7 +1414,9 @@ mod round_trip {
         let (id, messages) = thread_of(store);
         let loaded = store.thread(id).unwrap();
         let applied = op.apply(&Target::Threads(vec![id]), &loaded, &messages, caps, now());
-        store.apply(acct_account(), &applied.forward).unwrap();
+        store
+            .apply(acct_account(), &applied.forward, chrono::Utc::now())
+            .unwrap();
         if let Some(intent) = applied.remote {
             store
                 .enqueue(acct_account(), intent, &applied.inverse, now())
@@ -1649,7 +1651,9 @@ mod archiving {
             .collect();
         let applied =
             Op::Archive.apply(&Target::Threads(vec![id]), &loaded, &messages, caps, now());
-        it.store.apply(acct_account(), &applied.forward).unwrap();
+        it.store
+            .apply(acct_account(), &applied.forward, chrono::Utc::now())
+            .unwrap();
         if let Some(intent) = applied.remote {
             it.store
                 .enqueue(acct_account(), intent, &applied.inverse, now())

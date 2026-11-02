@@ -3,6 +3,7 @@
 mod account_prefs;
 mod accounts;
 mod binned;
+mod commit;
 mod contacts;
 mod copies;
 mod destroyed;
@@ -994,28 +995,45 @@ impl Store for SqliteStore {
         }
     }
 
-    fn apply(&self, _account: AccountId, patch: &Patch) -> Result<(), StoreError> {
-        self.write_patch(patch)
+    fn apply(
+        &self,
+        _account: AccountId,
+        patch: &Patch,
+        now: DateTime<Utc>,
+    ) -> Result<(), StoreError> {
+        self.write_patch(patch, now)
     }
 
-    fn import(&self, account: AccountId, import: mail_domain::Import) -> Result<Patch, StoreError> {
-        self.write_import(account, import)
+    fn import(
+        &self,
+        account: AccountId,
+        import: mail_domain::Import,
+        now: DateTime<Utc>,
+    ) -> Result<Patch, StoreError> {
+        self.write_import(account, import, now)
     }
 
     fn holds(&self, account: AccountId, key: &mail_domain::MessageKey) -> Result<bool, StoreError> {
         Ok(self.message_by_key(account, key)?.is_some())
     }
 
-    fn ingest(&self, account: AccountId, ingest: Ingest) -> Result<Patch, StoreError> {
-        self.write_ingest(account, ingest)
+    fn ingest_with(
+        &self,
+        account: AccountId,
+        ingest: Ingest,
+        rows: &[mail_domain::Row],
+        now: DateTime<Utc>,
+    ) -> Result<crate::Ingested, StoreError> {
+        self.write_ingest(account, ingest, rows, now)
     }
 
     fn refile(
         &self,
         account: AccountId,
         filed: &[(RemoteRef, mail_domain::MailboxRole)],
+        now: DateTime<Utc>,
     ) -> Result<Patch, StoreError> {
-        self.write_refile(account, filed)
+        self.write_refile(account, filed, now)
     }
 
     fn enqueue(
@@ -1026,6 +1044,13 @@ impl Store for SqliteStore {
         now: DateTime<Utc>,
     ) -> Result<Option<OutboxId>, StoreError> {
         self.queue(account, intent, undo, now)
+    }
+
+    fn commit(
+        &self,
+        commit: &mail_domain::Commit,
+    ) -> Result<mail_domain::commit::Written, StoreError> {
+        self.commit_whole(commit)
     }
 
     fn outbox_due(
@@ -1333,6 +1358,10 @@ impl Store for SqliteStore {
 
     fn placed(&self, message: MessageId) -> Result<Vec<mail_domain::Placed>, StoreError> {
         self.load_placed(message)
+    }
+
+    fn placing(&self, message: MessageId) -> Result<mail_domain::Placing, StoreError> {
+        self.load_placing(message)
     }
 
     fn unplaced_into(

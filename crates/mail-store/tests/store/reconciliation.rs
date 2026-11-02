@@ -96,7 +96,9 @@ fn queue_flags(
 /// `m` arrives at `uid` in `mailbox`.
 fn arrive(f: &Fixture, m: &Message, mailbox: &str, uid: u32) {
     let batch = ingest_of(mailbox, vec![fetched(m, imap(mailbox, uid))]);
-    f.store.ingest(acct_account(), batch).unwrap();
+    f.store
+        .ingest(acct_account(), batch, chrono::Utc::now())
+        .unwrap();
 }
 
 fn fetched(m: &Message, remote: RemoteRef) -> Fetched {
@@ -140,7 +142,9 @@ fn server_truth_does_not_overwrite_a_pending_local_change() {
     // The user stars it. Applied locally, queued for the server.
     let starred = patch(vec![Change::MessageStar(m.id, Star::Starred)]);
     let undo = patch(vec![Change::MessageStar(m.id, Star::Unstarred)]);
-    f.store.apply(acct_account(), &starred).unwrap();
+    f.store
+        .apply(acct_account(), &starred, chrono::Utc::now())
+        .unwrap();
     let queued = queue_flags(&f, &m, None, Some(Star::Starred), &undo);
     assert!(
         queued.is_some(),
@@ -150,7 +154,9 @@ fn server_truth_does_not_overwrite_a_pending_local_change() {
     // A poll lands before the server heard about it, still reporting unstarred.
     let mut stale = ingest_of("INBOX", vec![]);
     stale.flags = vec![(imap("INBOX", 5), ReadState::Unread, Star::Unstarred)];
-    f.store.ingest(acct_account(), stale).unwrap();
+    f.store
+        .ingest(acct_account(), stale, chrono::Utc::now())
+        .unwrap();
 
     assert_eq!(
         f.store.message(m.id).unwrap().star,
@@ -174,6 +180,7 @@ fn a_confirmed_change_stops_being_re_layered() {
         .apply(
             acct_account(),
             &patch(vec![Change::MessageStar(m.id, Star::Starred)]),
+            chrono::Utc::now(),
         )
         .unwrap();
     let id = queue_flags(&f, &m, None, Some(Star::Starred), &undo).unwrap();
@@ -183,7 +190,9 @@ fn a_confirmed_change_stops_being_re_layered() {
     // Someone un-stars it elsewhere. That must now win.
     let mut later = ingest_of("INBOX", vec![]);
     later.flags = vec![(imap("INBOX", 5), ReadState::Unread, Star::Unstarred)];
-    f.store.ingest(acct_account(), later).unwrap();
+    f.store
+        .ingest(acct_account(), later, chrono::Utc::now())
+        .unwrap();
 
     assert_eq!(f.store.message(m.id).unwrap().star, Star::Unstarred);
 }
@@ -201,6 +210,7 @@ fn a_fatal_failure_undoes_the_optimistic_change() {
         .apply(
             acct_account(),
             &patch(vec![Change::MessageMailbox(m.id, MailboxRole::Archive)]),
+            chrono::Utc::now(),
         )
         .unwrap();
     let undo = patch(vec![Change::MessageMailbox(m.id, MailboxRole::Inbox)]);
@@ -255,7 +265,9 @@ fn expunge_drops_the_mapping_and_only_then_the_message() {
 
     let mut gone = ingest_of("INBOX", vec![]);
     gone.gone = vec![imap("INBOX", 5)];
-    f.store.ingest(acct_account(), gone).unwrap();
+    f.store
+        .ingest(acct_account(), gone, chrono::Utc::now())
+        .unwrap();
     assert!(
         f.store.message(m.id).is_ok(),
         "still in All Mail, so still a message"
@@ -263,7 +275,9 @@ fn expunge_drops_the_mapping_and_only_then_the_message() {
 
     let mut gone_too = ingest_of("[Gmail]/All Mail", vec![]);
     gone_too.gone = vec![imap("[Gmail]/All Mail", 99)];
-    f.store.ingest(acct_account(), gone_too).unwrap();
+    f.store
+        .ingest(acct_account(), gone_too, chrono::Utc::now())
+        .unwrap();
     assert!(f.store.message(m.id).is_err(), "no mailbox holds it now");
 }
 
@@ -277,7 +291,9 @@ fn a_uidvalidity_reset_invalidates_the_mailbox_mapping() {
 
     let mut reset = ingest_of("INBOX", vec![]);
     reset.validity = UidValidity::Reset;
-    f.store.ingest(acct_account(), reset).unwrap();
+    f.store
+        .ingest(acct_account(), reset, chrono::Utc::now())
+        .unwrap();
 
     let maps: i64 = f
         .store
@@ -306,6 +322,7 @@ fn enqueue_returns_none_when_nothing_is_addressable() {
         .apply(
             acct_account(),
             &patch(vec![Change::MessageUpsert(Box::new(m.clone()))]),
+            chrono::Utc::now(),
         )
         .unwrap();
 
@@ -418,7 +435,9 @@ fn syncing_the_same_mailbox_again_does_not_duplicate_its_rows() {
         let message = message(&f, ThreadId::generate(), "m1@example.test", 1);
         for _ in 0..3 {
             let batch = ingest_of("INBOX", vec![fetched(&message, remote.clone())]);
-            f.store.ingest(acct_account(), batch).unwrap();
+            f.store
+                .ingest(acct_account(), batch, chrono::Utc::now())
+                .unwrap();
         }
         assert_eq!(count(&f.store, "remote_map"), 1, "{remote:?}");
     }
@@ -447,6 +466,7 @@ mod labels {
                     color: None,
                     origin: LabelOrigin::Provider,
                 })]),
+                chrono::Utc::now(),
             )
             .unwrap();
     }
@@ -465,6 +485,7 @@ mod labels {
             .apply(
                 acct_account(),
                 &patch(vec![Change::MessageLabel(m, LABEL, membership)]),
+                chrono::Utc::now(),
             )
             .unwrap();
         let queued = f
@@ -504,7 +525,9 @@ mod labels {
         // A survey lands before the server heard about it, reporting no labels at all.
         let mut stale = ingest_of("INBOX", vec![]);
         stale.label_names = vec![(imap("INBOX", 5), vec![])];
-        f.store.ingest(acct_account(), stale).unwrap();
+        f.store
+            .ingest(acct_account(), stale, chrono::Utc::now())
+            .unwrap();
 
         assert!(
             labelled(&f, m.id),
@@ -525,7 +548,9 @@ mod labels {
         // The server has it labelled, and the user takes the label off.
         let mut sweep = ingest_of("INBOX", vec![]);
         sweep.label_names = vec![(imap("INBOX", 5), vec!["travel".to_owned()])];
-        f.store.ingest(acct_account(), sweep).unwrap();
+        f.store
+            .ingest(acct_account(), sweep, chrono::Utc::now())
+            .unwrap();
         assert!(labelled(&f, m.id));
         queue(&f, m.id, Membership::Out);
         assert!(!labelled(&f, m.id), "applied optimistically");
@@ -533,7 +558,9 @@ mod labels {
         // Another survey, still reporting the label the server has not yet been told about.
         let mut stale = ingest_of("INBOX", vec![]);
         stale.label_names = vec![(imap("INBOX", 5), vec!["travel".to_owned()])];
-        f.store.ingest(acct_account(), stale).unwrap();
+        f.store
+            .ingest(acct_account(), stale, chrono::Utc::now())
+            .unwrap();
 
         assert!(
             !labelled(&f, m.id),
@@ -560,7 +587,9 @@ mod labels {
         // Now another client takes the label off, and this one must follow.
         let mut elsewhere = ingest_of("INBOX", vec![]);
         elsewhere.label_names = vec![(imap("INBOX", 5), vec![])];
-        f.store.ingest(acct_account(), elsewhere).unwrap();
+        f.store
+            .ingest(acct_account(), elsewhere, chrono::Utc::now())
+            .unwrap();
 
         assert!(
             !labelled(&f, m.id),

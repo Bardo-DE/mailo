@@ -109,6 +109,7 @@ fn fill(store: &SqliteStore, count: i64) {
                     provider_threads: Vec::new(),
                     gone: vec![],
                 },
+                chrono::Utc::now(),
             )
             .unwrap();
     }
@@ -351,7 +352,11 @@ mod ingest_throughput {
         let start = Instant::now();
         for b in 0..5 {
             store
-                .ingest(acct_account(), batch(&store, b * 500, 500, None))
+                .ingest(
+                    acct_account(),
+                    batch(&store, b * 500, 500, None),
+                    chrono::Utc::now(),
+                )
                 .unwrap();
         }
         let elapsed = start.elapsed();
@@ -377,7 +382,11 @@ mod ingest_throughput {
         let (store, _dir) = store();
         let store = Arc::new(store);
         store
-            .ingest(acct_account(), batch(&store, 0, 10, None))
+            .ingest(
+                acct_account(),
+                batch(&store, 0, 10, None),
+                chrono::Utc::now(),
+            )
             .unwrap();
         let listed = store.threads(&page(1, Filter::All), at(0)).unwrap();
         let message = store.thread(listed.items[0].id).unwrap().messages[0];
@@ -388,7 +397,9 @@ mod ingest_throughput {
             let (store, done) = (store.clone(), done.clone());
             std::thread::spawn(move || {
                 let start = Instant::now();
-                store.ingest(acct_account(), big).unwrap();
+                store
+                    .ingest(acct_account(), big, chrono::Utc::now())
+                    .unwrap();
                 done.store(true, Ordering::SeqCst);
                 start.elapsed()
             })
@@ -404,6 +415,7 @@ mod ingest_throughput {
                         id: ChangeId::generate(),
                         changes: vec![Change::MessageStar(message, Star::Starred)],
                     },
+                    chrono::Utc::now(),
                 )
                 .unwrap();
             worst = worst.max(start.elapsed());
@@ -433,20 +445,32 @@ mod ingest_throughput {
         let first = {
             let start = Instant::now();
             store
-                .ingest(acct_account(), batch(&store, 0, 200, Some(thread)))
+                .ingest(
+                    acct_account(),
+                    batch(&store, 0, 200, Some(thread)),
+                    chrono::Utc::now(),
+                )
                 .unwrap();
             start.elapsed()
         };
         // Nine more batches into the same thread, so it ends at 2000 messages.
         for b in 1..9 {
             store
-                .ingest(acct_account(), batch(&store, b * 200, 200, Some(thread)))
+                .ingest(
+                    acct_account(),
+                    batch(&store, b * 200, 200, Some(thread)),
+                    chrono::Utc::now(),
+                )
                 .unwrap();
         }
         let last = {
             let start = Instant::now();
             store
-                .ingest(acct_account(), batch(&store, 9 * 200, 200, Some(thread)))
+                .ingest(
+                    acct_account(),
+                    batch(&store, 9 * 200, 200, Some(thread)),
+                    chrono::Utc::now(),
+                )
                 .unwrap();
             start.elapsed()
         };

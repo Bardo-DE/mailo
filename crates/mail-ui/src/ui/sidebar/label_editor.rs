@@ -62,8 +62,10 @@ fn keep(label: &Label, hue: Option<Hue>) {
     };
     let account = label.account.clone();
     spawn(async move {
-        let done =
-            tokio::task::spawn_blocking(move || client.stored().apply(account, &patch)).await;
+        let done = tokio::task::spawn_blocking(move || {
+            client.stored().apply(account, &patch, chrono::Utc::now())
+        })
+        .await;
         let why = match done {
             Ok(Ok(())) => return,
             Ok(Err(why)) => why.to_string(),

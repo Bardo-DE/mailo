@@ -145,18 +145,21 @@ pub fn apply_to(
             None => by_account.push((account, thread.messages.clone())),
         }
     }
+    let accounts = crate::gather::acting_accounts(store);
     let mut acted = 0;
     for (account, ids) in by_account {
         let caps = crate::act::caps_here(store, account.clone(), now);
         let speaking = match sending {
-            Sending::Yes => mail_store::rules::Speaking::Yes,
-            Sending::No => mail_store::rules::Speaking::No,
+            Sending::Yes => mail_logic::arrival::Speaking::Yes,
+            Sending::No => mail_logic::arrival::Speaking::No,
         };
-        let ran = mail_store::rules::apply_to(store, account, &caps, &ids, speaking, now)?;
+        let has_server = accounts.has_server(&account);
+        let ran =
+            crate::arrival::apply_to(store, &account, has_server, &caps, &ids, speaking, now)?;
         acted += ran.acted.len();
         super::speak::carry_out(
             store,
-            &ran.left,
+            &ran.effects,
             mail_logic::rules::guard::Occasion::Asked,
             now,
         );
@@ -355,12 +358,14 @@ pub fn run(
     rule: &Rule,
     now: DateTime<Utc>,
     report: &(dyn Fn(usize) + Sync),
-) -> Result<mail_store::rules::Ran, CoreError> {
+) -> Result<crate::arrival::Arrived, CoreError> {
     let caps = crate::act::caps_here(store, rule.account.clone(), now);
+    let has_server = crate::gather::acting_accounts(store).has_server(&rule.account);
     let total = conversations(store, rule.account.clone(), now);
     let mut pages = 0usize;
-    Ok(mail_store::rules::run_now(
+    crate::arrival::run_now(
         store,
+        has_server,
         &caps,
         rule,
         &Filter::All,
@@ -370,7 +375,7 @@ pub fn run(
             pages += 1;
             report((pages * BATCH as usize).min(total));
         },
-    )?)
+    )
 }
 
 #[cfg(test)]

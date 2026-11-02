@@ -94,6 +94,7 @@ fn deliver_at(store: &dyn Store, m: &Message, path: &str, uid: u32, raw: BlobId)
                 provider_threads: Vec::new(),
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
 }
@@ -377,6 +378,7 @@ fn send(store: &dyn Store, draft: &Draft, now: DateTime<Utc>) {
         .apply(
             acct_account(),
             &patch(vec![Change::DraftUpsert(Box::new(draft.clone()))]),
+            chrono::Utc::now(),
         )
         .unwrap();
     let rcpt_to = draft

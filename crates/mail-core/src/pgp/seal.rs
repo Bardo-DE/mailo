@@ -147,25 +147,18 @@ impl Seal for OpenPgp {
     }
 
     /// The sender's Autocrypt header added when the identity has a key, whatever the draft asks.
-    fn prepare(
-        store: &SqliteStore,
-        identity: &Identity,
-        frozen: Vec<u8>,
-    ) -> Result<Vec<u8>, PgpError> {
+    fn header(store: &SqliteStore, identity: &Identity) -> Result<Option<Vec<u8>>, PgpError> {
         let Some(own) = own_key(store, &identity.from.email)? else {
-            return Ok(frozen);
+            return Ok(None);
         };
         let cert = Cert::from_bytes(&own.key)?;
         // `prefer-encrypt` is left unsaid: it is the user's preference to state, and nothing
         // here has asked them.
-        Ok(openpgp::with_field(
-            &frozen,
-            &openpgp::autocrypt_field(
-                "Autocrypt",
-                &identity.from.email,
-                PreferEncrypt::NoPreference,
-                &cert,
-            ),
-        ))
+        Ok(Some(openpgp::autocrypt_field(
+            "Autocrypt",
+            &identity.from.email,
+            PreferEncrypt::NoPreference,
+            &cert,
+        )))
     }
 }

@@ -106,6 +106,7 @@ fn put(store: &SqliteStore, sender: &str, headers: &str, held: Held) -> ThreadId
                 provider_threads: Vec::new(),
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     // The ingest threads it; ask the store which thread it landed in.

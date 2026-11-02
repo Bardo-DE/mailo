@@ -27,7 +27,11 @@ fn ingest_twenty() -> (SqliteStore, Vec<ThreadId>) {
         origin: LabelOrigin::User,
     };
     store
-        .apply(acct_account(), &patch(vec![Change::LabelUpsert(work)]))
+        .apply(
+            acct_account(),
+            &patch(vec![Change::LabelUpsert(work)]),
+            chrono::Utc::now(),
+        )
         .unwrap();
     let subjects = [
         "lunch on friday",
@@ -76,6 +80,7 @@ fn ingest_twenty() -> (SqliteStore, Vec<ThreadId>) {
             .apply(
                 acct_account(),
                 &patch(vec![Change::MessageUpsert(Box::new(message))]),
+                chrono::Utc::now(),
             )
             .unwrap();
     }
@@ -138,24 +143,32 @@ fn twenty_messages_are_archived_labelled_searched_and_paged() {
 
     // Archive one, and the undo the op computed undoes it against real storage.
     let archived = apply_to(&store, Op::Archive, threads[3]);
-    store.apply(acct_account(), &archived.forward).unwrap();
+    store
+        .apply(acct_account(), &archived.forward, chrono::Utc::now())
+        .unwrap();
     assert_eq!(
         count(inbox.clone()),
         19,
         "the archived thread leaves the inbox"
     );
     assert_eq!(count(Filter::InMailbox(MailboxRole::Archive)), 1);
-    store.apply(acct_account(), &archived.inverse).unwrap();
+    store
+        .apply(acct_account(), &archived.inverse, chrono::Utc::now())
+        .unwrap();
     assert_eq!(
         count(inbox.clone()),
         20,
         "the inverse restores the inbox exactly"
     );
-    store.apply(acct_account(), &archived.forward).unwrap();
+    store
+        .apply(acct_account(), &archived.forward, chrono::Utc::now())
+        .unwrap();
 
     // Label one. Under ServerLabels::Supported this is remote work, not a local-only change.
     let labelled = apply_to(&store, Op::Label(WORK, Membership::In), threads[7]);
-    store.apply(acct_account(), &labelled.forward).unwrap();
+    store
+        .apply(acct_account(), &labelled.forward, chrono::Utc::now())
+        .unwrap();
     assert_eq!(listed(Filter::HasLabel(WORK)), [threads[7]]);
     assert!(labelled.remote.is_some(), "a server label change is queued");
 

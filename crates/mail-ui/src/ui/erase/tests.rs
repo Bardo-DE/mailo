@@ -53,6 +53,7 @@ async fn delete_now_is_erased_by_the_window_and_trash_is_kept() {
                     id: ChangeId::generate(),
                     changes,
                 },
+                chrono::Utc::now(),
             )
             .unwrap();
         if delete == DeleteMeans::Now {

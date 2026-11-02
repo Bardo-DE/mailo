@@ -6,8 +6,8 @@
 
 use crate::RuntimeError;
 use chrono::{DateTime, Utc};
-use mail_crypto::openpgp::{AutocryptHeader, SecretCert, autocrypt_of};
-use mail_domain::autocrypt::{self, Sighting, effective_date};
+use mail_crypto::openpgp::{AutocryptHeader, SecretCert};
+use mail_domain::autocrypt::{self, effective_date};
 use mail_domain::signing::{SigningKeyId, SigningKeyRef, SigningSecret};
 use mail_domain::{Fingerprint, KeySource};
 use mail_net::Failure;
@@ -57,51 +57,6 @@ pub fn forget_secret_key(
     fingerprint: Fingerprint,
 ) -> Result<(), RuntimeError> {
     Ok(secrets.forget(&entry(account, fingerprint))?)
-}
-
-/// Update the Autocrypt state for `from` from one arriving message, and keep the key its
-/// header carried when the rules accept it.
-///
-/// `date` is the message's `Date`, `arrived` when it arrived; the rules use the earlier. Reads
-/// the header only: a message that is not from a known peer and carries no header costs one
-/// lookup and writes nothing.
-pub fn learn_autocrypt(
-    store: &dyn Store,
-    raw: &[u8],
-    from: &str,
-    date: Option<DateTime<Utc>>,
-    arrived: DateTime<Utc>,
-) -> Result<(), RuntimeError> {
-    let from = from.trim();
-    if from.is_empty() {
-        return Ok(());
-    }
-    let header = autocrypt_of(raw, from);
-    let before = store.autocrypt_peer(from)?;
-    if before.is_none() && header.is_none() {
-        return Ok(());
-    }
-    let at = effective_date(date, arrived);
-    let seen = Sighting {
-        address: from.to_owned(),
-        at,
-        header: header
-            .as_ref()
-            .map(|h| (h.key.fingerprint(), h.prefer_encrypt)),
-    };
-    let after = autocrypt::update(before.clone(), &seen);
-    if let (Some(header), Some(peer)) = (&header, &after)
-        && peer.autocrypt_timestamp == Some(at)
-        && peer.key == Some(header.key.fingerprint())
-    {
-        keep(store, header.key.record(KeySource::Autocrypt, at, &[from]))?;
-    }
-    if let Some(peer) = after
-        && Some(&peer) != before.as_ref()
-    {
-        store.put_autocrypt_peer(&peer)?;
-    }
-    Ok(())
 }
 
 /// Keep what an encrypted message's `Autocrypt-Gossip` headers said, for the addresses it was

@@ -71,6 +71,7 @@ fn put(store: &SqliteStore, message: Message) {
                 id: ChangeId::generate(),
                 changes: vec![Change::MessageUpsert(Box::new(message))],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
 }

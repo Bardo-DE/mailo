@@ -397,6 +397,7 @@ fn a_message_is_found_by_the_message_id_it_came_with() {
                 id: mail_domain::ChangeId::generate(),
                 changes: vec![mail_domain::Change::MessageUpsert(Box::new(message))],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
 
@@ -491,6 +492,7 @@ fn an_alias_is_added_edited_and_removed_and_its_drafts_go_to_the_default() {
             id: mail_domain::ChangeId::generate(),
             changes: vec![mail_domain::Change::DraftUpsert(Box::new(draft.clone()))],
         },
+        chrono::Utc::now(),
     )
     .unwrap();
     store.remove_identity(alias.id).unwrap();

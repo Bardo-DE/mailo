@@ -11,9 +11,7 @@ use crate::error::CoreError;
 use crate::error::Logged;
 use chrono::{DateTime, Local, Utc};
 use mail_domain::{
-    AccountCaps, ArchiveMeans, Condstore, ExpungeMeans, Filter, FolderRoles, Message, MoveExt, Op,
-    PageReq, Property, Query, ServerLabels, ServerThreads, Snooze, Sort, SortDir, Supported,
-    Target, ThreadId, WatchMode,
+    Filter, Message, Op, PageReq, Property, Query, Snooze, Sort, SortDir, Target, ThreadId,
 };
 use mail_logic::snooze::snooze_until;
 use mail_store::{SqliteStore, Store};
@@ -88,11 +86,6 @@ pub fn pin(store: &SqliteStore, thread: ThreadId, now: DateTime<Utc>) -> Result<
 }
 
 /// Apply `Op::SetSnooze` to a thread.
-///
-/// Through `Op::apply` and `Store::apply` like every other operation, so the change is recorded
-/// with its inverse and can be undone. Snooze has no server representation anywhere — it is
-/// local by construction, which is why the capabilities below are the safe defaults rather than
-/// anything read from an account.
 fn set(
     store: &SqliteStore,
     thread: ThreadId,
@@ -102,56 +95,54 @@ fn set(
     apply(store, thread, Op::SetSnooze(snooze), now)
 }
 
-/// Apply a thread-level op through `Op::apply` and `Store::apply`, like every other operation,
-/// so the change is recorded with its inverse and can be undone.
+/// Apply a thread-level op the way every other operation is applied ([`crate::act`]): decided by
+/// [`mail_logic::act::act`] and written in one commit.
+///
+/// What this is for (a snooze waking, a reminder, a pin) has no server half, so no account's
+/// capabilities are consulted: none are given, and the op is decided as local.
+///
+/// The undo that [`mail_logic::act::act`] makes is dropped here, and nothing says so to the
+/// caller: neither a waking snooze nor a sweep of reminders is something the person did to be taken
+/// back, and a pin is a toggle. A snooze the person chooses from the menu goes through
+/// [`crate::act::perform_on`] and can be taken back.
 pub(crate) fn apply(
     store: &SqliteStore,
     thread: ThreadId,
     op: Op,
     now: DateTime<Utc>,
 ) -> Result<(), CoreError> {
-    let loaded = store.thread(thread)?;
-    let messages: Vec<Message> = loaded
-        .messages
-        .iter()
-        .filter_map(|id| store.message(*id).or_log("a message could not be read"))
-        .collect();
-    let account = messages
-        .first()
-        .map(|m| m.account.clone())
-        .ok_or(CoreError::EmptyConversation)?;
-
-    let applied = op.apply(
-        &Target::Threads(vec![thread]),
-        &loaded,
-        &messages,
-        &local_only(now),
-        now,
-    );
-    store.apply(account, &applied.forward)?;
-    Ok(())
-}
-
-/// Capabilities for an operation that never leaves this machine.
-///
-/// Snooze is local by construction: no protocol represents it, so what a server supports cannot
-/// change the answer. Spelled out rather than read from the account because reading them would
-/// suggest they matter.
-pub(crate) fn local_only(now: DateTime<Utc>) -> AccountCaps {
-    AccountCaps {
-        labels: ServerLabels::LocalOnly,
-        threads: ServerThreads::Jwz,
-        watch: WatchMode::Poll {
-            every: std::time::Duration::from_secs(300),
-        },
-        archive: ArchiveMeans::LocalOnly,
-        folders: FolderRoles::default(),
-        condstore: Condstore::Absent,
-        move_ext: MoveExt::Absent,
-        expunge: ExpungeMeans::Forbidden,
-        top: Supported::Absent,
-        pipelining: Supported::Absent,
-        connections: Default::default(),
-        observed_at: now,
-    }
+    let accounts = mail_logic::accounts::Accounts::default();
+    store.within(|| {
+        let view = store.thread(thread)?;
+        let messages: Vec<Message> = view
+            .messages
+            .iter()
+            .filter_map(|id| store.message(*id).or_log("a message could not be read"))
+            .collect();
+        if messages.is_empty() {
+            return Err(CoreError::EmptyConversation);
+        }
+        let views = [mail_logic::act::ThreadView {
+            thread: view,
+            messages,
+        }];
+        let snapshot = mail_logic::act::ActSnapshot {
+            threads: &views,
+            accounts: &accounts,
+            junk_labels: &[],
+        };
+        let acted = mail_logic::act::act(
+            &snapshot,
+            &[mail_logic::act::Act {
+                thread,
+                target: Target::Threads(vec![thread]),
+                op,
+            }],
+            now,
+        );
+        for acted in acted {
+            store.commit(&acted.commit)?;
+        }
+        Ok(())
+    })?
 }

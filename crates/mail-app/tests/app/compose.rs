@@ -135,6 +135,7 @@ fn seeded() -> (SqliteStore, tempfile::TempDir) {
                 provider_threads: Vec::new(),
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     (store, dir)
@@ -357,6 +358,7 @@ fn own_message(store: &SqliteStore) -> MessageId {
                 provider_threads: Vec::new(),
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     id
@@ -417,6 +419,7 @@ fn headers_only(store: &SqliteStore) -> MessageId {
                 provider_threads: Vec::new(),
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     id
@@ -501,6 +504,7 @@ fn the_queued_bytes_are_frozen_against_a_later_edit() {
                 id: ChangeId::generate(),
                 changes: vec![Change::DraftUpsert(Box::new(draft.clone()))],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
 
@@ -1082,6 +1086,7 @@ mod forwarding_as_an_attachment {
                     provider_threads: Vec::new(),
                     gone: vec![],
                 },
+                chrono::Utc::now(),
             )
             .unwrap();
         id

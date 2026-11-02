@@ -72,6 +72,7 @@ fn absorb(store: &dyn Store, n: u128, remote: RemoteRef, raw: BlobId) -> Vec<Mes
                 provider_threads: Vec::new(),
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     patch
@@ -190,6 +191,7 @@ fn the_mark_goes_with_the_message() {
                     provider_threads: Vec::new(),
                     gone: vec![all_mail(8)],
                 },
+                chrono::Utc::now(),
             )
             .unwrap();
         (marked, store.found_in(&[thread]).unwrap().len())

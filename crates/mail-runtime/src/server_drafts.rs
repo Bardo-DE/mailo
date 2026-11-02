@@ -24,6 +24,23 @@ pub fn keeps_copies(caps: &AccountCaps) -> bool {
     !matches!(caps.archive, ArchiveMeans::DropInbox)
 }
 
+/// The path of the server's Drafts mailbox where an account on `incoming`, with these
+/// capabilities, has its drafts kept: the one the server named, on a protocol whose server keeps
+/// the copies a client uploads ([`mail_domain::Caps::server_drafts`]: IMAP and JMAP, not POP3,
+/// local folders or Graph, whose draft has an id of its own) and not on Gmail ([`keeps_copies`]).
+///
+/// The one rule of whether a draft is kept on the server at all, which keeping it, replacing it
+/// and dropping it once sent all ask. A JMAP account's mailbox is read from the live list rather
+/// than from `caps`, and asks only the first half.
+pub fn drafts_folder(incoming: &mail_domain::Incoming, caps: &AccountCaps) -> Option<String> {
+    if !incoming.caps().server_drafts || !keeps_copies(caps) {
+        return None;
+    }
+    caps.folders
+        .path(mail_domain::MailboxRole::Drafts)
+        .map(str::to_owned)
+}
+
 /// The `Message-ID` every copy of `draft` carries, without angle brackets; `None` when the
 /// identity it is written from is gone, and with it the domain the id was made with.
 pub fn message_id(store: &SqliteStore, draft: &Draft) -> Result<Option<String>, RuntimeError> {
@@ -138,4 +155,58 @@ fn queue(
         now,
     )?;
     Ok(queued.is_some())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mail_domain::{
+        Condstore, ConnectionBudget, ExpungeMeans, FolderRoles, Incoming, MailboxRole, MoveExt,
+        ServerLabels, ServerThreads, Supported, Tls, WatchMode,
+    };
+
+    fn caps(archive: ArchiveMeans) -> AccountCaps {
+        AccountCaps {
+            labels: ServerLabels::LocalOnly,
+            threads: ServerThreads::Jwz,
+            watch: WatchMode::Idle,
+            archive,
+            folders: FolderRoles(vec![("Drafts".to_owned(), MailboxRole::Drafts)]),
+            condstore: Condstore::Absent,
+            move_ext: MoveExt::Absent,
+            expunge: ExpungeMeans::Forbidden,
+            top: Supported::Absent,
+            pipelining: Supported::Absent,
+            connections: ConnectionBudget::default(),
+            observed_at: chrono::DateTime::from_timestamp(1_790_000_000, 0).unwrap(),
+        }
+    }
+
+    fn imap() -> Incoming {
+        Incoming::Imap {
+            host: "imap.example.test".to_owned(),
+            port: 993,
+            tls: Tls::Implicit,
+        }
+    }
+
+    /// Whether a draft is kept on the server at all, for every protocol and every archive.
+    #[test]
+    fn a_draft_is_kept_where_the_server_keeps_copies_and_named_a_drafts_folder() {
+        let folder = Some("Drafts".to_owned());
+        let plain = caps(ArchiveMeans::MoveToFolder("Archive".to_owned()));
+        assert_eq!(drafts_folder(&imap(), &plain), folder);
+        // Gmail's EXPUNGE may only take a label off an old copy.
+        assert_eq!(drafts_folder(&imap(), &caps(ArchiveMeans::DropInbox)), None);
+        // No protocol but IMAP and JMAP has a server that keeps what is uploaded.
+        for incoming in [Incoming::Local, Incoming::Graph] {
+            assert_eq!(drafts_folder(&incoming, &plain), None, "{incoming:?}");
+        }
+        // No folder named, nothing to keep a copy in: a guessed path is how a copy is lost.
+        let nameless = AccountCaps {
+            folders: FolderRoles::default(),
+            ..plain
+        };
+        assert_eq!(drafts_folder(&imap(), &nameless), None);
+    }
 }

@@ -177,7 +177,9 @@ fn request(store: &SqliteStore, port: u16, work: FolderWork) {
         },
     )
     .unwrap();
-    store.apply(acct_account(), &applied.forward).unwrap();
+    store
+        .apply(acct_account(), &applied.forward, chrono::Utc::now())
+        .unwrap();
     store
         .enqueue(
             acct_account(),

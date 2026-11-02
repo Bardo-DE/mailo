@@ -64,14 +64,14 @@ pub fn change(
         },
     )?;
     store
-        .apply(account.clone(), &applied.forward)
+        .apply(account.clone(), &applied.forward, now)
         .map_err(failed)?;
     if let Some(intent) = applied.remote.clone() {
         // Unlike a flag change, a folder that exists only here is a folder the server will
         // contradict at the next listing. If it cannot be queued, it is not made at all.
         if let Err(e) = store.enqueue(account.clone(), intent, &applied.inverse, now) {
             store
-                .apply(account, &applied.inverse)
+                .apply(account, &applied.inverse, now)
                 .or_log("a folder change could not be undone after it failed to queue");
             return Err(failed(e));
         }

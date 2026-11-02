@@ -33,7 +33,9 @@ fn message(store: &SqliteStore, uid: u32) -> MessageId {
         raw,
         message,
     });
-    store.ingest(acct_account(), batch).unwrap();
+    store
+        .ingest(acct_account(), batch, chrono::Utc::now())
+        .unwrap();
     id
 }
 
@@ -43,7 +45,9 @@ fn label_sweep(store: &SqliteStore, rows: Vec<(RemoteRef, Vec<String>)>) -> Patc
         label_names: rows,
         ..ingest("INBOX")
     };
-    store.ingest(acct_account(), batch).unwrap()
+    store
+        .ingest(acct_account(), batch, chrono::Utc::now())
+        .unwrap()
 }
 
 fn names_on(store: &SqliteStore, message: MessageId) -> Vec<String> {
@@ -202,6 +206,7 @@ fn a_labels_chosen_colour_survives_a_sync_that_reports_it_again() {
                     id: ChangeId::generate(),
                     changes: vec![Change::LabelUpsert(label.clone())],
                 },
+                chrono::Utc::now(),
             )
             .unwrap();
     };

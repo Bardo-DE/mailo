@@ -75,6 +75,7 @@ fn seed() {
                 provider_threads: Vec::new(),
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     eprintln!("seeded {}", base.display());

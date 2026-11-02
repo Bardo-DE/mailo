@@ -27,10 +27,13 @@ use crate::draft::Draft;
 use crate::folder::{Folder, FolderWork};
 use crate::hue::Hue;
 use crate::id::{BlobId, ChangeId, DraftId, LabelId, MessageId, ThreadId};
+use crate::message::ThreadSummary;
 use crate::message::{Message, Thread};
 use crate::receipt::{DeliveryReport, Keyword};
 use crate::remote::MailboxRef;
-use crate::state::{FollowUp, MailboxRole, Membership, Mute, Pin, ReadState, Snooze, Star};
+use crate::state::{
+    FollowUp, MailboxRole, MailboxSet, Membership, Mute, Pin, ReadState, Snooze, Star,
+};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -309,6 +312,17 @@ pub enum RemoteIntent {
     SetFlag { messages: Vec<MessageId>, hue: Hue },
 }
 
+/// What [`Op::preview`] says an operation makes of a conversation.
+#[derive(Debug, Clone, PartialEq)]
+pub enum OpPreview {
+    /// The conversation is gone.
+    Gone,
+    /// It is this.
+    Becomes(Box<ThreadSummary>),
+    /// The summary does not say enough to tell; the answer is the commit's.
+    Unknown,
+}
+
 /// The result of applying an [`Op`], or of planning a folder change with [`crate::folder::plan`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -463,6 +477,77 @@ impl Op {
             },
             remote,
         }
+    }
+
+    /// What this operation makes of a whole conversation, from its summary alone: what a list can
+    /// show at once, before the operation is written.
+    ///
+    /// Exact where the summary says enough, and then equal to the summary of the messages
+    /// [`Op::apply`] leaves; [`OpPreview::Unknown`] where it does not. It takes the conversation
+    /// whole ([`Target::Threads`]): what an operation does to some of its messages depends on
+    /// which, and a summary does not say.
+    pub fn preview(&self, summary: &ThreadSummary) -> OpPreview {
+        let mut next = summary.clone();
+        let filed = |role| MailboxSet::only(role);
+        match self {
+            Op::Archive => next.mailboxes = filed(MailboxRole::Archive),
+            Op::Trash => next.mailboxes = filed(MailboxRole::Trash),
+            Op::Spam => next.mailboxes = filed(MailboxRole::Spam),
+            // Only what was filed into Trash, Archive or Spam comes back; Sent and Drafts stay.
+            Op::Restore => {
+                let away = [MailboxRole::Trash, MailboxRole::Archive, MailboxRole::Spam];
+                if away.iter().any(|role| summary.mailboxes.contains(*role)) {
+                    next.mailboxes = away
+                        .iter()
+                        .fold(summary.mailboxes, |set, role| set.without(*role))
+                        .with(MailboxRole::Inbox);
+                }
+            }
+            Op::File(label) => {
+                next.mailboxes = filed(MailboxRole::Archive);
+                if !next.labels.contains(label) {
+                    next.labels.push(*label);
+                }
+            }
+            Op::SetRead(read) => next.read = *read,
+            // The colour left standing is the newest starred message's, which a summary does
+            // not say once it is starred by this.
+            Op::SetStar(Star::Starred) => return OpPreview::Unknown,
+            Op::SetStar(star) => {
+                next.star = *star;
+                if *star == Star::Unstarred {
+                    next.flag = Hue::Red;
+                }
+            }
+            Op::Flag(hue) => {
+                next.star = Star::Starred;
+                next.flag = *hue;
+            }
+            Op::Copy(label) | Op::Label(label, Membership::In) => {
+                if !next.labels.contains(label) {
+                    next.labels.push(*label);
+                }
+            }
+            Op::Label(label, Membership::Out) => next.labels.retain(|it| it != label),
+            Op::SetSnooze(snooze) => next.snooze = *snooze,
+            Op::SetPin(pin) => next.pin = *pin,
+            Op::SetMute(mute) => next.mute = *mute,
+            Op::SetFollowUp(follow_up) => next.follow_up = *follow_up,
+            // Only what is in Trash or Spam goes. When that is all of it the conversation is
+            // gone, and when none of it is nothing changes; between the two what is left has a
+            // summary of its own that this does not know.
+            Op::Destroy => {
+                let goes = |role| matches!(role, MailboxRole::Trash | MailboxRole::Spam);
+                if summary.mailboxes.iter().all(goes) {
+                    return OpPreview::Gone;
+                }
+                if !summary.mailboxes.iter().any(goes) {
+                    return OpPreview::Becomes(Box::new(summary.clone()));
+                }
+                return OpPreview::Unknown;
+            }
+        }
+        OpPreview::Becomes(Box::new(next))
     }
 
     /// What, if anything, the server must be told — given what it is capable of.

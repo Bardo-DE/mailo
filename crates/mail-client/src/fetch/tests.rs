@@ -42,27 +42,6 @@ fn trouble(retry: Retry, why: Option<&str>) -> Trouble {
     }
 }
 
-/// A pass that stored nothing leaves what was read alone, and one that ran or was cut short may
-/// have written.
-#[test]
-fn what_a_pass_may_have_stored() {
-    type Row = (&'static str, Result<Vec<PassEnd>, String>, bool);
-    let cases: [Row; 5] = [
-        ("an empty failed pass", Ok(vec![failed()]), false),
-        (
-            "a pass that stopped",
-            Err("the sync pass stopped".to_owned()),
-            false,
-        ),
-        ("no account ran", Ok(vec![]), false),
-        ("a finished pass", Ok(vec![finished(vec![])]), true),
-        ("a cancelled pass", Ok(vec![cancelled()]), true),
-    ];
-    for (name, pass, stored) in &cases {
-        assert_eq!(may_have_stored(pass), *stored, "{name}");
-    }
-}
-
 /// A fetch that ran is done even with trouble that is not a refusal; a refused sign-in, or a
 /// fetch that never ran, is refused in the server's words; one cancelled is refused, so it is
 /// fetched on the next opening.

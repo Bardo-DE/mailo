@@ -59,42 +59,14 @@ impl SqliteStore {
     pub(super) fn write_smime_cert(&self, cert: SmimeCert) -> Result<SmimeCert, StoreError> {
         let db = self.touch(Topics::KEYS);
         let tx = db.unchecked_transaction()?;
-        let held = tx
-            .query_row(
-                &format!("SELECT {CERT_COLUMNS} FROM smime_certs WHERE fingerprint = ?1"),
-                params![cert.fingerprint.to_string()],
-                |row| Ok(read_cert(row)),
-            )
-            .optional()?
-            .transpose()?;
-        let merged = match held {
-            Some(held) => held.merged(cert),
-            None => cert,
-        };
-        tx.execute(
-            &format!(
-                "INSERT OR REPLACE INTO smime_certs ({CERT_COLUMNS})
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)"
-            ),
-            params![
-                merged.fingerprint.to_string(),
-                merged.subject,
-                merged.issuer,
-                merged.serial,
-                to_json("SmimeCert.emails", &merged.emails)?,
-                from_time(merged.not_before),
-                from_time(merged.not_after),
-                merged.der,
-                to_json("SmimeCert.chain", &merged.chain)?,
-                to_json("CertSource", &merged.source)?,
-                from_time(merged.first_seen),
-                from_time(merged.last_seen),
-                to_json("KeyTrust", &merged.trust)?,
-                to_json("SecretHeld", &merged.secret)?,
-            ],
-        )?;
+        let merged = put_cert(&tx, cert)?;
         tx.commit()?;
         Ok(merged)
+    }
+
+    /// [`Self::write_smime_cert`], inside a transaction the caller holds.
+    pub(super) fn write_smime_cert_in(&self, cert: SmimeCert) -> Result<SmimeCert, StoreError> {
+        put_cert(&self.touch(Topics::KEYS), cert)
     }
 
     pub(super) fn write_smime_trust(
@@ -119,6 +91,45 @@ impl SqliteStore {
         )?;
         Ok(changed > 0)
     }
+}
+
+/// Merge `cert` into what is held for its fingerprint and write it, on `db` as it stands.
+fn put_cert(db: &rusqlite::Connection, cert: SmimeCert) -> Result<SmimeCert, StoreError> {
+    let held = db
+        .query_row(
+            &format!("SELECT {CERT_COLUMNS} FROM smime_certs WHERE fingerprint = ?1"),
+            params![cert.fingerprint.to_string()],
+            |row| Ok(read_cert(row)),
+        )
+        .optional()?
+        .transpose()?;
+    let merged = match held {
+        Some(held) => held.merged(cert),
+        None => cert,
+    };
+    db.execute(
+        &format!(
+            "INSERT OR REPLACE INTO smime_certs ({CERT_COLUMNS})
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)"
+        ),
+        params![
+            merged.fingerprint.to_string(),
+            merged.subject,
+            merged.issuer,
+            merged.serial,
+            to_json("SmimeCert.emails", &merged.emails)?,
+            from_time(merged.not_before),
+            from_time(merged.not_after),
+            merged.der,
+            to_json("SmimeCert.chain", &merged.chain)?,
+            to_json("CertSource", &merged.source)?,
+            from_time(merged.first_seen),
+            from_time(merged.last_seen),
+            to_json("KeyTrust", &merged.trust)?,
+            to_json("SecretHeld", &merged.secret)?,
+        ],
+    )?;
+    Ok(merged)
 }
 
 fn read_cert(row: &rusqlite::Row<'_>) -> Result<SmimeCert, StoreError> {
