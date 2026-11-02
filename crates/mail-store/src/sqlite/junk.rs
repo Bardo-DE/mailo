@@ -2,7 +2,8 @@
 
 use super::SqliteStore;
 use crate::StoreError;
-use crate::junk::{Judged, JunkCounts, Learned};
+use crate::junk::{Judged, Learned};
+use mail_domain::JunkCounts;
 use mail_domain::MessageId;
 use porter_core::AccountId;
 use rusqlite::{OptionalExtension, params};
@@ -28,7 +29,7 @@ fn column(judged: Judged) -> &'static str {
 
 /// Take `words` and one message back out of `judged`'s counts for `account`.
 fn take_back(
-    tx: &rusqlite::Transaction<'_>,
+    tx: &rusqlite::Connection,
     account: &str,
     words: &[String],
     judged: Judged,
@@ -61,6 +62,20 @@ impl SqliteStore {
     ) -> Result<Learned, StoreError> {
         let db = self.connection();
         let tx = db.unchecked_transaction()?;
+        let learned = self.junk_learn_in(account, message, words, judged)?;
+        tx.commit()?;
+        Ok(learned)
+    }
+
+    /// [`Self::junk_learn`], inside a transaction the caller holds.
+    pub(super) fn junk_learn_in(
+        &self,
+        account: AccountId,
+        message: MessageId,
+        words: &[String],
+        judged: Judged,
+    ) -> Result<Learned, StoreError> {
+        let tx = &*self.connection();
         let prior: Option<(String, String)> = tx
             .query_row(
                 "SELECT verdict, words FROM junk_learned WHERE message = ?1",
@@ -78,7 +93,7 @@ impl SqliteStore {
                     Judged::Spam => Judged::Ham,
                     Judged::Ham => Judged::Spam,
                 };
-                take_back(&tx, &account, &split(&taught), other)?;
+                take_back(tx, &account, &split(&taught), other)?;
                 Learned::Turned
             }
             None => Learned::New,
@@ -106,7 +121,6 @@ impl SqliteStore {
                                                  words = excluded.words",
             params![message.to_string(), judged.as_str(), joined(words)],
         )?;
-        tx.commit()?;
         Ok(learned)
     }
 
@@ -121,6 +135,19 @@ impl SqliteStore {
     ) -> Result<bool, StoreError> {
         let db = self.connection();
         let tx = db.unchecked_transaction()?;
+        let forgot = self.junk_forget_in(account, message, judged)?;
+        tx.commit()?;
+        Ok(forgot)
+    }
+
+    /// [`Self::junk_forget`], inside a transaction the caller holds.
+    pub(super) fn junk_forget_in(
+        &self,
+        account: AccountId,
+        message: MessageId,
+        judged: Judged,
+    ) -> Result<bool, StoreError> {
+        let tx = &*self.connection();
         let learned: Option<String> = tx
             .query_row(
                 "SELECT words FROM junk_learned WHERE message = ?1 AND verdict = ?2",
@@ -131,12 +158,11 @@ impl SqliteStore {
         let Some(taught) = learned else {
             return Ok(false);
         };
-        take_back(&tx, &account.to_string(), &split(&taught), judged)?;
+        take_back(tx, &account.to_string(), &split(&taught), judged)?;
         tx.execute(
             "DELETE FROM junk_learned WHERE message = ?1",
             params![message.to_string()],
         )?;
-        tx.commit()?;
         Ok(true)
     }
 

@@ -4,14 +4,14 @@
 use super::items::{Pick, chips, complete_syntax, interpret, rows_of, search_now};
 use super::*;
 use crate::ui::fixtures::work;
-use crate::ui::menu::Right;
-use crate::ui::view::Shell;
 use chordkit::Platform;
 use chrono::Utc;
 use dioxus_core::VirtualDom;
 use ds::prelude::*;
-use mail_core::SqliteStore;
-use mail_core::search::{Results, Top};
+use mail_client::search::{Results, Top};
+use mail_client::testing::SqliteStore;
+use mail_ui_kit::menu::Right;
+use mail_ui_kit::view::Shell;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -36,13 +36,12 @@ pub(in crate::ui) fn people_for(store: &Arc<SqliteStore>, query: &str) -> Vec<St
 #[test]
 fn a_person_the_ranker_put_on_top_is_the_books_best_match() {
     // Nobody but the book says who "da" is: the menu's people are its answer, in its order.
-    let (store, _dir) = crate::ui::contacts::tests::the_book();
+    let (store, _dir) = crate::ui::settings_tests::contacts::the_book();
     let drawn = people_for(&store, "da");
-    let book: Vec<String> =
-        crate::ui::contacts::book::suggest(&crate::ui::fixtures::client(&store), "da")
-            .into_iter()
-            .map(|person| person.address)
-            .collect();
+    let book: Vec<String> = mail_ui_kit::book::suggest(&crate::ui::fixtures::client(&store), "da")
+        .into_iter()
+        .map(|person| person.address)
+        .collect();
     assert!(!drawn.is_empty(), "no people for da");
     assert_eq!(drawn, book[..drawn.len()], "the menu and the book disagree");
     // Operators alone name nobody.
@@ -93,12 +92,12 @@ fn the_sidebar_row_names_what_a_pick_does() {
         (
             "pinned",
             Shown::Visible,
-            crate::ui::copy::menus::HIDE_SIDEBAR,
+            mail_ui_model::copy::menus::HIDE_SIDEBAR,
         ),
         (
             "hidden",
             Shown::Hidden,
-            crate::ui::copy::menus::SHOW_SIDEBAR,
+            mail_ui_model::copy::menus::SHOW_SIDEBAR,
         ),
     ];
     for (name, sidebar, want) in CASES {
@@ -131,7 +130,7 @@ fn the_renamed_sidebar_row_is_marked_for_its_own_wording() {
         .find(|item| item.key == SIDEBAR_KEY)
         .expect("the sidebar row matches");
     let renamed = restate_sidebar(row, Shown::Hidden, "sidebar");
-    assert_eq!(renamed.name, crate::ui::copy::menus::SHOW_SIDEBAR);
+    assert_eq!(renamed.name, mail_ui_model::copy::menus::SHOW_SIDEBAR);
     let marked: String = renamed
         .name
         .chars()
@@ -139,7 +138,7 @@ fn the_renamed_sidebar_row_is_marked_for_its_own_wording() {
         .filter(|(index, _)| renamed.marks.contains(&(*index as u32)))
         .map(|(_, c)| c)
         .collect();
-    assert_eq!(marked, crate::ui::copy::aria::SIDEBAR);
+    assert_eq!(marked, mail_ui_model::copy::aria::SIDEBAR);
 }
 
 /// The chips under the field: the syntax while nothing is typed or while the last word starts an
@@ -222,7 +221,7 @@ const EVERY_COMMAND: &[&str] = &[
 fn every_palette_row_is_run_by_its_command() {
     use super::commands::COMMANDS;
     use super::items::action_key;
-    use mail_core::search::{ActionHit, Command as Words};
+    use mail_client::search::{ActionHit, Command as Words};
     let listed: Vec<String> = COMMANDS
         .iter()
         .map(|command| action_key(*command))
@@ -290,7 +289,7 @@ fn no_two_commands_share_a_label() {
 #[component]
 fn Runs(command: &'static dyn Command) -> Element {
     let shell = use_signal(|| Shell {
-        bar: Bar::Open(crate::ui::view::BarOpen::over(String::new())),
+        bar: Bar::Open(mail_ui_kit::view::BarOpen::over(String::new())),
         ..Shell::default()
     });
     let pages = use_signal(|| 1u32);
@@ -318,8 +317,8 @@ fn Runs(command: &'static dyn Command) -> Element {
 /// Settings… is the one row for Settings: it opens the window, which keeps its own pages.
 #[tokio::test]
 async fn settings_opens_the_settings_window() {
-    use crate::ui::settings_window::SettingsWindows;
-    use crate::ui::settings_window::tests::Asked;
+    use crate::ui::settings_tests::window::Asked;
+    use mail_ui_kit::settings_at::SettingsWindows;
     let command: &'static dyn Command = &Settings;
     crate::ui::fixtures::dispatching();
     let asked = Arc::new(Asked::default());

@@ -15,6 +15,7 @@ mod follow_up;
 mod graph_push;
 mod history;
 pub mod junk;
+mod learned;
 #[cfg(any(test, feature = "testing"))]
 pub mod memory;
 #[cfg(any(test, feature = "testing"))]
@@ -31,10 +32,10 @@ mod pending;
 mod pgp;
 mod prefix;
 mod remote_row;
-pub mod rules;
 mod smime;
 mod sql;
 mod sqlite;
+mod swept;
 mod term;
 #[cfg(feature = "testing")]
 pub mod testing;
@@ -44,7 +45,7 @@ pub use blob::Blobs;
 pub use changes::{Committed, Generation, Topics, Wake};
 pub use contact::{
     AddressBook, BookCard, CardId, Contact, Edit, Group, GroupHome, GroupId, Kind, Origin,
-    PersonCard, Tally, Vip, no_reply,
+    PersonCard, Tally, Vip,
 };
 pub use dispatch::{PASSES_TO_FIND, SYNCS_TO_FIND};
 pub use file::write_atomic;
@@ -57,11 +58,20 @@ pub use offline::{Offline, RemotePart};
 pub use opened::OPENED_KEPT;
 pub use passes::{PassFailed, Passes};
 pub use sql::{SqlFilter, SqlValue, compile};
-pub use sqlite::SqliteStore;
+pub use sqlite::{BlobsSwept, Checkpoint, SqliteStore};
 pub use sqlite::{Freed, Kept, MessageRow};
-pub use term::Term;
+pub use swept::Swept;
 
 pub use error::StoreError;
+
+/// What [`Store::ingest_with`] wrote.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Ingested {
+    /// What changed.
+    pub patch: Patch,
+    /// Whether the key rows written with it changed the keys or certificates held.
+    pub keys_changed: bool,
+}
 
 use chrono::{DateTime, Utc};
 use mail_domain::{
@@ -69,7 +79,7 @@ use mail_domain::{
     FolderContents, Import, Ingest, InviteAnswer, KeyId, KeyTrust, Label, MailboxRef, MailboxRole,
     Message, MessageId, MessageKey, OutboxId, Page, Patch, PgpKey, ProtoOp, Query, ReceiptAnswer,
     RemoteIntent, RemoteRef, Retry, Rule, RuleId, SendState, SmimeCert, SyncCursor, Template,
-    TemplateId, Thread, ThreadId, ThreadSummary, Vacation, View, ViewId,
+    TemplateId, Term, Thread, ThreadId, ThreadSummary, Vacation, View, ViewId,
 };
 use porter_core::AccountId;
 
@@ -82,6 +92,9 @@ pub struct OutboxEntry {
     /// Applied if this entry ends in [`Retry::Fatal`], so an optimistic local change does not
     /// outlive an operation the server refused.
     pub undo: Patch,
+    /// The act that queued it, named by the id of the patch it applied. `None` for work no act
+    /// queued, and for work queued before acts were named.
+    pub forward: Option<mail_domain::UndoId>,
     pub attempts: u32,
     pub next_attempt: DateTime<Utc>,
 }
@@ -176,8 +189,8 @@ pub trait Store {
     fn threads(&self, query: &Query, now: DateTime<Utc>)
     -> Result<Page<ThreadSummary>, StoreError>;
 
-    /// How many threads match, without loading them. Sidebar badges need this; loading every
-    /// row to count it is how a mail client becomes unusable.
+    /// How many threads match, without loading them. A count of each place needs this;
+    /// loading every row to count it is how a mail client becomes unusable.
     fn count(&self, filter: &Filter, now: DateTime<Utc>) -> Result<u64, StoreError>;
 
     /// Index terms that begin with `prefix`, most frequent first, at most `limit`.
@@ -217,8 +230,13 @@ pub trait Store {
 
     fn message(&self, id: MessageId) -> Result<Message, StoreError>;
 
-    /// Write local mutations, atomically.
-    fn apply(&self, account: AccountId, patch: &Patch) -> Result<(), StoreError>;
+    /// Write local mutations, atomically. A message first stored by it is stamped `now`.
+    fn apply(
+        &self,
+        account: AccountId,
+        patch: &Patch,
+        now: DateTime<Utc>,
+    ) -> Result<(), StoreError>;
 
     /// Write server truth, then re-layer any still-pending local changes on top of it.
     ///
@@ -227,7 +245,32 @@ pub trait Store {
     ///
     /// Returns a [`Patch`] describing what actually moved, so the UI refreshes precisely
     /// instead of re-running every open query.
-    fn ingest(&self, account: AccountId, ingest: Ingest) -> Result<Patch, StoreError>;
+    ///
+    /// `now` stamps what the write itself records: when a message was first stored, and when a
+    /// mailbox was last heard from.
+    fn ingest(
+        &self,
+        account: AccountId,
+        ingest: Ingest,
+        now: DateTime<Utc>,
+    ) -> Result<Patch, StoreError> {
+        self.ingest_with(account, ingest, &[], now)
+            .map(|ingested| ingested.patch)
+    }
+
+    /// [`Store::ingest`], with other rows written in the transaction of its first chunk: what
+    /// the messages taught about keys ([`mail_domain::Row::KeyLearned`]). A key lesson that
+    /// cannot be kept is logged and passed over, and costs the mail nothing.
+    ///
+    /// Whether the keys held changed comes back with the patch. On [`StoreError::Partial`] it
+    /// does not, and a caller that wants the answer takes it as "perhaps".
+    fn ingest_with(
+        &self,
+        account: AccountId,
+        ingest: Ingest,
+        rows: &[mail_domain::Row],
+        now: DateTime<Utc>,
+    ) -> Result<Ingested, StoreError>;
 
     /// Server truth about where messages are filed, from a protocol that says so outright.
     ///
@@ -243,6 +286,7 @@ pub trait Store {
         &self,
         account: AccountId,
         filed: &[(RemoteRef, MailboxRole)],
+        now: DateTime<Utc>,
     ) -> Result<Patch, StoreError>;
 
     /// Keep messages that no server holds: imported mail, or an upload whose server did not say
@@ -256,7 +300,12 @@ pub trait Store {
     ///
     /// Returns what changed, like `ingest`: a new message is a
     /// [`mail_domain::Change::MessageUpsert`] in it, and one already held is not.
-    fn import(&self, account: AccountId, import: Import) -> Result<Patch, StoreError>;
+    fn import(
+        &self,
+        account: AccountId,
+        import: Import,
+        now: DateTime<Utc>,
+    ) -> Result<Patch, StoreError>;
 
     /// Whether this account already holds a message with this identity.
     ///
@@ -288,6 +337,18 @@ pub trait Store {
         undo: &Patch,
         now: DateTime<Utc>,
     ) -> Result<Option<OutboxId>, StoreError>;
+
+    /// Write one decision whole: in one transaction, the work to address before the change, the
+    /// change, the work to address after it, and the other rows. Either all of it is written or
+    /// none of it is.
+    ///
+    /// Each [`mail_domain::Queue`] is resolved as [`Store::enqueue`] resolves it. Work that
+    /// names nothing the server holds is skipped under [`mail_domain::Unplaced::Skip`], and under
+    /// [`mail_domain::Unplaced::Rollback`] refuses the commit with [`StoreError::NotQueued`].
+    fn commit(
+        &self,
+        commit: &mail_domain::Commit,
+    ) -> Result<mail_domain::commit::Written, StoreError>;
 
     /// Queued work whose `next_attempt` has arrived, in insertion order.
     ///
@@ -381,6 +442,65 @@ pub trait Store {
     /// `HIGHESTMODSEQ` it had been recording all along.
     fn cursor(&self, mailbox: &MailboxRef) -> Result<Option<SyncCursor>, StoreError>;
 
+    /// When each scheduled sweep of this mailbox last finished.
+    ///
+    /// Kept here and not in the engine because the engine is built afresh for every pass, so what
+    /// it remembered was always nothing and every pass swept everything. A mailbox that has no
+    /// cursor yet has not been swept.
+    fn swept(&self, mailbox: &MailboxRef) -> Result<Swept, StoreError>;
+
+    /// The flag sweep of this mailbox finished at `at`. Does nothing for a mailbox that has no
+    /// cursor yet: it is swept again until it has one, which is the safe way to be wrong.
+    fn mark_flags_swept(&self, mailbox: &MailboxRef, at: DateTime<Utc>) -> Result<(), StoreError>;
+
+    /// The sweep for deletions in this mailbox finished at `at`. As [`Store::mark_flags_swept`].
+    fn mark_expunges_swept(
+        &self,
+        mailbox: &MailboxRef,
+        at: DateTime<Utc>,
+    ) -> Result<(), StoreError>;
+
+    /// The mailbox state up to which every message the server listed was held, headers at least.
+    ///
+    /// What an incremental survey resumes from. It is apart from [`Store::cursor`], which a flag
+    /// sweep moves on past messages no pass has fetched yet, so resuming from the cursor would
+    /// lose them. `None` for a mailbox no pass has held in full: the next one lists it all.
+    fn held_through(&self, mailbox: &MailboxRef) -> Result<Option<SyncCursor>, StoreError>;
+
+    /// Everything the server listed in this mailbox, up to `through`, is held. Does nothing for
+    /// a mailbox that has no cursor yet, which is then listed in full again.
+    fn mark_held_through(
+        &self,
+        mailbox: &MailboxRef,
+        through: &SyncCursor,
+    ) -> Result<(), StoreError>;
+
+    /// Which of this mailbox's messages arrived unreadable at `since` or later: those a pass
+    /// does not ask the server for again yet.
+    fn unreadable_since(
+        &self,
+        mailbox: &MailboxRef,
+        since: DateTime<Utc>,
+    ) -> Result<Vec<mail_domain::RemoteRef>, StoreError>;
+
+    /// Record that these messages of the mailbox arrived and could not be read, at `at`.
+    /// Marking one again moves its time on.
+    fn mark_unreadable(
+        &self,
+        mailbox: &MailboxRef,
+        remotes: &[mail_domain::RemoteRef],
+        at: DateTime<Utc>,
+    ) -> Result<(), StoreError>;
+
+    /// The sizes the server gave for the messages held at these addresses, for those it gave one
+    /// ([`Store::hold_server_sizes`]). A body pass orders by size, and an incremental survey has
+    /// not listed the sizes of what an earlier one did.
+    fn server_sizes_at(
+        &self,
+        account: AccountId,
+        remotes: &[mail_domain::RemoteRef],
+    ) -> Result<Vec<(mail_domain::RemoteRef, u64)>, StoreError>;
+
     /// What the server turned out to support, so the next run starts from fact not guess.
     ///
     /// Written once at account creation from the preset's *expectation* and never updated,
@@ -472,6 +592,12 @@ pub trait Store {
     /// the account's last reported roles, and whether a move of it into another folder is still
     /// queued. [`StoreError::NoMessage`] for a message not held.
     fn placed(&self, message: MessageId) -> Result<Vec<mail_domain::Placed>, StoreError>;
+
+    /// What [`Store::placed`] weighs, unweighed: `message`'s server addresses, the folders the
+    /// moves and copies still queued for it are taking it to, and whether it is waiting to be
+    /// found. For a decision made away from the store that must say where a message is listed
+    /// after work it queues itself. [`StoreError::NoMessage`] for a message not held.
+    fn placing(&self, message: MessageId) -> Result<mail_domain::Placing, StoreError>;
 
     /// The attachment of `message` left on the server as `section` has arrived: it is `blob`,
     /// `size` bytes decoded.
@@ -574,13 +700,13 @@ pub trait Store {
     /// in an id is not reported as done.
     fn delete_template(&self, id: TemplateId) -> Result<(), StoreError>;
 
-    /// Every saved view, in the sidebar's order: the order they were first kept, then by id.
+    /// Every saved view, in the order they were first kept, then by id.
     ///
     /// Views are the user's, not an account's: one view can list mail from every account.
     fn views(&self) -> Result<Vec<View>, StoreError>;
 
     /// Keep a view, replacing any with the same id. A new view goes last; a view kept again
-    /// keeps its place in the sidebar.
+    /// keeps its place.
     ///
     /// Not through [`Store::apply`], like a template: a view is a way of looking at mail, not
     /// an edit of any.

@@ -8,9 +8,10 @@ use crate::sync::run::{Run, Signed, signed_in};
 use crate::sync::{Mode, fetch_folder, graph_engine, poll_floor, sending_token};
 use mail_domain::AuthPlan;
 use mail_domain::{Filter, LabelId, MessageId};
+use mail_engine::AccountEngine;
 use mail_runtime::graph::push::Listener;
 use mail_runtime::graph::read::OverHttp;
-use mail_runtime::{AccountEngine, Cancel, RuntimeError, Searched, Woke};
+use mail_runtime::{Cancel, RuntimeError, Searched, Woke};
 use std::time::Duration;
 use tokio::sync::watch;
 
@@ -22,7 +23,8 @@ pub(crate) struct Graph;
 async fn built(run: &Run<'_>, mode: Mode) -> Result<AccountEngine<OverHttp>, Failure> {
     let Signed { renewal, .. } = signed_in(run, mode).await?;
     let engine = graph_engine(run.store, run.account, run.secrets.clone())
-        .map_err(|e| Failure::fatal(e.to_string()))?;
+        .map_err(|e| Failure::fatal(e.to_string()))?
+        .with_wanted(run.wanted.clone());
     Ok(match renewal {
         Some(source) => engine.with_tokens(source),
         None => engine,
@@ -100,7 +102,7 @@ impl Access for Graph {
             let AuthPlan::OAuth { issuer, .. } = &run.account.plan.auth else {
                 return Err(unsupported("a Graph account signs in with Microsoft"));
             };
-            let client = mail_runtime::clients::client(run.registry, *issuer)
+            let client = mail_secrets::clients::client(run.registry, *issuer)
                 .ok_or_else(|| Lost::from(Failure::reauth(crate::account::no_client_id(*issuer))))?
                 .clone();
             let listener = Listener::open(

@@ -10,9 +10,9 @@ use chrono::{DateTime, TimeZone, Utc};
 use mail_core::notify::{self, Notification, Notifier, Opens};
 use mail_core::sync;
 use mail_domain::*;
+use mail_engine::AccountEngine;
 use mail_proto::backend::{Authenticate, ImapBackend};
 use mail_proto::{ImapAuth, ImapCommand, ImapSession};
-use mail_runtime::AccountEngine;
 use mail_store::{SqliteStore, Store};
 use porter_core::Credential;
 use porter_core::SecretText;
@@ -175,6 +175,7 @@ fn stored_as(
                 id: ChangeId::generate(),
                 changes: vec![Change::MessageUpsert(Box::new(message))],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     id
@@ -288,7 +289,7 @@ fn an_announcement_is_the_ordinary_banner_whatever_code_the_message_carries() {
     assert_eq!(seen[2].summary, "ada@example.test");
     assert!(
         seen.iter().all(|n| !n.summary.contains("771204")),
-        "a code read from a body is not on the banner"
+        "a code read from a body is not on the notification"
     );
 }
 
@@ -577,7 +578,7 @@ fn engine(port: u16, store: Arc<SqliteStore>) -> AccountEngine<ImapBackend> {
 
 /// Run a watch's passes for one account until `until` says stop, or give up after a while.
 ///
-/// The scheduler (`mail_runtime::schedule`) decides when a watch passes; what is checked here is
+/// The scheduler (`mail_engine::schedule`) decides when a watch passes; what is checked here is
 /// what the watch does with each pass that ends, so the passes are run on a short timer and each
 /// is handed to [`sync::watcher::told`], as the watch does. It never returns of its own accord,
 /// so it is raced against `until`, which the test uses to add mail to the server and decide when
@@ -598,7 +599,7 @@ async fn watching<F: std::future::Future<Output = ()>>(
         every: mail_core::offline::Every::default(),
         window: mail_core::offline::Window::default(),
         remove: mail_core::offline::Remove::default(),
-        junk: mail_core::junk::Policy::default(),
+        junk: mail_logic::junk::Policy::default(),
     };
     let inbox = vec![MailboxRef {
         account: account.id.clone(),

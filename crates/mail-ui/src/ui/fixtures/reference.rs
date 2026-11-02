@@ -5,15 +5,15 @@
 //! institution or a real person's mailbox.
 
 use super::store::gmail_caps;
-use crate::ui::appearance::WindowDirs;
-use crate::ui::space::{self, Pinned};
-use crate::ui::today::{self, Today};
 use chrono::Datelike;
 use ds::prelude::{SpaceLook, Theme};
 use ds::style::space::palette::Dot;
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::id::account_id_from_uuid;
 use mail_domain::*;
+use mail_ui_kit::appearance::WindowDirs;
+use mail_ui_kit::space::{self, Pinned};
+use mail_ui_kit::today::{self, Today};
 use porter_core::AccountId;
 use std::sync::Arc;
 
@@ -262,7 +262,7 @@ pub(in crate::ui) fn work() -> Work {
                 email: "ci@example.com".to_owned(),
             },
         ],
-        profile: mail_core::profile::ProfileId::default(),
+        profile: mail_client::profile::ProfileId::default(),
     };
     let spaces = space::built(vec![("Work".to_owned(), work, mail)], 0);
     space::save(
@@ -314,8 +314,9 @@ fn insert_account(store: &SqliteStore, id: AccountId, address: &str, host: &str,
         },
         identities: Vec::new(),
     };
-    mail_store::testing::seed_account_plan(store, id.clone(), address, &plan, None);
-    mail_store::testing::seed_caps(store, id.clone(), &gmail_caps(), chrono::Utc::now()).unwrap();
+    mail_client::testing::seed::seed_account_plan(store, id.clone(), address, &plan, None);
+    mail_client::testing::seed::seed_caps(store, id.clone(), &gmail_caps(), chrono::Utc::now())
+        .unwrap();
 }
 
 fn at(days: i64, hour: u32, min: u32) -> chrono::DateTime<chrono::Utc> {
@@ -348,6 +349,7 @@ fn ensure_label(store: &SqliteStore, account: AccountId, name: &str) -> LabelId 
                     origin: LabelOrigin::User,
                 })],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     id
@@ -480,6 +482,7 @@ fn ingest(
                 provider_threads: Vec::new(),
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
 }

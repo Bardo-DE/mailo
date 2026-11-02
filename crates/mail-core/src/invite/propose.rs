@@ -88,7 +88,7 @@ pub fn propose(
         zone: ical::EventZone::Utc,
     };
     // Written for the organiser in UTC, as an answer's is: their clock is not known here.
-    let said = say_when(&proposed, &Utc, crate::when::Clock::H24);
+    let said = say_when(&proposed, &Utc, mail_logic::when::Clock::H24);
     let mut text = format!(
         "{} proposes a new time for \"{}\".\r\n\r\nProposed: {}\r\n",
         identity.from.shown(),

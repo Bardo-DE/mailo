@@ -120,7 +120,7 @@ fn finishing_polls_again_after_the_interval() {
     let trouble = vec![Trouble {
         mailbox: Some("A".into()),
         retry: Retry::Now,
-        why: "x".into(),
+        why: Some("x".into()),
     }];
     let (to, fx) = go(
         &syncing(First::Yes, Link::Fresh),
@@ -174,6 +174,25 @@ fn failing_now_waits_a_few_seconds() {
     );
     assert_eq!(to, waiting(t(1, 5), 1));
     assert_eq!(fx, vec![Effect::WakeAt(t(1, 5))]);
+}
+
+#[test]
+fn failing_now_again_and_again_backs_off_after_the_second() {
+    // Interval 5 minutes: a few seconds once, then the same doubling as any other failure.
+    let mut link = current(t(0, 0), Live::Polling);
+    let mut now = t(0, 0);
+    let mut waits = vec![];
+    for _ in 0..5 {
+        let (running, _) = go(&link, Event::Start(Trigger::Poll), now);
+        let (next, _) = go(&running, failed(Retry::Now, Pause::Unreachable), now);
+        let Link::Waiting { until, .. } = next else {
+            panic!("{next:?}")
+        };
+        waits.push((until - now).num_seconds());
+        now = until;
+        link = next;
+    }
+    assert_eq!(waits, vec![5, 600, 1200, 1800, 1800]);
 }
 
 #[test]

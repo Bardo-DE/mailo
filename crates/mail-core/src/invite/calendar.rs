@@ -9,7 +9,7 @@
 //!
 //! Nothing here runs by itself. Opening a message touches no calendar: a calendar may ask the
 //! person for access the first time it is used, and reading mail is no reason to ask. Each call
-//! is the answer to a press of a button.
+//! is the answer to something the person asked for.
 
 use super::{addresses, product, raw_of};
 use crate::error::{CoreError, Logged};

@@ -10,9 +10,9 @@
 use ds::prelude::Icon;
 use mail_client::search::{Results, match_list};
 
-use super::super::menu::MenuItem;
 use super::items::{self, Pick, interpret};
-use crate::ui::copy::headers;
+use mail_ui_kit::menu::MenuItem;
+use mail_ui_model::copy::headers;
 
 /// The section titles, in the order the panel draws them.
 pub(in crate::ui) const RECENT: &str = headers::RECENT;

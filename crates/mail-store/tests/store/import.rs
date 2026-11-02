@@ -95,6 +95,7 @@ fn run(store: &dyn Store, raws: [BlobId; 2]) -> Vec<(String, usize, usize)> {
             Import {
                 messages: vec![kept("a@x", 1, ra, &["Receipts"]), kept("b@x", 2, rb, &[])],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     assert_eq!(added(&first), 2);
@@ -110,6 +111,7 @@ fn run(store: &dyn Store, raws: [BlobId; 2]) -> Vec<(String, usize, usize)> {
                     kept("b@x", 2, rb, &[]),
                 ],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     assert_eq!(added(&second), 0, "nothing is kept twice");
@@ -151,6 +153,7 @@ fn an_imported_label_is_the_users_own() {
             Import {
                 messages: vec![kept("a@x", 1, raw(&sqlite, 1), &["Receipts"])],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     let labels = sqlite.labels(acct_account()).unwrap();
@@ -168,6 +171,7 @@ fn nothing_done_to_imported_mail_is_queued_for_a_server() {
             Import {
                 messages: vec![kept("a@x", 1, raw(&sqlite, 1), &[])],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     let Some(Change::MessageUpsert(message)) = imported.changes.first() else {
@@ -193,7 +197,11 @@ fn an_upload_resolves_to_the_same_append_on_both_stores() {
     let sqlite = sqlite();
     let memory = MemoryStore::new();
     memory
-        .import(acct_account(), Import { messages: vec![] })
+        .import(
+            acct_account(),
+            Import { messages: vec![] },
+            chrono::Utc::now(),
+        )
         .unwrap();
     let intent = RemoteIntent::Append {
         mailbox: MailboxRef {

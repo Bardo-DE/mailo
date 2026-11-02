@@ -3,14 +3,33 @@ resolver = "3"
 members = [
   "crates/mail-domain",
   "crates/mail-mime",
+  "crates/mail-crypto",
+  "crates/mail-archive",
   "crates/mail-proto",
   "crates/mail-pim",
+  "crates/mail-editor",
+  "crates/mail-reader",
+  "crates/mail-logic",
   "crates/mail-store",
+  "crates/mail-net",
+  "crates/mail-secrets",
+  "crates/mail-agent",
   "crates/mail-runtime",
+  "crates/mail-engine",
   "crates/mail-core",
   "crates/mail-client",
   "crates/mail-appkit",
+  "crates/mail-os",
+  "crates/mail-edge",
+  "crates/mail-ui-model",
+  "crates/mail-ui-kit",
+  "crates/mail-ui-reader",
+  "crates/mail-ui-compose",
+  "crates/mail-ui-list",
+  "crates/mail-ui-settings",
   "crates/mail-ui",
+  "crates/mail-cli",
+  "crates/mail-intents",
   "crates/mail-app",
 ]
 
@@ -32,13 +51,32 @@ rust-version = "1.92"
 latchkey    = { git = "https://github.com/PoHsuanLai/latchkey", rev = "b10ae1b8c49c55cce2c5affde8f5db76edb66ab4" }
 mail-appkit = { path = "crates/mail-appkit" }
 mail-client = { path = "crates/mail-client" }
+mail-os = { path = "crates/mail-os" }
+mail-ui-model = { path = "crates/mail-ui-model" }
+mail-ui-kit = { path = "crates/mail-ui-kit" }
+mail-ui-reader = { path = "crates/mail-ui-reader" }
+mail-ui-compose = { path = "crates/mail-ui-compose" }
+mail-ui-list = { path = "crates/mail-ui-list" }
+mail-ui-settings = { path = "crates/mail-ui-settings" }
 mail-ui = { path = "crates/mail-ui" }
+mail-edge = { path = "crates/mail-edge" }
+mail-cli = { path = "crates/mail-cli" }
+mail-intents = { path = "crates/mail-intents" }
 mail-core   = { path = "crates/mail-core", default-features = false }
 mail-domain = { package = "mailo-domain", path = "crates/mail-domain", version = "0.1.0" }
+mail-archive = { package = "mailo-archive", path = "crates/mail-archive", version = "0.1.0" }
+mail-crypto = { package = "mailo-crypto", path = "crates/mail-crypto", version = "0.1.0", default-features = false }
 mail-mime   = { package = "mailo-mime", path = "crates/mail-mime", version = "0.1.0", default-features = false }
 mail-pim    = { package = "mailo-pim", path = "crates/mail-pim", version = "0.1.0" }
+mail-editor = { package = "mailo-editor", path = "crates/mail-editor", version = "0.1.0" }
+mail-reader = { package = "mailo-reader", path = "crates/mail-reader", version = "0.1.0" }
+mail-logic = { package = "mailo-logic", path = "crates/mail-logic", version = "0.1.0" }
 mail-proto  = { package = "mailo-proto", path = "crates/mail-proto", version = "0.1.0" }
+mail-net = { path = "crates/mail-net", default-features = false }
+mail-secrets = { path = "crates/mail-secrets", default-features = false }
 mail-runtime = { path = "crates/mail-runtime", default-features = false }
+mail-engine = { path = "crates/mail-engine", default-features = false }
+mail-agent = { path = "crates/mail-agent", default-features = false }
 mail-store  = { path = "crates/mail-store" }
 # The accounts system's vocabulary, pinned by git rev like quire (porter is public). mailo names its
 # accounts, their secrets and their OAuth issuers with porter's types instead of its own, so the
@@ -48,46 +86,43 @@ mail-store  = { path = "crates/mail-store" }
 #
 # porter-secrets is where account secrets live. Its stores are features, chosen per
 # target in mail-runtime's own Cargo.toml: `oo7` on Linux, `keyring` on macOS and Windows. It
-# enters mail-runtime, the I/O crate, and no pure crate: mail-domain, -mime, -proto and -pim
+# enters mail-runtime, the I/O crate, and no pure crate: mail-domain, -mime, -crypto, -archive, -proto and -pim
 # stay free of zbus and tokio (`scripts/check-boundary.sh`).
-porter-core = { git = "https://github.com/PoHsuanLai/porter", rev = "477733c4e47d1d7a83c25a5a5d53f2c7f32bd933" }
-porter-provider = { git = "https://github.com/PoHsuanLai/porter", rev = "477733c4e47d1d7a83c25a5a5d53f2c7f32bd933" }
-porter-secrets = { git = "https://github.com/PoHsuanLai/porter", rev = "477733c4e47d1d7a83c25a5a5d53f2c7f32bd933", default-features = false }
+porter-core = { git = "https://github.com/PoHsuanLai/porter", rev = "1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2" }
+porter-provider = { git = "https://github.com/PoHsuanLai/porter", rev = "1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2" }
+porter-secrets = { git = "https://github.com/PoHsuanLai/porter", rev = "1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2", default-features = false }
 # Discovery. porter-discover without its `io` feature is pure parsers and two seams (no
 # tokio, no hickory); mail-runtime implements `porter_discover::Dns` and `porter_http::Http` over
 # the resolver and the HTTP client mailo already has, so neither dependency is added for them.
-porter-discover = { git = "https://github.com/PoHsuanLai/porter", rev = "477733c4e47d1d7a83c25a5a5d53f2c7f32bd933", default-features = false }
+porter-discover = { git = "https://github.com/PoHsuanLai/porter", rev = "1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2", default-features = false }
 # OAuth. Without its `io` feature porter-oauth is the rules, the registry and the exchanges
 # over `porter_http::Http` (no tokio); only mail-runtime, the I/O crate, turns `io` on, for the
 # loopback listener.
-porter-oauth = { git = "https://github.com/PoHsuanLai/porter", rev = "477733c4e47d1d7a83c25a5a5d53f2c7f32bd933", default-features = false }
-porter-http = { git = "https://github.com/PoHsuanLai/porter", rev = "477733c4e47d1d7a83c25a5a5d53f2c7f32bd933", default-features = false }
+porter-oauth = { git = "https://github.com/PoHsuanLai/porter", rev = "1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2", default-features = false }
+porter-http = { git = "https://github.com/PoHsuanLai/porter", rev = "1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2", default-features = false }
 # The values that name nothing of accounts (units, `WebUrl`, the clock seam), the capability
 # vocabulary (`CapabilityKind`, `Toggle`, the offers) and the add-account sheet's machine and the
 # wire an app speaks to the service, each split out of porter-core: every caller names them directly.
-porter-ids = { git = "https://github.com/PoHsuanLai/porter", rev = "477733c4e47d1d7a83c25a5a5d53f2c7f32bd933" }
-porter-capability = { git = "https://github.com/PoHsuanLai/porter", rev = "477733c4e47d1d7a83c25a5a5d53f2c7f32bd933" }
-porter-sheet = { git = "https://github.com/PoHsuanLai/porter", rev = "477733c4e47d1d7a83c25a5a5d53f2c7f32bd933" }
-porter-wire = { git = "https://github.com/PoHsuanLai/porter", rev = "477733c4e47d1d7a83c25a5a5d53f2c7f32bd933" }
+porter-ids = { git = "https://github.com/PoHsuanLai/porter", rev = "1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2" }
+porter-capability = { git = "https://github.com/PoHsuanLai/porter", rev = "1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2" }
+porter-sheet = { git = "https://github.com/PoHsuanLai/porter", rev = "1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2" }
+porter-wire = { git = "https://github.com/PoHsuanLai/porter", rev = "1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2" }
 # `ReqwestHttp`, the one direct-connection client behind `porter_http::Http`.
-porter-http-reqwest = { git = "https://github.com/PoHsuanLai/porter", rev = "477733c4e47d1d7a83c25a5a5d53f2c7f32bd933" }
-# WebDAV, CalDAV and CardDAV as text with no I/O (request bodies, multistatus replies), and the
-# Windows time zone names to IANA ones: porter's crates, used here by the pure `mail-pim`.
-dav-proto = { git = "https://github.com/PoHsuanLai/porter", rev = "477733c4e47d1d7a83c25a5a5d53f2c7f32bd933" }
-windows-zones = { git = "https://github.com/PoHsuanLai/porter", rev = "477733c4e47d1d7a83c25a5a5d53f2c7f32bd933" }
+porter-http-reqwest = { git = "https://github.com/PoHsuanLai/porter", rev = "1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2" }
+# WebDAV, CalDAV and CardDAV as text with no I/O (request bodies, multistatus replies), from porter,
+# and the Windows time zone names to IANA ones, from ferry: used here by the pure `mail-pim`.
+dav-proto = { git = "https://github.com/PoHsuanLai/porter", rev = "1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2" }
+windows-zones = { git = "https://github.com/PoHsuanLai/ferry", rev = "e61b2648d8c455b6b36612aece7f51a6dd5ff96c" }
 # A keyring-core store that keeps a value too long for one entry in several (the Windows
 # Credential Manager's 2560 bytes): the signing keys' store in `mail-runtime`.
-keyring-chunked = { git = "https://github.com/PoHsuanLai/porter", rev = "477733c4e47d1d7a83c25a5a5d53f2c7f32bd933" }
+keyring-chunked = { git = "https://github.com/PoHsuanLai/porter", rev = "1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2" }
 # porter-client is the app-facing API: the relay's byte stream `mail-runtime`'s transport can wrap.
 # porter-client-inproc is its in-process transport: the add-account window hosts porter's account
 # service and draws its sheet. Neither brings in zbus: mailo keeps its own accounts and credentials.
 # The calendar store every porter client shares (`CalendarStore`): mailo puts invitations in it.
-# Every porter pin here is the `calendar-store` branch's commit while that pull request waits
-# (porter #68, a descendant of the commit the pins were at); they move to porter's master as one
-# once it lands.
-porter-calendar = { git = "https://github.com/PoHsuanLai/porter", rev = "477733c4e47d1d7a83c25a5a5d53f2c7f32bd933" }
-porter-client = { git = "https://github.com/PoHsuanLai/porter", rev = "477733c4e47d1d7a83c25a5a5d53f2c7f32bd933" }
-porter-client-inproc = { git = "https://github.com/PoHsuanLai/porter", rev = "477733c4e47d1d7a83c25a5a5d53f2c7f32bd933" }
+porter-calendar = { git = "https://github.com/PoHsuanLai/porter", rev = "1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2" }
+porter-client = { git = "https://github.com/PoHsuanLai/porter", rev = "1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2" }
+porter-client-inproc = { git = "https://github.com/PoHsuanLai/porter", rev = "1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2" }
 serde       = { version = "1", features = ["derive"] }
 chrono      = { version = "0.4", features = ["serde"] }
 uuid        = { version = "1", features = ["v4", "serde"] }
@@ -98,7 +133,12 @@ log         = "0.4"
 # copied verbatim: only the lines mailo names itself. The window reaches the Blitz
 # document through these to focus, select or scroll an element found by selector
 # (`ui/host/native.rs`).
-blitz-dom = { git = "https://github.com/PoHsuanLai/blitz", rev = "841386a71f17673c211217725e75068774517ba8", default-features = false, features = ["svg", "system-fonts", "custom-widget", "accessibility"] }
+#
+# `floats` is mailo's own, past quire's block: Blitz marks a floated element for the float layout
+# whether or not that layout is built, and without it the line breaker handed a paragraph holding
+# one (a newsletter's `<img align="left">`) loops for ever. Features unify, so naming it here turns
+# it on for the one blitz-dom every crate shares (`lanes/floats.rs`).
+blitz-dom = { git = "https://github.com/PoHsuanLai/blitz", rev = "841386a71f17673c211217725e75068774517ba8", default-features = false, features = ["svg", "system-fonts", "custom-widget", "accessibility", "floats"] }
 dioxus-native-dom = { git = "https://github.com/PoHsuanLai/blitz", rev = "841386a71f17673c211217725e75068774517ba8", default-features = false, features = ["svg", "system-fonts", "accessibility"] }
 
 [workspace.lints.rust]
@@ -163,7 +203,10 @@ opt-level = 2
 [profile.dev.package.mailo-mime]
 opt-level = 2
 
-# S/MIME (`mail-mime::smime`) generates RSA keys in its tests and derives PKCS#12 keys with
+[profile.dev.package.mailo-crypto]
+opt-level = 2
+
+# S/MIME (`mail-crypto::smime`) generates RSA keys in its tests and derives PKCS#12 keys with
 # 100 000 rounds of SHA-256. Unoptimised, a 2048-bit key takes tens of seconds and a PKCS#12 file
 # several; built optimised even in dev, a fraction of a second. Pure arithmetic crates with their
 # own tests, so nothing is lost by not stepping through them.

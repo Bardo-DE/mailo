@@ -5,11 +5,11 @@
 
 use crate::fixture::{acct_account, store};
 use chrono::{DateTime, TimeZone, Utc};
+use mail_crypto::openpgp::{self, SecretCert};
 use mail_domain::id::new_account_id;
 use mail_domain::*;
-use mail_mime::openpgp::{self, SecretCert};
-use mail_runtime::testing::MapSigningStore;
 use mail_runtime::{Arrival, assemble, pgp};
+use mail_secrets::testing::MapSigningStore;
 use mail_store::{SqliteStore, Store};
 use rand::SeedableRng;
 
@@ -44,7 +44,7 @@ fn message(from: &str, date: DateTime<Utc>, key: Option<&SecretCert>, id: &str) 
 }
 
 fn arrive(store: &SqliteStore, role: MailboxRole, raw: Vec<u8>, uidl: &str, now: DateTime<Utc>) {
-    let ingest = assemble(
+    let assembly = assemble(
         store,
         acct_account(),
         MailboxRef {
@@ -62,7 +62,13 @@ fn arrive(store: &SqliteStore, role: MailboxRole, raw: Vec<u8>, uidl: &str, now:
         now,
     )
     .unwrap();
-    assert_eq!(ingest.messages.len(), 1, "the message itself still arrives");
+    assert_eq!(
+        assembly.ingest.messages.len(),
+        1,
+        "the message itself still arrives"
+    );
+    // What it taught is kept in the transaction the message is written in.
+    assembly.write(store, acct_account(), now).unwrap();
 }
 
 #[test]

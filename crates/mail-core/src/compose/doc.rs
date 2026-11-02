@@ -6,14 +6,10 @@
 //! whether or not a composer is open on the draft.
 
 use mail_domain::Draft;
-use mail_mime::{
-    Block, Delsp, Dir, ParaStyle, ParsedPart, RemoteImages, SanitizePolicy, Span, from_html,
-    sanitize, unflow,
-};
+use mail_mime::{Delsp, ParsedPart, unflow};
+use mail_reader::{Block, Dir, ParaStyle, RemoteImages, SanitizePolicy, Span, from_html, sanitize};
 
-use crate::rich_text::{
-    Doc, Node, Object, ParaKind, nodes_from_blocks, nodes_from_plain, runs_text,
-};
+use mail_editor::{Doc, Node, Object, ParaKind, nodes_from_blocks, nodes_from_plain, runs_text};
 
 /// The document a stored draft holds: its HTML when the composer wrote one, else its text. Its
 /// images are found among `inline`, the draft's own pictures; one not there is dropped.

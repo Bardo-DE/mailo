@@ -1,10 +1,10 @@
-//! Signing in straight in the browser: no form and no review, as a sign-in button on the web does.
+//! Signing in straight in the browser: no form and no review, as a sign-in link on the web does.
 //!
 //! A provider whose accounts sign in with an OAuth redirect needs nothing typed: the browser page
 //! is the whole conversation, and the issuer says afterwards whose account it was. So a front end
 //! that knows the issuer ("Google") can open the page, wait for the loopback redirect (RFC 8252)
 //! and add the account with the services the review step keeps (mail), with nothing of its own
-//! on screen but a way to cancel. [`sign_in_with`] is that, from the pieces the add-account sheet
+//! on screen but a way to cancel. [`sign_in_with`] is that, from the pieces the add-account step
 //! uses: [`super::oauth_client`], the runtime's browser sign-in, and [`super::add_receiving`] with
 //! the credential already obtained.
 
@@ -14,11 +14,11 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use mail_domain::AuthPlan;
 use mail_domain::presets::{self, Preset};
-use mail_runtime::authorize::{SignInFault, identity_scopes, sign_in_told, whoami};
+use mail_secrets::authorize::{SignInFault, identity_scopes, sign_in_told, whoami};
 
 /// Where the issuer is asked whose account signed in; the real endpoints by default.
-pub use mail_runtime::authorize::Profiles;
-use mail_runtime::{AccountSecrets, ClientRegistry};
+pub use mail_secrets::authorize::Profiles;
+use mail_secrets::{AccountSecrets, ClientRegistry};
 use mail_store::SqliteStore;
 use porter_provider::Issuer;
 
@@ -132,7 +132,7 @@ impl std::fmt::Debug for Direct<'_> {
 /// Ends early when `cancel` resolves (a front end's Cancel, or its handle dropped), and dropping
 /// the future cancels it too; either way the loopback listener is closed with it. Not `Send`:
 /// the browser's callback is borrowed across the wait, so a front end runs it on a thread of its
-/// own, as the add-account sheet runs its sign-in.
+/// own, as the add-account step runs its sign-in.
 pub async fn sign_in_with(
     issuer: Issuer,
     mode: Mode,
@@ -305,7 +305,7 @@ mod tests {
         );
         assert_eq!(
             microsoft.last().map(String::as_str),
-            Some(mail_runtime::authorize::MICROSOFT_PROFILE_SCOPE)
+            Some(mail_secrets::authorize::MICROSOFT_PROFILE_SCOPE)
         );
         // The resource a code is redeemed for is the first one named: still the mail one.
         assert_eq!(

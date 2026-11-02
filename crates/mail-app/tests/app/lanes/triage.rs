@@ -9,8 +9,8 @@ use mail_core::Store;
 use mail_domain::{
     Change, ChangeId, Hue, MailboxRole, Mute, Patch, ProtoOp, Snooze, Star, ThreadSummary,
 };
-use mail_ui::ui::bin::{Bin, Destroying, Reach, words};
-use mail_ui::ui::copy;
+use mail_ui_kit::bin::{Bin, Destroying, Reach, words};
+use mail_ui_model::copy;
 
 use super::drive::{Drive, Key, PRIMARY};
 use super::look::{conversation, inbox_at, listed};
@@ -388,7 +388,9 @@ fn in_trash_a_row_is_deleted_forever_and_the_trash_emptied_only_once_asked() {
             id: ChangeId::generate(),
             changes,
         };
-        store.apply(account(), &patch).expect("filed in Trash");
+        store
+            .apply(account(), &patch, chrono::Utc::now())
+            .expect("filed in Trash");
     });
     let alert = ".ds-alert";
     let in_trash =

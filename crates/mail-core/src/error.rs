@@ -6,8 +6,8 @@
 //! the `#[error(...)]` attributes, not in a `String` carried about, so a window can match on the
 //! variant and say it its own way.
 
-use crate::remedy::{Remedy, SignInWith};
 use mail_domain::{Retry, Retryable};
+use mail_logic::remedy::{Remedy, SignInWith};
 use std::path::{Path, PathBuf};
 
 /// What a failure carries as its cause, kept as the error it was rather than as its text.
@@ -28,7 +28,7 @@ pub enum CoreError {
     #[error(transparent)]
     Pim(#[from] mail_pim::PimError),
     #[error(transparent)]
-    Time(#[from] TimeError),
+    Time(#[from] mail_logic::snooze::TimeError),
     #[error(transparent)]
     Json(#[from] serde_json::Error),
     #[error(transparent)]
@@ -67,6 +67,10 @@ pub enum CoreError {
     /// The attachment was left on the server and is fetched when opened.
     #[error("{name} is still on the server; it downloads when opened")]
     AttachmentOnServer { name: String },
+    /// The attachment is kept inside the message's own bytes and they could not give it back:
+    /// the message is gone from the store, or no longer holds a part like it.
+    #[error("{name} could not be read out of its message: {why}")]
+    AttachmentUnreadable { name: String, why: String },
 
     // ---- conversations, accounts, places
     #[error("that conversation has no messages")]
@@ -87,7 +91,7 @@ pub enum CoreError {
 
     // ---- profiles
     #[error(transparent)]
-    ProfileId(#[from] crate::profile::NotAProfileId),
+    ProfileId(#[from] mail_logic::profile::NotAProfileId),
     /// A Profile was named by its id or its name and there is none like it.
     #[error("no profile {0:?}")]
     NoProfile(String),
@@ -235,14 +239,16 @@ pub enum CoreError {
     DaemonSilent,
     #[error("a daemon is already running")]
     DaemonRunning,
-    #[error(transparent)]
-    Wire(#[from] crate::ipc::wire::Mismatch),
+    /// What the daemon's wire said was wrong with a message (`mail_agent::ipc::wire::Mismatch`),
+    /// in its words: the crate that speaks the wire turns its mismatch into this.
+    #[error("{0}")]
+    Wire(String),
     #[error(transparent)]
     Door(#[from] latchkey::Error),
 
     // ---- discovery, server search
     #[error(transparent)]
-    Discovery(#[from] crate::discover::Failed),
+    Discovery(#[from] mail_logic::discover::Failed),
     #[error("that account is no longer configured")]
     AccountGone,
 
@@ -342,6 +348,8 @@ pub enum CoreError {
     AlreadySent,
     #[error("the submission could not be queued")]
     SubmissionNotQueued,
+    #[error("that draft kept changing while it was being sent")]
+    DraftChanging,
     /// A recipient the box could not read as an address.
     #[error(transparent)]
     Address(#[from] mail_domain::ParseAddressError),
@@ -449,18 +457,18 @@ impl CoreError {
     }
 
     /// A credential of `address` that could not be read: a sign-in to ask for when it is not
-    /// there, a wait when the keyring did not answer ([`mail_runtime::SecretTrouble`] decides).
+    /// there, a wait when the keyring did not answer ([`mail_secrets::SecretTrouble`] decides).
     pub(crate) fn unread_credential(
         address: &str,
         auth: &mail_domain::AuthPlan,
-        error: &mail_runtime::RuntimeError,
+        trouble: mail_secrets::SecretTrouble,
     ) -> Self {
-        match mail_runtime::SecretTrouble::of(error) {
-            mail_runtime::SecretTrouble::Absent => CoreError::NoCredential {
+        match trouble {
+            mail_secrets::SecretTrouble::Absent => CoreError::NoCredential {
                 address: address.to_owned(),
                 auth: auth.clone(),
             },
-            mail_runtime::SecretTrouble::Unreachable(why) => CoreError::KeyringUnreachable {
+            mail_secrets::SecretTrouble::Unreachable(why) => CoreError::KeyringUnreachable {
                 address: address.to_owned(),
                 why,
             },
@@ -476,6 +484,12 @@ impl CoreError {
 
 pub(crate) use mail_runtime::Logged;
 
+impl From<mail_secrets::CredentialError> for CoreError {
+    fn from(error: mail_secrets::CredentialError) -> Self {
+        CoreError::Runtime(error.into())
+    }
+}
+
 impl Retryable for CoreError {
     fn retry(&self) -> Retry {
         match self {
@@ -485,7 +499,7 @@ impl Retryable for CoreError {
             CoreError::Proto(e) => e.retry(),
             CoreError::PassFailed { retry, .. } => retry.clone(),
             CoreError::KeyringUnreachable { why, .. } => {
-                mail_runtime::SecretTrouble::Unreachable(why).retry()
+                mail_secrets::SecretTrouble::Unreachable(why).retry()
             }
             // A refusal of ours, or a fact about bytes already in hand: asking again gets the
             // same answer.
@@ -501,60 +515,21 @@ impl From<CoreError> for String {
     }
 }
 
-impl From<TimeError> for String {
-    fn from(error: TimeError) -> Self {
-        error.to_string()
-    }
-}
-
 impl From<mail_runtime::unsubscribe::UnsubscribeFailure> for CoreError {
     fn from(failure: mail_runtime::unsubscribe::UnsubscribeFailure) -> Self {
         CoreError::Runtime(mail_runtime::RuntimeError::Unsubscribe(failure))
     }
 }
 
-/// A time that was typed and could not be read, or cannot be used.
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-pub enum TimeError {
-    #[error("{hour}:00 is not a time")]
-    NotAnHour { hour: u32 },
-    #[error("no tomorrow")]
-    NoTomorrow,
-    /// A daylight-saving jump skipped it, or the zone has no such instant.
-    #[error("that local time does not exist")]
-    NoLocalTime,
-    #[error(
-        "{phrase:?} is not a time I know. Try: later, tonight, tomorrow, tomorrow 9, weekend, \
-         monday…sunday, fri 17:00, +2h, +3d, 2026-09-25, or \"2026-09-25 14:30\""
-    )]
-    Unknown { phrase: String },
-    #[error("{rest:?} is not a number of minutes, hours or days")]
-    NotACount { rest: String },
-    #[error("a snooze goes forwards")]
-    Backwards,
-    #[error("{unit:?} is not m, h or d")]
-    BadUnit { unit: String },
-    #[error("{rest:?} is longer than a mail client can wait")]
-    TooLong { rest: String },
-    /// A reminder was asked for with no time given.
-    #[error("Type a time: tomorrow 9, fri 17:00, +3d, 2026-10-02")]
-    Blank,
-    #[error("{stamp} has already passed. Pick a later time.")]
-    Passed { stamp: String },
-    #[error("{text:?} is not a date: write 2026-10-08 or 2026-10-08T09:00")]
-    NotADate { text: String },
-    #[error("{text} does not exist in this time zone")]
-    NoSuchInstant { text: String },
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mail_runtime::{Failure, RuntimeError};
+    use mail_net::Failure;
+    use mail_secrets::{CredentialError, SecretTrouble};
     use porter_secrets::SecretsError;
 
-    fn read_failed(why: SecretsError) -> RuntimeError {
-        RuntimeError::Secrets(Failure::caused(why))
+    fn read_failed(why: SecretsError) -> SecretTrouble {
+        SecretTrouble::of(&CredentialError::Secrets(Failure::caused(why)))
     }
 
     /// A locked keyring asked the person to sign in again, which fixed nothing: only a missing
@@ -568,7 +543,7 @@ mod tests {
         let missing = CoreError::unread_credential(
             "a@example.test",
             &auth,
-            &read_failed(SecretsError::Missing),
+            read_failed(SecretsError::Missing),
         );
         assert!(
             matches!(missing, CoreError::NoCredential { .. }),
@@ -580,7 +555,7 @@ mod tests {
         let locked = CoreError::unread_credential(
             "a@example.test",
             &auth,
-            &read_failed(SecretsError::Locked),
+            read_failed(SecretsError::Locked),
         );
         assert_eq!(locked.to_string(), "a@example.test: the keyring is locked");
         assert!(matches!(locked.retry(), Retry::After(_)), "{locked:?}");
@@ -589,7 +564,7 @@ mod tests {
         let unavailable = CoreError::unread_credential(
             "a@example.test",
             &auth,
-            &read_failed(SecretsError::Unavailable),
+            read_failed(SecretsError::Unavailable),
         );
         assert_eq!(
             unavailable.to_string(),

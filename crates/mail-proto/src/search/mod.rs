@@ -22,7 +22,7 @@ pub mod imap;
 pub mod jmap;
 
 use chrono::{DateTime, Datelike, NaiveDate, Utc};
-use mail_domain::{DateRange, Filter, MailboxRole, TextMatch, Words};
+use mail_domain::{DateRange, Filter, MailboxRole, MessageId, TextMatch, Words};
 use porter_core::AccountId;
 
 /// What of a query cannot be asked of a server faithfully, each as the words a person typed or
@@ -45,6 +45,39 @@ impl std::fmt::Display for Unsaid {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.0.join(", "))
     }
+}
+
+/// What a search of the server found, now held here.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ServerHits {
+    /// Every message the server named that is held here now, newest first by the server's
+    /// order, each once: those already held, and those this search brought.
+    pub messages: Vec<MessageId>,
+    /// How many of them this search brought: headers fetched, messages new to this computer.
+    pub fetched: usize,
+    /// How many more the server matched than were taken, at least. Graph says only whether
+    /// there is another page, which counts as one.
+    pub more: u64,
+}
+
+impl ServerHits {
+    /// Add `held` in order, each message once.
+    pub fn hold(&mut self, held: impl IntoIterator<Item = MessageId>) {
+        for id in held {
+            if !self.messages.contains(&id) {
+                self.messages.push(id);
+            }
+        }
+    }
+}
+
+/// What asking the server came to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Searched {
+    /// The server was asked, or nothing needed asking.
+    Found(ServerHits),
+    /// Nothing was sent: these parts of the query cannot be asked of this server faithfully.
+    Unsaid(Unsaid),
 }
 
 /// A query ready for a server, or an answer known without asking one.

@@ -10,9 +10,9 @@ use std::collections::HashMap;
 
 use chrono::Utc;
 
-use super::super::contacts::book::suggest;
-use super::super::history::History;
 use mail_client::search::{PersonHit, Results, Top};
+use mail_ui_kit::book::suggest;
+use mail_ui_kit::history::History;
 
 /// People rows under the top hit.
 const PEOPLE_CAP: usize = 3;
@@ -20,7 +20,7 @@ const PEOPLE_CAP: usize = 3;
 /// The words of a search bar query a person could be found by: its free words and phrases, without
 /// the operators. `from:dana spec` is `spec`.
 pub(in crate::ui) fn free_words(query: &str) -> String {
-    let parsed = mail_client::search::parse(query, &Utc, &mail_client::query::unnamed);
+    let parsed = mail_client::search::parse(query, &Utc, &mail_logic::query::unnamed);
     let mut words = parsed.query_words();
     words.extend(parsed.phrases.iter().cloned());
     words.join(" ")

@@ -239,26 +239,20 @@ fn queue(
         },
     )?;
     let frozen = store.blobs().put(&post.message)?;
-    let queued = store.enqueue(
+    // Named like a draft because the outbox keys a submission by one; no draft row exists, which
+    // the drain already treats as "nothing to mark", as for a receipt. A reply that left cannot
+    // be taken back by a patch; answering again is how.
+    let commit = crate::compose::freeze::unattached(
         original.account.clone(),
-        // Named like a draft because the outbox keys a submission by one; no draft row
-        // exists, which the drain already treats as "nothing to mark", as for a receipt.
-        RemoteIntent::Send {
-            draft: id,
-            raw: frozen,
-            mail_from: post.mail_from.clone(),
-            rcpt_to: post.rcpt_to.clone(),
-            delivery: post.delivery,
-        },
-        // A reply that left cannot be taken back by a patch; answering again is how.
-        &Patch {
-            id: ChangeId::generate(),
-            changes: Vec::new(),
-        },
+        id,
+        (&post, frozen),
         now,
-    )?;
-    if queued.is_none() {
-        return Err(CoreError::AnswerNotQueued);
+        crate::compose::freeze::Ids::generate(),
+    );
+    match store.commit(&commit) {
+        Ok(_) => {}
+        Err(mail_store::StoreError::NotQueued) => return Err(CoreError::AnswerNotQueued),
+        Err(other) => return Err(other.into()),
     }
     Ok(post.rcpt_to)
 }
@@ -313,7 +307,7 @@ fn human_text(
     let title = invite.title.as_deref().unwrap_or("(no title)");
     // Written for the organiser, in their zone or in UTC: their clock is not known here, and
     // twenty-four hours is the reading no one takes for the other half of the day.
-    let when = say_when(&invite.when, &Utc, crate::when::Clock::H24);
+    let when = say_when(&invite.when, &Utc, mail_logic::when::Clock::H24);
     let mut out = format!(
         "{who} has {} the invitation to \"{}\".\r\n",
         match attendance {

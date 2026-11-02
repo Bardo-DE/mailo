@@ -1,15 +1,15 @@
 //! CardDAV against a server in this process.
 //!
-//! No network. The "server" is a `TcpListener` behind TLS with the certificate `tls_fixture`
+//! No network. The "server" is a `TcpListener` behind TLS with the certificate `mail_net::testing::tls`
 //! serves, at `dav.test`, and the client is told to trust it and to resolve that name to the
 //! listener. It keeps an address book in memory and answers the requests RFC 6352,
 //! RFC 6578 and RFC 6764 describe — well-known redirect, principal, home set, `sync-collection`
 //! with tokens, `addressbook-multiget` and an etag `PROPFIND` — from that book, so a test can
 //! change a card between syncs and watch the change arrive.
 
-use crate::tls_fixture::{header, read_request, reply, root, serve_tls};
 use mail_domain::id::account_id_from_uuid;
 use mail_domain::{Retry, Retryable};
+use mail_net::testing::tls::{header, read_request, reply, root, serve_tls};
 use mail_runtime::RuntimeError;
 use mail_runtime::carddav::{self, CardDavFailure, Dav, DavAuth, How};
 use mail_store::{AddressBook, Edit, GroupHome, GroupId, MemoryStore, Origin, Store};
@@ -597,6 +597,7 @@ async fn a_card_leaving_the_book_hands_an_address_back_to_mail_and_spares_a_hand
                 provider_threads: Vec::new(),
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
 
@@ -719,7 +720,7 @@ fn group_card(name: &str, uid: &str, members: &[&str]) -> String {
 /// A member naming a card no book here holds.
 const NOBODY_HERE: &str = "urn:uuid:ffffffff-0000-4000-8000-000000000000";
 
-/// Rename the group `id` and add `add` to it, as the Contacts sheet does.
+/// Rename the group `id` and add `add` to it, as the window does.
 fn edit_group(store: &MemoryStore, id: &GroupId, name: &str, add: &str) {
     let mut group = store.group(id).unwrap().unwrap();
     group.name = name.to_owned();
