@@ -80,22 +80,22 @@ dioxus = { version = "0.7" }
 # display). quire re-exports only `StandardAction`; mailo names `Action`, `AppAction`, `Context` and
 # `Chord` as well. The rev quire pins (`docs/workspace-deps.toml`), so one chordkit is built.
 chordkit = { git = "https://github.com/PoHsuanLai/chordkit.git", rev = "99eec9ddd03ee345b669fcc7954ed44590724290" }
-ds = { git = "https://github.com/PoHsuanLai/quire.git", rev = "e19728b7ee9e369d360c646bf5e7ed559bc3d6f9" }  # e19728b7 (v0.3.58; forks blitz 841386a7, blitz-kit fd08b468)
+ds = { git = "https://github.com/PoHsuanLai/quire.git", rev = "2b3d8aff2c4808016822c5c3ec6c1ae03be51f78" }  # 2b3d8aff (v0.3.58 + scroll-together; forks blitz 841386a7, blitz-kit 5b5380d0)
 # Settings I/O: `appearance.toml` (imported once from `appearance.json`), the settings portal.
-ds-settings = { git = "https://github.com/PoHsuanLai/quire.git", rev = "e19728b7ee9e369d360c646bf5e7ed559bc3d6f9", features = ["dioxus"] }  # e19728b7 (v0.3.58; forks blitz 841386a7, blitz-kit fd08b468)
+ds-settings = { git = "https://github.com/PoHsuanLai/quire.git", rev = "2b3d8aff2c4808016822c5c3ec6c1ae03be51f78", features = ["dioxus"] }  # 2b3d8aff (v0.3.58 + scroll-together; forks blitz 841386a7, blitz-kit 5b5380d0)
 # The account sheets' views: `ds_shell::accounts`, the parts `sill` draws the same sheet with.
 # Only the accounts module is used; the shell's own surfaces (bar, dock, lock) are not drawn here.
-ds-shell = { git = "https://github.com/PoHsuanLai/quire.git", rev = "e19728b7ee9e369d360c646bf5e7ed559bc3d6f9" }  # e19728b7 (v0.3.58; forks blitz 841386a7, blitz-kit fd08b468)
+ds-shell = { git = "https://github.com/PoHsuanLai/quire.git", rev = "2b3d8aff2c4808016822c5c3ec6c1ae03be51f78" }  # 2b3d8aff (v0.3.58 + scroll-together; forks blitz 841386a7, blitz-kit 5b5380d0)
 # `mailo.toml`, and the `appearance.toml` written once on the first run after the move.
 toml = "1"
 # The test driver (`Harness`, `Driver`, `Query`, `snapshot`; `pdf` is `Harness::pdf` for the print
 # tests), named by `testing` and by the window's own tests.
-ds-harness = { optional = true, git = "https://github.com/PoHsuanLai/quire.git", rev = "e19728b7ee9e369d360c646bf5e7ed559bc3d6f9", features = ["pdf"] }  # e19728b7 (v0.3.58; forks blitz 841386a7, blitz-kit fd08b468)
+ds-harness = { optional = true, git = "https://github.com/PoHsuanLai/quire.git", rev = "2b3d8aff2c4808016822c5c3ec6c1ae03be51f78", features = ["pdf"] }  # 2b3d8aff (v0.3.58 + scroll-together; forks blitz 841386a7, blitz-kit 5b5380d0)
 # The window: quire's Blitz host (the window, its fonts, focus, clipboard, PDF output), and
 # `print`: the system's print dialog for a PDF (the desktop portal on Linux, else the PDF opened
 # in the viewer); `spell`: the composer's spelling, against the system's Hunspell dictionaries
 # (none is bundled); `pdf` also rasterises a PDF attachment's first page (`PdfFileThumb`).
-ds-blitz = { git = "https://github.com/PoHsuanLai/quire.git", rev = "e19728b7ee9e369d360c646bf5e7ed559bc3d6f9", features = ["pdf", "print", "spell"] }  # e19728b7 (v0.3.58; forks blitz 841386a7, blitz-kit fd08b468)
+ds-blitz = { git = "https://github.com/PoHsuanLai/quire.git", rev = "2b3d8aff2c4808016822c5c3ec6c1ae03be51f78", features = ["pdf", "print", "spell"] }  # 2b3d8aff (v0.3.58 + scroll-together; forks blitz 841386a7, blitz-kit 5b5380d0)
 blitz-dom = { workspace = true }
 dioxus-native-dom = { workspace = true }
 base64 = "0.22"
@@ -166,7 +166,7 @@ tokio = { version = "1", features = ["test-util"] }
 dioxus-ssr = "0.7"
 uuid = { workspace = true }
 # The linter (`lint::assert_clean`, the markup lint): quire's own crate, at the same tag.
-ds-lint = { git = "https://github.com/PoHsuanLai/quire.git", rev = "e19728b7ee9e369d360c646bf5e7ed559bc3d6f9" }  # e19728b7 (v0.3.58; forks blitz 841386a7, blitz-kit fd08b468)
+ds-lint = { git = "https://github.com/PoHsuanLai/quire.git", rev = "2b3d8aff2c4808016822c5c3ec6c1ae03be51f78" }  # 2b3d8aff (v0.3.58 + scroll-together; forks blitz 841386a7, blitz-kit 5b5380d0)
 # The throwaway certificate authority the S/MIME tests build their fixtures with.
 mail-crypto = { workspace = true, features = ["testing"] }
 # The Maildir naming the import and export tests read a file with.

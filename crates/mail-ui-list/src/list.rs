@@ -585,7 +585,7 @@ pub fn ThreadList(
                         keys,
                         row,
                         height,
-                        overscan: overscan(),
+                        overscan: Some(overscan()),
                         page_rows: PAGE_AHEAD,
                         cursor,
                         onselect: open_slot,
