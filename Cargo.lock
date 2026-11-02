@@ -5653,6 +5653,7 @@ dependencies = [
  "url",
  "uuid",
  "webbrowser",
+ "zbus",
 ]
 
 [[package]]
