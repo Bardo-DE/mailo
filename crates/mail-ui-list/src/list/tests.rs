@@ -81,12 +81,11 @@ fn the_search_shown_says_where_it_looked() {
 /// around the viewport than the few that left a fling blank.
 #[test]
 fn the_list_pages_ahead_and_mounts_around_the_viewport() {
-    assert!(super::PAGE_AHEAD >= 40, "{}", super::PAGE_AHEAD);
-    assert!(
-        (super::PAGE_AHEAD as u32) < mail_ui_kit::data::PAGE,
-        "a page must be longer than the distance paged ahead"
-    );
-    assert!(super::OVERSCAN >= 10, "{}", super::OVERSCAN);
+    const {
+        assert!(super::PAGE_AHEAD >= 40);
+        assert!((super::PAGE_AHEAD as u32) < mail_ui_kit::data::PAGE);
+        assert!(super::OVERSCAN >= 10);
+    }
 }
 
 /// A row's element is made when it is mounted: drawing a window of a long list makes that many,
@@ -118,7 +117,7 @@ fn a_page_costs_the_rows_it_shows() {
         made.set(0);
         let held = listed(n);
         for slot in &window {
-            held.draw(slot, |_, _| {
+            let _ = held.draw(slot, |_, _| {
                 made.set(made.get() + 1);
                 rsx! {}
             });
