@@ -6,8 +6,10 @@
 
 mod account_prefs;
 mod accounts;
+mod blobs;
 mod cards;
 mod changes;
+mod checkpoint;
 mod concurrency;
 mod contacts;
 mod destroy;
@@ -22,6 +24,7 @@ mod graph_remote;
 mod groups;
 mod import;
 mod in_folder;
+mod ingest_diff;
 mod ingest_to_search;
 mod jmap;
 mod junk;
@@ -47,6 +50,8 @@ mod sort_indexes;
 mod sort_orders;
 mod sqlite_capabilities;
 mod support;
+mod sweep;
+mod sweeps;
 mod templates;
 mod two_writers;
 mod upgrade;
