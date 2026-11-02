@@ -242,10 +242,11 @@ pub fn parse_vacation(args: &[String]) -> Result<VacationCmd, String> {
 /// `rules …`: run it, and say what it did. A `rules run` reports each batch on stderr as it goes.
 pub fn run(
     store: &SqliteStore,
+    accounts: &mail_logic::accounts::Accounts,
     command: &RulesCmd,
     now: DateTime<Utc>,
 ) -> Result<String, CoreError> {
-    let done = mail_core::rules::run(store, command, now, &mut |batch: RunProgress| {
+    let done = mail_core::rules::run(store, accounts, command, now, &mut |batch: RunProgress| {
         eprintln!("  {} looked at, {} matched", batch.examined, batch.matched);
     })?;
     Ok(rules_text(&done))

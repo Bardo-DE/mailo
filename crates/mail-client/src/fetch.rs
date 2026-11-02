@@ -25,6 +25,7 @@ use mail_core::schedule::{
 };
 use mail_core::sync::report::{Hooks, Offer, PassEnd, Progress, outcome};
 use mail_domain::{MailboxRef, Retry};
+use mail_logic::accounts::Accounts;
 use mail_store::{SqliteStore, Store};
 use parking_lot::Mutex;
 use porter_core::AccountId;
@@ -48,7 +49,7 @@ pub type Listen = Arc<
 >;
 
 /// Which accounts the server can push to: the signature of `mail_core::sync::live::pushing`.
-pub type Pushers = Arc<dyn Fn(&SqliteStore) -> Vec<AccountId> + Send + Sync>;
+pub type Pushers = Arc<dyn Fn(&SqliteStore, &Accounts) -> Vec<AccountId> + Send + Sync>;
 
 /// The accounts whose server pushes, as the store keeps them: what a program's [`Seams`] say.
 pub fn pushers() -> Pushers {
@@ -207,12 +208,13 @@ pub(crate) struct Fetcher {
     outbox: tokio::sync::Notify,
 }
 
-/// Which accounts there are to fetch, and how often each wants a pass.
-fn intervals(seams: &Seams, store: &SqliteStore) -> Vec<(AccountId, Duration)> {
-    match &seams.config {
-        Some(dir) => mail_core::sync::due::intervals_with(store, &mail_core::offline::load(dir)),
-        None => mail_core::sync::due::intervals(store),
-    }
+/// The accounts as the store and the person's settings have them now.
+fn read_accounts(seams: &Seams, store: &SqliteStore) -> Accounts {
+    let settings = mail_core::gather::settings(seams.config.as_deref(), Default::default());
+    mail_core::gather::accounts(store, &settings).unwrap_or_else(|why| {
+        log::warn!("the accounts could not be read: {why}");
+        Accounts::default()
+    })
 }
 
 impl Fetcher {
@@ -236,9 +238,10 @@ impl Fetcher {
     /// Find the accounts to fetch and where each one's link stands, and tell the scheduler. Reads
     /// the store, so it is called on the fetching thread and never on the caller's.
     fn begin(&self, store: &SqliteStore, now: DateTime<Utc>) {
-        let every = intervals(&self.seams, store);
+        let accounts = read_accounts(&self.seams, store);
+        let every = mail_core::sync::due::intervals(&accounts);
         let links = schedule::initial(store, &every, now);
-        let pushed = (self.seams.pushers)(store);
+        let pushed = (self.seams.pushers)(store, &accounts);
         self.change(|fetched| {
             fetched.links = links;
             fetched.began = true;
@@ -271,8 +274,9 @@ impl Fetcher {
 
     /// The accounts may have changed: tell the scheduler when they have.
     pub(crate) fn accounts(&self, store: &SqliteStore) {
-        let now = intervals(&self.seams, store);
-        let pushed_now = (self.seams.pushers)(store);
+        let accounts = read_accounts(&self.seams, store);
+        let now = mail_core::sync::due::intervals(&accounts);
+        let pushed_now = (self.seams.pushers)(store, &accounts);
         let mut every = self.every.lock();
         let mut pushed = self.pushed.lock();
         if *every != now || *pushed != pushed_now {
@@ -383,7 +387,9 @@ impl Host for ClientHost {
     }
 
     fn pushers(&self) -> Vec<AccountId> {
-        (self.fetcher().seams.pushers)(self.shared.store())
+        let fetcher = self.fetcher();
+        let accounts = read_accounts(&fetcher.seams, self.shared.store());
+        (fetcher.seams.pushers)(self.shared.store(), &accounts)
     }
 
     fn folder_in_flight(&self, account: &AccountId) -> bool {

@@ -4,20 +4,20 @@
 //! that `sync` and `watch` read a pass the same way: a watch that reported one differently from
 //! the command that runs one pass would be two vocabularies for one event.
 
-use mail_core::SqliteStore;
 use mail_core::sync::report::{AccountReport, PassEnd, Watched};
 use mail_domain::Retry;
+use mail_logic::accounts::Accounts;
 use std::fmt::Write as _;
 
 /// What `mailo sync` prints for a run over every account.
 ///
-/// `store` is asked only when no account ran, to say which of the two reasons that was.
-pub fn run_text(store: &SqliteStore, ends: &[PassEnd]) -> String {
+/// `accounts` is asked only when no account ran, to say which of the two reasons that was.
+pub fn run_text(accounts: &Accounts, ends: &[PassEnd]) -> String {
     if ends.is_empty() {
-        return nothing(!mail_core::sync::addresses(store).is_empty()).to_owned();
+        return nothing(!accounts.is_empty()).to_owned();
     }
     ends.iter()
-        .map(|end| format!("{}{}", pass_text(end), sign_in_hint(store, end)))
+        .map(|end| format!("{}{}", pass_text(end), sign_in_hint(accounts, end)))
         .collect()
 }
 
@@ -26,7 +26,7 @@ pub fn run_text(store: &SqliteStore, ends: &[PassEnd]) -> String {
 ///
 /// `mail-core` words the refusal without a command and classifies it ([`Retry::NeedsReauth`]);
 /// how to mend it depends on how the account signs in, which the store knows.
-pub fn sign_in_hint(store: &SqliteStore, end: &PassEnd) -> String {
+pub fn sign_in_hint(accounts: &Accounts, end: &PassEnd) -> String {
     let address = match end {
         PassEnd::Failed {
             address,
@@ -43,7 +43,7 @@ pub fn sign_in_hint(store: &SqliteStore, end: &PassEnd) -> String {
         }
         _ => return String::new(),
     };
-    let remedy = mail_core::sync::sign_in_remedy(store, address);
+    let remedy = mail_core::sync::sign_in_remedy(accounts, address);
     format!(
         "  {}\n",
         super::remedy::words(&remedy).replace('\n', "\n  ")
@@ -161,6 +161,10 @@ fn meaning(diagnosis: mail_proto::Diagnosis) -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    fn accounts_of(store: &mail_core::SqliteStore) -> mail_logic::accounts::Accounts {
+        mail_core::gather::accounts(store, &Default::default()).unwrap()
+    }
+
     use super::*;
     use mail_core::fetch::Pause;
     use mail_core::sync::report::{Counts, Trouble};
@@ -225,9 +229,12 @@ mod tests {
             offer: None,
         };
         let dir = tempfile::tempdir().unwrap();
-        let store = SqliteStore::in_memory(dir.path()).unwrap();
+        let store = mail_core::SqliteStore::in_memory(dir.path()).unwrap();
         assert_eq!(
-            run_text(&store, &[finished(Counts::default(), Vec::new()), failed]),
+            run_text(
+                &accounts_of(&store),
+                &[finished(Counts::default(), Vec::new()), failed]
+            ),
             "ada@example.test: 0 headers, 0 bodies, 0 queued operations settled, 0 sent\n\
              bob@example.test: cannot connect\n"
         );
@@ -236,8 +243,8 @@ mod tests {
     #[test]
     fn syncing_with_no_accounts_explains_how_to_add_one() {
         let dir = tempfile::tempdir().unwrap();
-        let store = SqliteStore::in_memory(dir.path()).unwrap();
-        let out = run_text(&store, &[]);
+        let store = mail_core::SqliteStore::in_memory(dir.path()).unwrap();
+        let out = run_text(&accounts_of(&store), &[]);
         assert!(out.contains("mailo account add"), "{out}");
     }
 
@@ -288,7 +295,7 @@ mod tests {
     #[test]
     fn a_pass_refused_its_sign_in_is_told_how_to_sign_in_and_another_is_not() {
         let dir = tempfile::tempdir().unwrap();
-        let store = SqliteStore::in_memory(dir.path()).unwrap();
+        let store = mail_core::SqliteStore::in_memory(dir.path()).unwrap();
         let ended = |retry| PassEnd::Failed {
             account: acct_account(),
             address: "ada@example.test".to_owned(),
@@ -298,18 +305,21 @@ mod tests {
             offer: None,
         };
         assert_eq!(
-            sign_in_hint(&store, &ended(Retry::NeedsReauth)),
+            sign_in_hint(&accounts_of(&store), &ended(Retry::NeedsReauth)),
             "  sign in again with `mailo account add ada@example.test`\n"
         );
-        assert_eq!(sign_in_hint(&store, &ended(Retry::Now)), "");
+        assert_eq!(sign_in_hint(&accounts_of(&store), &ended(Retry::Now)), "");
         let silent = Trouble {
             mailbox: None,
             retry: Retry::NeedsReauth,
             why: None,
         };
         assert!(
-            sign_in_hint(&store, &finished(Counts::default(), vec![silent]))
-                .contains("mailo account add")
+            sign_in_hint(
+                &accounts_of(&store),
+                &finished(Counts::default(), vec![silent])
+            )
+            .contains("mailo account add")
         );
     }
 }

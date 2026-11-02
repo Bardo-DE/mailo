@@ -38,9 +38,10 @@ fn store_at(port: u16) -> Arc<SqliteStore> {
 async fn a_missing_credential_fails_the_account_as_needing_a_sign_in() {
     let store = store_at(1);
     let ends = run_with(
-        store,
+        store.clone(),
         Arc::new(MemorySecrets::default()),
         &ClientRegistry::default(),
+        &crate::gather::accounts(&store, &Default::default()).unwrap(),
         now(),
         Hooks::default(),
     )
@@ -59,9 +60,10 @@ async fn an_unreachable_server_fails_the_account_with_a_wait() {
     let secrets = MemorySecrets::default();
     with_password(&secrets, "s3cr3t-pass");
     let ends = run_with(
-        store,
+        store.clone(),
         Arc::new(secrets),
         &ClientRegistry::default(),
+        &crate::gather::accounts(&store, &Default::default()).unwrap(),
         now(),
         Hooks::default(),
     )
@@ -91,6 +93,7 @@ async fn how_a_pass_ended_is_kept_in_the_store() {
         store.clone(),
         secrets,
         &ClientRegistry::default(),
+        &crate::gather::accounts(&store, &Default::default()).unwrap(),
         later,
         Hooks::default(),
     )
@@ -120,9 +123,10 @@ async fn a_mailbox_that_fails_lands_in_trouble_with_its_decision() {
     let secrets = MemorySecrets::default();
     with_password(&secrets, "s3cr3t-pass");
     let ends = run_with(
-        store,
+        store.clone(),
         Arc::new(secrets),
         &ClientRegistry::default(),
+        &crate::gather::accounts(&store, &Default::default()).unwrap(),
         now(),
         Hooks::default(),
     )

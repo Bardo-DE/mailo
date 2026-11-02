@@ -24,10 +24,14 @@ impl crate::mail::SyncOps<'_> {
         let registry = mail
             .clients()
             .map_err(|e| (Retry::Fatal(e.to_string()), e.to_string()))?;
+        let accounts = mail
+            .roster()
+            .map_err(|e| (Retry::Fatal(e.to_string()), e.to_string()))?;
         fetch_body_with(
             mail.store().clone(),
             mail.secrets(),
             &registry,
+            &accounts,
             message,
             mail.now(),
         )
@@ -40,6 +44,7 @@ pub async fn fetch_body_with(
     store: Arc<SqliteStore>,
     secrets: Arc<dyn AccountSecrets>,
     registry: &ClientRegistry,
+    accounts: &Accounts,
     message: mail_domain::MessageId,
     now: chrono::DateTime<chrono::Utc>,
 ) -> Result<(), (Retry, String)> {
@@ -49,13 +54,9 @@ pub async fn fetch_body_with(
         .message(message)
         .map_err(|e| fatal(e.to_string()))?
         .account;
-    let account = configured(&store)
-        .map_err(|e| fatal(e.to_string()))?
-        .into_iter()
-        .find(|a| a.id == owner)
-        .ok_or_else(|| {
-            fatal("the account this message belongs to is no longer configured".to_owned())
-        })?;
+    let account = connected_one(accounts, &owner).ok_or_else(|| {
+        fatal("the account this message belongs to is no longer configured".to_owned())
+    })?;
     let run = Run {
         store: &store,
         secrets,

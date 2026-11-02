@@ -726,6 +726,7 @@ fn keep(
 /// Returns the account, so the caller can drain its outbox, and what was queued.
 pub fn queue_uploads(
     store: &SqliteStore,
+    accounts: &mail_logic::accounts::Accounts,
     address: &str,
     folder: &str,
     source: &Source,
@@ -733,9 +734,9 @@ pub fn queue_uploads(
     progress: &mut dyn FnMut(&Imported),
 ) -> Result<(AccountId, Imported), CoreError> {
     let address = address.to_lowercase();
-    let account = crate::sync::configured(store)?
-        .into_iter()
-        .find(|a| a.address == address)
+    let account = accounts
+        .by_address(&address)
+        .and_then(crate::sync::Configured::of)
         .ok_or_else(|| CoreError::NoAccountFor {
             address: address.clone(),
         })?;

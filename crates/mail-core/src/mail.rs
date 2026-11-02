@@ -128,6 +128,9 @@ pub struct Mail {
     clock: Arc<dyn Clock>,
     runtime: Handle,
     junk: mail_logic::junk::Policy,
+    /// Where the person's syncing choices are kept ([`crate::offline`]); none, in a test, means
+    /// every account at the defaults.
+    config: Option<std::path::PathBuf>,
 }
 
 impl std::fmt::Debug for Mail {
@@ -152,6 +155,7 @@ impl Mail {
             clock: Arc::new(SystemClock),
             runtime,
             junk: mail_logic::junk::Policy::default(),
+            config: None,
         }
     }
 
@@ -160,6 +164,29 @@ impl Mail {
     pub fn with_junk(mut self, junk: mail_logic::junk::Policy) -> Self {
         self.junk = junk;
         self
+    }
+
+    /// With the person's syncing choices read from `offline.json` under `config`: the program's
+    /// config directory, which the edge knows and nothing below it asks for.
+    #[must_use]
+    pub fn with_config(mut self, config: Option<std::path::PathBuf>) -> Self {
+        self.config = config;
+        self
+    }
+
+    /// Where the person's syncing choices are kept, when the program said.
+    pub(crate) fn config_dir(&self) -> Option<&std::path::Path> {
+        self.config.as_deref()
+    }
+
+    /// The settings the accounts are read with, as they are on disk now.
+    pub fn settings(&self) -> mail_logic::accounts::Settings {
+        crate::gather::settings(self.config.as_deref(), self.junk)
+    }
+
+    /// Every account as a value, read now ([`crate::gather::accounts`]).
+    pub fn roster(&self) -> Result<mail_logic::accounts::Accounts, crate::CoreError> {
+        crate::gather::accounts(&self.store, &self.settings())
     }
 
     /// How the junk filter behaves on what a sync brings.

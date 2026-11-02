@@ -612,6 +612,7 @@ fn sync_never_touches_the_local_account() {
         store.clone(),
         secrets.clone(),
         &ClientRegistry::default(),
+        &mail_core::gather::accounts(&store, &Default::default()).unwrap(),
         now(),
         Default::default(),
     ))
@@ -622,7 +623,10 @@ fn sync_never_touches_the_local_account() {
         "a credential was asked for"
     );
     assert!(ends.is_empty(), "an account with no server was passed over");
-    let said = cli::sync::run_text(&store, &ends);
+    let said = cli::sync::run_text(
+        &mail_core::gather::accounts(&store, &Default::default()).unwrap(),
+        &ends,
+    );
     assert!(said.contains("kept on this computer"), "{said}");
     assert_eq!(every_message(&store, local_account(&store)), before);
 

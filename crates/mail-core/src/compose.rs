@@ -265,7 +265,7 @@ pub fn sending_accounts(store: &SqliteStore) -> Vec<(String, AccountId)> {
     else {
         return Vec::new();
     };
-    // Read row by row rather than through `sync::configured`, which gives up on the whole list
+    // Read row by row rather than through `gather::accounts`, which gives up on the whole list
     // when one plan does not parse: an account whose plan cannot be read is still offered, as it
     // always was, and only a plan that says Local is left out.
     let keeps_locally = |plan: &Result<AccountPlan, mail_store::StoreError>| {

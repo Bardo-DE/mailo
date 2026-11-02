@@ -557,7 +557,12 @@ mod folder {
             work: FolderWork,
             now: DateTime<Utc>,
         ) -> Result<Applied, Refusal> {
-            mail_core::folder::change(self.0.store(), account, work, now)
+            let accounts = self
+                .0
+                .net()
+                .roster()
+                .map_err(|e| Refusal::Store(e.to_string()))?;
+            mail_core::folder::change(self.0.store(), &accounts, account, work, now)
         }
     }
 }
@@ -1287,7 +1292,8 @@ mod transfer {
             now: DateTime<Utc>,
             progress: &mut dyn FnMut(&Imported),
         ) -> Result<(Imported, Option<AccountId>), CallError> {
-            mail_core::transfer::import_into(self.0.store(), source, into, now, progress)
+            let accounts = self.0.net().roster()?;
+            mail_core::transfer::import_into(self.0.store(), &accounts, source, into, now, progress)
                 .map_err(crate::CallError::from)
         }
 

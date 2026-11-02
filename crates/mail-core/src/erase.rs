@@ -108,7 +108,12 @@ pub fn due(policy: &Policy, binned: &Binned, local: bool, now: DateTime<Utc>) ->
 /// Erase what `policy` says is due, here and on the server (the deletion leaves with the next
 /// pass). Returns the messages erased. Nothing is read or written when the policy is
 /// [`Policy::idle`].
-pub fn sweep(store: &SqliteStore, policy: &Policy, now: DateTime<Utc>) -> Vec<MessageId> {
+pub fn sweep(
+    store: &SqliteStore,
+    accounts: &mail_logic::accounts::Accounts,
+    policy: &Policy,
+    now: DateTime<Utc>,
+) -> Vec<MessageId> {
     if policy.idle() {
         return Vec::new();
     }
@@ -118,7 +123,7 @@ pub fn sweep(store: &SqliteStore, policy: &Policy, now: DateTime<Utc>) -> Vec<Me
     else {
         return Vec::new();
     };
-    let local: Vec<AccountId> = crate::sync::local_accounts(store);
+    let local: Vec<AccountId> = accounts.local();
     let mut by_thread: BTreeMap<ThreadId, Vec<MessageId>> = BTreeMap::new();
     for one in binned
         .iter()

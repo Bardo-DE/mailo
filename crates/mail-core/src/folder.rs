@@ -9,6 +9,7 @@ use crate::error::{CoreError, Logged};
 use chrono::{DateTime, Utc};
 use mail_domain::folder::{FolderContents, FolderCtx, plan};
 use mail_domain::{Applied, Folder, FolderError, FolderWork, Incoming, MailboxRef};
+use mail_logic::accounts::Accounts;
 use mail_store::{SqliteStore, Store};
 use porter_core::AccountId;
 
@@ -32,15 +33,12 @@ pub enum Refusal {
 /// with `inverse`. A refusal changes nothing.
 pub fn change(
     store: &SqliteStore,
+    accounts: &Accounts,
     account: AccountId,
     work: FolderWork,
     now: DateTime<Utc>,
 ) -> Result<Applied, Refusal> {
-    let configured = crate::sync::configured(store)
-        .map_err(|e| Refusal::Store(e.to_string()))?
-        .into_iter()
-        .find(|c| c.id == account)
-        .ok_or(Refusal::NoAccount)?;
+    let configured = crate::sync::connected_one(accounts, &account).ok_or(Refusal::NoAccount)?;
     let failed = |e: mail_store::StoreError| Refusal::Store(e.to_string());
     let folders = store.folders(account.clone()).map_err(failed)?;
     let labels = store.labels(account.clone()).map_err(failed)?;
@@ -104,9 +102,10 @@ pub struct AccountFolders {
 /// Every folder, per account; `account` narrows it to one.
 pub fn list(
     store: &SqliteStore,
+    accounts: &Accounts,
     account: Option<AccountId>,
 ) -> Result<Vec<AccountFolders>, CoreError> {
-    let accounts = crate::sync::configured(store)?;
+    let accounts = crate::sync::connected(accounts);
     if accounts.is_empty() {
         return Err(CoreError::NoAccounts);
     }

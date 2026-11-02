@@ -264,12 +264,20 @@ fn follow_accounts(store: &Arc<SqliteStore>) -> mail_agent::ipc::watching::Asked
                     let _ = tx.send(());
                 })
             });
-            let mut known = mail_core::sync::due::intervals(&store);
+            let mail = mail_edge::mail(&store);
+            let intervals = || match mail.roster() {
+                Ok(accounts) => mail_core::sync::due::intervals(&accounts),
+                Err(why) => {
+                    log::warn!("the accounts could not be read: {why}");
+                    Vec::new()
+                }
+            };
+            let mut known = intervals();
             let mut looked = Some(Instant::now());
             loop {
                 wait_to_look(&written, looked, ACCOUNTS_EVERY, ACCOUNTS_GAP);
                 looked = Some(Instant::now());
-                let now = mail_core::sync::due::intervals(&store);
+                let now = intervals();
                 if now != known {
                     known = now;
                     moved.send_modify(|count| *count = count.wrapping_add(1));

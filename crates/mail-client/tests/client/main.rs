@@ -559,7 +559,7 @@ fn counting() -> (mail_client::fetch::Seams, Arc<Mutex<Vec<AccountId>>>) {
                 why: "no watch here".to_owned(),
             })
         }),
-        pushers: Arc::new(|_| Vec::new()),
+        pushers: Arc::new(|_, _| Vec::new()),
         config: None,
         announce: None,
         daemon: Arc::new(|| mail_core::schedule::Daemon::Absent),
@@ -737,7 +737,7 @@ fn asking_to_fetch_reads_the_store_on_the_fetching_thread_and_not_the_askers() {
     let asker = std::thread::current().id();
     let readers: Arc<Mutex<Vec<std::thread::ThreadId>>> = Arc::default();
     let seen = readers.clone();
-    seams.pushers = Arc::new(move |_| {
+    seams.pushers = Arc::new(move |_, _| {
         seen.lock().unwrap().push(std::thread::current().id());
         Vec::new()
     });
