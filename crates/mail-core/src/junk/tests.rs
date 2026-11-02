@@ -47,6 +47,7 @@ fn stored(store: &SqliteStore, mut message: Message, raw: &[u8]) -> Message {
                 id: ChangeId::generate(),
                 changes: vec![Change::MessageUpsert(Box::new(message.clone()))],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     message
@@ -308,6 +309,7 @@ fn mail_whose_body_has_not_come_is_not_judged() {
                 id: ChangeId::generate(),
                 changes: vec![Change::MessageUpsert(Box::new(arriving.clone()))],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     let sifted = sift(&store, account(), &caps(), &[arriving.id], &on(), at(1000)).unwrap();
@@ -368,6 +370,7 @@ fn taking_the_junk_label_off_teaches_not_spam() {
                 id: ChangeId::generate(),
                 changes: vec![Change::LabelUpsert(label.clone())],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     let label = label.id;

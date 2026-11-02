@@ -145,7 +145,9 @@ pub fn seed(stores: &[&dyn Store], specs: &[Spec]) -> [Vec<MessageId>; 2] {
                 })
             })
             .collect();
-        store.apply(acct_account(), &patch(labels)).unwrap();
+        store
+            .apply(acct_account(), &patch(labels), chrono::Utc::now())
+            .unwrap();
     }
     for (n, spec) in specs.iter().enumerate() {
         let n = n as u128 + 1;
@@ -179,6 +181,7 @@ pub fn seed(stores: &[&dyn Store], specs: &[Spec]) -> [Vec<MessageId>; 2] {
                             Change::MessageRead(m.id, m.read),
                             Change::MessageStar(m.id, m.star),
                         ]),
+                        chrono::Utc::now(),
                     )
                     .unwrap();
                 for l in &m.labels {
@@ -186,6 +189,7 @@ pub fn seed(stores: &[&dyn Store], specs: &[Spec]) -> [Vec<MessageId>; 2] {
                         .apply(
                             acct_account(),
                             &patch(vec![Change::MessageLabel(m.id, *l, Membership::In)]),
+                            chrono::Utc::now(),
                         )
                         .unwrap();
                 }
@@ -194,6 +198,7 @@ pub fn seed(stores: &[&dyn Store], specs: &[Spec]) -> [Vec<MessageId>; 2] {
                     .apply(
                         acct_account(),
                         &patch(vec![Change::MessageUpsert(Box::new(m.clone()))]),
+                        chrono::Utc::now(),
                     )
                     .unwrap();
             }
@@ -270,14 +275,16 @@ pub fn decide(store: &dyn Store, threads: &[Vec<MessageId>; 2], step: &Step) -> 
 /// if the queue failed. The one way of writing an `Applied`, before `commit`.
 pub fn write_by_hand(store: &dyn Store, applied: &Applied, server: bool) -> Result<(), String> {
     store
-        .apply(acct_account(), &applied.forward)
+        .apply(acct_account(), &applied.forward, chrono::Utc::now())
         .map_err(|e| e.to_string())?;
     if let Some(intent) = applied.remote.clone().filter(|_| server)
         && store
             .enqueue(acct_account(), intent, &applied.inverse, at(100))
             .is_err()
     {
-        store.apply(acct_account(), &applied.inverse).ok();
+        store
+            .apply(acct_account(), &applied.inverse, chrono::Utc::now())
+            .ok();
         return Err("not queued".to_owned());
     }
     Ok(())
@@ -292,7 +299,7 @@ pub fn write_in_order(store: &dyn Store, applied: &Applied, server: bool) -> Res
                 .map_err(|e| e.to_string())?;
         }
         return store
-            .apply(acct_account(), &applied.forward)
+            .apply(acct_account(), &applied.forward, chrono::Utc::now())
             .map_err(|e| e.to_string());
     }
     write_by_hand(store, applied, server)
@@ -333,7 +340,7 @@ proptest! {
             let before = held(store, &threads).threads;
             let Some(applied) = decide(store, &threads, &step) else { continue };
             write_in_order(store, &applied, step.server).unwrap();
-            store.apply(acct_account(), &applied.inverse).unwrap();
+            store.apply(acct_account(), &applied.inverse, chrono::Utc::now()).unwrap();
             let mut after = held(store, &threads).threads;
             let mut before = before;
             for (_, messages) in before.iter_mut().chain(after.iter_mut()) {

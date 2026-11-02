@@ -50,6 +50,7 @@ fn deliver(store: &dyn Store, m: &Message, remotes: &[RemoteRef], labels: &[&str
                     provider_threads: Vec::new(),
                     gone: vec![],
                 },
+                chrono::Utc::now(),
             )
             .unwrap();
     }
@@ -64,6 +65,7 @@ fn deliver(store: &dyn Store, m: &Message, remotes: &[RemoteRef], labels: &[&str
                     Change::LabelUpsert(label.clone()),
                     Change::MessageLabel(m.id, label.id, Membership::In),
                 ]),
+                chrono::Utc::now(),
             )
             .unwrap();
     }
@@ -127,6 +129,7 @@ fn a_listing_that_predates_queued_work_does_not_undo_it() {
             .apply(
                 acct_account(),
                 &patch(vec![Change::FolderUpsert(folder("New"))]),
+                chrono::Utc::now(),
             )
             .unwrap();
         store
@@ -184,6 +187,7 @@ fn a_rename_moves_everything_keyed_by_the_old_name() {
                     to: "Jobs".to_owned(),
                     delimiter: Some('/'),
                 }]),
+                chrono::Utc::now(),
             )
             .unwrap();
 
@@ -271,6 +275,7 @@ fn a_confirmed_delete_lets_go_of_the_mailbox_and_what_was_only_there() {
             .apply(
                 acct_account(),
                 &patch(vec![Change::FolderRemove(mailbox("Old"))]),
+                chrono::Utc::now(),
             )
             .unwrap();
         let queued = store
@@ -310,6 +315,7 @@ fn a_refused_create_is_taken_back() {
             .apply(
                 acct_account(),
                 &patch(vec![Change::FolderUpsert(folder("New"))]),
+                chrono::Utc::now(),
             )
             .unwrap();
         let queued = store
@@ -356,7 +362,11 @@ fn a_removed_label_leaves_no_trace_on_the_list() {
         deliver(store, &m, &[imap("INBOX", 1)], &["Receipts"]);
         let label = store.message(m.id).unwrap().labels[0];
         store
-            .apply(acct_account(), &patch(vec![Change::LabelRemove(label)]))
+            .apply(
+                acct_account(),
+                &patch(vec![Change::LabelRemove(label)]),
+                chrono::Utc::now(),
+            )
             .unwrap();
         (
             store.message(m.id).unwrap().labels,

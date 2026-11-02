@@ -824,6 +824,7 @@ mod sending_apart {
                     id: ChangeId::generate(),
                     changes: vec![Change::DraftUpsert(Box::new(draft.clone()))],
                 },
+                chrono::Utc::now(),
             )
             .unwrap();
         let post = mail_mime::posting(&draft, &identity, None, &[]).expect("it has a recipient");

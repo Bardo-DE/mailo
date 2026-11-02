@@ -268,6 +268,7 @@ fn schedule(store: &SqliteStore, at: DateTime<Utc>) -> Draft {
                 id: ChangeId::generate(),
                 changes: vec![Change::DraftUpsert(Box::new(draft.clone()))],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     let post = posting(&draft, &identity(), None, &[]).unwrap();

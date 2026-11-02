@@ -480,6 +480,7 @@ fn a_message_with_no_body_yet_is_skipped_and_counted() {
                     labels: vec![],
                 }],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     let chosen = export::select(&store, "inbox", now()).unwrap();
@@ -563,6 +564,7 @@ fn a_message_rebuilt_from_its_parts_is_not_exported_as_the_message_even_once_its
                     labels: vec![],
                 }],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     let chosen = export::select(&store, "inbox", now()).unwrap();
@@ -679,6 +681,7 @@ fn sync_never_touches_the_local_account() {
                 id: ChangeId::generate(),
                 changes: vec![Change::DraftUpsert(Box::new(draft.clone()))],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     let refused = compose::send(&store, draft.id, now())

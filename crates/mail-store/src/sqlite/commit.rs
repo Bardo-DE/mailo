@@ -2,6 +2,7 @@
 
 use super::SqliteStore;
 use crate::StoreError;
+use chrono::{DateTime, Utc};
 use mail_domain::commit::Written;
 use mail_domain::{Commit, Expect, OutboxId, Resolve, Row, Unplaced};
 use rusqlite::{Transaction, TransactionBehavior};
@@ -59,55 +60,69 @@ impl SqliteStore {
         }
         // A deletion is addressed while the store still knows where its messages are.
         self.queue_all(commit, Resolve::BeforeForward, &mut queued)?;
-        self.write_patch_in(&commit.forward)?;
+        self.write_patch_in(&commit.forward, commit.at)?;
         self.queue_all(commit, Resolve::AfterForward, &mut queued)?;
+        let mut keys_changed = false;
         for row in &commit.rows {
-            match row {
-                Row::JunkTaught {
-                    account,
-                    message,
-                    words,
-                    judged,
-                } => {
-                    self.junk_learn_in(account.clone(), *message, words, *judged)?;
-                }
-                Row::JunkForgotten {
-                    account,
-                    message,
-                    judged,
-                } => {
-                    self.junk_forget_in(account.clone(), *message, *judged)?;
-                }
-                Row::Withdrawn { forward, inverse } => {
-                    self.withdraw_in(*forward, inverse, commit.at)?;
-                }
-                Row::SendState { draft, state, at } => {
-                    self.set_send_state(*draft, state, *at)?;
-                }
-                Row::FollowUpHeld {
-                    draft,
-                    account,
-                    message_id,
-                    thread,
-                    due,
-                    set,
-                } => {
-                    self.hold_follow_up(&crate::FollowUpHold {
-                        draft: *draft,
-                        account: account.clone(),
-                        message_id: message_id.clone(),
-                        thread: *thread,
-                        at: *due,
-                        set: *set,
-                    })?;
-                }
-                Row::FollowUpReleased { draft } => {
-                    self.release_follow_up(*draft)?;
-                }
-                Row::Expect(_) => {}
-            }
+            keys_changed |= self.write_row(row, commit.at)?;
         }
-        Ok(Written { queued })
+        Ok(Written {
+            queued,
+            keys_changed,
+        })
+    }
+
+    /// Write one [`Row`] in the transaction the caller holds, at `at`. Whether it changed the
+    /// keys or certificates held.
+    pub(super) fn write_row(&self, row: &Row, at: DateTime<Utc>) -> Result<bool, StoreError> {
+        match row {
+            Row::JunkTaught {
+                account,
+                message,
+                words,
+                judged,
+            } => {
+                self.junk_learn_in(account.clone(), *message, words, *judged)?;
+            }
+            Row::JunkForgotten {
+                account,
+                message,
+                judged,
+            } => {
+                self.junk_forget_in(account.clone(), *message, *judged)?;
+            }
+            Row::Withdrawn { forward, inverse } => {
+                self.withdraw_in(*forward, inverse, at)?;
+            }
+            Row::SendState { draft, state, at } => {
+                self.set_send_state(*draft, state, *at)?;
+            }
+            Row::FollowUpHeld {
+                draft,
+                account,
+                message_id,
+                thread,
+                due,
+                set,
+            } => {
+                self.hold_follow_up(&crate::FollowUpHold {
+                    draft: *draft,
+                    account: account.clone(),
+                    message_id: message_id.clone(),
+                    thread: *thread,
+                    at: *due,
+                    set: *set,
+                })?;
+            }
+            Row::FollowUpReleased { draft } => {
+                self.release_follow_up(*draft)?;
+            }
+            Row::KeyLearned(taught) => {
+                return crate::learned::learn(&mut Through(self), taught);
+            }
+            Row::Expect(_) => {}
+        }
+        Ok(false)
     }
 
     /// Whether `expect` still holds, or the commit is stale.
@@ -148,5 +163,46 @@ impl SqliteStore {
             queued[at] = id;
         }
         Ok(())
+    }
+}
+
+/// The key rows of a store, read and written inside the transaction the caller holds.
+struct Through<'a>(&'a SqliteStore);
+
+impl crate::learned::Held for Through<'_> {
+    fn autocrypt_peer(
+        &mut self,
+        address: &str,
+    ) -> Result<Option<mail_domain::AutocryptPeer>, StoreError> {
+        self.0.load_autocrypt_peer(address)
+    }
+
+    fn put_autocrypt_peer(&mut self, peer: &mail_domain::AutocryptPeer) -> Result<(), StoreError> {
+        self.0.write_autocrypt_peer(peer)
+    }
+
+    fn pgp_key(
+        &mut self,
+        fingerprint: mail_domain::Fingerprint,
+    ) -> Result<Option<mail_domain::PgpKey>, StoreError> {
+        self.0.load_pgp_key(fingerprint)
+    }
+
+    fn put_pgp_key(&mut self, key: mail_domain::PgpKey) -> Result<mail_domain::PgpKey, StoreError> {
+        self.0.write_pgp_key_in(key)
+    }
+
+    fn smime_cert(
+        &mut self,
+        fingerprint: mail_domain::CertFingerprint,
+    ) -> Result<Option<mail_domain::SmimeCert>, StoreError> {
+        self.0.load_smime_cert(fingerprint)
+    }
+
+    fn put_smime_cert(
+        &mut self,
+        cert: mail_domain::SmimeCert,
+    ) -> Result<mail_domain::SmimeCert, StoreError> {
+        self.0.write_smime_cert_in(cert)
     }
 }

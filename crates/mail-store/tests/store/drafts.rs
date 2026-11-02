@@ -68,8 +68,12 @@ fn full_draft(in_reply_to: Option<MessageId>) -> Draft {
 
 fn upsert(b: &Both, draft: &Draft) {
     let patch = patch(vec![Change::DraftUpsert(Box::new(draft.clone()))]);
-    b.sqlite.apply(acct_account(), &patch).unwrap();
-    b.memory.apply(acct_account(), &patch).unwrap();
+    b.sqlite
+        .apply(acct_account(), &patch, chrono::Utc::now())
+        .unwrap();
+    b.memory
+        .apply(acct_account(), &patch, chrono::Utc::now())
+        .unwrap();
 }
 
 #[test]
@@ -164,7 +168,9 @@ fn drafts_in_both_stores_list_newest_first_resave_in_place_and_delete() {
 
     let patch = patch(vec![Change::DraftDelete(newer.id)]);
     for (label, store) in b.each() {
-        store.apply(acct_account(), &patch).unwrap();
+        store
+            .apply(acct_account(), &patch, chrono::Utc::now())
+            .unwrap();
         assert!(
             matches!(store.draft(newer.id), Err(StoreError::NoDraft(_))),
             "{label}: a deleted draft is gone"
@@ -256,8 +262,12 @@ fn ingest_one(b: &Both) -> MessageId {
         provider_threads: Vec::new(),
         gone: vec![],
     };
-    b.sqlite.ingest(acct_account(), ingest.clone()).unwrap();
-    b.memory.ingest(acct_account(), ingest).unwrap();
+    b.sqlite
+        .ingest(acct_account(), ingest.clone(), chrono::Utc::now())
+        .unwrap();
+    b.memory
+        .ingest(acct_account(), ingest, chrono::Utc::now())
+        .unwrap();
     id
 }
 

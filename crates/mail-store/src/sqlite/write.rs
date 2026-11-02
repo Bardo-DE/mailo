@@ -7,15 +7,22 @@
 use super::SqliteStore;
 use super::read::Recipients;
 use super::row::{from_time, json, to_json, uuid};
-use crate::StoreError;
 use crate::changes::Topics;
+use crate::{Ingested, StoreError};
+use chrono::{DateTime, Utc};
 use mail_domain::{
     AccountCaps, Body, Change, FolderRoles, Import, Ingest, LabelOrigin, MailboxRole, Membership,
-    Message, MessageId, Patch, RemoteRef, ThreadId, ThreadSummary, UidValidity,
+    Message, MessageId, Patch, RemoteRef, Row, ThreadId, ThreadSummary, UidValidity,
 };
 use porter_core::AccountId;
 use rusqlite::{OptionalExtension, Transaction, TransactionBehavior, params};
 use std::collections::BTreeSet;
+
+/// A time as SQLite's own `datetime('now')` writes it, which is what `sync_state.synced_at` and
+/// the blobs' times are, and what [`SqliteStore::last_synced`] reads.
+fn sqlite_time(at: DateTime<Utc>) -> String {
+    at.format("%Y-%m-%d %H:%M:%S").to_string()
+}
 
 /// A message joining a label. Written both when a message arrives and when a label is added.
 const ADD_LABEL: &str = "INSERT OR IGNORE INTO message_labels (message, label) VALUES (?1, ?2)";
@@ -142,7 +149,11 @@ fn touched_by(change: &Change) -> Topics {
 
 impl SqliteStore {
     /// Apply one domain change. Does not recompute summaries; the caller batches that.
-    pub(super) fn write_change(&self, change: &Change) -> Result<Option<ThreadId>, StoreError> {
+    pub(super) fn write_change(
+        &self,
+        change: &Change,
+        now: DateTime<Utc>,
+    ) -> Result<Option<ThreadId>, StoreError> {
         // Held for the change, so what it touches is said with the commit of the write it is
         // part of: a patch of drafts says drafts, and one of stars says summaries.
         let _writer = self.touch(touched_by(change));
@@ -213,30 +224,12 @@ impl SqliteStore {
                 Some(*id)
             }
             Change::MessageUpsert(msg) => {
-                self.upsert_message(msg)?;
+                self.upsert_message(msg, now)?;
                 Some(msg.thread)
             }
-            Change::MessageDelete(id) => {
-                let thread = self.thread_of(*id)?;
-                self.connection()
-                    .prepare_cached("DELETE FROM messages WHERE id = ?1")?
-                    .execute(params![id.to_string()])?;
-                thread
-            }
+            Change::MessageDelete(id) => self.delete_message(*id)?,
             Change::LabelUpsert(label) => {
-                self.connection()
-                    .prepare_cached(
-                        "INSERT INTO labels (id, account, name, color, origin) VALUES (?1,?2,?3,?4,?5)
-                         ON CONFLICT(id) DO UPDATE SET name=excluded.name, color=excluded.color,
-                                                       origin=excluded.origin",
-                    )?
-                    .execute(params![
-                        label.id.to_string(),
-                        label.account.to_string(),
-                        label.name,
-                        label.color,
-                        to_json("LabelOrigin", &label.origin)?,
-                    ])?;
+                self.write_label(label)?;
                 None
             }
             // A draft belongs to no thread, so there is no summary to refresh: `None`
@@ -273,6 +266,35 @@ impl SqliteStore {
             }
         };
         Ok(thread)
+    }
+
+    /// Remove a message, and say which thread it was in.
+    pub(super) fn delete_message(&self, id: MessageId) -> Result<Option<ThreadId>, StoreError> {
+        let _writer = self.touch(Topics::SUMMARIES);
+        let thread = self.thread_of(id)?;
+        self.connection()
+            .prepare_cached("DELETE FROM messages WHERE id = ?1")?
+            .execute(params![id.to_string()])?;
+        Ok(thread)
+    }
+
+    /// Write a label, new or changed.
+    pub(super) fn write_label(&self, label: &mail_domain::Label) -> Result<(), StoreError> {
+        let _writer = self.touch(Topics::LABELS);
+        self.connection()
+            .prepare_cached(
+                "INSERT INTO labels (id, account, name, color, origin) VALUES (?1,?2,?3,?4,?5)
+                 ON CONFLICT(id) DO UPDATE SET name=excluded.name, color=excluded.color,
+                                               origin=excluded.origin",
+            )?
+            .execute(params![
+                label.id.to_string(),
+                label.account.to_string(),
+                label.name,
+                label.color,
+                to_json("LabelOrigin", &label.origin)?,
+            ])?;
+        Ok(())
     }
 
     /// Where `message` is filed, if it is held.
@@ -318,7 +340,8 @@ impl SqliteStore {
             .transpose()
     }
 
-    pub(super) fn upsert_message(&self, m: &Message) -> Result<(), StoreError> {
+    /// Store `m`; a message first stored here is stamped `now`.
+    pub(super) fn upsert_message(&self, m: &Message, now: DateTime<Utc>) -> Result<(), StoreError> {
         self.connection()
             .prepare_cached(
                 "INSERT OR IGNORE INTO threads (id, account, snooze, pin)
@@ -376,7 +399,7 @@ impl SqliteStore {
                     &m.attachments,
                 ),
                 // First stored now; a conflict keeps the first (see migration 0040).
-                from_time(chrono::Utc::now()),
+                from_time(now),
                 to_json("Hue", &m.flag)?,
                 // Bytes held in an `INTEGER`, which is signed: nothing is past `i64::MAX`.
                 i64::try_from(m.size()).unwrap_or(i64::MAX),
@@ -523,19 +546,23 @@ impl SqliteStore {
     }
 
     /// Write a local patch, atomically, and rebuild whatever summaries it disturbed.
-    pub(super) fn write_patch(&self, patch: &Patch) -> Result<(), StoreError> {
+    pub(super) fn write_patch(&self, patch: &Patch, now: DateTime<Utc>) -> Result<(), StoreError> {
         let db = self.connection();
         let tx = Transaction::new_unchecked(&db, TransactionBehavior::Immediate)?;
-        self.write_patch_in(patch)?;
+        self.write_patch_in(patch, now)?;
         tx.commit()?;
         Ok(())
     }
 
     /// [`Self::write_patch`], inside a transaction the caller holds.
-    pub(super) fn write_patch_in(&self, patch: &Patch) -> Result<(), StoreError> {
+    pub(super) fn write_patch_in(
+        &self,
+        patch: &Patch,
+        now: DateTime<Utc>,
+    ) -> Result<(), StoreError> {
         let mut touched = BTreeSet::new();
         for change in &patch.changes {
-            if let Some(t) = self.write_change(change)? {
+            if let Some(t) = self.write_change(change, now)? {
                 touched.insert(t);
             }
         }
@@ -563,8 +590,14 @@ impl SqliteStore {
         &self,
         account: AccountId,
         ingest: Ingest,
-    ) -> Result<Patch, StoreError> {
+        rows: &[Row],
+        now: DateTime<Utc>,
+    ) -> Result<Ingested, StoreError> {
         let mut changes = Vec::new();
+        let mut keys_changed = false;
+        // The rows go with the first chunk's transaction, with the messages they were learnt
+        // from; a pass that writes nothing else still writes them.
+        let mut rows = Some(rows);
         // A UIDVALIDITY reset drops every remote address of the mailbox in the first chunk's
         // transaction. Split, a reader would see a mailbox whose messages have no address until
         // the last chunk lands, so it is written as one.
@@ -574,8 +607,11 @@ impl SqliteStore {
             chunks(ingest, INGEST_CHUNK)
         };
         for chunk in pieces {
-            match self.write_ingest_chunk(account.clone(), chunk) {
-                Ok(written) => changes.extend(written),
+            match self.write_ingest_chunk(account.clone(), chunk, rows.take().unwrap_or(&[]), now) {
+                Ok((written, keys)) => {
+                    changes.extend(written);
+                    keys_changed |= keys;
+                }
                 Err(cause) if changes.is_empty() => return Err(cause),
                 Err(cause) => {
                     return Err(StoreError::Partial {
@@ -590,18 +626,24 @@ impl SqliteStore {
             #[cfg(feature = "testing")]
             self.chunk_committed();
         }
-        Ok(Patch {
-            id: mail_domain::ChangeId::generate(),
-            changes,
+        Ok(Ingested {
+            patch: Patch {
+                id: mail_domain::ChangeId::generate(),
+                changes,
+            },
+            keys_changed,
         })
     }
 
-    /// One chunk of [`Self::write_ingest`], in one transaction.
+    /// One chunk of [`Self::write_ingest`], in one transaction: what changed, and whether `rows`
+    /// changed the keys held.
     fn write_ingest_chunk(
         &self,
         account: AccountId,
         ingest: Ingest,
-    ) -> Result<Vec<Change>, StoreError> {
+        rows: &[Row],
+        now: DateTime<Utc>,
+    ) -> Result<(Vec<Change>, bool), StoreError> {
         let db = self.touch(Topics::SUMMARIES | Topics::LABELS | Topics::CONTACTS);
         let tx = Transaction::new_unchecked(&db, TransactionBehavior::Immediate)?;
         let mut changes: Vec<Change> = Vec::new();
@@ -619,7 +661,7 @@ impl SqliteStore {
         }
 
         for label in &ingest.labels {
-            self.write_change(&Change::LabelUpsert(label.clone()))?;
+            self.write_change(&Change::LabelUpsert(label.clone()), now)?;
             changes.push(Change::LabelUpsert(label.clone()));
         }
 
@@ -653,13 +695,13 @@ impl SqliteStore {
                             crate::filing::after_arrival(held, fetched.message.mailbox)
                     {
                         let change = Change::MessageMailbox(id, role);
-                        self.write_change(&change)?;
+                        self.write_change(&change, now)?;
                         changes.push(change);
                     }
                     id
                 }
                 None => {
-                    self.upsert_message(&fetched.message)?;
+                    self.upsert_message(&fetched.message, now)?;
                     changes.push(Change::MessageUpsert(Box::new(fetched.message.clone())));
                     touched.insert(fetched.message.thread);
                     fetched.message.id
@@ -669,6 +711,17 @@ impl SqliteStore {
             self.learn_fetched(account.clone(), id, &fetched.message, Some(fetched.raw))?;
             if let Some(t) = self.thread_of(id)? {
                 touched.insert(t);
+            }
+        }
+
+        // 2a. What the messages taught about keys, against the keys as they stand with these
+        //     messages written. A lesson that cannot be kept is no reason to lose the mail it
+        //     came with.
+        let mut keys_changed = false;
+        for row in rows {
+            match self.write_row(row, now) {
+                Ok(changed) => keys_changed |= changed,
+                Err(why) => log::warn!("what a message taught about a key was not kept: {why}"),
             }
         }
 
@@ -685,13 +738,13 @@ impl SqliteStore {
             let mut differs = false;
             if held.read != to_json("ReadState", read)? {
                 let change = Change::MessageRead(held.id, *read);
-                self.write_change(&change)?;
+                self.write_change(&change, now)?;
                 changes.push(change);
                 differs = true;
             }
             if held.star != to_json("Star", star)? {
                 let change = Change::MessageStar(held.id, *star);
-                self.write_change(&change)?;
+                self.write_change(&change, now)?;
                 changes.push(change);
                 differs = true;
             }
@@ -708,7 +761,7 @@ impl SqliteStore {
             };
             if held.flag != to_json("Hue", hue)? {
                 let change = Change::MessageFlag(held.id, *hue);
-                self.write_change(&change)?;
+                self.write_change(&change, now)?;
                 changes.push(change);
                 touched.insert(held.thread);
             }
@@ -750,12 +803,12 @@ impl SqliteStore {
             let before = changes.len();
             for label in wanted.iter().filter(|l| !held.contains(l)) {
                 let change = Change::MessageLabel(id, *label, Membership::In);
-                self.write_change(&change)?;
+                self.write_change(&change, now)?;
                 changes.push(change);
             }
             for label in held.iter().filter(|l| !wanted.contains(l)) {
                 let change = Change::MessageLabel(id, *label, Membership::Out);
-                self.write_change(&change)?;
+                self.write_change(&change, now)?;
                 changes.push(change);
             }
             if changes.len() > before
@@ -793,7 +846,7 @@ impl SqliteStore {
                     if let Some(t) = self.thread_of(id)? {
                         touched.insert(t);
                     }
-                    self.write_change(&Change::MessageDelete(id))?;
+                    self.write_change(&Change::MessageDelete(id), now)?;
                     changes.push(Change::MessageDelete(id));
                 } else if let Some(held) = self.role_of(id)?
                     && let Some(role) = crate::filing::after_leaving(
@@ -805,7 +858,7 @@ impl SqliteStore {
                 {
                     // Moved out of the inbox by another client, and still held elsewhere.
                     let change = Change::MessageMailbox(id, role);
-                    if let Some(t) = self.write_change(&change)? {
+                    if let Some(t) = self.write_change(&change, now)? {
                         touched.insert(t);
                     }
                     changes.push(change);
@@ -817,7 +870,7 @@ impl SqliteStore {
         //    confirmed goes back on top of it.
         for thread in &touched {
             for pending in self.pending_for_thread(*thread)? {
-                self.write_change(&pending)?;
+                self.write_change(&pending, now)?;
                 changes.push(pending);
             }
         }
@@ -835,15 +888,17 @@ impl SqliteStore {
             // to say it ran, but once a minute says that as well as once a pass.
             self.connection().execute(
                 "INSERT INTO sync_state (account, mailbox, cursor, synced_at)
-                 VALUES (?1, ?2, ?3, datetime('now'))
+                 VALUES (?1, ?2, ?3, ?4)
                  ON CONFLICT(account, mailbox) DO UPDATE SET
                      cursor=excluded.cursor, synced_at=excluded.synced_at
                  WHERE sync_state.cursor IS NOT excluded.cursor
-                     OR sync_state.synced_at < datetime('now', '-60 seconds')",
+                     OR sync_state.synced_at < ?5",
                 params![
                     account.to_string(),
                     ingest.mailbox.path,
                     to_json("SyncCursor", cursor)?,
+                    sqlite_time(now),
+                    sqlite_time(now - chrono::Duration::seconds(60)),
                 ],
             )?;
         }
@@ -852,7 +907,7 @@ impl SqliteStore {
             self.refresh_summary(thread)?;
         }
         tx.commit()?;
-        Ok(changes)
+        Ok((changes, keys_changed))
     }
 
     /// Where the server says messages are filed. See [`crate::Store::refile`].
@@ -860,6 +915,7 @@ impl SqliteStore {
         &self,
         account: AccountId,
         filed: &[(RemoteRef, MailboxRole)],
+        now: DateTime<Utc>,
     ) -> Result<Patch, StoreError> {
         let db = self.touch(Topics::SUMMARIES);
         let tx = Transaction::new_unchecked(&db, TransactionBehavior::Immediate)?;
@@ -873,14 +929,14 @@ impl SqliteStore {
                 continue;
             }
             let change = Change::MessageMailbox(id, *role);
-            if let Some(t) = self.write_change(&change)? {
+            if let Some(t) = self.write_change(&change, now)? {
                 touched.insert(t);
             }
             changes.push(change);
         }
         for thread in &touched {
             for pending in self.pending_for_thread(*thread)? {
-                self.write_change(&pending)?;
+                self.write_change(&pending, now)?;
                 changes.push(pending);
             }
         }
@@ -902,6 +958,7 @@ impl SqliteStore {
         &self,
         account: AccountId,
         import: Import,
+        now: DateTime<Utc>,
     ) -> Result<Patch, StoreError> {
         let db = self.touch(Topics::SUMMARIES | Topics::LABELS | Topics::CONTACTS);
         let tx = Transaction::new_unchecked(&db, TransactionBehavior::Immediate)?;
@@ -912,7 +969,7 @@ impl SqliteStore {
             let id = match self.message_by_key(account.clone(), &kept.key)? {
                 Some(id) => id,
                 None => {
-                    self.upsert_message(&kept.message)?;
+                    self.upsert_message(&kept.message, now)?;
                     changes.push(Change::MessageUpsert(Box::new(kept.message.clone())));
                     touched.insert(kept.message.thread);
                     kept.message.id
@@ -930,7 +987,7 @@ impl SqliteStore {
                     continue;
                 }
                 let change = Change::MessageLabel(id, label, Membership::In);
-                self.write_change(&change)?;
+                self.write_change(&change, now)?;
                 changes.push(change);
                 if let Some(t) = self.thread_of(id)? {
                     touched.insert(t);
@@ -1182,7 +1239,7 @@ impl SqliteStore {
             color: None,
             origin,
         };
-        self.write_change(&Change::LabelUpsert(label.clone()))?;
+        self.write_label(&label)?;
         Ok(label.id)
     }
 

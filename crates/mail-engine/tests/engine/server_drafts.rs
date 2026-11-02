@@ -414,6 +414,7 @@ fn save(store: &SqliteStore, draft: &Draft) {
                 id: ChangeId::generate(),
                 changes: vec![Change::DraftUpsert(Box::new(draft.clone()))],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
 }

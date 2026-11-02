@@ -226,6 +226,7 @@ fn held(store: &SqliteStore, uid: u32, from: &str) -> MessageId {
                 provider_threads: Vec::new(),
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     id

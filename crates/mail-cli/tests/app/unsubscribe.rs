@@ -150,6 +150,7 @@ fn list_message(
                 provider_threads: Vec::new(),
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     let thread = store.message(id).unwrap().thread;

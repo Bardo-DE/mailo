@@ -156,6 +156,7 @@ mod tests {
                         ReadState::Unread,
                     )],
                 },
+                now,
             )
             .unwrap();
         let kept =

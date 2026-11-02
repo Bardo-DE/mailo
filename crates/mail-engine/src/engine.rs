@@ -1623,7 +1623,7 @@ impl<B: Backend> AccountEngine<B> {
                 held = Some(refs);
             }
             if !nothing {
-                self.store.ingest(self.account.clone(), *ingest)?;
+                self.store.ingest(self.account.clone(), *ingest, now)?;
             }
         }
 
@@ -1848,6 +1848,7 @@ impl<B: Backend> AccountEngine<B> {
                     provider_threads: Vec::new(),
                     gone: Vec::new(),
                 },
+                now,
             );
             if let Err(cause) = flags {
                 // The messages are stored; only their flags are not. Say so, so they are
@@ -1921,6 +1922,7 @@ impl<B: Backend> AccountEngine<B> {
                     provider_threads: Vec::new(),
                     gone: Vec::new(),
                 },
+                now,
             )?;
             ingest.validity = UidValidity::Same;
         }
@@ -1965,7 +1967,7 @@ impl<B: Backend> AccountEngine<B> {
             && ingest.gone.is_empty()
             && ingest.cursor == self.store.cursor(mailbox)?;
         if !nothing {
-            self.store.ingest(self.account.clone(), ingest)?;
+            self.store.ingest(self.account.clone(), ingest, now)?;
         }
         Ok(report)
     }
@@ -2391,7 +2393,7 @@ impl<B: Backend> AccountEngine<B> {
                 .await
             {
                 Ok(ProtoOutcome::Ingested(ingest)) => {
-                    self.store.ingest(self.account.clone(), *ingest)?;
+                    self.store.ingest(self.account.clone(), *ingest, now)?;
                     self.store.mark_flags_swept(mailbox, now)?;
                 }
                 Ok(_) => self.store.mark_flags_swept(mailbox, now)?,
@@ -2437,7 +2439,7 @@ impl<B: Backend> AccountEngine<B> {
                             _ => false,
                         })
                         .collect();
-                    self.store.ingest(self.account.clone(), *ingest)?;
+                    self.store.ingest(self.account.clone(), *ingest, now)?;
                     self.store.mark_expunges_swept(mailbox, now)?;
                 }
                 Ok(ProtoOutcome::Ingested(mut ingest)) => {
@@ -2445,7 +2447,7 @@ impl<B: Backend> AccountEngine<B> {
                     // knowledge, so the diff happens here — and without it `gone` was always
                     // empty and a message deleted on another device never disappeared.
                     ingest.gone = self.vanished(mailbox)?;
-                    self.store.ingest(self.account.clone(), *ingest)?;
+                    self.store.ingest(self.account.clone(), *ingest, now)?;
                     self.store.mark_expunges_swept(mailbox, now)?;
                 }
                 Ok(_) => self.store.mark_expunges_swept(mailbox, now)?,

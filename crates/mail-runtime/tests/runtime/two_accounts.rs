@@ -184,7 +184,9 @@ fn archiving_one_accounts_copy_leaves_the_others_alone() {
         &caps(),
         now(),
     );
-    store.apply(acct_a(), &applied.forward).unwrap();
+    store
+        .apply(acct_a(), &applied.forward, chrono::Utc::now())
+        .unwrap();
 
     assert!(
         listed(
@@ -230,6 +232,7 @@ fn one_label_name_on_two_accounts_is_two_labels() {
                         origin: LabelOrigin::Provider,
                     })],
                 },
+                chrono::Utc::now(),
             )
             .unwrap();
     }

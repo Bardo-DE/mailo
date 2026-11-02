@@ -192,6 +192,8 @@ pub struct Redirected {
     pub account: AccountId,
     /// The id its outbox entry is keyed by. No draft has it.
     pub draft: DraftId,
+    /// When it was redirected.
+    pub at: DateTime<Utc>,
 }
 
 /// Redirect `message` to `to`: queue the original, unchanged, beneath a `Resent-` block
@@ -274,6 +276,7 @@ pub fn redirect(
         to: post.rcpt_to,
         account,
         draft: id,
+        at: now,
     })
 }
 
@@ -288,6 +291,7 @@ pub fn withdraw_redirect(store: &SqliteStore, redirected: &Redirected) -> Result
             id: ChangeId::generate(),
             changes: vec![Change::DraftDelete(redirected.draft)],
         },
+        redirected.at,
     )?;
     Ok(())
 }

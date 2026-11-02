@@ -5,13 +5,33 @@
 //! supplies — so `mail-proto` hands back `ProtoOutcome::Fetched { remote, raw }` and the work
 //! of turning that into something the store will accept happens here, where the blob store,
 //! `mail-mime` and the id space all exist.
+//!
+//! Three stages, so that the middle one can be tested with the store left out:
+//!
+//! 1. **Parse** ([`parse`]): bytes to [`parse::Parsed`]. Pure.
+//! 2. **Resolve** ([`resolve`]): a batch of parses, the answers the store gave about the
+//!    conversations it names ([`resolve::ThreadIndex`]) and the ids it is handed
+//!    ([`resolve::Ids`]) to an [`Ingest`] and the rows that go with it. Pure.
+//! 3. **Commit** ([`commit`]): the blobs are put first (idempotent), then the ingest is written
+//!    in one transaction with the rows, so what a message taught about its sender's keys is kept
+//!    or lost with the message.
+//!
+//! The batch is whatever the caller hands in (a fetch band of a few hundred), and its threads
+//! are resolved together: what the store is asked is bounded by the batch, never the mailbox.
+
+mod commit;
+mod parse;
+mod resolve;
 
 use crate::RuntimeError;
 use crate::error::Logged;
 use chrono::{DateTime, Utc};
+use commit::Gather;
 use mail_domain::*;
 use mail_store::{SqliteStore, Store};
+use parse::{Provenance, Reading, learns_from};
 use porter_core::AccountId;
+use resolve::{Entry, Frame, Ids, Tiebreak, message_key};
 
 /// What arrived, and where from.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -20,7 +40,28 @@ pub struct Arrival {
     pub raw: Vec<u8>,
 }
 
-/// Turn fetched bytes into an [`Ingest`] the store can absorb.
+/// A batch resolved and ready to write: the ingest, and the rows that are written with it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Assembly {
+    pub ingest: Ingest,
+    /// What the messages taught about their senders' keys, kept in the transaction the messages
+    /// are written in.
+    pub rows: Vec<Row>,
+}
+
+impl Assembly {
+    /// Write it: the commit stage. `now` stamps what the store records itself.
+    pub fn write(
+        self,
+        store: &dyn Store,
+        account: AccountId,
+        now: DateTime<Utc>,
+    ) -> Result<Patch, RuntimeError> {
+        commit::write(store, account, self.ingest, &self.rows, now).map_err(RuntimeError::Store)
+    }
+}
+
+/// Turn fetched bytes into an [`Assembly`] the store can absorb.
 ///
 /// `fallback_date` is the server's own idea of when a message arrived, used when the `Date`
 /// header is missing or unparseable. That is common enough in real mail that treating it as an
@@ -33,7 +74,7 @@ pub fn assemble(
     cursor: Option<SyncCursor>,
     arrivals: Vec<Arrival>,
     fallback_date: DateTime<Utc>,
-) -> Result<Ingest, RuntimeError> {
+) -> Result<Assembly, RuntimeError> {
     assemble_as(
         store,
         account,
@@ -43,24 +84,14 @@ pub fn assemble(
         Provenance::Wire,
         fallback_date,
     )
-    .map(|assembled| assembled.ingest)
+    .map(|assembled| assembled.assembly)
 }
 
-/// What [`assemble_as`] made of a batch: the ingest, and which arrivals were not messages.
+/// What [`assemble_as`] made of a batch: the assembly, and which arrivals were not messages.
 struct Assembled {
-    ingest: Ingest,
+    assembly: Assembly,
     /// The addresses of the arrivals that could not be read.
     unreadable: Vec<RemoteRef>,
-}
-
-/// Where a batch of bytes came from, which decides what in them may be believed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Provenance {
-    /// Straight from a server: every byte is the sender's.
-    Wire,
-    /// Rebuilt by [`mail_mime::reconstruct`] from sections, with its own markers on the parts
-    /// it left on the server. Only this runtime makes these, so only it says so.
-    Rebuilt,
 }
 
 fn assemble_as(
@@ -72,209 +103,67 @@ fn assemble_as(
     provenance: Provenance,
     fallback_date: DateTime<Utc>,
 ) -> Result<Assembled, RuntimeError> {
-    let Destination { mailbox, role } = into;
-    let mut parsed = Vec::new();
+    let how = Reading {
+        provenance,
+        learns: learns_from(into.role),
+        at: fallback_date,
+    };
+    // 1. Parse.
+    let mut read = Vec::new();
     let mut unreadable = Vec::new();
     for arrival in arrivals {
-        let fields = match provenance {
-            Provenance::Wire => mail_mime::parse(&arrival.raw),
-            Provenance::Rebuilt => mail_mime::parse_reconstructed(&arrival.raw),
-        };
         // A message we cannot parse is skipped, not fatal. One malformed message in a maildrop
         // of two thousand must not stop the other 1999 arriving. It is counted and said, though:
         // the pass's cursor moves past it, so nothing will fetch it again.
-        let fields = match fields {
-            Ok(fields) => fields,
+        match parse::parse(&arrival.raw, how) {
+            Ok(parsed) => read.push((arrival, parsed)),
             Err(why) => {
                 log::warn!(
                     "a message in {} could not be read and was skipped: {why}",
-                    mailbox.path
+                    into.mailbox.path
                 );
                 unreadable.push(arrival.remote);
-                continue;
             }
-        };
-        // Autocrypt keys ride in on the header of mail their owners send. Read here, where every
-        // message arrives, from the header alone; nothing is decrypted. Not from our own sent
-        // or draft copies, whose header is ours. A failure to record one is not a reason to
-        // lose the message, so it is not an error here.
-        if !matches!(role, MailboxRole::Sent | MailboxRole::Drafts)
-            && let Some(from) = &fields.from
-        {
-            crate::pgp::learn_autocrypt(
-                store,
-                &arrival.raw,
-                &from.email,
-                fields.date,
-                fallback_date,
-            )
-            .or_log("an Autocrypt key was not kept");
-            // An S/MIME signature carries its signer's certificate; keeping it is what lets the
-            // user answer encrypted. The same rules: not from our own copies, and a failure is
-            // no reason to lose the message.
-            crate::smime::learn_signer(store, &arrival.raw, &from.email, fallback_date)
-                .or_log("a signer's S/MIME certificate was not kept");
         }
-        let blob = store
-            .blobs()
-            .put(&arrival.raw)
-            .map_err(RuntimeError::Store)?;
-        let key = message_key(&fields, Tiebreak::Remote(&arrival.remote));
-        parsed.push((
-            arrival.remote.clone(),
-            Built {
-                provider: store
-                    .provider_thread_of(account.clone(), &arrival.remote)
-                    .or_log("the server's thread id for a message could not be read")
-                    .flatten(),
-                fields,
-                blob,
-                key,
-                role,
-            },
-        ));
     }
-    let (remotes, built): (Vec<RemoteRef>, Vec<Built>) = parsed.into_iter().unzip();
-    let blobs: Vec<BlobId> = built.iter().map(|b| b.blob).collect();
-    let messages = build(store, account, built, fallback_date)?
-        .into_iter()
-        .zip(remotes.into_iter().zip(blobs))
-        .map(|(message, (remote, raw))| Fetched {
-            remote,
-            key: message.key.clone(),
-            raw,
-            message,
+    // Blobs, and what the store knows of the conversations the batch names.
+    let gathered: Vec<Gather<'_>> = read
+        .iter()
+        .map(|(arrival, parsed)| Gather {
+            raw: &arrival.raw,
+            parsed,
+            remote: Some(&arrival.remote),
         })
         .collect();
-
+    let (blobs, index) = commit::gather(store, &account, &gathered)?;
+    // 2. Resolve.
+    let frame = Frame {
+        account: &account,
+        fallback: fallback_date,
+    };
+    let batch: Vec<(&RemoteRef, &parse::Parsed)> = read
+        .iter()
+        .map(|(arrival, parsed)| (&arrival.remote, parsed))
+        .collect();
+    let resolved = resolve::resolve(
+        &frame,
+        into,
+        cursor,
+        &index,
+        &batch,
+        &mut Ids {
+            message: &mut MessageId::generate,
+            thread: &mut ThreadId::generate,
+            blob: &|digest| blobs[digest],
+        },
+    );
     Ok(Assembled {
-        ingest: Ingest {
-            mailbox,
-            validity: UidValidity::Same,
-            cursor,
-            messages,
-            flags: Vec::new(),
-            flag_colors: Vec::new(),
-            labels: Vec::new(),
-            label_names: Vec::new(),
-            provider_threads: Vec::new(),
-            gone: Vec::new(),
+        assembly: Assembly {
+            ingest: resolved.ingest,
+            rows: resolved.rows,
         },
         unreadable,
     })
-}
-
-/// A parsed, stored message waiting for the ids and the thread only a batch can give it.
-struct Built {
-    /// The thread id the server gave it, where it gives one.
-    provider: Option<String>,
-    fields: mail_mime::Parsed,
-    blob: BlobId,
-    key: MessageKey,
-    role: MailboxRole,
-}
-
-/// Turn parsed messages into domain [`Message`]s: threaded together and onto what is stored,
-/// attachments held, unread and unstarred.
-fn build(
-    store: &SqliteStore,
-    account: AccountId,
-    built: Vec<Built>,
-    fallback_date: DateTime<Utc>,
-) -> Result<Vec<Message>, RuntimeError> {
-    // Thread them together, and onto conversations already stored. `existing` is what makes an
-    // incremental sync join rather than renumber.
-    let inputs: Vec<threading::ThreadInput<'_>> = built
-        .iter()
-        .map(|b| threading::ThreadInput {
-            message_id: b.fields.rfc_message_id.as_deref(),
-            in_reply_to: b.fields.in_reply_to.as_deref(),
-            references: &b.fields.references,
-            subject: &b.fields.subject,
-            provider: b.provider.as_deref(),
-        })
-        .collect();
-    let known = |id: &str| match id.strip_prefix(threading::PROVIDER_PREFIX) {
-        Some(thrid) => thread_of_provider(store, account.clone(), thrid),
-        None => thread_of_rfc_id(store, account.clone(), id),
-    };
-    let threads = threading::thread(&inputs, &known);
-
-    let mut messages = Vec::new();
-    for (b, thread) in built.into_iter().zip(threads) {
-        let Built {
-            fields,
-            blob,
-            key,
-            role,
-            ..
-        } = b;
-        let from = fields.from.clone().unwrap_or_else(|| Address {
-            // A message with no From is malformed and still has to be listable; inventing a
-            // plausible-looking sender would be worse than an obviously empty one.
-            name: None,
-            email: String::new(),
-        });
-        let attachments = fields
-            .attachments
-            .iter()
-            .map(|part| {
-                // Left on the server: nothing to store, and its size is the server's figure.
-                let (content, size) = match &part.remote {
-                    Some(remote) => (
-                        PartContent::Remote {
-                            section: remote.section.clone(),
-                        },
-                        remote.octets,
-                    ),
-                    None => (
-                        PartContent::Held(
-                            store
-                                .blobs()
-                                .put(&part.bytes)
-                                .map_err(RuntimeError::Store)?,
-                        ),
-                        part.bytes.len() as u64,
-                    ),
-                };
-                Ok(Attachment {
-                    name: part.name.clone(),
-                    mime: part.mime.clone(),
-                    size,
-                    content,
-                    inline: part.inline.clone(),
-                })
-            })
-            .collect::<Result<Vec<_>, RuntimeError>>()?;
-
-        messages.push(Message {
-            id: MessageId::generate(),
-            thread,
-            account: account.clone(),
-            key,
-            date: fields.date.unwrap_or(fallback_date),
-            from,
-            reply_to: fields.reply_to,
-            to: fields.to,
-            cc: fields.cc,
-            bcc: fields.bcc,
-            subject: fields.subject,
-            in_reply_to: fields.in_reply_to,
-            references: fields.references,
-            rfc_message_id: fields.rfc_message_id,
-            read: ReadState::Unread,
-            star: Star::Unstarred,
-            flag: mail_domain::Hue::Red,
-            mailbox: role,
-            labels: Vec::new(),
-            body: Body::Present {
-                text: fields.text,
-                raw: blob,
-            },
-            attachments,
-        });
-    }
-    Ok(messages)
 }
 
 /// One message to keep with no server address, and where the file it came from put it.
@@ -309,7 +198,7 @@ pub fn keep(
     let (kept, unreadable) = prepare(store, account.clone(), batch, fallback_date)?;
     let offered = kept.len();
     let patch = store
-        .import(account, Import { messages: kept })
+        .import(account, Import { messages: kept }, fallback_date)
         .map_err(RuntimeError::Store)?;
     let added = patch
         .changes
@@ -346,7 +235,7 @@ pub fn sent(
     };
     let (fresh, key) = (first.message.id, first.key.clone());
     let patch = store
-        .import(account.clone(), Import { messages: kept })
+        .import(account.clone(), Import { messages: kept }, at)
         .map_err(RuntimeError::Store)?;
     let added = patch
         .changes
@@ -373,40 +262,67 @@ fn prepare(
     batch: Vec<Keep>,
     fallback_date: DateTime<Utc>,
 ) -> Result<(Vec<mail_domain::Kept>, usize), RuntimeError> {
+    // Imported mail teaches nothing about anyone's keys: it is not mail from them to us.
+    let how = Reading {
+        provenance: Provenance::Wire,
+        learns: false,
+        at: fallback_date,
+    };
     let mut unreadable = 0;
-    let mut built = Vec::new();
-    let mut placements = Vec::new();
+    let mut read = Vec::new();
     for item in batch {
-        let Ok(fields) = mail_mime::parse(&item.raw) else {
+        let Ok(parsed) = parse::parse(&item.raw, how) else {
             unreadable += 1;
             continue;
         };
-        let blob = store.blobs().put(&item.raw).map_err(RuntimeError::Store)?;
-        let key = message_key(&fields, Tiebreak::Bytes(&item.raw));
-        built.push(Built {
-            provider: None,
-            fields,
-            blob,
-            key,
-            role: item.placement.role,
-        });
-        placements.push(item.placement);
+        read.push((item, parsed));
     }
-    let blobs: Vec<BlobId> = built.iter().map(|b| b.blob).collect();
-    let kept: Vec<mail_domain::Kept> = build(store, account, built, fallback_date)?
-        .into_iter()
-        .zip(placements.into_iter().zip(blobs))
-        .map(|(mut message, (placement, raw))| {
-            message.read = placement.read();
-            message.star = placement.star();
-            mail_domain::Kept {
-                key: message.key.clone(),
-                raw,
-                message,
-                labels: placement.labels,
-            }
+    let gathered: Vec<Gather<'_>> = read
+        .iter()
+        .map(|(item, parsed)| Gather {
+            raw: &item.raw,
+            parsed,
+            remote: None,
         })
         .collect();
+    let (blobs, index) = commit::gather(store, &account, &gathered)?;
+    let frame = Frame {
+        account: &account,
+        fallback: fallback_date,
+    };
+    let entries: Vec<Entry<'_>> = read
+        .iter()
+        .map(|(item, parsed)| Entry {
+            parsed,
+            key: message_key(&parsed.fields, Tiebreak::Bytes(&parsed.digest)),
+            role: item.placement.role,
+            provider: None,
+        })
+        .collect();
+    let kept: Vec<mail_domain::Kept> = resolve::messages(
+        &frame,
+        &index,
+        &entries,
+        &mut Ids {
+            message: &mut MessageId::generate,
+            thread: &mut ThreadId::generate,
+            blob: &|digest| blobs[digest],
+        },
+    )
+    .into_iter()
+    .zip(read)
+    .map(|(mut message, (item, parsed))| {
+        let placement = item.placement;
+        message.read = placement.read();
+        message.star = placement.star();
+        mail_domain::Kept {
+            key: message.key.clone(),
+            raw: blobs[&parsed.digest],
+            message,
+            labels: placement.labels,
+        }
+    })
+    .collect();
     Ok((kept, unreadable))
 }
 
@@ -424,7 +340,7 @@ pub fn appended(
     flags: &[SystemFlag],
     fallback_date: DateTime<Utc>,
 ) -> Result<Patch, RuntimeError> {
-    let mut ingest = assemble_as(
+    let Assembly { mut ingest, rows } = assemble_as(
         store,
         account.clone(),
         into,
@@ -433,7 +349,7 @@ pub fn appended(
         Provenance::Wire,
         fallback_date,
     )?
-    .ingest;
+    .assembly;
     for fetched in &mut ingest.messages {
         if flags.contains(&SystemFlag::Seen) {
             fetched.message.read = ReadState::Read;
@@ -442,7 +358,7 @@ pub fn appended(
             fetched.message.star = Star::Starred;
         }
     }
-    store.ingest(account, ingest).map_err(RuntimeError::Store)
+    Assembly { ingest, rows }.write(store, account, fallback_date)
 }
 
 /// Headers only, for the pass that must not mark anything read.
@@ -457,7 +373,7 @@ pub fn assemble_headers(
     cursor: Option<SyncCursor>,
     arrivals: Vec<Arrival>,
     fallback_date: DateTime<Utc>,
-) -> Result<Ingest, RuntimeError> {
+) -> Result<Assembly, RuntimeError> {
     assemble_headers_counted(
         store,
         account,
@@ -466,7 +382,7 @@ pub fn assemble_headers(
         arrivals,
         fallback_date,
     )
-    .map(|assembled| assembled.ingest)
+    .map(|assembled| assembled.assembly)
 }
 
 /// [`assemble_headers`], counting what was not a message.
@@ -487,7 +403,7 @@ fn assemble_headers_counted(
         Provenance::Wire,
         fallback_date,
     )?;
-    for fetched in &mut assembled.ingest.messages {
+    for fetched in &mut assembled.assembly.ingest.messages {
         fetched.message.body = Body::Absent;
     }
     Ok(assembled)
@@ -496,73 +412,7 @@ fn assemble_headers_counted(
 /// The identity [`keep`] gives a message: what an import asks the store about before it
 /// uploads anything, so the answer matches what keeping it would have recorded.
 pub fn identity(fields: &mail_mime::Parsed, raw: &[u8]) -> MessageKey {
-    message_key(fields, Tiebreak::Bytes(raw))
-}
-
-/// What separates two messages whose fields are identical and which have no `Message-ID`.
-enum Tiebreak<'a> {
-    /// Where the server holds it.
-    Remote(&'a RemoteRef),
-    /// Its bytes, for a message no server holds.
-    Bytes(&'a [u8]),
-}
-
-/// The identity a message is deduplicated by.
-///
-/// `Message-ID` where there is one. Where there is not — and real mail frequently has none —
-/// a digest of the fields that do exist, so two copies of the same message still collapse
-/// instead of arriving twice.
-fn message_key(fields: &mail_mime::Parsed, tiebreak: Tiebreak<'_>) -> MessageKey {
-    if let Some(id) = &fields.rfc_message_id {
-        return MessageKey::Rfc(id.clone());
-    }
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(fields.subject.as_bytes());
-    hasher.update(
-        fields
-            .from
-            .as_ref()
-            .map(|a| a.email.as_str())
-            .unwrap_or("")
-            .as_bytes(),
-    );
-    if let Some(date) = fields.date {
-        hasher.update(date.to_rfc3339().as_bytes());
-    }
-    // The address is included only as a last resort tiebreak: without it, two genuinely
-    // different messages with no Message-ID, the same subject, sender and timestamp would
-    // collapse into one and the user would silently lose mail. A message no server holds has
-    // no address, and its bytes do the same job — the same file imported twice has the same
-    // bytes, so it still collapses.
-    match tiebreak {
-        Tiebreak::Remote(RemoteRef::Pop { uidl }) => hasher.update(uidl.as_bytes()),
-        Tiebreak::Remote(RemoteRef::Jmap { email_id }) => {
-            hasher.update(email_id.as_str().as_bytes())
-        }
-        Tiebreak::Remote(RemoteRef::Imap { mailbox, uid, .. }) => {
-            hasher.update(mailbox.as_bytes());
-            hasher.update(&uid.to_le_bytes())
-        }
-        Tiebreak::Remote(RemoteRef::Graph { id, .. }) => hasher.update(id.as_bytes()),
-        Tiebreak::Bytes(raw) => hasher.update(blake3::hash(raw).as_bytes()),
-    };
-    MessageKey::Synthetic(*hasher.finalize().as_bytes())
-}
-
-/// The thread a stored message the server gave this thread id already belongs to.
-fn thread_of_provider(store: &SqliteStore, account: AccountId, thrid: &str) -> Option<ThreadId> {
-    store
-        .thread_by_provider_thread(account, thrid)
-        .or_log("a thread could not be looked up by the server's thread id")
-        .flatten()
-}
-
-/// The thread a stored message with this `Message-ID` already belongs to.
-fn thread_of_rfc_id(store: &SqliteStore, account: AccountId, rfc_id: &str) -> Option<ThreadId> {
-    store
-        .thread_by_rfc_id(account, rfc_id)
-        .or_log("a thread could not be looked up by a Message-ID")
-        .flatten()
+    message_key(fields, Tiebreak::Bytes(&blake3::hash(raw)))
 }
 
 /// Absorb fetched bytes into the store, returning what changed.
@@ -650,7 +500,10 @@ pub fn absorb_counted(
     headers_only: bool,
     fallback_date: DateTime<Utc>,
 ) -> Result<Absorbed, RuntimeError> {
-    let Assembled { ingest, unreadable } = if headers_only {
+    let Assembled {
+        assembly,
+        unreadable,
+    } = if headers_only {
         assemble_headers_counted(
             store,
             account.clone(),
@@ -670,7 +523,7 @@ pub fn absorb_counted(
             fallback_date,
         )?
     };
-    let patch = store.ingest(account, ingest).map_err(RuntimeError::Store)?;
+    let patch = assembly.write(store, account, fallback_date)?;
     Ok(Absorbed {
         patch,
         unreadable: unreadable.len(),
@@ -689,7 +542,7 @@ pub fn absorb_rebuilt_into(
     arrivals: Vec<Arrival>,
     fallback_date: DateTime<Utc>,
 ) -> Result<Patch, RuntimeError> {
-    let ingest = assemble_as(
+    assemble_as(
         store,
         account.clone(),
         into,
@@ -698,6 +551,6 @@ pub fn absorb_rebuilt_into(
         Provenance::Rebuilt,
         fallback_date,
     )?
-    .ingest;
-    store.ingest(account, ingest).map_err(RuntimeError::Store)
+    .assembly
+    .write(store, account, fallback_date)
 }

@@ -4,10 +4,13 @@
 //! that ends in a [`Commit`]; `Store::commit` is the one place that writes it, in one
 //! transaction, so a decision either happened whole or not at all.
 
+use crate::autocrypt::Sighting;
 use crate::draft::SendState;
 use crate::id::{ChangeId, DraftId, MessageId, OutboxId, ThreadId};
 use crate::junk::Judged;
 use crate::op::{Applied, Patch, RemoteIntent};
+use crate::pgp::PgpKey;
+use crate::smime::SmimeCert;
 use chrono::{DateTime, Utc};
 use porter_core::AccountId;
 
@@ -105,9 +108,29 @@ pub enum Row {
     },
     /// A draft's held reminder goes: its send was taken back, or sent again without one.
     FollowUpReleased { draft: DraftId },
+    /// What arriving mail taught about someone's key, to be kept as the rules for keeping it
+    /// say, against what is held at the moment it is written.
+    KeyLearned(Taught),
     /// What must still hold when the commit is written; otherwise nothing is written at all and
     /// the commit is refused as stale. Checked before any other row is.
     Expect(Expect),
+}
+
+/// What one arriving message taught about a correspondent's key.
+///
+/// Whether it changes anything depends on what is held when it is written (an Autocrypt header
+/// older than the one already recorded changes nothing), so the store decides that, inside the
+/// transaction the message is written in, and the row carries only what the message said.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Taught {
+    /// A message from `sighting.address`, and the key its Autocrypt header carried, if it had
+    /// one. Kept only when the peer-state rules take that header as the newest.
+    Autocrypt {
+        sighting: Sighting,
+        key: Option<PgpKey>,
+    },
+    /// A certificate the message's signature proved the sender holds.
+    Signer(SmimeCert),
 }
 
 /// What a decision made over something that can change while it waits.
@@ -127,6 +150,9 @@ pub struct Written {
     /// Each [`Queue`] in order: the outbox entry made, or `None` where it named nothing the
     /// server holds and was skipped.
     pub queued: Vec<Option<OutboxId>>,
+    /// Whether the commit changed the keys or certificates held: a key not held before, or one
+    /// held with other bytes or addresses.
+    pub keys_changed: bool,
 }
 
 impl Applied {

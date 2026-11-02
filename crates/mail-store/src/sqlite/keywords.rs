@@ -9,8 +9,7 @@ use super::SqliteStore;
 use super::row::uuid;
 use crate::StoreError;
 use mail_domain::{
-    Change, Label, LabelId, LabelOrigin, Patch, RemoteIntent, ServerLabels, THUNDERBIRD_TAGS,
-    label_keyword,
+    Label, LabelId, LabelOrigin, Patch, RemoteIntent, ServerLabels, THUNDERBIRD_TAGS, label_keyword,
 };
 use porter_core::AccountId;
 use rusqlite::params;
@@ -73,7 +72,7 @@ impl SqliteStore {
             color,
             origin: LabelOrigin::User,
         };
-        self.write_change(&Change::LabelUpsert(label.clone()))?;
+        self.write_label(&label)?;
         keyed.push((label.id, keyword));
         Ok(Some(label.id))
     }

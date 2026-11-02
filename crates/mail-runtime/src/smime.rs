@@ -83,20 +83,16 @@ pub fn system_anchors() -> &'static [Cert] {
     })
 }
 
-/// Keep the certificate a signed message from `from` was signed with, when its signature holds
-/// and the certificate names `from`.
+/// The certificate a signed message from `from` was signed with, as a row to keep, when its
+/// signature holds and the certificate names `from`; `arrived` is when it was seen.
 ///
 /// Whether the certificate is to be believed is not decided here — that is asked each time it
 /// is used, against the trust anchors of that moment — but a certificate is kept for an address
 /// only when mail from that address proved it holds the key. Reads only what arrives in the
-/// clear: a signature inside an encrypted message is learnt when the reader opens it.
-pub fn learn_signer(
-    store: &dyn Store,
-    raw: &[u8],
-    from: &str,
-    arrived: DateTime<Utc>,
-) -> Result<(), RuntimeError> {
-    let Some(opened) = smime::open(
+/// clear: a signature inside an encrypted message is learnt when the reader opens it. Pure: it
+/// reads the bytes and writes nothing.
+pub fn signer_of(raw: &[u8], from: &str, arrived: DateTime<Utc>) -> Option<mail_domain::SmimeCert> {
+    let opened = smime::open(
         raw,
         &Keys {
             identities: &[],
@@ -104,19 +100,35 @@ pub fn learn_signer(
             anchors: &[],
             now: arrived,
         },
-    ) else {
-        return Ok(());
-    };
-    keep_signer(store, &opened, from, arrived)
+    )?;
+    proven_signer(&opened, from, arrived)
 }
 
-/// Keep what an opened message's signature taught, under the rule [`learn_signer`] states.
+/// Keep what an opened message's signature taught, under the rule [`signer_of`] states.
 pub fn keep_signer(
     store: &dyn Store,
     opened: &smime::Opened,
     from: &str,
     seen: DateTime<Utc>,
 ) -> Result<(), RuntimeError> {
+    let Some(cert) = proven_signer(opened, from, seen) else {
+        return Ok(());
+    };
+    let fingerprint = cert.fingerprint;
+    let before = store.smime_cert(fingerprint)?;
+    let after = store.put_smime_cert(cert)?;
+    if before.is_none_or(|b| b.chain != after.chain || b.emails != after.emails) {
+        crate::epoch::keys_changed();
+    }
+    Ok(())
+}
+
+/// The signer's certificate as a row, when the signature holds and the certificate is for `from`.
+fn proven_signer(
+    opened: &smime::Opened,
+    from: &str,
+    seen: DateTime<Utc>,
+) -> Option<mail_domain::SmimeCert> {
     let proved = match &opened.verification {
         SmimeVerification::Good { .. } => true,
         SmimeVerification::Doubtful { problems, .. } => !problems
@@ -126,20 +138,10 @@ pub fn keep_signer(
         | SmimeVerification::Bad { .. }
         | SmimeVerification::UnknownSigner { .. } => false,
     };
-    let Some(signer) = &opened.signer else {
-        return Ok(());
-    };
-    if !proved || !signer.cert.is_for(from) {
-        return Ok(());
-    }
-    let before = store.smime_cert(signer.cert.fingerprint())?;
-    let after = store.put_smime_cert(signer.cert.record(
-        &signer.chain,
-        CertSource::Received,
-        seen,
-    ))?;
-    if before.is_none_or(|b| b.chain != after.chain || b.emails != after.emails) {
-        crate::epoch::keys_changed();
-    }
-    Ok(())
+    let signer = opened.signer.as_ref()?;
+    (proved && signer.cert.is_for(from)).then(|| {
+        signer
+            .cert
+            .record(&signer.chain, CertSource::Received, seen)
+    })
 }

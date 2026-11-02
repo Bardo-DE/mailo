@@ -88,6 +88,7 @@ fn the_store_lists_the_vips_conversations() {
                     id: ChangeId::generate(),
                     changes: vec![Change::MessageUpsert(Box::new(mail))],
                 },
+                chrono::Utc::now(),
             )
             .unwrap();
     }

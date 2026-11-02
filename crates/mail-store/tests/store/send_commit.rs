@@ -50,6 +50,7 @@ fn save(store: &dyn Store, draft: &Draft) {
         .apply(
             acct_account(),
             &patch(vec![Change::DraftUpsert(Box::new(draft.clone()))]),
+            chrono::Utc::now(),
         )
         .unwrap();
 }

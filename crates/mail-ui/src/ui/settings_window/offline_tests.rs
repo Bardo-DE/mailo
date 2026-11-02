@@ -116,6 +116,7 @@ fn with_a_part_on_the_server(built: &Work, id: AccountId) {
                 provider_threads: Vec::new(),
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
 }

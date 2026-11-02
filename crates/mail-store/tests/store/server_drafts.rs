@@ -35,7 +35,11 @@ fn nothing() -> Patch {
 fn stores() -> Both {
     let both = Both::new();
     both.memory
-        .import(acct_account(), Import { messages: vec![] })
+        .import(
+            acct_account(),
+            Import { messages: vec![] },
+            chrono::Utc::now(),
+        )
         .unwrap();
     both
 }

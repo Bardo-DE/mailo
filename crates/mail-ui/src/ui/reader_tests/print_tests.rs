@@ -90,6 +90,7 @@ fn conversation() -> (Arc<SqliteStore>, ThreadId, tempfile::TempDir) {
                 provider_threads: Vec::new(),
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     (store, thread, dir)

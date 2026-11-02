@@ -142,6 +142,7 @@ fn put(store: &SqliteStore, calendar: &str, method: &str) -> (ThreadId, MessageI
                 provider_threads: Vec::new(),
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     (store.message(id).unwrap().thread, id)

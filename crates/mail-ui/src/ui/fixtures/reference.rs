@@ -349,6 +349,7 @@ fn ensure_label(store: &SqliteStore, account: AccountId, name: &str) -> LabelId 
                     origin: LabelOrigin::User,
                 })],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     id
@@ -481,6 +482,7 @@ fn ingest(
                 provider_threads: Vec::new(),
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
 }

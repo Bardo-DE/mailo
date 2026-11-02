@@ -160,6 +160,7 @@ fn asked_to_encrypt(store: &SqliteStore, draft: DraftId) {
                 id: ChangeId::generate(),
                 changes: vec![Change::DraftUpsert(Box::new(queued))],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
 }
