@@ -13,6 +13,7 @@ pub mod avatar;
 pub mod bin;
 pub mod book;
 pub mod cache;
+pub mod calendar;
 pub mod clock;
 pub mod common;
 pub mod composing;

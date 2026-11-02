@@ -119,6 +119,8 @@ keyring-chunked = { git = "https://github.com/PoHsuanLai/porter", rev = "1be6ca2
 # porter-client is the app-facing API: the relay's byte stream `mail-runtime`'s transport can wrap.
 # porter-client-inproc is its in-process transport: the add-account window hosts porter's account
 # service and draws its sheet. Neither brings in zbus: mailo keeps its own accounts and credentials.
+# The calendar store every porter client shares (`CalendarStore`): mailo puts invitations in it.
+porter-calendar = { git = "https://github.com/PoHsuanLai/porter", rev = "1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2" }
 porter-client = { git = "https://github.com/PoHsuanLai/porter", rev = "1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2" }
 porter-client-inproc = { git = "https://github.com/PoHsuanLai/porter", rev = "1be6ca206a4e453cb0f3e3e8b10be54b0e77b1a2" }
 serde       = { version = "1", features = ["derive"] }

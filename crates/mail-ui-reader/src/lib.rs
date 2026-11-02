@@ -8,6 +8,7 @@
 //! `mail-runtime`.
 
 pub mod brand;
+pub mod calendar;
 pub mod checks;
 pub mod invite;
 pub mod print;

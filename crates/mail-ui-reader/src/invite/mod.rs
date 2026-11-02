@@ -19,7 +19,7 @@ pub mod draw;
 
 /// The card for an invitation, which Peek draws for a calendar file as well.
 pub use card::card_of;
-use card::{CHIPS, Card, Stand};
+use card::{CHIPS, Calendar, Card, Stand};
 pub use draw::Invitation;
 
 use chrono::{DateTime, Utc};

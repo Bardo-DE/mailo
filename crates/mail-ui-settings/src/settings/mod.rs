@@ -35,6 +35,7 @@
 pub mod account;
 pub mod account_split;
 pub mod accounts;
+pub mod calendar;
 pub mod keys;
 pub mod offline;
 pub mod page;

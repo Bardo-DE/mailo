@@ -1,6 +1,8 @@
 //! Tests of `mail-ui-reader` that seed a store or mount the whole window: they run over the
 //! window's fixtures (`ui::fixtures`), which the reader cannot have.
 
+mod calendar_fake_tests;
+mod invite_calendar_tests;
 pub(in crate::ui) mod invite_card_tests;
 mod invite_tests;
 mod print_pdf_tests;

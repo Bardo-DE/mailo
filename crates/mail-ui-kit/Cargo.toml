@@ -23,6 +23,8 @@ testing = []
 
 [dependencies]
 porter-core.workspace = true
+# `CalendarStore`, which the window's calendar seam (`calendar.rs`) is built over.
+porter-calendar.workspace = true
 porter-provider.workspace = true
 mail-domain.workspace = true
 mail-logic.workspace = true

@@ -206,13 +206,15 @@ fn every_schema_key_is_on_one_page_or_left_to_detent_on_purpose() {
             | mail_ui_settings::settings::pages::Line::DefaultMail
             | mail_ui_settings::settings::pages::Line::Vips
             | mail_ui_settings::settings::pages::Line::RelayKey
-            | mail_ui_settings::settings::pages::Line::MutedAccounts => None,
+            | mail_ui_settings::settings::pages::Line::MutedAccounts
+            | mail_ui_settings::settings::pages::Line::Calendar => None,
         })
         .collect();
     let left = [
         "window.provider_marks",
         "reading.trusted_image_senders",
         "notifications.muted_accounts",
+        "calendar.default",
     ];
     for key in mail_ui_model::settings::schema().key {
         let path = key.path.0.as_str();

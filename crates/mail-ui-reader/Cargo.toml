@@ -43,6 +43,8 @@ mail-mime.workspace = true
 mail-reader.workspace = true
 mail-crypto = { workspace = true, features = ["openpgp", "smime"] }
 mail-pim.workspace = true
+# `CalendarStore`, which the calendar seam (`calendar.rs`) is built over.
+porter-calendar.workspace = true
 # What the window logs; the program installs the one logger it goes through.
 log.workspace = true
 # `sync` for the channel the Original frame's image fetches reach their worker through
@@ -84,6 +86,10 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 uuid = { workspace = true }
 # A link read into its parts (`ui/original/consent.rs`) and a path made one (`ui/downloads/open.rs`).
 url = "2"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# The calendar over EventKit (`calendar::platform`): the one crate allowed `unsafe`.
+mail-appkit.workspace = true
 
 [dev-dependencies]
 # The values a test starts from (`mail_domain::testing`): the program never has them.

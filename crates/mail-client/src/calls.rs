@@ -666,6 +666,8 @@ mod invite {
     use crate::CallError;
     use crate::Client;
     use chrono::{DateTime, Utc};
+    use mail_core::Store as _;
+    use mail_core::error::CoreError;
     use mail_core::invite::*;
     use mail_domain::*;
 
@@ -696,6 +698,62 @@ mod invite {
         /// `mail_core::invite::export`.
         pub fn export(&self, message: MessageId) -> Result<Vec<u8>, CallError> {
             mail_core::invite::export(self.0.store(), message).map_err(crate::CallError::from)
+        }
+
+        /// The event of `message`'s invitation as Add to Calendar puts it in a calendar: with the
+        /// answer the reader gave it, when that answer is to this version of it. Times are
+        /// written in `zone`.
+        pub fn event_to_add<Z: chrono::TimeZone>(
+            &self,
+            message: MessageId,
+            zone: &Z,
+        ) -> Result<porter_calendar::Event, CallError> {
+            let store = self.0.store();
+            let answered = match state(store, &store.message(message).map_err(CallError::from)?)
+                .map_err(CallError::from)?
+            {
+                InviteState::Shown { invite, answered } => answered
+                    .filter(|answer| answer.sequence >= invite.sequence)
+                    .map(|answer| answer.attendance),
+                _ => None,
+            };
+            event_of(store, message, answered, zone).map_err(CallError::from)
+        }
+
+        /// `mail_core::invite::event_of`, as `message`'s invitation reads once `attendance` is
+        /// the answer.
+        pub fn event_answered<Z: chrono::TimeZone>(
+            &self,
+            message: MessageId,
+            attendance: Attendance,
+            zone: &Z,
+        ) -> Result<porter_calendar::Event, CallError> {
+            event_of(self.0.store(), message, Some(attendance), zone).map_err(CallError::from)
+        }
+
+        /// The `UID` of the event `message` cancels: `NoInvitation` when it cancels none.
+        pub fn cancelled_uid(&self, message: MessageId) -> Result<String, CallError> {
+            let store = self.0.store();
+            match state(store, &store.message(message).map_err(CallError::from)?)
+                .map_err(CallError::from)?
+            {
+                InviteState::Shown { invite, .. } if invite.kind == mail_pim::Kind::Cancelled => {
+                    Ok(invite.uid)
+                }
+                _ => Err(CoreError::NoInvitation.into()),
+            }
+        }
+
+        /// `mail_core::invite::propose`.
+        pub fn propose(
+            &self,
+            message: MessageId,
+            start: DateTime<Utc>,
+            comment: Option<&str>,
+            now: DateTime<Utc>,
+        ) -> Result<Proposed, CallError> {
+            mail_core::invite::propose(self.0.store(), message, start, comment, now)
+                .map_err(CallError::from)
         }
     }
 }
