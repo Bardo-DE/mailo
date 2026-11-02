@@ -5,7 +5,7 @@
 
 use crate::ui::fixtures::{Work, chord, drain_seen, type_into, work};
 use dioxus::html::Modifiers;
-use mail_core::sync::graph_push;
+use mail_client::testing::core::sync::graph_push;
 use mail_domain::Incoming;
 use mail_ui_kit::data::account_rows;
 use mail_ui_model::copy::errors::{RELAY_EXTRAS, RELAY_NOT_HTTPS};

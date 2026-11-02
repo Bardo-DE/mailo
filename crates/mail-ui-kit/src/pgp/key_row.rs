@@ -25,8 +25,8 @@ use super::{Busy, Passphrase, cert_short, short, who};
 use crate::common::tagged;
 use crate::common::{in_card, tile};
 use crate::press::{available, on_primary};
-use mail_client::password::Password;
 use mail_client::pgp::WithSecret;
+use mail_logic::password::Password;
 use mail_ui_model::copy::menus;
 
 /// A question the page is asking before it acts.

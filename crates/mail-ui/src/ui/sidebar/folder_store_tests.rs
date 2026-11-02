@@ -11,16 +11,16 @@ use crate::ui::fixtures::{
 use chrono::Utc;
 use dioxus::prelude::*;
 use dioxus_core::ElementId;
-use mail_core::act::take_back;
-use mail_core::folder::Refusal;
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::core::act::take_back;
+use mail_client::testing::core::folder::Refusal;
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::id::account_id_from_uuid;
 use mail_domain::*;
 use porter_core::AccountId;
 use std::sync::Arc;
 
 fn configure(store: &SqliteStore, id: AccountId, preset: presets::Preset) {
-    mail_store::testing::seed_account_plan(
+    mail_client::testing::seed::seed_account_plan(
         store,
         id.clone(),
         &preset.plan.address,
@@ -66,7 +66,13 @@ fn imap_store() -> (Arc<SqliteStore>, tempfile::TempDir) {
         .unwrap();
     // Its folders were listed by a pass, so it has been fetched: the list is not waiting for a
     // first mail, which would draw its placeholder rows beside the menus these tests open.
-    mail_store::testing::seed_sync_state(&store, acct_imap(), "INBOX", &SyncCursor::Pop, None);
+    mail_client::testing::seed::seed_sync_state(
+        &store,
+        acct_imap(),
+        "INBOX",
+        &SyncCursor::Pop,
+        None,
+    );
     (store, dir)
 }
 

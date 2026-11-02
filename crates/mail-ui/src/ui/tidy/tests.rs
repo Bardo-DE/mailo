@@ -6,7 +6,7 @@ use crate::ui::fixtures::{
 };
 use chrono::{TimeDelta, Utc};
 use dioxus::prelude::*;
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::*;
 use mail_ui_kit::clock::WallClock;
 use std::sync::Arc;
@@ -41,7 +41,7 @@ fn only_old_read_conversations_nobody_marked_are_offered() {
     // Thirty days on, nothing in the fixture is three months old.
     assert!(subjects(&store, None, Age::ThreeMonths).is_empty());
     let accepted = thread_like(&store, "Accepted");
-    assert!(mail_core::snooze::pin(&store, accepted, Utc::now()).unwrap_or(false));
+    assert!(mail_client::testing::core::snooze::pin(&store, accepted, Utc::now()).unwrap_or(false));
     assert!(
         subjects(&store, None, Age::OneWeek).is_empty(),
         "a pinned conversation is offered"

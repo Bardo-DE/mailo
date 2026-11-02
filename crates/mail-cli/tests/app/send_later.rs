@@ -38,8 +38,8 @@ fn seeded() -> (Arc<SqliteStore>, tempfile::TempDir) {
     let dir = tempfile::tempdir().unwrap();
     let store = SqliteStore::in_memory(dir.path()).unwrap();
     {
-        mail_store::testing::seed_account(&store, acct_account(), "me@example.test");
-        mail_store::testing::seed_identity_for(
+        mail_core::fixtures::seed::seed_account(&store, acct_account(), "me@example.test");
+        mail_core::fixtures::seed::seed_identity_for(
             &store,
             IDENTITY,
             acct_account(),
@@ -69,7 +69,7 @@ fn a_draft(store: &SqliteStore) -> Draft {
     .unwrap()
 }
 
-fn submissions(store: &SqliteStore) -> Vec<mail_store::OutboxEntry> {
+fn submissions(store: &SqliteStore) -> Vec<mail_core::OutboxEntry> {
     let far = now() + chrono::TimeDelta::try_days(3650).unwrap();
     store.outbox_due(acct_account(), far).unwrap()
 }
@@ -250,7 +250,7 @@ mod sending_later {
         let draft = a_draft(&store);
         let held =
             compose::send_later_in(&store, draft.id, "2026-09-25 09:00", now(), &utc()).unwrap();
-        let out = cli::compose::scheduled(&held, now(), &utc(), mail_core::when::Clock::H24);
+        let out = cli::compose::scheduled(&held, now(), &utc(), mail_logic::when::Clock::H24);
         assert!(out.contains("Tomorrow 09:00"), "{out}");
         assert!(out.contains(&format!("mailo unsend {}", draft.id)), "{out}");
 
@@ -298,7 +298,7 @@ mod sending_later {
             &compose::drafts(&store).unwrap(),
             now(),
             &utc(),
-            mail_core::when::Clock::H24,
+            mail_logic::when::Clock::H24,
         );
         assert!(listed.contains("scheduled"), "{listed}");
         assert!(listed.contains("leaves Tomorrow 09:00"), "{listed}");

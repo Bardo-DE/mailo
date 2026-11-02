@@ -10,7 +10,7 @@
 
 use dioxus::prelude::*;
 use mail_client::Client;
-use mail_client::prelude::StoreError;
+use mail_client::Fault;
 use mail_domain::{MailboxRole, MessageId};
 use mail_ui_model::settings::RemoveUnedited;
 use std::path::{Component, Path, PathBuf};
@@ -188,8 +188,7 @@ pub fn remove_for_deleted(client: &Client) -> Vec<PathBuf> {
 pub fn is_deleted(client: &Client, message: MessageId) -> bool {
     match client.stored().message(message) {
         Ok(stored) => stored.mailbox == MailboxRole::Trash,
-        Err(StoreError::NoMessage(_)) => true,
-        Err(_) => false,
+        Err(why) => *why.fault() == Fault::NoMessage,
     }
 }
 

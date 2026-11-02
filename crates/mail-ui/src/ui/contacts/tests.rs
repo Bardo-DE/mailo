@@ -4,8 +4,8 @@
 use std::sync::Arc;
 
 use chrono::{DateTime, TimeZone, Utc};
-use mail_core::contacts::Origin;
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::core::contacts::Origin;
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::*;
 
 use crate::ui::fixtures::acct_account;
@@ -106,8 +106,8 @@ pub(in crate::ui) fn the_book() -> (Arc<SqliteStore>, tempfile::TempDir) {
     let dir = tempfile::tempdir().unwrap_or_else(|why| panic!("a temp dir: {why}"));
     let store = SqliteStore::in_memory(dir.path()).unwrap_or_else(|why| panic!("a store: {why}"));
     {
-        mail_store::testing::seed_account(&store, acct_account(), ME);
-        mail_store::testing::seed_identity_for(
+        mail_client::testing::seed::seed_account(&store, acct_account(), ME);
+        mail_client::testing::seed::seed_identity_for(
             &store,
             IdentityId::generate(),
             acct_account(),

@@ -10,7 +10,7 @@ use crate::ui::fixtures::{
 use dioxus::html::input_data::keyboard_types::Modifiers;
 use dioxus::prelude::*;
 use dioxus_core::{ElementId, VirtualDom};
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::*;
 use mail_ui_model::copy::menus;
 use std::sync::Arc;
@@ -44,7 +44,7 @@ fn window() -> Window {
 }
 
 fn changes(store: &SqliteStore) -> i64 {
-    mail_store::testing::total_changes(store)
+    mail_client::testing::seed::total_changes(store)
 }
 
 #[tokio::test]

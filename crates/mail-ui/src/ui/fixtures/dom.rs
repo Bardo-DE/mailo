@@ -2,7 +2,7 @@ use super::super::app::App;
 use dioxus::prelude::*;
 use dioxus_core::{NoOpMutations, VirtualDom};
 use ds::prelude::*;
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::*;
 use mail_ui_kit::view::Shell;
 use mail_ui_reader::reading::Reader;

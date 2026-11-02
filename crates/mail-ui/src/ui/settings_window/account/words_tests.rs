@@ -1,6 +1,6 @@
 use super::{asking, refused, settings, storage};
-use mail_core::Storage;
-use mail_core::account::RemoveError;
+use mail_client::testing::core::Storage;
+use mail_client::testing::core::account::RemoveError;
 use mail_domain::human_size as amount;
 use mail_domain::{
     AccountPlan, Address, AuthPlan, HttpAuth, Identity, Incoming, LeaveOnServer, Outgoing,

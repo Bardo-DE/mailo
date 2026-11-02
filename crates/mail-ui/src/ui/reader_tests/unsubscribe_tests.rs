@@ -10,10 +10,10 @@ use crate::ui::fixtures::{
 use dioxus::prelude::*;
 use dioxus_core::VirtualDom;
 use ds::prelude::*;
-use mail_core::message::offer_of;
-use mail_core::message::{Looks, Read};
-use mail_core::unsubscribe::{Found, Outcome};
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::core::message::offer_of;
+use mail_client::testing::core::message::{Looks, Read};
+use mail_client::testing::core::unsubscribe::{Found, Outcome};
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::*;
 use mail_ui_kit::view::Shell;
 use mail_ui_model::copy::menus::UNSUBSCRIBE;

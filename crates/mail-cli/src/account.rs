@@ -319,7 +319,7 @@ mod tests {
     const ADDRESS: &str = "me@nowhere.example";
 
     fn accounts(store: &SqliteStore) -> i64 {
-        mail_store::testing::count(store, "accounts")
+        mail_core::fixtures::seed::count(store, "accounts")
     }
 
     #[test]
@@ -334,7 +334,7 @@ mod tests {
             login: None,
         };
         let preset = presets::manual(ADDRESS, &manual, chrono::Utc::now());
-        mail_store::testing::seed_account_plan(
+        mail_core::fixtures::seed::seed_account_plan(
             &store,
             mail_domain::id::new_account_id(),
             ADDRESS,

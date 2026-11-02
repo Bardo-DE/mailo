@@ -116,9 +116,14 @@ fn open(counts: &Arc<Counts>) -> Window {
         })
         .expect("the setting is written");
         let cache = dir.join("cache");
-        let png = mail_runtime::bimi::draw(LOGO.as_bytes()).expect("the logo draws");
-        mail_runtime::bimi::remember(&cache, "brand.example", Some(&png), chrono::Utc::now())
-            .expect("the logo is cached");
+        let png = mail_core::fixtures::bimi::draw(LOGO.as_bytes()).expect("the logo draws");
+        mail_core::fixtures::bimi::remember(
+            &cache,
+            "brand.example",
+            Some(&png),
+            chrono::Utc::now(),
+        )
+        .expect("the logo is cached");
         contexts
             .with(mail_ui_reader::brand::BrandCache(cache))
             .with(Launcher(counts as Arc<dyn Badge>))

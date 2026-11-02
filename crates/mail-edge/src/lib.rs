@@ -24,8 +24,7 @@
 //! - [`mail`] builds the handle over a store from those.
 
 use mail_core::profile::Profile;
-use mail_core::{Environment, KeyringSigningStore, Mail, OAuthClients, SigningStore};
-use mail_store::SqliteStore;
+use mail_core::{Environment, KeyringSigningStore, Mail, OAuthClients, SigningStore, SqliteStore};
 use std::future::Future;
 use std::sync::{Arc, OnceLock};
 use tokio::runtime::Runtime;

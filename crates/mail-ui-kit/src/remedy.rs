@@ -1,12 +1,12 @@
-//! What to do about a failure: [`mail_client::prelude::Remedy`] in the window's words.
+//! What to do about a failure: [`mail_logic::remedy::Remedy`] in the window's words.
 //!
 //! `mail-core` says which step mends a failure and names no command; the terminal words it as
 //! one to type (`cli::remedy`), and this words it as a place to go and a thing to do, because a
 //! person in the window has no command line to type into. A failure is told as its own words,
 //! then the step as a sentence of its own.
 
-use mail_client::prelude::CoreError;
-use mail_client::prelude::{Remedy, SignInWith};
+use mail_client::CallError;
+use mail_logic::remedy::{Remedy, SignInWith};
 
 /// The step, as a sentence without its full stop, so it reads after the failure's own words.
 pub fn words(remedy: &Remedy) -> String {
@@ -38,14 +38,14 @@ pub fn words(remedy: &Remedy) -> String {
 
 /// A core failure as the window says it: its own words, then the step that mends it, if any.
 ///
-/// Anything that converts into a [`CoreError`] will do, as for the terminal's `remedy::error`.
-pub fn told(failure: impl Into<CoreError>) -> String {
+/// Anything that converts into a [`CallError`] will do, as for the terminal's `remedy::error`.
+pub fn told(failure: impl Into<CallError>) -> String {
     let failure = failure.into();
     match failure.remedy() {
         Some(remedy) => format!(
             "{}. {}.",
             failure.to_string().trim_end_matches('.'),
-            words(&remedy)
+            words(remedy)
         ),
         None => failure.to_string(),
     }
@@ -62,7 +62,7 @@ pub fn plainly(said: &str, why: impl std::fmt::Display) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mail_domain::{AuthPlan, SaslMech, Username};
+    use mail_client::Fault;
     use porter_provider::Issuer;
 
     fn address() -> String {
@@ -134,62 +134,40 @@ mod tests {
 
     #[test]
     fn a_failure_with_a_step_is_its_words_then_the_step() {
-        let said = told(CoreError::HeadersOnly);
+        let failure = CallError::new(Fault::Other, "only that message's headers are here yet")
+            .mended_by(Remedy::Sync);
         assert_eq!(
-            said,
-            format!(
-                "{}. Sync, then try again.",
-                CoreError::HeadersOnly.to_string().trim_end_matches('.')
-            )
+            told(failure),
+            "only that message's headers are here yet. Sync, then try again."
         );
     }
 
     #[test]
     fn a_failure_with_no_step_is_only_its_own_words() {
         assert_eq!(
-            told(CoreError::NoMessageId),
-            CoreError::NoMessageId.to_string()
+            told(CallError::new(
+                Fault::Other,
+                "the message has no Message-ID"
+            )),
+            "the message has no Message-ID"
         );
     }
 
     #[test]
     fn the_step_follows_how_the_account_signs_in() {
-        let password = told(CoreError::NoCredential {
-            address: address(),
-            auth: AuthPlan::Password {
-                username: Username::SameAsAddress,
-                sasl: vec![SaslMech::Plain],
-            },
-        });
-        assert!(password.ends_with("Enter the password for ada@example.test in Settings."));
-        let oauth = told(CoreError::NoCredential {
-            address: address(),
-            auth: AuthPlan::OAuth {
-                issuer: Issuer::Google,
-                scopes: vec![],
-            },
-        });
+        let said = |with| {
+            told(
+                CallError::new(Fault::Other, "no credential").mended_by(Remedy::SignIn {
+                    address: address(),
+                    with,
+                }),
+            )
+        };
+        assert!(
+            said(SignInWith::Password)
+                .ends_with("Enter the password for ada@example.test in Settings.")
+        );
+        let oauth = said(SignInWith::Unknown);
         assert!(oauth.ends_with("Sign in to ada@example.test again in Settings."));
-    }
-
-    /// The same failures the terminal words (`cli::remedy`) are worded here, and core's own text
-    /// names no command in either.
-    #[test]
-    fn what_the_terminal_words_the_window_words_too() {
-        for failure in [
-            CoreError::NoAccounts,
-            CoreError::HeadersOnly,
-            CoreError::NotDownloaded,
-            CoreError::PublishedEvent,
-            CoreError::DaemonRunning,
-            CoreError::NoIdentityToSendAs,
-            CoreError::NoAccountFor { address: address() },
-            CoreError::NoPreset { address: address() },
-        ] {
-            let plain = failure.to_string();
-            let said = told(failure);
-            assert!(said.len() > plain.len(), "no step after: {said}");
-            assert!(!said.contains("mailo "), "{said}");
-        }
     }
 }

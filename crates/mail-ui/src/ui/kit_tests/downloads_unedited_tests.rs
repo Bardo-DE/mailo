@@ -1,4 +1,4 @@
-use mail_core::Store as _;
+use mail_client::testing::Store as _;
 use mail_domain::MessageId;
 use mail_ui_kit::downloads::unedited::{
     Ledger, NotRecorded, is_deleted, record, remove_for_deleted, remove_on_quit,

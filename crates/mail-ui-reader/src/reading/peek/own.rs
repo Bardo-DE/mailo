@@ -7,8 +7,8 @@
 //! content, follows a reference in it or fetches anything; a forwarded message shows its plain
 //! text only, so its HTML (and every image or link in it) is never drawn.
 
-use mail_client::when::Clock;
 use mail_domain::{Address, MessageId};
+use mail_logic::when::Clock;
 use mail_ui_model::copy;
 
 /// What Peek draws for a part mailo reads itself.
@@ -87,12 +87,7 @@ pub(super) fn message(bytes: &[u8], clock: Clock) -> Option<Sheet> {
         parsed.date.map(|date| {
             (
                 copy::fields::DATE,
-                mail_client::when::stamp(
-                    date,
-                    &chrono::Local,
-                    mail_client::when::Stamp::Full,
-                    clock,
-                ),
+                mail_logic::when::stamp(date, &chrono::Local, mail_logic::when::Stamp::Full, clock),
             )
         }),
     ];

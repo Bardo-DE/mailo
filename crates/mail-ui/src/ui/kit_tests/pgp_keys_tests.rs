@@ -10,9 +10,9 @@ use std::time::Duration;
 
 use dioxus::prelude::*;
 use dioxus_core::VirtualDom;
-use mail_core::SigningStore;
-use mail_core::testing::MapSigningStore;
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::MapSigningStore;
+use mail_client::testing::core::SigningStore;
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::signing::{SigningKeyId, SigningKeyRef};
 use mail_domain::*;
 
@@ -139,7 +139,7 @@ fn two_keys() -> (
     let secrets = Arc::new(MapSigningStore::default());
     let bea = someone_elses("bea@example.test", 71);
     let armored = bea.public().armored().unwrap();
-    let theirs = mail_core::pgp::keys::import(
+    let theirs = mail_client::testing::core::pgp::keys::import(
         &store,
         secrets.as_ref(),
         armored.as_bytes(),
@@ -384,7 +384,7 @@ async fn generate_verify_and_import_go_through_the_keyring_handed_in() {
         seen.one("aria-label", "Make a key for me@example.test"),
     );
     settle(&mut dom, &mut made).await;
-    let mine = mail_core::pgp::own_key(&store, "me@example.test")
+    let mine = mail_client::testing::core::pgp::own_key(&store, "me@example.test")
         .unwrap()
         .unwrap();
     assert!(held(&secrets, &mine));

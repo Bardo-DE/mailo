@@ -8,11 +8,11 @@ use crate::ui::fixtures::{dispatching, empty};
 use chrono::Utc;
 use dioxus::prelude::*;
 use dioxus_core::VirtualDom;
-use mail_core::SqliteStore;
-use mail_core::Store as _;
-use mail_core::fetch::{Link, Live, Pause, Trigger};
-use mail_core::schedule::{Heard, Lost, Stop};
-use mail_core::sync::report::{AccountReport, Counts, PassEnd};
+use mail_client::testing::SqliteStore;
+use mail_client::testing::Store as _;
+use mail_client::testing::core::fetch::{Link, Live, Pause, Trigger};
+use mail_client::testing::core::schedule::{Heard, Lost, Stop};
+use mail_client::testing::core::sync::report::{AccountReport, Counts, PassEnd};
 use mail_domain::id::account_id_from_uuid;
 use mail_domain::*;
 use porter_core::AccountId;
@@ -42,14 +42,20 @@ fn account() -> (Arc<SqliteStore>, tempfile::TempDir) {
         login: None,
     };
     let preset = presets::manual("me@nowhere.example", &manual, Utc::now());
-    mail_store::testing::seed_account_plan(
+    mail_client::testing::seed::seed_account_plan(
         &store,
         acct_account(),
         &preset.plan.address,
         &preset.plan,
         Some(Utc::now()),
     );
-    mail_store::testing::seed_sync_state(&store, acct_account(), "INBOX", &SyncCursor::Pop, None);
+    mail_client::testing::seed::seed_sync_state(
+        &store,
+        acct_account(),
+        "INBOX",
+        &SyncCursor::Pop,
+        None,
+    );
     store
         .put_caps(acct_account(), &preset.expected_caps, Utc::now())
         .unwrap();

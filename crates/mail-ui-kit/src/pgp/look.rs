@@ -9,14 +9,14 @@ use std::path::{Path, PathBuf};
 
 use chrono::Utc;
 use mail_client::Client;
+use mail_client::SigningKeys;
 use mail_client::message::{Looks, Opening, Protection, Sealed};
-use mail_client::prelude::SigningStore;
 use mail_domain::*;
 use mail_mime::Parsed;
 
 use super::{Said, Scheme, Tried, said, said_smime};
 use crate::text::{AttachmentRow, Kept as Where};
-use mail_client::password::Password;
+use mail_logic::password::Password;
 
 /// What a protected message's glyph in the reader's head says at a glance: the best thing that
 /// can be said for it. What went wrong is a banner of its own (`seal::Seal`), not a glyph.
@@ -136,7 +136,7 @@ pub fn last(looks: &Looks, message: MessageId, body: Option<BlobId>) -> Option<L
 pub fn lookup(
     looks: &Looks,
     client: &Client,
-    secrets: &dyn SigningStore,
+    secrets: &SigningKeys,
     message: MessageId,
     body: Option<BlobId>,
 ) -> Look {
@@ -152,7 +152,7 @@ pub fn lookup(
 pub fn unlock(
     looks: &Looks,
     client: &Client,
-    secrets: &dyn SigningStore,
+    secrets: &SigningKeys,
     message: MessageId,
     body: Option<BlobId>,
     passphrase: Password,

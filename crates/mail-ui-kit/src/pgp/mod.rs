@@ -13,7 +13,7 @@
 //! the same blocks, and never written down.
 //!
 //! A passphrase typed to unlock a key, or a PKCS#12 file's password, is a
-//! [`Password`](mail_client::password::Password): moved from the field into the one call that needs
+//! [`Password`](mail_logic::password::Password): moved from the field into the one call that needs
 //! it, and dropped with it. It is never in a signal, the [`Shell`](crate::view::Shell), the
 //! client, a file or a log.
 
@@ -40,7 +40,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use mail_client::Client;
-use mail_client::prelude::SigningStore;
+use mail_client::SigningKeys;
 use mail_domain::*;
 
 /// Look a key up by its address's domain. Blocks on the network: run it off the thread that draws.
@@ -54,7 +54,7 @@ pub(crate) type SaveFile = dyn Fn(&str) -> Option<PathBuf> + Send + Sync;
 /// Directory and the file dialogs, handed in as a context so tests reach none of them.
 #[derive(Clone)]
 pub struct Seams {
-    pub secrets: Arc<dyn SigningStore>,
+    pub secrets: SigningKeys,
     pub lookup: Arc<Lookup>,
     pub pick: Arc<PickFile>,
     pub save: Arc<SaveFile>,
@@ -88,7 +88,7 @@ impl Seams {
     /// network or a dialog.
     fn none() -> Seams {
         Seams {
-            secrets: Arc::new(mail_client::prelude::NoKeyring),
+            secrets: SigningKeys::none(),
             lookup: Arc::new(|_, _| Err("no lookups in tests".to_owned())),
             pick: Arc::new(|| None),
             save: Arc::new(|_| None),

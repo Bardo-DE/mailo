@@ -3,8 +3,8 @@
 
 use super::*;
 use crate::ui::contacts::tests::{ADDED, HEARD, WRITTEN, the_book};
-use mail_core::Store;
-use mail_core::contacts::{Group, GroupHome, GroupId};
+use mail_client::testing::Store;
+use mail_client::testing::core::contacts::{Group, GroupHome, GroupId};
 use mail_ui_compose::compose::page::Float;
 use mail_ui_compose::compose::recipients::{people_items, pick_person, typed};
 use mail_ui_kit::lines::List;

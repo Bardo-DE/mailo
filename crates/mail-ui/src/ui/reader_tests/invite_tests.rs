@@ -7,8 +7,8 @@ use crate::ui::fixtures::{
 use dioxus::html::input_data::keyboard_types::Modifiers;
 use dioxus::prelude::*;
 use dioxus_core::VirtualDom;
-use mail_core::message::{Looks, Read};
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::core::message::{Looks, Read};
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::*;
 use mail_ui_kit::files::SaveDir;
 use mail_ui_kit::view::Shell;
@@ -472,7 +472,7 @@ fn the_answer_says_who_it_goes_to() {
         Attendance::Tentative,
         None,
         chrono::Utc::now(),
-        mail_core::when::Clock::H24,
+        mail_logic::when::Clock::H24,
     )
     .unwrap();
     assert_eq!(said, "Queued your answer (tentative) to ada@example.test");

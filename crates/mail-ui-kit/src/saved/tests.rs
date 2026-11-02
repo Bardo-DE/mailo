@@ -10,8 +10,8 @@ fn labels() -> Vec<(String, LabelId)> {
     )]
 }
 
-fn known(labels: &[(String, LabelId)]) -> mail_core::query::Known<'_> {
-    mail_core::query::Known {
+fn known(labels: &[(String, LabelId)]) -> mail_logic::query::Known<'_> {
+    mail_logic::query::Known {
         labels,
         accounts: &[],
     }
@@ -30,7 +30,7 @@ fn a_saved_view_is_a_place_after_the_folders_and_badged_by_its_filter() {
         &labels(),
         &[],
         std::slice::from_ref(&view),
-        &mail_core::vip::Vips::default(),
+        &mail_client::testing::core::vip::Vips::default(),
     );
     let last = places.last().unwrap();
     assert_eq!(last.name, "Trips");

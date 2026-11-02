@@ -4,7 +4,7 @@ use crate::ui::fixtures::{
 };
 use dioxus::prelude::*;
 use dioxus_core::VirtualDom;
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::*;
 use mail_ui_kit::view::Shell;
 use mail_ui_reader::reading::{Reader, initial};
@@ -449,7 +449,8 @@ async fn a_message_past_the_frames_room_is_rendered_off_the_thread_and_then_draw
     // box first and filled once its rendering lands.
     let long = format!(
         "<p>the long one</p>{}",
-        "<p>quarterly widgets</p>".repeat(mail_core::message::INLINE_BYTES as usize / 16)
+        "<p>quarterly widgets</p>"
+            .repeat(mail_client::testing::core::message::INLINE_BYTES as usize / 16)
     );
     let (store, thread, _dir) = thread_of(&[
         ("short", html_message("short", "<p>the short one</p>")),

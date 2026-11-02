@@ -69,7 +69,7 @@ fn raw_message(n: i64) -> Vec<u8> {
 fn generated() -> (SqliteStore, tempfile::TempDir) {
     let dir = tempfile::tempdir().unwrap();
     let store = SqliteStore::open(dir.path().join("bench.db"), dir.path()).unwrap();
-    mail_store::testing::seed_account(&store, acct_account(), "me@example.test");
+    mail_core::fixtures::seed::seed_account(&store, acct_account(), "me@example.test");
 
     // One long conversation, so the reader has something real to open, then the rest as
     // singletons — which is what a mailbox mostly is.
@@ -158,7 +158,7 @@ fn subject() -> (SqliteStore, Option<tempfile::TempDir>, String) {
                 .unwrap_or(std::path::Path::new("."))
                 .join("blobs");
             let store = SqliteStore::open(&path, blobs).expect("that database opens");
-            let count: i64 = mail_store::testing::count(&store, "messages");
+            let count: i64 = mail_core::fixtures::seed::count(&store, "messages");
             (
                 store,
                 None,
@@ -173,7 +173,7 @@ fn subject() -> (SqliteStore, Option<tempfile::TempDir>, String) {
 }
 
 fn accounts(store: &SqliteStore) -> Vec<AccountId> {
-    mail_store::testing::account_ids(store)
+    mail_core::fixtures::seed::account_ids(store)
 }
 
 fn page(limit: u32, filter: Filter) -> Query {
@@ -210,7 +210,7 @@ fn what_one_frame_of_the_window_costs() {
     // 1. The list. One query for the whole visible list, deliberately — see `ui::App`.
     let list = timed(7, || {
         let _ = store.threads(
-            &page(50, mail_core::mailbox_filter::for_role(MailboxRole::Inbox)),
+            &page(50, mail_logic::mailbox_filter::for_role(MailboxRole::Inbox)),
             now,
         );
     });
@@ -289,7 +289,11 @@ fn what_one_frame_of_the_window_costs() {
         .unwrap_or("widgets")
         .to_owned();
     let search = timed(7, || {
-        let filter = query::parse_with(&needle, &chrono::Local, &query::named(&index));
+        let filter = mail_logic::query::parse_with(
+            &needle,
+            &chrono::Local,
+            &mail_logic::query::named(&index),
+        );
         let _ = store.threads(&page(50, filter), now);
     });
 

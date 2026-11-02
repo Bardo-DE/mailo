@@ -5,10 +5,10 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use chrono::{TimeZone, Utc};
-use mail_core::Pushed;
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::id::account_id_from_uuid;
 use mail_domain::*;
+use mail_proto::sieve::Pushed;
 use mail_proto::sieve::{Compiled, SieveCaps, SieveOutcome, Unmappable, VacationPlaced};
 use porter_core::AccountId;
 
@@ -40,7 +40,7 @@ pub(super) fn own_server(store: &Arc<SqliteStore>) -> AccountRow {
 
 /// `plan` kept as account `id`, as `account add` keeps one, and its row.
 pub(super) fn seeded(store: &Arc<SqliteStore>, id: AccountId, plan: &AccountPlan) -> AccountRow {
-    mail_store::testing::seed_account_plan(
+    mail_client::testing::seed::seed_account_plan(
         store,
         id.clone(),
         &plan.address,
@@ -88,7 +88,7 @@ fn a_reply_kept_from_the_sheet_reads_back_as_it_was_typed() {
         &filled("2026-10-12 09:00"),
         now(),
         &Utc,
-        mail_core::when::Clock::H24,
+        mail_logic::when::Clock::H24,
     )
     .unwrap();
     assert!(
@@ -133,7 +133,7 @@ fn a_reply_kept_from_the_sheet_reads_back_as_it_was_typed() {
         &off,
         now(),
         &Utc,
-        mail_core::when::Clock::H24,
+        mail_logic::when::Clock::H24,
     )
     .unwrap();
     assert_eq!(store.vacation(acct_own()).unwrap(), None);
@@ -149,7 +149,7 @@ fn a_reply_that_has_already_ended_is_refused_in_words() {
         &filled("2026-09-01"),
         now(),
         &Utc,
-        mail_core::when::Clock::H24,
+        mail_logic::when::Clock::H24,
     );
     let why = past.unwrap_err();
     assert!(why.starts_with("“Until” has passed: "), "{why}");
@@ -179,7 +179,7 @@ fn a_reply_that_has_already_ended_is_refused_in_words() {
             &form,
             now(),
             &Utc,
-            mail_core::when::Clock::H24,
+            mail_logic::when::Clock::H24,
         )
         .unwrap_err();
         assert!(why.contains(said), "{from}–{until}: {why}");
@@ -261,7 +261,7 @@ fn an_account_whose_provider_has_no_sieve_is_never_pushed() {
             &filled("2026-10-12"),
             now(),
             &Utc,
-            mail_core::when::Clock::H24,
+            mail_logic::when::Clock::H24,
         );
         assert!(
             form.is_err(),

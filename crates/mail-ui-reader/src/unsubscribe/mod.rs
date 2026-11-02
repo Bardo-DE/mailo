@@ -18,10 +18,10 @@ use chrono::{DateTime, Utc};
 use dioxus::prelude::*;
 use mail_client::Client;
 use mail_client::message::Looks;
-use mail_client::undo::Undo;
 use mail_client::unsubscribe::{Found, Outcome};
 use mail_client::{Acted, Perform};
 use mail_domain::*;
+use mail_logic::undo::Undo;
 use mail_mime::Unsubscribe;
 use mail_ui_kit::view::Shell;
 

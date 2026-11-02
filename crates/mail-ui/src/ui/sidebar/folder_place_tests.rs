@@ -10,9 +10,9 @@ use crate::ui::fixtures::{Seen, click, dispatching, empty, rebuild_into};
 use chrono::Utc;
 use dioxus::prelude::*;
 use dioxus_core::{NoOpMutations, VirtualDom};
-use mail_core::fetch::FolderFetch;
-use mail_core::sync::report::{AccountReport, Counts, PassEnd};
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::core::fetch::FolderFetch;
+use mail_client::testing::core::sync::report::{AccountReport, Counts, PassEnd};
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::*;
 use mail_ui_kit::motion::belongs;
 use mail_ui_kit::view::{Shell, folder_of, places_with};
@@ -36,7 +36,7 @@ fn store() -> (Arc<SqliteStore>, tempfile::TempDir, Vec<ThreadId>) {
     };
     let preset = presets::manual("me@nowhere.example", &manual, Utc::now());
     assert_ne!(preset.expected_caps.labels, ServerLabels::Supported);
-    mail_store::testing::seed_account_plan(
+    mail_client::testing::seed::seed_account_plan(
         &store,
         acct_imap(),
         &preset.plan.address,
@@ -351,7 +351,7 @@ fn an_op_in_a_folder_place_keeps_the_row_while_its_mail_is_still_there() {
             mail_client::query::Accounts,
         )),
         &[],
-        &mail_core::vip::Vips::default(),
+        &mail_client::testing::core::vip::Vips::default(),
     );
     let index = places
         .iter()
@@ -365,7 +365,7 @@ fn an_op_in_a_folder_place_keeps_the_row_while_its_mail_is_still_there() {
     let draft = threads[0];
 
     // Starring changes nothing about where the server holds it.
-    mail_core::act::perform(&store, draft, Op::SetStar(Star::Starred)).unwrap();
+    mail_client::testing::core::act::perform(&store, draft, Op::SetStar(Star::Starred)).unwrap();
     assert!(
         belongs(
             &crate::ui::fixtures::client(&store),
@@ -379,7 +379,7 @@ fn an_op_in_a_folder_place_keeps_the_row_while_its_mail_is_still_there() {
     // Trashed here, it leaves the folder's list at once (10.11): `InFolder` is held there *and*
     // filed as held, and a trashed message is filed as none of its folders. The server still
     // holds it in the folder until the move is made and seen, and its address stays.
-    let trashed = mail_core::act::perform(&store, draft, Op::Trash).unwrap();
+    let trashed = mail_client::testing::core::act::perform(&store, draft, Op::Trash).unwrap();
     assert!(
         !belongs(
             &crate::ui::fixtures::client(&store),
@@ -390,7 +390,7 @@ fn an_op_in_a_folder_place_keeps_the_row_while_its_mail_is_still_there() {
         "a trashed row stayed"
     );
     // Undone, as a refused move is, it is back.
-    assert!(mail_core::act::take_back(&store, &trashed));
+    assert!(mail_client::testing::core::act::take_back(&store, &trashed));
     assert!(
         belongs(
             &crate::ui::fixtures::client(&store),

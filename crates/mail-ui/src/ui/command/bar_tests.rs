@@ -9,8 +9,8 @@ use super::*;
 use crate::ui::fixtures::{chord, dispatching, drain_seen, rebuild_into, type_into, work};
 use dioxus::html::input_data::keyboard_types::Modifiers;
 use dioxus_core::{ElementId, NoOpMutations, VirtualDom};
-use mail_core::SqliteStore;
-use mail_core::Store;
+use mail_client::testing::SqliteStore;
+use mail_client::testing::Store;
 use mail_ui_kit::host::{Ask, Recorder};
 use mail_ui_kit::view::{BarListing, BarOpen};
 use mail_ui_model::copy::menus;
@@ -269,7 +269,7 @@ async fn new_from_template_lists_the_templates_in_the_panel_and_starts_one() {
     let (store, dir) = crate::ui::fixtures::seeded();
     let mut bar = alone_over(&recorder, store.clone(), dir);
     let account = crate::ui::fixtures::acct_account();
-    let draft = mail_core::compose::draft_new(
+    let draft = mail_client::testing::core::compose::draft_new(
         &store,
         account.clone(),
         &[],
@@ -278,7 +278,7 @@ async fn new_from_template_lists_the_templates_in_the_panel_and_starts_one() {
         chrono::Utc::now(),
     )
     .unwrap_or_else(|why| panic!("a draft: {why}"));
-    mail_core::template::save(&store, draft.id, "Weekly", chrono::Utc::now())
+    mail_client::testing::core::template::save(&store, draft.id, "Weekly", chrono::Utc::now())
         .unwrap_or_else(|why| panic!("a template: {why}"));
     // The row, not the field's own value, which holds the same words.
     let action = commands::FromTemplate.label();

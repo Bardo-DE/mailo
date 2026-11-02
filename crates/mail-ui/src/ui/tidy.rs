@@ -21,8 +21,8 @@ use ds::components::menus::pop_up_button::PopUpButton;
 use ds::components::overlays::sheet_attach::Attach;
 use ds::prelude::*;
 use mail_client::Client;
-use mail_client::when::Clock;
 use mail_domain::*;
+use mail_logic::when::Clock;
 use mail_ui_kit::common::in_card;
 use mail_ui_kit::press::{SheetClose, available, on_primary};
 use mail_ui_kit::view::{Age, Shell};
@@ -43,7 +43,7 @@ pub(in crate::ui) fn candidates(
     now: DateTime<Utc>,
 ) -> Vec<ThreadSummary> {
     let filter = Filter::And(vec![
-        mail_client::mailbox_filter::for_role(MailboxRole::Inbox),
+        mail_logic::mailbox_filter::for_role(MailboxRole::Inbox),
         Filter::Read(ReadState::Read),
         Filter::Not(Box::new(Filter::Starred(Star::Starred))),
         Filter::Not(Box::new(Filter::Pinned)),
@@ -121,7 +121,7 @@ fn row(summary: &ThreadSummary, now: DateTime<Utc>, clock: Clock) -> ListItem<St
                 leading: RowLeading::Avatar(face),
                 title: subject,
                 detail: Some(TextLine::from(summary.from.shown().to_owned())),
-                accessory: Accessory::Text(mail_client::when::listed(summary.last_date, now, &chrono::Local, clock)),
+                accessory: Accessory::Text(mail_logic::when::listed(summary.last_date, now, &chrono::Local, clock)),
                 size: RowSize::Settings,
             }
         },

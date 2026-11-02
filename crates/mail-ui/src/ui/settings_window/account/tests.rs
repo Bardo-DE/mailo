@@ -10,7 +10,7 @@ use crate::ui::fixtures::{
 use crate::ui::settings_window::settings_root;
 use crate::ui::settings_window::tests::opened_on;
 use dioxus::dioxus_core::VirtualDom;
-use mail_core::Storage;
+use mail_client::testing::core::Storage;
 use mail_ui_kit::data::account_rows;
 use mail_ui_kit::settings_at::{SettingsAsked, SettingsAt};
 use mail_ui_kit::view::PageId;
@@ -212,7 +212,6 @@ async fn the_page_says_how_much_storage_the_server_counts_once_it_has_said() {
     let built = work();
     let asked: Arc<Mutex<Vec<AccountId>>> = Arc::default();
     let seams = Seams {
-        secrets: Arc::new(mail_core::NoKeyring),
         storage: Arc::new({
             let asked = asked.clone();
             move |_, account| {
@@ -260,7 +259,6 @@ async fn an_account_waiting_to_sign_in_is_not_asked_for_its_storage() {
     let built = work();
     let asked: Arc<Mutex<Vec<AccountId>>> = Arc::default();
     let seams = Seams {
-        secrets: Arc::new(mail_core::NoKeyring),
         storage: Arc::new({
             let asked = asked.clone();
             move |_, account| {
@@ -299,7 +297,6 @@ async fn a_paused_account_is_not_asked_for_its_storage() {
     let built = work();
     let asked: Arc<Mutex<Vec<AccountId>>> = Arc::default();
     let seams = Seams {
-        secrets: Arc::new(mail_core::NoKeyring),
         storage: Arc::new({
             let asked = asked.clone();
             move |_, account| {

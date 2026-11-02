@@ -28,8 +28,8 @@ fn now() -> DateTime<Utc> {
 }
 
 fn seed(store: &SqliteStore) {
-    mail_store::testing::seed_account(store, acct_account(), ME);
-    mail_store::testing::seed_identity_for(store, IDENTITY, acct_account(), ME, Some("Me"));
+    mail_core::fixtures::seed::seed_account(store, acct_account(), ME);
+    mail_core::fixtures::seed::seed_identity_for(store, IDENTITY, acct_account(), ME, Some("Me"));
 }
 
 /// A store with one account that can send, as `me@example.test`.
@@ -70,7 +70,7 @@ fn draft(store: &SqliteStore, openpgp: Option<Mode>, recipients: &[&str], bcc: &
     )
 }
 
-fn submissions(store: &SqliteStore) -> Vec<mail_store::OutboxEntry> {
+fn submissions(store: &SqliteStore) -> Vec<mail_core::OutboxEntry> {
     sealed::submissions(store, acct_account(), now())
 }
 
@@ -222,7 +222,9 @@ mod keys {
         );
         pgp::keys::delete(&store, &secrets, &key, pgp::WithSecret::Confirmed).unwrap();
         assert!(store.pgp_key(key.fingerprint).unwrap().is_none());
-        assert!(mail_runtime::pgp::secret_key(&secrets, acct_account(), key.fingerprint).is_err());
+        assert!(
+            mail_core::fixtures::secret_key(&secrets, acct_account(), key.fingerprint).is_err()
+        );
 
         // A correspondent's key needs no confirmation: nothing is lost that cannot be fetched again.
         let bea = someone_elses(BEA, 2);
@@ -266,7 +268,7 @@ mod keys {
         let secrets = MapSigningStore::default();
         let generated = pgp::keys::generate(&store, &secrets, ME, now()).unwrap();
         // And a secret imported with a passphrase, for the address of a second identity.
-        mail_store::testing::seed_identity(
+        mail_core::fixtures::seed::seed_identity(
             &store,
             &Identity {
                 id: IdentityId::generate(),
@@ -312,10 +314,11 @@ mod keys {
             .to_bytes();
         assert!(contains(&public[..64]), "the public key is in the database");
         assert!(!contains(b"PRIVATE KEY"), "no armored secret key");
-        let secret = mail_runtime::pgp::secret_key(&secrets, acct_account(), generated.fingerprint)
-            .unwrap()
-            .armored()
-            .unwrap();
+        let secret =
+            mail_core::fixtures::secret_key(&secrets, acct_account(), generated.fingerprint)
+                .unwrap()
+                .armored()
+                .unwrap();
         for line in secret.lines().filter(|l| l.len() > 40) {
             assert!(
                 !contains(line.as_bytes()),
@@ -434,7 +437,7 @@ mod sending {
         let before = draft(&store, None, &[BEA], &[]);
         send(&store, &secrets, before.id).unwrap();
         assert!(!String::from_utf8_lossy(&frozen(&store)).contains("Autocrypt:"));
-        mail_store::testing::clear_outbox(&store);
+        mail_core::fixtures::seed::clear_outbox(&store);
 
         let key = pgp::keys::generate(&store, &secrets, ME, now()).unwrap();
         let after = draft(&store, None, &[BEA], &[]);
@@ -752,7 +755,8 @@ mod reading {
     fn show_says_a_message_is_signed_and_by_whom() {
         let (store, _dir, secrets, key) = with_key();
         let signer = Unlocking {
-            key: mail_runtime::pgp::secret_key(&secrets, acct_account(), key.fingerprint).unwrap(),
+            key: mail_core::fixtures::secret_key(&secrets, acct_account(), key.fingerprint)
+                .unwrap(),
             passphrase: String::new(),
         };
         let raw = "From: me@example.test\r\nTo: bea@example.test\r\nSubject: note\r\n\

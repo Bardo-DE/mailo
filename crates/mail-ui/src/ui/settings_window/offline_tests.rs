@@ -4,8 +4,8 @@
 use crate::ui::fixtures::{Seen, Work, click, work};
 use dioxus::dioxus_core::VirtualDom;
 use ds::prelude::Check;
-use mail_core::Store as _;
-use mail_core::offline::{self, Keep};
+use mail_client::testing::Store as _;
+use mail_client::testing::core::offline::{self, Keep};
 use mail_domain::*;
 use mail_ui_kit::data::account_rows;
 use porter_core::AccountId;

@@ -1,6 +1,6 @@
 //! `mailo watch`: the scheduler the window runs, with its passes announced as they end.
 //!
-//! The loop is `mail_runtime::schedule`'s, so a watch and a window fetch the same way: a link per
+//! The loop is `mail_engine::schedule`'s, so a watch and a window fetch the same way: a link per
 //! account, a pass at each account's interval, a connection held to hear the server push where it
 //! can, a backoff after a failure, and no pass at all for an account whose credential the server
 //! refused. What this adds is what a watch is for. Each pass that ends is handed to the caller
@@ -11,12 +11,11 @@ use super::report::{Hooks, PassEnd, Progress, Watched, outcome};
 use super::{Announce, configured, live};
 use crate::error::CoreError;
 use crate::fetch::{Event, Trigger};
-use crate::ipc::watching::Asked;
 use crate::junk::Policy;
 use crate::mail::{Mail, SyncOps};
 use crate::notify::{Notifier, Whom};
 use chrono::{DateTime, Utc};
-use mail_runtime::schedule::{
+use mail_engine::schedule::{
     Change, Daemon, End, Host, ListenCall, Local, Lost, Note, PassCall, Passed, Schedule,
     Scheduler, Stored,
 };
@@ -25,6 +24,11 @@ use porter_core::AccountId;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::watch;
+
+/// What a watch's scheduler listens on for a pass someone asked for at the watch's door
+/// (`mail_agent::ipc::watching::Watching::asked`): it moves once for each request.
+pub type Asked = watch::Receiver<u64>;
 
 /// What a watch says of a pass that has ended, and what it announces of it.
 ///
@@ -104,7 +108,7 @@ impl SyncOps<'_> {
     /// each ends: a handle's own setting is the one it was built with, which a watch that runs
     /// for days would keep for as long.
     ///
-    /// `asked` is the watch's door ([`crate::ipc::watching::Watching::asked`]): each time it
+    /// `asked` is the watch's door (`mail_agent::ipc::watching::Watching::asked`): each time it
     /// moves, every account is asked for a pass now, as the window's Sync asks its own.
     pub async fn watch(
         &self,

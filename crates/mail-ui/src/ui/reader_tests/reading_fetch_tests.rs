@@ -6,7 +6,7 @@ use dioxus::prelude::*;
 use dioxus_core::VirtualDom;
 use ds::prelude::*;
 use mail_client::fetch::Body as BodyState;
-use mail_core::{SqliteStore, Store as _};
+use mail_client::testing::{SqliteStore, Store as _};
 use mail_domain::*;
 use mail_ui_kit::need::Need;
 use mail_ui_kit::view::Shell;

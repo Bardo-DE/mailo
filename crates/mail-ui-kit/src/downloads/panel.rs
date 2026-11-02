@@ -271,14 +271,14 @@ pub fn detail(
     entry: &Entry,
     here: bool,
     now: chrono::DateTime<chrono::Utc>,
-    clock: mail_client::when::Clock,
+    clock: mail_logic::when::Clock,
 ) -> String {
     if !here {
         return "Moved or deleted".to_owned();
     }
     let mut parts = vec![
         mail_client::attach::human_size(entry.bytes),
-        mail_client::when::upcoming(entry.at, now, &chrono::Local, clock),
+        mail_logic::when::upcoming(entry.at, now, &chrono::Local, clock),
     ];
     if let Some(origin) = &entry.origin
         && !origin.subject.trim().is_empty()

@@ -72,7 +72,7 @@ pub use spell::Dictionaries;
 pub use spell::use_test_dictionaries;
 pub use templates::{every as every_template, template_rows};
 
-use mail_client::password::Password;
+use mail_logic::password::Password;
 use mail_ui_kit::press::on_primary;
 use mail_ui_kit::view::Shell;
 use mail_ui_model::copy;
@@ -424,7 +424,7 @@ fn send_page(
     let secrets = mail_ui_kit::pgp::seams().secrets;
     let sent = life::send(
         &client,
-        secrets.as_ref(),
+        &secrets,
         &mut page.write(),
         anyway,
         life::grace(),
@@ -599,9 +599,9 @@ pub fn delete_draft(mut page: Signal<Page>, shell: Signal<Shell>, desk: Desk) {
 fn deleted(
     client: &Client,
     stored: Draft,
-) -> Result<mail_client::undo::Undo, mail_client::prelude::CoreError> {
+) -> Result<mail_logic::undo::Undo, mail_client::CallError> {
     life::discard(client, stored.id)?;
-    Ok(mail_client::undo::Undo {
+    Ok(mail_logic::undo::Undo {
         thread: None,
         account: stored.account.clone(),
         forward: Patch {
@@ -620,7 +620,7 @@ fn deleted(
 /// The one teardown of a deleted draft, from the foot's ⋯, the row menu or anywhere else: it
 /// leaves Today and the parked pages, its composer closes if it is the one open, the lists are
 /// read again, and its undo is kept and offered.
-fn forget(mut shell: Signal<Shell>, desk: Desk, draft: DraftId, undo: mail_client::undo::Undo) {
+fn forget(mut shell: Signal<Shell>, desk: Desk, draft: DraftId, undo: mail_logic::undo::Undo) {
     desk.parked
         .clone()
         .write()
@@ -644,7 +644,6 @@ pub fn delete_stored_draft(shell: Signal<Shell>, draft: DraftId) {
     let outcome = client
         .stored()
         .draft(draft)
-        .map_err(mail_client::prelude::CoreError::from)
         .and_then(|stored| deleted(&client, stored));
     match outcome {
         Ok(undo) => forget(shell, desk, draft, undo),

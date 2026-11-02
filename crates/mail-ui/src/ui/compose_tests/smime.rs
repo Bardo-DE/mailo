@@ -2,14 +2,14 @@
 //! both protections, what `smime::check` says stands in the way is said in the warning bar, and
 //! a locked OpenPGP key is known by the send's typed error.
 
-use mail_core::Store;
-use mail_core::testing::MapSigningStore;
+use mail_client::testing::MapSigningStore;
+use mail_client::testing::Store;
 use rand::SeedableRng;
 
 use super::*;
 use crate::ui::fixtures::smime_support::{Person, identity, pki, rng};
 use crate::ui::fixtures::{Seen, acct_account, click, rebuild_into, seeded};
-use mail_core::SqliteStore;
+use mail_client::testing::SqliteStore;
 use mail_ui_compose::compose::protection::{Protection, items, label, pick};
 use mail_ui_compose::compose::seal::SealBar;
 use std::sync::Arc;
@@ -37,7 +37,7 @@ fn asking(store: &SqliteStore, openpgp: Option<Mode>, smime: Option<Mode>) -> Dr
         name: Some("Dana Whitfield".to_owned()),
         email: "dana@example.test".to_owned(),
     }];
-    let mut draft = mail_core::compose::draft_new(
+    let mut draft = mail_client::testing::core::compose::draft_new(
         store,
         acct_account(),
         &to,
@@ -48,7 +48,7 @@ fn asking(store: &SqliteStore, openpgp: Option<Mode>, smime: Option<Mode>) -> Dr
     .unwrap();
     draft.openpgp = openpgp;
     draft.smime = smime;
-    mail_core::compose::save(store, &draft).unwrap();
+    mail_client::testing::core::compose::save(store, &draft).unwrap();
     draft
 }
 
@@ -214,7 +214,7 @@ async fn what_smime_check_says_stands_in_the_way_is_said_in_the_bar() {
     // encryption is offered, and how her certificate would come is said.
     let me = identity(pki(), &Person::new("Me", &["me@example.test"], 20, 2001));
     let file = mail_crypto::smime::write_pkcs12(&me, PASSWORD, &mut rng(1)).unwrap();
-    mail_core::smime::certs::import(
+    mail_client::testing::core::smime::certs::import(
         &store,
         secrets.as_ref(),
         &file,
@@ -260,7 +260,7 @@ fn a_locked_openpgp_key_is_known_by_the_sends_typed_error() {
     .unwrap()
     .with_passphrase("owl at dusk", &mut rand::rngs::StdRng::seed_from_u64(84))
     .unwrap();
-    mail_core::pgp::keys::import(
+    mail_client::testing::core::pgp::keys::import(
         &store,
         secrets.as_ref(),
         key.armored().unwrap().as_bytes(),
@@ -272,10 +272,10 @@ fn a_locked_openpgp_key_is_known_by_the_sends_typed_error() {
     // The data side's answer, typed: the key, whether or not a passphrase was asked for.
     let refused = mail_ui_compose::compose::life::queue(
         &crate::ui::fixtures::client(&store),
-        secrets.as_ref(),
-        &mail_core::pgp::no_passphrase,
+        &mail_client::SigningKeys::new(secrets.clone()),
+        &mail_client::testing::core::pgp::no_passphrase,
         draft.id,
-        mail_core::compose::Leaves::Now,
+        mail_client::testing::core::compose::Leaves::Now,
         Utc::now(),
     )
     .unwrap_err();
@@ -285,10 +285,10 @@ fn a_locked_openpgp_key_is_known_by_the_sends_typed_error() {
     let wrong = |_: Fingerprint| Some("not the words".to_owned());
     let refused = mail_ui_compose::compose::life::queue(
         &crate::ui::fixtures::client(&store),
-        secrets.as_ref(),
+        &mail_client::SigningKeys::new(secrets.clone()),
         &wrong,
         draft.id,
-        mail_core::compose::Leaves::Now,
+        mail_client::testing::core::compose::Leaves::Now,
         Utc::now(),
     )
     .unwrap_err();

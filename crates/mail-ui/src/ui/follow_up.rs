@@ -1,7 +1,7 @@
 //! Remind me if no reply, in the window: the sweep that brings a conversation back. A reminder is
 //! set under the composer's Send ▾ alone. And the timer that shows a snoozed one come back.
 //!
-//! The deciding is [`mail_client::follow_up`]'s; this is when it runs and how it is shown.
+//! The deciding is [`mail_logic::follow_up`]'s; this is when it runs and how it is shown.
 
 use chrono::{DateTime, Utc};
 use dioxus::prelude::*;

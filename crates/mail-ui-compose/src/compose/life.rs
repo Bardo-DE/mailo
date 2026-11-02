@@ -5,9 +5,10 @@
 
 use chrono::{DateTime, TimeZone, Utc};
 use mail_client::Client;
-use mail_client::compose::{Leaves, PictureSize};
-use mail_client::prelude::SigningStore;
+use mail_client::SigningKeys;
+use mail_client::compose::Leaves;
 use mail_domain::*;
+use mail_logic::picture::PictureSize;
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
@@ -143,7 +144,7 @@ pub(crate) fn pictures_queued(draft: DraftId) -> PictureSize {
 ///
 /// The record stays: dropped, it would let that autosave through. A page taken after it, as
 /// one is after the discard's Undo puts the draft back, is later and writes as ever.
-pub fn discard(client: &Client, draft: DraftId) -> Result<String, mail_client::prelude::CoreError> {
+pub fn discard(client: &Client, draft: DraftId) -> Result<String, mail_client::CallError> {
     discarding(draft, || client.compose().discard(draft))
 }
 
@@ -214,9 +215,7 @@ pub fn keep_on_server(
     match client.compose().keep_on_server(draft, now) {
         Ok(queued) => Ok(queued),
         // Discarded or sent from somewhere else meanwhile: there is nothing to keep.
-        Err(mail_client::prelude::CoreError::Store(mail_client::prelude::StoreError::NoDraft(
-            _,
-        ))) => Ok(false),
+        Err(why) if *why.fault() == mail_client::Fault::NoDraft => Ok(false),
         Err(why) => Err(why.to_string()),
     }
 }
@@ -314,7 +313,7 @@ pub struct Going {
 pub struct Dated<'a, Tz> {
     pub now: DateTime<Utc>,
     pub zone: &'a Tz,
-    pub clock: mail_client::when::Clock,
+    pub clock: mail_logic::when::Clock,
 }
 
 impl<Tz> std::fmt::Debug for Dated<'_, Tz> {
@@ -330,7 +329,7 @@ impl<Tz> std::fmt::Debug for Dated<'_, Tz> {
 /// `grace` first ([`grace`]).
 pub fn send<Tz: TimeZone>(
     client: &Client,
-    secrets: &dyn SigningStore,
+    secrets: &SigningKeys,
     page: &mut Page,
     anyway: Anyway,
     grace: chrono::TimeDelta,
@@ -423,7 +422,7 @@ where
 #[cfg(any(test, feature = "testing"))]
 pub fn queue(
     client: &Client,
-    secrets: &dyn SigningStore,
+    secrets: &SigningKeys,
     ask: mail_client::pgp::Ask<'_>,
     draft: DraftId,
     leaves: Leaves,
@@ -442,12 +441,12 @@ pub fn queue(
 /// stayed locked is [`mail_client::compose::SendError::locked`]. For a draft to be sealed this reads
 /// the keyring, and the window calls it on a blocking thread.
 ///
-/// `remind` is held as the message's follow-up reminder until it has left (`mail_client::follow_up`);
+/// `remind` is held as the message's follow-up reminder until it has left (`mail_logic::follow_up`);
 /// with none, a reminder an earlier send of the draft held goes. Its pictures go at `going.pictures`,
 /// made smaller as the bytes are frozen unless that is [`PictureSize::Actual`].
 pub(crate) fn queue_reminding(
     client: &Client,
-    secrets: &dyn SigningStore,
+    secrets: &SigningKeys,
     ask: mail_client::pgp::Ask<'_>,
     draft: DraftId,
     Going {

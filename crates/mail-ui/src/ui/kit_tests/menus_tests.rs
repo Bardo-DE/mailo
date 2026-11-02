@@ -3,9 +3,9 @@ use crate::ui::fixtures::{acct_account, dispatching, inbox_query, realistic};
 use chrono::TimeZone;
 use dioxus::prelude::*;
 use dioxus_core::{NoOpMutations, VirtualDom};
-use mail_core::when::Clock;
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::*;
+use mail_logic::when::Clock;
 use mail_ui_kit::menu::Right;
 use mail_ui_kit::ops::apply_label;
 
@@ -18,7 +18,7 @@ mod naming_a_conversation {
 
     fn a_label(store: &SqliteStore, name: &str) -> LabelId {
         let id = LabelId::generate();
-        mail_store::testing::seed_label(
+        mail_client::testing::seed::seed_label(
             store,
             id,
             acct_account(),
@@ -162,7 +162,7 @@ fn snooze_help_is_the_time_snooze_until_resolves() {
             .find(|item| item.key == phrase)
             .unwrap_or_else(|| panic!("{phrase} is not in the menu"));
         assert_eq!(item.name, name, "{phrase}");
-        let at = mail_core::snooze::snooze_until(phrase, now, &zone).expect(phrase);
+        let at = mail_logic::snooze::snooze_until(phrase, now, &zone).expect(phrase);
         assert_eq!(
             item.right,
             Right::Hint(mail_ui_kit::menus::snooze_hint(at, now, &zone, Clock::H24)),
@@ -177,7 +177,7 @@ fn the_snooze_menu_writes_its_hours_by_the_persons_clock() {
     let now = chrono::Utc.with_ymd_and_hms(2026, 9, 23, 15, 0, 0).unwrap();
     let zone = chrono::Utc;
     let hint = |phrase: &str, clock| {
-        let at = mail_core::snooze::snooze_until(phrase, now, &zone).expect(phrase);
+        let at = mail_logic::snooze::snooze_until(phrase, now, &zone).expect(phrase);
         mail_ui_kit::menus::snooze_hint(at, now, &zone, clock)
     };
     assert_eq!(hint("later", Clock::H24), "18:00");

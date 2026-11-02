@@ -4,7 +4,7 @@
 use std::sync::Mutex;
 
 use chrono::Utc;
-use mail_core::Store;
+use mail_client::testing::Store;
 use mail_domain::*;
 
 use super::work::{self, Draft};
@@ -86,7 +86,11 @@ fn running_a_rule_acts_on_what_matches_and_counts_to_the_end() {
         &Utc,
     )
     .unwrap();
-    let total = mail_core::rules::manage::conversations(&store, acct_account(), Utc::now());
+    let total = mail_client::testing::core::rules::manage::conversations(
+        &store,
+        acct_account(),
+        Utc::now(),
+    );
     assert_eq!(total, others.len() + 1);
     let seen = Mutex::new(Vec::new());
     let said = work::run(

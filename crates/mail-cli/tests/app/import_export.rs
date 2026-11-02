@@ -442,7 +442,7 @@ fn every_file_an_export_writes_is_its_owner_s_alone() {
 fn a_message_with_no_body_yet_is_skipped_and_counted() {
     let (store, _dir) = fresh_store();
     let account = new_account_id();
-    mail_store::testing::seed_account(&store, account.clone(), "ada@example.test");
+    mail_core::fixtures::seed::seed_account(&store, account.clone(), "ada@example.test");
     let message = Message {
         id: MessageId::generate(),
         thread: ThreadId::generate(),
@@ -506,7 +506,7 @@ fn a_message_with_no_body_yet_is_skipped_and_counted() {
 fn a_message_rebuilt_from_its_parts_is_not_exported_as_the_message_even_once_its_parts_are_here() {
     let (store, _dir) = fresh_store();
     let account = new_account_id();
-    mail_store::testing::seed_account(&store, account.clone(), "ada@example.test");
+    mail_core::fixtures::seed::seed_account(&store, account.clone(), "ada@example.test");
     let rebuilt =
         b"From: a@example.test\r\nSubject: The report\r\nMessage-ID: <r@example.test>\r\n\
         MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"mix\"\r\n\r\n\
@@ -636,7 +636,7 @@ fn sync_never_touches_the_local_account() {
     // An identity by hand: the local account has none, which is the point, but a draft row
     // must name one.
     let identity = IdentityId::generate();
-    mail_store::testing::seed_identity_for(
+    mail_core::fixtures::seed::seed_identity_for(
         &store,
         identity,
         local_account(&store),

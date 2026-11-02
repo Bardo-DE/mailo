@@ -1,13 +1,13 @@
 //! OpenPGP from the composer: ⋯ › Security and the Security row write the draft, what stands in the way is said in the
 //! warning bar before anything is queued, and a locked key is asked for there.
 
-use mail_core::Store;
-use mail_core::testing::MapSigningStore;
+use mail_client::testing::MapSigningStore;
+use mail_client::testing::Store;
 use rand::SeedableRng;
 
 use super::*;
 use crate::ui::fixtures::{Seen, acct_account, click, rebuild_into, seeded, type_into};
-use mail_core::SqliteStore;
+use mail_client::testing::SqliteStore;
 use mail_ui_compose::compose::page::Float;
 use mail_ui_compose::compose::protection::{Protection, items, pick};
 use mail_ui_compose::compose::seal::SealBar;
@@ -42,7 +42,7 @@ fn asking(store: &SqliteStore, openpgp: Option<Mode>) -> Draft {
         name: Some("Dana Whitfield".to_owned()),
         email: "dana@example.test".to_owned(),
     }];
-    let mut draft = mail_core::compose::draft_new(
+    let mut draft = mail_client::testing::core::compose::draft_new(
         store,
         acct_account(),
         &to,
@@ -52,7 +52,7 @@ fn asking(store: &SqliteStore, openpgp: Option<Mode>) -> Draft {
     )
     .unwrap();
     draft.openpgp = openpgp;
-    mail_core::compose::save(store, &draft).unwrap();
+    mail_client::testing::core::compose::save(store, &draft).unwrap();
     draft
 }
 
@@ -191,8 +191,13 @@ async fn security_is_chosen_from_the_more_menu_and_drawn_only_while_set() {
 async fn no_key_for_a_recipient_names_them_and_holds_the_send_until_a_choice() {
     let (store, _dir) = seeded();
     let secrets = Arc::new(MapSigningStore::default());
-    mail_core::pgp::keys::generate(&store, secrets.as_ref(), "me@example.test", Utc::now())
-        .unwrap();
+    mail_client::testing::core::pgp::keys::generate(
+        &store,
+        secrets.as_ref(),
+        "me@example.test",
+        Utc::now(),
+    )
+    .unwrap();
     let draft = asking(&store, Some(Mode::Encrypt));
     let (mut window, seen) = window(store.clone(), draft.clone(), secrets);
 
@@ -255,8 +260,13 @@ async fn no_key_for_a_recipient_names_them_and_holds_the_send_until_a_choice() {
 async fn a_key_found_by_looking_up_clears_the_bar_and_the_send_goes_encrypted() {
     let (store, _dir) = seeded();
     let secrets = Arc::new(MapSigningStore::default());
-    mail_core::pgp::keys::generate(&store, secrets.as_ref(), "me@example.test", Utc::now())
-        .unwrap();
+    mail_client::testing::core::pgp::keys::generate(
+        &store,
+        secrets.as_ref(),
+        "me@example.test",
+        Utc::now(),
+    )
+    .unwrap();
     let dana = crate::ui::kit_tests::pgp_tests::someone_elses("dana@example.test", 91);
     let armored = dana.public().armored().unwrap();
     let asked = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
@@ -344,7 +354,7 @@ async fn a_locked_key_is_asked_for_in_the_bar_and_a_wrong_passphrase_said() {
     .unwrap()
     .with_passphrase(passphrase, &mut rand::rngs::StdRng::seed_from_u64(82))
     .unwrap();
-    mail_core::pgp::keys::import(
+    mail_client::testing::core::pgp::keys::import(
         &store,
         secrets.as_ref(),
         key.armored().unwrap().as_bytes(),
@@ -420,8 +430,13 @@ pub(in crate::ui) async fn drawn_states() -> String {
     let (store, _dir) = seeded();
     let draft = asking(&store, Some(Mode::Encrypt));
     let secrets = Arc::new(MapSigningStore::default());
-    mail_core::pgp::keys::generate(&store, secrets.as_ref(), "me@example.test", Utc::now())
-        .unwrap();
+    mail_client::testing::core::pgp::keys::generate(
+        &store,
+        secrets.as_ref(),
+        "me@example.test",
+        Utc::now(),
+    )
+    .unwrap();
     let (mut window, seen) = window(store, draft, secrets);
     click(
         &mut window.dom,

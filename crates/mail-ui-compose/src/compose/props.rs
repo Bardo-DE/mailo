@@ -343,7 +343,7 @@ pub fn sends_items<Tz: chrono::TimeZone>(
     page: &Page,
     now: chrono::DateTime<chrono::Utc>,
     zone: &Tz,
-    clock: mail_client::when::Clock,
+    clock: mail_logic::when::Clock,
 ) -> Vec<MenuItem>
 where
     Tz::Offset: std::fmt::Display,

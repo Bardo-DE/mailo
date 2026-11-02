@@ -1,5 +1,5 @@
 use mail_client::message::Frames;
-use mail_core::Store;
+use mail_client::testing::Store;
 use mail_domain::Message;
 use mail_reader::RemoteImages;
 use mail_reader::SanitizePolicy;

@@ -112,8 +112,8 @@ fn seeded(dir: &std::path::Path) -> Arc<SqliteStore> {
     std::fs::create_dir_all(dir.join("blobs")).unwrap();
     let store = SqliteStore::open(dir.join("mail.db"), dir.join("blobs")).unwrap();
     {
-        mail_store::testing::seed_account(&store, acct_account(), "me@example.test");
-        mail_store::testing::seed_identity_for(
+        mail_core::fixtures::seed::seed_account(&store, acct_account(), "me@example.test");
+        mail_core::fixtures::seed::seed_identity_for(
             &store,
             IdentityId::generate(),
             acct_account(),

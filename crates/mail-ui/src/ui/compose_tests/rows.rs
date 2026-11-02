@@ -3,12 +3,12 @@
 //! when it is set back, and every choice is one step away under Send ▾ or ⋯. Rows are found by
 //! their `data-row`, controls by their accessible names.
 
-use mail_core::Store;
+use mail_client::testing::Store;
 
 use super::*;
 use crate::ui::fixtures::{acct_account, seeded};
 use ds::components::menus::item::item::MenuItem as Line;
-use mail_core::SqliteStore;
+use mail_client::testing::SqliteStore;
 use mail_ui_compose::compose::foot::{More, more_items, pick_more, pick_send, send_items};
 use mail_ui_compose::compose::page::Float;
 use mail_ui_compose::compose::props::sends_items;
@@ -23,7 +23,7 @@ const OPTIONAL: [&str; 8] = [
 ];
 
 fn fresh_draft(store: &SqliteStore) -> Draft {
-    mail_core::compose::draft_new(store, acct_account(), &[], "", "", Utc::now())
+    mail_client::testing::core::compose::draft_new(store, acct_account(), &[], "", "", Utc::now())
         .unwrap_or_else(|why| panic!("a new draft: {why}"))
 }
 
@@ -190,7 +190,8 @@ async fn cc_and_bcc_are_drawn_once_added_or_while_someone_is_on_them() {
             List::Cc => draft.cc = vec![someone],
             _ => draft.bcc = vec![someone],
         }
-        mail_core::compose::save(&store, &draft).unwrap_or_else(|why| panic!("{why}"));
+        mail_client::testing::core::compose::save(&store, &draft)
+            .unwrap_or_else(|why| panic!("{why}"));
         let (mut window, _seen) =
             Window::open(crate::ui::fixtures::client(&store.clone()), draft, None);
         assert!(
@@ -248,7 +249,7 @@ fn each_rows_menu_sets_it_back_first() {
             .map(|item| (item.key.clone(), item.name.clone()))
     };
     assert_eq!(
-        first(sends_items(&page, now, &Utc, mail_core::when::Clock::H24)),
+        first(sends_items(&page, now, &Utc, mail_logic::when::Clock::H24)),
         Some(("now".to_owned(), "Now".to_owned()))
     );
     assert_eq!(
@@ -256,7 +257,7 @@ fn each_rows_menu_sets_it_back_first() {
             Remind::After("three-days"),
             now,
             &Utc,
-            mail_core::when::Clock::H24
+            mail_logic::when::Clock::H24
         )),
         Some((remind::OFF_KEY.to_owned(), "Off".to_owned()))
     );
@@ -275,7 +276,12 @@ fn each_rows_menu_sets_it_back_first() {
 fn send_menu_and_more_hold_every_choice_once() {
     let page = page_of("");
     assert_eq!(
-        titles(&send_items(&page, at(0), &Utc, mail_core::when::Clock::H24)),
+        titles(&send_items(
+            &page,
+            at(0),
+            &Utc,
+            mail_logic::when::Clock::H24
+        )),
         [
             mail_ui_model::copy::menus::SEND_LATER,
             mail_ui_model::copy::menus::REMIND_IF_NO_REPLY,
@@ -370,7 +376,7 @@ async fn delete_draft_can_be_taken_back() {
     let (store, _dir) = seeded();
     let mut draft = fresh_draft(&store);
     draft.subject = "Lunch on Friday".to_owned();
-    mail_core::compose::save(&store, &draft).unwrap_or_else(|why| panic!("{why}"));
+    mail_client::testing::core::compose::save(&store, &draft).unwrap_or_else(|why| panic!("{why}"));
     let (mut window, _seen) = Window::open(
         crate::ui::fixtures::client(&store.clone()),
         draft.clone(),
@@ -390,7 +396,10 @@ async fn delete_draft_can_be_taken_back() {
         })
         .unwrap_or_else(|| panic!("nothing to take back"));
     for part in &entry {
-        assert!(mail_core::act::take_back(&store, part), "{part:?}");
+        assert!(
+            mail_client::testing::core::act::take_back(&store, part),
+            "{part:?}"
+        );
     }
     let back = store
         .draft(draft.id)

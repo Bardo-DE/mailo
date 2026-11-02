@@ -3,7 +3,7 @@
 
 use super::{asked, asks_first, every_label, remove_label, window_label};
 use crate::ui::fixtures::{Work, work};
-use mail_core::offline::{self, Every, Remove, Window};
+use mail_client::testing::core::offline::{self, Every, Remove, Window};
 use mail_domain::*;
 use mail_ui_kit::data::account_rows;
 use mail_ui_model::copy;

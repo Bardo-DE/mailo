@@ -60,7 +60,7 @@ pub fn build<Tz>(
     job: Job,
     zone: &Tz,
     now: DateTime<Utc>,
-    clock: mail_client::when::Clock,
+    clock: mail_logic::when::Clock,
 ) -> Result<Printed, String>
 where
     Tz: TimeZone,
@@ -85,7 +85,7 @@ pub fn save_into<Tz>(
     dir: &Path,
     zone: &Tz,
     now: DateTime<Utc>,
-    clock: mail_client::when::Clock,
+    clock: mail_logic::when::Clock,
 ) -> Result<std::path::PathBuf, String>
 where
     Tz: TimeZone,
@@ -247,7 +247,7 @@ pub mod native_print {
         sources: &Sources,
         zone: &Tz,
         now: DateTime<Utc>,
-        clock: mail_client::when::Clock,
+        clock: mail_logic::when::Clock,
     ) -> Result<Printed, String>
     where
         Tz: TimeZone,
@@ -431,7 +431,7 @@ pub mod native_print {
     pub struct Dated<'a, Tz> {
         pub zone: &'a Tz,
         pub now: DateTime<Utc>,
-        pub clock: mail_client::when::Clock,
+        pub clock: mail_logic::when::Clock,
     }
 
     impl<Tz> std::fmt::Debug for Dated<'_, Tz> {
@@ -494,7 +494,7 @@ pub mod native_print {
         sources: &Sources,
         zone: &Tz,
         now: DateTime<Utc>,
-        clock: mail_client::when::Clock,
+        clock: mail_logic::when::Clock,
     ) -> Result<(String, Vec<u8>), String>
     where
         Tz: TimeZone,

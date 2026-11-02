@@ -22,9 +22,9 @@ pub(super) fn search(
     store: &SqliteStore,
     needle: &str,
     limit: u32,
-    label: &dyn mail_core::query::Names,
+    label: &dyn mail_logic::query::Names,
     now: DateTime<Utc>,
-    clock: mail_core::when::Clock,
+    clock: mail_logic::when::Clock,
 ) -> String {
     let take = usize::try_from(limit).unwrap_or(usize::MAX);
     // Asked for the top results' worth more, so removing them still leaves `limit` rows.
@@ -128,7 +128,7 @@ mod tests {
     fn sqlite_with(rows: &[(&str, &str, i64)]) -> (Arc<SqliteStore>, tempfile::TempDir) {
         let dir = tempfile::tempdir().expect("tempdir");
         let store = SqliteStore::in_memory(dir.path()).expect("sqlite");
-        mail_store::testing::seed_account(&store, acct_account(), "me@example.test");
+        mail_core::fixtures::seed::seed_account(&store, acct_account(), "me@example.test");
         for (i, (subject, body, secs)) in rows.iter().enumerate() {
             let raw = store.blobs().put(body.as_bytes()).expect("blob");
             let mut message = message(i as u128, subject, body, *secs);
@@ -185,7 +185,7 @@ mod tests {
             &*store,
             &Affinity::default(),
             &chrono::Local,
-            &mail_core::query::unnamed,
+            &mail_logic::query::unnamed,
             mail_core::search::first(100),
             now,
         )

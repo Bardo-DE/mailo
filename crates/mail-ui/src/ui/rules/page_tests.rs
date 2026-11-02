@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use chrono::Utc;
 use dioxus::prelude::*;
 use dioxus_core::VirtualDom;
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::*;
 use porter_core::AccountId;
 
@@ -486,7 +486,7 @@ async fn a_jmap_account_s_reply_is_set_on_its_server_and_no_script_is_pushed() {
     dispatching();
     let (store, _dir) = crate::ui::fixtures::empty();
     let row = jmap_account(&store);
-    let kept = mail_core::rules::server::vacation_for(
+    let kept = mail_client::testing::core::rules::server::vacation_for(
         &super::server::configured(&crate::ui::fixtures::client(&store), &row, Utc::now()),
         "Away",
         "Back on Monday.",
@@ -500,7 +500,8 @@ async fn a_jmap_account_s_reply_is_set_on_its_server_and_no_script_is_pushed() {
     let set = Arc::new(AtomicUsize::new(0));
     let setter = AwaySetter(Arc::new({
         let set = set.clone();
-        move |client: &mail_client::Client, account: &mail_core::sync::Configured| {
+        move |client: &mail_client::Client,
+              account: &mail_client::testing::core::sync::Configured| {
             set.fetch_add(1, Ordering::SeqCst);
             // The switch kept the reply off here first, and that is what the server is given.
             assert_eq!(client.stored().vacation(account.id.clone()).unwrap(), None);
@@ -535,7 +536,7 @@ async fn switching_off_a_reply_that_was_never_kept_here_sets_nothing_on_the_serv
     let set = Arc::new(AtomicUsize::new(0));
     let setter = AwaySetter(Arc::new({
         let set = set.clone();
-        move |_: &mail_client::Client, _: &mail_core::sync::Configured| {
+        move |_: &mail_client::Client, _: &mail_client::testing::core::sync::Configured| {
             set.fetch_add(1, Ordering::SeqCst);
             Ok(())
         }
@@ -584,7 +585,7 @@ fn OnePhase(phase: Phase) -> Element {
 async fn every_state(store: &Arc<SqliteStore>) -> String {
     let row = own_server(store);
     two_rules(store, row.id.clone());
-    let kept = mail_core::rules::server::vacation_for(
+    let kept = mail_client::testing::core::rules::server::vacation_for(
         &super::server::configured(&crate::ui::fixtures::client(store), &row, Utc::now()),
         "Away until October",
         "Back on the 12th.",

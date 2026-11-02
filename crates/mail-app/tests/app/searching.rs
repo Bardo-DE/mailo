@@ -17,7 +17,7 @@ fn taipei() -> chrono::FixedOffset {
 }
 
 fn parse(input: &str) -> Filter {
-    query::parse_with(input, &taipei(), &mail_core::query::unnamed)
+    mail_logic::query::parse_with(input, &taipei(), &mail_logic::query::unnamed)
 }
 
 mod what_it_builds {
@@ -172,7 +172,7 @@ mod what_the_store_returns {
     fn seeded() -> (SqliteStore, tempfile::TempDir) {
         let dir = tempfile::tempdir().unwrap();
         let store = SqliteStore::in_memory(dir.path()).unwrap();
-        mail_store::testing::seed_account(&store, acct_account(), "me@example.test");
+        mail_core::fixtures::seed::seed_account(&store, acct_account(), "me@example.test");
 
         let mail: [(&str, &str, &str, &str); 3] = [
             (
@@ -387,7 +387,7 @@ mod labels {
                 .map(|(word, id)| (word.to_owned(), id))
                 .collect();
             assert_eq!(
-                query::parse_with(typed, &taipei(), &query::named(&known)),
+                mail_logic::query::parse_with(typed, &taipei(), &mail_logic::query::named(&known)),
                 want,
                 "{name}, in the terminal"
             );
@@ -412,7 +412,7 @@ mod a_label_typed_into_the_window_finds_the_mail {
     fn seeded() -> (SqliteStore, tempfile::TempDir) {
         let dir = tempfile::tempdir().unwrap();
         let store = SqliteStore::in_memory(dir.path()).unwrap();
-        mail_store::testing::seed_account(&store, acct_account(), "me@example.test");
+        mail_core::fixtures::seed::seed_account(&store, acct_account(), "me@example.test");
 
         for (n, subject) in ["flight to taipei", "the invoice"].iter().enumerate() {
             let raw = format!(

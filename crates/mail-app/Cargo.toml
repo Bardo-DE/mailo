@@ -92,9 +92,11 @@ anyview = ["mail-ui-reader/anyview"]
 
 [dependencies]
 porter-core.workspace = true
-# The desktop's notifications and PDF previews are mail-core features the window and the watch use;
+mail-logic.workspace = true
+# PDF previews are a mail-core feature, and the desktop's notifications a mail-agent one, that the window and the watch use;
 # they stay on in a build without the desktop extras (`quire-desktop`).
-mail-core = { workspace = true, features = ["desktop", "pdf", "keyring"] }
+mail-core = { workspace = true, features = ["pdf", "keyring"] }
+mail-agent = { workspace = true, features = ["desktop"] }
 # The process records its runtime, environment, Profile and OAuth clients here, for the three below.
 mail-edge.workspace = true
 # The command line, and `mailo watch`'s launcher badge the window keeps its Dock tile with.
@@ -114,8 +116,6 @@ mail-ui-compose.workspace = true
 mail-ui-model.workspace = true
 # The launcher's count and the words the command line prints, which the window shares.
 mail-os.workspace = true
-# The platform keyring holds the account secrets and the signing keys: the library keeps it opt-in.
-mail-runtime = { workspace = true, features = ["keyring"] }
 # The one logger the libraries write through (`main.rs`): warnings to stderr, as they were printed.
 log.workspace = true
 # The channel the watch tells the accounts it follows by (`background.rs`); the runtime is
@@ -126,8 +126,8 @@ ds-settings = { git = "https://github.com/PoHsuanLai/quire.git", rev = "e19728b7
 
 [target.'cfg(target_os = "linux")'.dependencies]
 # The account secrets in the Secret Service through oo7: Linux's store, which the other platforms
-# do not carry (the library keeps it a feature of its own).
-mail-runtime = { workspace = true, features = ["oo7"] }
+# do not carry (`mail-core`'s `oo7` feature; the library keeps it a feature of its own).
+mail-core = { workspace = true, features = ["oo7"] }
 
 [dev-dependencies]
 # A watch's lock in a scratch directory (`background/tests.rs`), never the person's: the one
@@ -152,7 +152,6 @@ dioxus-native-dom = { workspace = true }
 # The values a test starts from (`mail_domain::testing`): the program never has them.
 mail-domain = { workspace = true, features = ["testing"] }
 # Seeding a store without writing SQL (`mail_store::testing`): the program never has it.
-mail-store = { workspace = true, features = ["testing"] }
 # A test's double at a seam keeping what a server gave in the window's store
 # (`Client::store_for_test`): the program never has it.
 mail-client = { workspace = true, features = ["testing"] }

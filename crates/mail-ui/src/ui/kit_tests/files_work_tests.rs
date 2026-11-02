@@ -7,14 +7,16 @@ use std::sync::Arc;
 
 use chrono::{DateTime, TimeZone, Utc};
 use mail_archive::maildir::INFO;
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::id::new_account_id;
 use mail_domain::*;
 use porter_core::AccountId;
 
-use mail_core::export::Target;
-use mail_core::formats::{Archive, writers};
-use mail_core::import::{AppleMail, Eml, Emlx, Maildir, Mbox, Source, Thunderbird};
+use mail_client::testing::core::export::Target;
+use mail_client::testing::core::formats::{Archive, writers};
+use mail_client::testing::core::import::{
+    AppleMail, Eml, Emlx, Maildir, Mbox, Source, Thunderbird,
+};
 use mail_ui_kit::files::work::{
     self, Counted, Dest, Looked, export_now, import_now, look, prefill, suggested,
 };
@@ -101,7 +103,7 @@ fn subjects(store: &SqliteStore, account: AccountId) -> Vec<String> {
 }
 
 fn the_local_account(store: &SqliteStore) -> AccountId {
-    let local = mail_core::sync::local_accounts(store);
+    let local = mail_client::testing::core::sync::local_accounts(store);
     assert_eq!(local.len(), 1, "one local account: {local:?}");
     local[0].clone()
 }
@@ -125,7 +127,7 @@ fn a_maildir_is_counted_then_imported_into_local_folders() {
     let (source, count, said) = looked_mail(&root);
     assert_eq!(source, Source::new(&Maildir, root.clone()));
     assert_eq!((count, said.as_str()), (3, "Maildir, 3 messages"));
-    assert!(mail_core::sync::local_accounts(&store).is_empty());
+    assert!(mail_client::testing::core::sync::local_accounts(&store).is_empty());
 
     let mut seen = Vec::new();
     let done = import_now(
@@ -195,7 +197,7 @@ fn an_mbox_is_counted_then_imported_into_local_folders_once() {
 fn a_place_exports_in_each_format_and_reads_back_as_as_many_messages() {
     let built = crate::ui::fixtures::work();
     let out = tempfile::tempdir().unwrap();
-    let chosen = mail_core::export::select(&built.store, "inbox", now()).unwrap();
+    let chosen = mail_client::testing::core::export::select(&built.store, "inbox", now()).unwrap();
     assert!(!chosen.is_empty(), "the fixture's inbox has mail");
     assert_eq!(
         work::counted(&crate::ui::fixtures::client(&built.store), "inbox", now()),
@@ -384,7 +386,7 @@ fn the_export_opens_on_the_search_or_the_place_being_shown() {
 fn with_folders() -> (Arc<SqliteStore>, tempfile::TempDir, AccountId) {
     let (store, dir) = fresh_store();
     let add = |id: AccountId, plan: &AccountPlan| {
-        mail_store::testing::seed_account_plan(
+        mail_client::testing::seed::seed_account_plan(
             &store,
             id.clone(),
             &plan.address,
@@ -443,7 +445,7 @@ fn imported_mail_goes_to_local_folders_or_an_imap_accounts_folder() {
         wanted
     );
     // Local folders are somewhere to import into, never an account to upload to.
-    mail_core::account::local(&store, now()).unwrap();
+    mail_client::testing::core::account::local(&store, now()).unwrap();
     assert_eq!(
         work::destinations(&crate::ui::fixtures::client(&store)),
         wanted
@@ -481,7 +483,7 @@ fn only_a_thunderbird_profile_is_said_to_bring_only_what_was_kept_offline() {
 
 #[test]
 fn every_format_the_sheets_offer_has_its_own_words() {
-    let kinds: Vec<_> = mail_core::formats::ARCHIVES
+    let kinds: Vec<_> = mail_client::testing::core::formats::ARCHIVES
         .iter()
         .map(|format| mail_ui_model::copy::status::source_kind(format.slug()))
         .collect();

@@ -4,7 +4,7 @@ use super::super::app::App;
 use crate::ui::fixtures::{acct_account, dispatching, seeded};
 use dioxus::prelude::*;
 use dioxus_core::{NoOpMutations, VirtualDom};
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::*;
 use searching_in_the_window::listed;
 use std::sync::Arc;

@@ -10,9 +10,9 @@ use std::io::ErrorKind;
 use std::path::Path;
 
 use chrono::{DateTime, Utc};
-use mail_client::mailbox_filter::{for_role, pending_snooze};
 use mail_client::transfer::{self, IoCause, Refusal, Seen};
 use mail_domain::{Filter, MailboxRole, Star};
+use mail_logic::mailbox_filter::{for_role, pending_snooze};
 use porter_core::AccountId;
 
 use crate::view::{Shell, Source as Listed};
@@ -361,10 +361,7 @@ pub fn export_now(
     if chosen.is_empty() {
         return Err("Nothing to export.".to_owned());
     }
-    let done =
-        client
-            .export()
-            .export(&client.net().environment(), &chosen, target, now, progress)?;
+    let done = client.export().export(&chosen, target, now, progress)?;
     let said = mail_os::said::export::said(&done, target)
         .lines()
         .collect::<Vec<_>>()

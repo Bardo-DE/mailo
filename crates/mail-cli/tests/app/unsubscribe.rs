@@ -44,7 +44,7 @@ fn seeded() -> (Arc<SqliteStore>, tempfile::TempDir) {
     .plan;
     plan.address = "me@example.test".to_owned();
     {
-        mail_store::testing::seed_account_plan(
+        mail_core::fixtures::seed::seed_account_plan(
             &store,
             acct_account(),
             "me@example.test",
@@ -55,7 +55,7 @@ fn seeded() -> (Arc<SqliteStore>, tempfile::TempDir) {
             (DEFAULT_IDENTITY, "me@example.test", IsDefault::Default),
             (ALIAS_IDENTITY, "lists@example.test", IsDefault::Alternate),
         ] {
-            mail_store::testing::seed_identity(
+            mail_core::fixtures::seed::seed_identity(
                 &store,
                 &Identity {
                     id,

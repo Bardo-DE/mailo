@@ -10,10 +10,10 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use dioxus::prelude::*;
 use dioxus_core::VirtualDom;
-use mail_core::Arrival;
-use mail_core::message::{Looks, Read};
-use mail_core::testing::MapSigningStore;
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::MapSigningStore;
+use mail_client::testing::core::Arrival;
+use mail_client::testing::core::message::{Looks, Read};
+use mail_client::testing::{SqliteStore, Store};
 use mail_crypto::openpgp::{self, Cert, SecretCert, Unlocking};
 use mail_domain::*;
 use rand::SeedableRng;
@@ -21,7 +21,7 @@ use rand::SeedableRng;
 use crate::ui::fixtures::{
     Seen, acct_account, click, dispatching, rebuild_into, seeded, type_into,
 };
-use mail_core::pgp::Protected;
+use mail_client::testing::core::pgp::Protected;
 use mail_ui_kit::pgp::{Said, Seams, Tone, said};
 use mail_ui_kit::view::Shell;
 use mail_ui_reader::reading::Reader;
@@ -36,7 +36,7 @@ fn now() -> DateTime<Utc> {
 /// The window's seams, with `secrets` as the keyring and nothing else reachable.
 pub(in crate::ui) fn seams_with(secrets: Arc<MapSigningStore>) -> Seams {
     Seams {
-        secrets,
+        secrets: mail_client::SigningKeys::new(secrets),
         lookup: Arc::new(|_, _| Err("no lookups in tests".to_owned())),
         pick: Arc::new(|| None),
         save: Arc::new(|_| None),
@@ -45,7 +45,7 @@ pub(in crate::ui) fn seams_with(secrets: Arc<MapSigningStore>) -> Seams {
 
 /// A key of the user's own, made the way the sheet makes one.
 pub(super) fn own_key(store: &SqliteStore, secrets: &MapSigningStore) -> PgpKey {
-    mail_core::pgp::keys::generate(store, secrets, ME, now()).unwrap()
+    mail_client::testing::core::pgp::keys::generate(store, secrets, ME, now()).unwrap()
 }
 
 /// A correspondent's key, made outside this client.
@@ -97,7 +97,7 @@ fn letter(word: &str, text: &str) -> String {
 
 /// Store `raw` as a message that arrived in the inbox, the way a sync does.
 pub(super) fn arrive(store: &SqliteStore, raw: Vec<u8>) -> Message {
-    let ingest = mail_core::assemble(
+    let ingest = mail_client::testing::core::assemble(
         store,
         acct_account(),
         MailboxRef {
@@ -122,7 +122,8 @@ pub(super) fn arrive(store: &SqliteStore, raw: Vec<u8>) -> Message {
 
 /// My own secret key, as the keyring holds it.
 pub(super) fn mine(secrets: &MapSigningStore, key: &PgpKey) -> SecretCert {
-    mail_runtime::pgp::secret_key(secrets, acct_account(), key.fingerprint).unwrap()
+    mail_client::testing::runtime::pgp::secret_key(secrets, acct_account(), key.fingerprint)
+        .unwrap()
 }
 
 thread_local! {
@@ -661,7 +662,13 @@ fn locked(
             &mut rand::rngs::StdRng::seed_from_u64(seed + 1),
         )
         .unwrap();
-    mail_core::pgp::keys::import(store, secrets, key.armored().unwrap().as_bytes(), now()).unwrap();
+    mail_client::testing::core::pgp::keys::import(
+        store,
+        secrets,
+        key.armored().unwrap().as_bytes(),
+        now(),
+    )
+    .unwrap();
     let raw = letter(word, &format!("the {word} sleeps at noon"));
     let message = arrive(
         store,

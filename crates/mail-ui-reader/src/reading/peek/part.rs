@@ -44,7 +44,7 @@ pub(super) fn draw(
     message: MessageId,
     index: usize,
     page: u32,
-    clock: mail_client::when::Clock,
+    clock: mail_logic::when::Clock,
 ) -> Drawn {
     let stored = match client.stored().message(message) {
         Ok(stored) => stored,
@@ -180,13 +180,11 @@ fn save(viewing: Viewing, toasts: Toasts) {
 /// one for people (the part is still on the server, or there is no such part), else `said`, with
 /// core's words in the log.
 #[track_caller]
-fn attachment_failure(failure: mail_client::prelude::CoreError, said: &str) -> String {
-    use mail_client::prelude::CoreError;
-    match failure {
-        CoreError::AttachmentOnServer { .. } | CoreError::NoAttachment { .. } => {
-            mail_ui_kit::remedy::told(failure)
-        }
-        other => plainly(said, other),
+fn attachment_failure(failure: mail_client::CallError, said: &str) -> String {
+    use mail_client::Fault;
+    match failure.fault() {
+        Fault::AttachmentOnServer | Fault::NoAttachment => mail_ui_kit::remedy::told(failure),
+        _ => plainly(said, failure),
     }
 }
 

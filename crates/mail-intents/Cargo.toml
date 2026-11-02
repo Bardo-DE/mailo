@@ -17,9 +17,9 @@ authors = ["Po Hsuan Lai <pohsuanlai0208@gmail.com>"]
 # applied to the window itself, and the handoff delivers it.
 
 [dependencies]
-mail-core = { workspace = true, features = ["desktop", "pdf", "keyring"] }
+mail-core = { workspace = true, features = ["pdf", "keyring"] }
 mail-domain.workspace = true
-mail-store.workspace = true
+mail-logic.workspace = true
 mail-client.workspace = true
 mail-edge.workspace = true
 mail-ui.workspace = true
@@ -44,7 +44,8 @@ toml = "1"
 mail-os.workspace = true
 # A provider over a store in a scratch directory, never the person's.
 tempfile = "3"
-mail-store = { workspace = true, features = ["testing"] }
+# The seeds and doubles a test arranges the provider's world with (`mail_core::fixtures`).
+mail-core = { workspace = true, features = ["testing"] }
 
 [lints]
 workspace = true

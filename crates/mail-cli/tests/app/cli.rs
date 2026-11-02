@@ -24,7 +24,7 @@ fn exercise(
 fn seeded() -> (Arc<SqliteStore>, tempfile::TempDir, ThreadId) {
     let dir = tempfile::tempdir().unwrap();
     let store = SqliteStore::in_memory(dir.path()).unwrap();
-    mail_store::testing::seed_account(&store, acct_account(), "me@example.test");
+    mail_core::fixtures::seed::seed_account(&store, acct_account(), "me@example.test");
 
     let mut first = None;
     for (i, subject) in ["lunch on friday", "invoice 2024", "server outage"]

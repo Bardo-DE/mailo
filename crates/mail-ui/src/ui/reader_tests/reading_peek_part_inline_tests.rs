@@ -1,4 +1,4 @@
-use mail_core::Store as _;
+use mail_client::testing::Store as _;
 use mail_ui_kit::downloads::unedited;
 use mail_ui_kit::view::Viewing;
 use mail_ui_model::settings::RemoveUnedited;

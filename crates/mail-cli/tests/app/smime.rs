@@ -37,8 +37,8 @@ fn serial() -> std::sync::MutexGuard<'static, ()> {
 }
 
 fn seed(store: &SqliteStore) {
-    mail_store::testing::seed_account(store, acct_account(), ME);
-    mail_store::testing::seed_identity_for(store, IDENTITY, acct_account(), ME, Some("Me"));
+    mail_core::fixtures::seed::seed_account(store, acct_account(), ME);
+    mail_core::fixtures::seed::seed_identity_for(store, IDENTITY, acct_account(), ME, Some("Me"));
 }
 
 fn seeded() -> (SqliteStore, tempfile::TempDir) {
@@ -108,7 +108,7 @@ fn draft(store: &SqliteStore, mode: Option<Mode>, recipients: &[&str], bcc: &[&s
     )
 }
 
-fn submissions(store: &SqliteStore) -> Vec<mail_store::OutboxEntry> {
+fn submissions(store: &SqliteStore) -> Vec<mail_core::OutboxEntry> {
     sealed::submissions(store, acct_account(), now())
 }
 

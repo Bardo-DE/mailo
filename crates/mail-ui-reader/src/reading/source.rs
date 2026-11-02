@@ -12,9 +12,9 @@ use dioxus::prelude::*;
 use ds::components::content::label::{Label, LabelRole, LabelStyle};
 use ds::components::overlays::sheet_attach::Attach;
 use ds::prelude::*;
+use mail_client::CallError;
 use mail_client::Client;
 use mail_client::export::RawHead;
-use mail_client::prelude::CoreError;
 use mail_domain::{MessageId, ThreadId, human_size};
 use mail_ui_kit::common::in_card;
 use mail_ui_kit::press::{SheetClose, on_primary};
@@ -155,7 +155,7 @@ pub fn RawSheet(shell: Signal<Shell>) -> Element {
 type Read = (Option<String>, Option<String>);
 
 /// What the sheet shows of what the client read for `asked`: the text and the line about it.
-fn read_of(head: Result<Option<RawHead>, CoreError>, raw: Raw) -> Read {
+fn read_of(head: Result<Option<RawHead>, CallError>, raw: Raw) -> Read {
     match head {
         Ok(Some(head)) => {
             let shown = shown_head(&head, raw, SHOWN);

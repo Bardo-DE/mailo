@@ -16,9 +16,9 @@ use dioxus::prelude::*;
 use mail_client::Client;
 use mail_domain::{Draft, Fingerprint};
 
-use mail_client::password::Password;
 use mail_client::pgp::PgpError;
 use mail_client::smime::SmimeError;
+use mail_logic::password::Password;
 use mail_ui_kit::pgp::{Busy, Passphrase, Scheme, Tried, WRONG, seams, short};
 use mail_ui_kit::press::on_primary;
 
@@ -266,15 +266,8 @@ pub(crate) async fn seal_and_queue(
             }
             typed
         };
-        let queued = super::life::queue_reminding(
-            &client,
-            secrets.as_ref(),
-            &ask,
-            draft,
-            going,
-            remind,
-            Utc::now(),
-        );
+        let queued =
+            super::life::queue_reminding(&client, &secrets, &ask, draft, going, remind, Utc::now());
         drop(passphrase);
         match queued {
             Ok(due) => Ok(due),

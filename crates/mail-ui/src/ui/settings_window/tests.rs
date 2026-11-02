@@ -703,7 +703,7 @@ async fn choose_sets_the_downloads_folder_and_use_downloads_clears_it() {
 /// takes the mark off, and the store is what both write.
 #[tokio::test]
 async fn the_vips_page_offers_the_pinned_people_and_removes_a_vip() {
-    use mail_core::Store as _;
+    use mail_client::testing::Store as _;
     let built = work();
     let (mut dom, seen) = opened_on(&built, PageId::NOTIFICATIONS);
     let seen = click(

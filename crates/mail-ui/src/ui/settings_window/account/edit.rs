@@ -27,9 +27,7 @@ use mail_ui_model::copy::status::account as said;
 /// held by a sync): what names the account reads it again when the client sees the store move,
 /// and a write that fails is said in `failed`.
 fn keep(
-    write: impl FnOnce(&mail_client::Stored<'_>) -> Result<(), mail_client::prelude::StoreError>
-    + Send
-    + 'static,
+    write: impl FnOnce(&mail_client::Stored<'_>) -> Result<(), mail_client::CallError> + Send + 'static,
     mut failed: Signal<Option<String>>,
 ) {
     let Some(client) = mail_ui_kit::live::try_client() else {

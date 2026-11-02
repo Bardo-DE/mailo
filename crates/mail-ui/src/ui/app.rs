@@ -820,7 +820,7 @@ pub(super) fn App() -> Element {
 
     // Follow-up reminders: swept at launch, when the next comes due, and whenever the store moves,
     // so a conversation nobody answered comes back to the top of the inbox
-    // (`mail_client::follow_up`).
+    // (`mail_logic::follow_up`).
     super::follow_up::use_reminders();
     super::follow_up::use_snooze_wake();
     // The copies Open wrote, removed once their message is deleted when the setting says so.
@@ -1044,7 +1044,7 @@ mod tests {
     };
     use dioxus::prelude::*;
     use dioxus_core::{NoOpMutations, VirtualDom};
-    use mail_core::Store;
+    use mail_client::testing::Store;
 
     #[tokio::test]
     async fn the_first_run_offers_a_way_to_add_an_account() {

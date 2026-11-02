@@ -6,7 +6,7 @@ use crate::ui::fixtures::{
 };
 use dioxus::prelude::*;
 use dioxus_core::VirtualDom;
-use mail_core::Store;
+use mail_client::testing::Store;
 use mail_domain::*;
 use mail_ui_kit::view::Shell;
 use mail_ui_model::settings::{DeleteMeans, MailSettings};
