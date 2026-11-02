@@ -451,6 +451,7 @@ fn arriving() -> Passer {
                     id: ChangeId::generate(),
                     changes: vec![Change::MessageUpsert(Box::new(message))],
                 },
+                chrono::Utc::now(),
             )
             .map_err(|e| e.to_string())?;
         Ok(vec![PassEnd::Finished(AccountReport {

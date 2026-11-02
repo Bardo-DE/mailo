@@ -101,7 +101,9 @@ fn both_stores_keep_the_reminder_and_list_the_waiting_in_due_order() {
     for (name, changes, expected) in steps {
         let step = patch(changes);
         for (store_name, store) in stores {
-            store.apply(acct_account(), &step).unwrap();
+            store
+                .apply(acct_account(), &step, chrono::Utc::now())
+                .unwrap();
             let listed: Vec<ThreadId> = store
                 .follow_ups()
                 .unwrap()
@@ -180,13 +182,17 @@ fn an_undone_reminder_is_what_it_was_in_both_stores() {
             &caps,
             at(60),
         );
-        store.apply(acct_account(), &applied.forward).unwrap();
+        store
+            .apply(acct_account(), &applied.forward, chrono::Utc::now())
+            .unwrap();
         assert_eq!(
             store.thread(thread(2)).unwrap().summary.follow_up,
             waiting(900)
         );
         assert_eq!(store.follow_ups().unwrap().len(), 1);
-        store.apply(acct_account(), &applied.inverse).unwrap();
+        store
+            .apply(acct_account(), &applied.inverse, chrono::Utc::now())
+            .unwrap();
         assert_eq!(
             store.thread(thread(2)).unwrap().summary.follow_up,
             FollowUp::Inactive

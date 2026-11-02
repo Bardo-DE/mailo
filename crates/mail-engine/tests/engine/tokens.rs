@@ -774,6 +774,7 @@ fn queued(graph_port: u16, registration: ClientEntry, graph: Credential) -> Send
                 id: ChangeId::generate(),
                 changes: vec![Change::DraftUpsert(Box::new(draft.clone()))],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     let post = posting(&draft, &identity(), None, &[]).unwrap();

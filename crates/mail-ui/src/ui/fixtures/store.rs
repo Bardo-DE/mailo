@@ -116,6 +116,7 @@ pub(in crate::ui) fn seeded() -> (Arc<SqliteStore>, tempfile::TempDir) {
                 provider_threads: Vec::new(),
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
 
@@ -150,6 +151,7 @@ pub(in crate::ui) fn seeded() -> (Arc<SqliteStore>, tempfile::TempDir) {
                     updated: chrono::Utc::now(),
                 }))],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     (store, dir)
@@ -309,6 +311,7 @@ pub(in crate::ui) fn realistic() -> (Arc<SqliteStore>, tempfile::TempDir) {
                     provider_threads: Vec::new(),
                     gone: vec![],
                 },
+                chrono::Utc::now(),
             )
             .unwrap();
     }
@@ -404,6 +407,7 @@ pub(in crate::ui) fn held_and_remote() -> (Arc<SqliteStore>, tempfile::TempDir) 
                 provider_threads: Vec::new(),
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     (store, dir)

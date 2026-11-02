@@ -100,6 +100,7 @@ fn queued(count: usize) -> (tempfile::TempDir, SqliteStore, Vec<DraftId>) {
                     id: ChangeId::generate(),
                     changes: vec![Change::DraftUpsert(Box::new(draft.clone()))],
                 },
+                chrono::Utc::now(),
             )
             .unwrap();
         let raw = store

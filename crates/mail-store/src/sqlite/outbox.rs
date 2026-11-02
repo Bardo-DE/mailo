@@ -508,14 +508,14 @@ impl SqliteStore {
                 // user is left looking at a state that will never become true.
                 Retry::Fatal(_) => {
                     self.settle_destroyed(id, Answered::Refused)?;
-                    self.undo_entry(id, &[])?;
+                    self.undo_entry(id, &[], now)?;
                 }
             },
             // As a refusal, except for what the server did do. What it did
             // destroy it no longer lists, so no address needs keeping for that either.
             Settle::InPart { done } => {
                 self.settle_destroyed(id, Answered::Refused)?;
-                self.undo_entry(id, &done)?;
+                self.undo_entry(id, &done, now)?;
             }
         }
         Ok(())
@@ -560,7 +560,12 @@ impl SqliteStore {
     }
 
     /// Drop entry `id` and put back its undo, except the changes about `done`.
-    fn undo_entry(&self, id: OutboxId, done: &[MessageId]) -> Result<(), StoreError> {
+    fn undo_entry(
+        &self,
+        id: OutboxId,
+        done: &[MessageId],
+        now: DateTime<Utc>,
+    ) -> Result<(), StoreError> {
         let undo: String = self.connection().query_row(
             "SELECT undo FROM outbox WHERE id = ?1",
             params![id.as_i64()],
@@ -569,7 +574,7 @@ impl SqliteStore {
         let patch: Patch = json("Patch", &undo)?;
         self.drop_entry(id)?;
         for change in crate::undo_rest(&patch, done) {
-            if let Some(thread) = self.write_change(change)? {
+            if let Some(thread) = self.write_change(change, now)? {
                 self.refresh_summary(thread)?;
             }
         }

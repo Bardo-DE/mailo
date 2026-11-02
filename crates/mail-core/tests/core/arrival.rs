@@ -281,7 +281,11 @@ fn a_rule_acts_once_on_arriving_mail_and_the_server_is_told_as_the_user_would_te
     let friend = arriving(2, "ada@example.test", MailboxRole::Inbox, raw);
     let (bank_id, friend_id) = (bank.message.id, friend.message.id);
     let patch = store
-        .ingest(account(), ingest(vec![bank.clone(), friend.clone()]))
+        .ingest(
+            account(),
+            ingest(vec![bank.clone(), friend.clone()]),
+            chrono::Utc::now(),
+        )
         .unwrap();
     let new = arrived(&patch);
     assert_eq!(new.len(), 2, "both are new");
@@ -338,7 +342,9 @@ fn a_rule_acts_once_on_arriving_mail_and_the_server_is_told_as_the_user_would_te
     );
 
     // The same messages again: stored already, so they did not arrive.
-    let patch = store.ingest(account(), ingest(vec![bank, friend])).unwrap();
+    let patch = store
+        .ingest(account(), ingest(vec![bank, friend]), chrono::Utc::now())
+        .unwrap();
     let again = arrive_rules(&store, &gmail(), &arrived(&patch), at(20));
     assert!(again.acted.is_empty(), "nothing arrived the second time");
     assert_eq!(outbox(&store).len(), 3, "and nothing more was queued");
@@ -360,7 +366,9 @@ fn a_rule_that_labels_a_message_makes_the_label_even_when_it_is_already_there() 
         .unwrap();
     let m = arriving(1, "ada@example.test", MailboxRole::Inbox, raw);
     let id = m.message.id;
-    let patch = store.ingest(account(), ingest(vec![m])).unwrap();
+    let patch = store
+        .ingest(account(), ingest(vec![m]), chrono::Utc::now())
+        .unwrap();
     let seen = arrive_rules(&store, &gmail(), &arrived(&patch), at(10));
     // The second names the first's label in another case, and finds it: one label, one op.
     assert_eq!(seen.queued, 1);
@@ -385,7 +393,9 @@ fn run_now_reaches_mail_that_was_already_here_in_batches() {
         // Sent by the user: a rule is about mail received.
         .chain([arriving(5, "news@lists.example", MailboxRole::Sent, raw)])
         .collect();
-    store.ingest(account(), ingest(old)).unwrap();
+    store
+        .ingest(account(), ingest(old), chrono::Utc::now())
+        .unwrap();
 
     let news = rule(
         1,
@@ -396,7 +406,9 @@ fn run_now_reaches_mail_that_was_already_here_in_batches() {
     store.put_rule(&news).unwrap();
 
     let fresh = arriving(6, "news@lists.example", MailboxRole::Inbox, raw);
-    let patch = store.ingest(account(), ingest(vec![fresh])).unwrap();
+    let patch = store
+        .ingest(account(), ingest(vec![fresh]), chrono::Utc::now())
+        .unwrap();
     let at_arrival = arrive_rules(&store, &folders(), &arrived(&patch), at(10));
     assert_eq!(
         at_arrival.acted,
@@ -451,7 +463,9 @@ fn a_later_rule_sees_what_an_earlier_one_did_and_stop_means_stop() {
     }
     let m = arriving(1, "ada@example.test", MailboxRole::Inbox, raw);
     let id = m.message.id;
-    let patch = store.ingest(account(), ingest(vec![m])).unwrap();
+    let patch = store
+        .ingest(account(), ingest(vec![m]), chrono::Utc::now())
+        .unwrap();
     let seen = arrive_rules(&store, &folders(), &arrived(&patch), at(10));
     assert_eq!(
         seen.acted,
@@ -480,7 +494,9 @@ fn filing_on_a_server_with_folders_queues_one_move_into_the_folder() {
         .unwrap();
     let m = arriving(3, "ada@example.test", MailboxRole::Inbox, raw);
     let id = m.message.id;
-    let patch = store.ingest(account(), ingest(vec![m])).unwrap();
+    let patch = store
+        .ingest(account(), ingest(vec![m]), chrono::Utc::now())
+        .unwrap();
     arrive_rules(&store, &folders(), &arrived(&patch), at(10));
     assert_eq!(
         outbox(&store),
@@ -536,7 +552,9 @@ fn a_rule_about_a_folder_asks_the_messages_own_addresses() {
         ))
         .unwrap();
     let m = arriving(1, "ada@example.test", MailboxRole::Inbox, raw);
-    let patch = store.ingest(account(), ingest(vec![m])).unwrap();
+    let patch = store
+        .ingest(account(), ingest(vec![m]), chrono::Utc::now())
+        .unwrap();
     let seen = arrive_rules(&store, &folders(), &arrived(&patch), at(10));
     assert_eq!(seen.acted, vec![vec!["from the inbox".to_owned()]]);
 }
@@ -568,7 +586,9 @@ fn a_rule_that_files_a_message_takes_it_out_of_its_folder_for_the_rules_after() 
         .unwrap();
     let m = arriving(1, "ada@example.test", MailboxRole::Inbox, raw);
     let id = m.message.id;
-    let patch = store.ingest(account(), ingest(vec![m])).unwrap();
+    let patch = store
+        .ingest(account(), ingest(vec![m]), chrono::Utc::now())
+        .unwrap();
     let seen = arrive_rules(&store, &folders(), &arrived(&patch), at(10));
     assert_eq!(seen.acted, vec![vec!["file it".to_owned()]]);
     assert_eq!(state(&store, id).2, Star::Unstarred);
@@ -603,7 +623,9 @@ pub(crate) fn set_mute(store: &SqliteStore, thread: ThreadId, mute: Mute) -> Pat
         at(5),
     );
     assert_eq!(applied.remote, None, "mute is this client's own state");
-    store.apply(account(), &applied.forward).unwrap();
+    store
+        .apply(account(), &applied.forward, chrono::Utc::now())
+        .unwrap();
     applied.inverse
 }
 
@@ -627,6 +649,7 @@ fn a_muted_conversations_reply_arrives_read_and_archived_and_an_unmuted_ones_doe
         .ingest(
             account(),
             ingest(vec![first.clone(), elsewhere_first.clone()]),
+            chrono::Utc::now(),
         )
         .unwrap();
     let thread = first.message.thread;
@@ -640,6 +663,7 @@ fn a_muted_conversations_reply_arrives_read_and_archived_and_an_unmuted_ones_doe
         .ingest(
             account(),
             ingest(vec![reply.clone(), elsewhere.clone(), junk.clone()]),
+            chrono::Utc::now(),
         )
         .unwrap();
     let seen = arrive_rules(&store, &gmail(), &arrived(&patch), at(10));
@@ -703,10 +727,12 @@ fn a_muted_conversations_reply_arrives_read_and_archived_and_an_unmuted_ones_doe
         ]
     );
 
-    store.apply(account(), &undo).unwrap();
+    store.apply(account(), &undo, chrono::Utc::now()).unwrap();
     assert_eq!(store.thread(thread).unwrap().summary.mute, Mute::Unmuted);
     let late = reply_in(&first, 6, "ada@example.test", raw);
-    let patch = store.ingest(account(), ingest(vec![late.clone()])).unwrap();
+    let patch = store
+        .ingest(account(), ingest(vec![late.clone()]), chrono::Utc::now())
+        .unwrap();
     arrive_rules(&store, &gmail(), &arrived(&patch), at(20));
     assert_eq!(
         state(&store, late.message.id),
@@ -722,13 +748,17 @@ fn two_replies_to_a_muted_conversation_are_both_kept_out() {
     let (store, raw) = fixture();
     let first = arriving(1, "ada@example.test", MailboxRole::Inbox, raw);
     store
-        .ingest(account(), ingest(vec![first.clone()]))
+        .ingest(account(), ingest(vec![first.clone()]), chrono::Utc::now())
         .unwrap();
     set_mute(&store, first.message.thread, Mute::Muted);
     let a = reply_in(&first, 2, "ada@example.test", raw);
     let b = reply_in(&first, 3, "ada@example.test", raw);
     let patch = store
-        .ingest(account(), ingest(vec![a.clone(), b.clone()]))
+        .ingest(
+            account(),
+            ingest(vec![a.clone(), b.clone()]),
+            chrono::Utc::now(),
+        )
         .unwrap();
     let seen = arrive_rules(&store, &folders(), &arrived(&patch), at(10));
     assert_eq!(seen.muted, 2);
@@ -768,7 +798,9 @@ fn what_a_rule_says_or_sends_is_left_to_the_caller_and_never_done_over_the_backl
         .unwrap();
     let boss = arriving(1, "boss@example.test", MailboxRole::Inbox, raw);
     let id = boss.message.id;
-    let patch = store.ingest(account(), ingest(vec![boss])).unwrap();
+    let patch = store
+        .ingest(account(), ingest(vec![boss]), chrono::Utc::now())
+        .unwrap();
     let seen = arrive_rules(&store, &gmail(), &arrived(&patch), at(10));
     let spoken = vec![
         (id, RuleAction::Notify),
@@ -842,6 +874,7 @@ fn trained() -> (SqliteStore, BlobId) {
                         id: ChangeId::generate(),
                         changes: vec![Change::MessageUpsert(Box::new(m.clone()))],
                     },
+                    chrono::Utc::now(),
                 )
                 .unwrap();
             mail_core::junk::learn(&store, &[m], judged).unwrap();
@@ -865,7 +898,11 @@ fn junk_and_good(store: &SqliteStore, _raw: BlobId) -> (Fetched, Fetched, Vec<Me
     let mut good = arriving(2, "carol@work.example", MailboxRole::Inbox, good_raw);
     good.message.subject = "Minutes".to_owned();
     let patch = store
-        .ingest(account(), ingest(vec![junk.clone(), good.clone()]))
+        .ingest(
+            account(),
+            ingest(vec![junk.clone(), good.clone()]),
+            chrono::Utc::now(),
+        )
         .unwrap();
     let new = arrived(&patch);
     (junk, good, new)
@@ -982,7 +1019,9 @@ fn a_rule_that_sends_mail_to_spam_does_not_teach_the_filter() {
         .unwrap();
     let before = store.junk_counts(account(), &[]).unwrap();
     let m = arriving(1, "news@junk.example", MailboxRole::Inbox, raw);
-    let patch = store.ingest(account(), ingest(vec![m])).unwrap();
+    let patch = store
+        .ingest(account(), ingest(vec![m]), chrono::Utc::now())
+        .unwrap();
     arrive(
         &store,
         &folders(),
@@ -999,7 +1038,9 @@ fn mail_the_server_filed_as_spam_teaches_the_filter() {
     let (store, raw) = trained();
     let before = store.junk_counts(account(), &[]).unwrap();
     let m = arriving(1, "promo@prizes.example", MailboxRole::Spam, raw);
-    let patch = store.ingest(account(), ingest(vec![m])).unwrap();
+    let patch = store
+        .ingest(account(), ingest(vec![m]), chrono::Utc::now())
+        .unwrap();
     arrive(
         &store,
         &folders(),

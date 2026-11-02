@@ -172,6 +172,7 @@ fn label_named(store: &SqliteStore, name: &str, origin: LabelOrigin) -> LabelId 
                 id: ChangeId::generate(),
                 changes: vec![Change::LabelUpsert(label.clone())],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     label.id
@@ -350,7 +351,9 @@ fn run(
             m
         })
         .collect();
-    store.ingest(account(), ingest(older)).unwrap();
+    store
+        .ingest(account(), ingest(older), chrono::Utc::now())
+        .unwrap();
     for (t, muted) in scenario.muted.iter().enumerate() {
         if *muted {
             set_mute(&store, thread_id(t), Mute::Muted);
@@ -372,7 +375,11 @@ fn run(
             m
         })
         .collect();
-    let new = arrived(&store.ingest(account(), ingest(fresh)).unwrap());
+    let new = arrived(
+        &store
+            .ingest(account(), ingest(fresh), chrono::Utc::now())
+            .unwrap(),
+    );
     let ran = way(&store, &caps, &new, at(500));
 
     let mut ids: Vec<MessageId> = store_ids(&store);

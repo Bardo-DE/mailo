@@ -42,8 +42,12 @@ pub fn both_on_disk(
     let memory = MemoryStore::new();
     for message in messages {
         let upsert = patch(vec![Change::MessageUpsert(Box::new(message))]);
-        sqlite.apply(acct_account(), &upsert).unwrap();
-        memory.apply(acct_account(), &upsert).unwrap();
+        sqlite
+            .apply(acct_account(), &upsert, chrono::Utc::now())
+            .unwrap();
+        memory
+            .apply(acct_account(), &upsert, chrono::Utc::now())
+            .unwrap();
     }
     (sqlite, memory)
 }
@@ -165,7 +169,9 @@ pub fn deliver(store: &dyn Store, m: &Message, remote: RemoteRef) {
         raw: BlobId::generate(),
         message: m.clone(),
     });
-    store.ingest(acct_account(), batch).unwrap();
+    store
+        .ingest(acct_account(), batch, chrono::Utc::now())
+        .unwrap();
 }
 
 pub fn patch(changes: Vec<Change>) -> Patch {

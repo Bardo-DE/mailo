@@ -141,7 +141,7 @@ fn deliver(
         raw,
         message,
     });
-    store.ingest(account, ingest).unwrap();
+    store.ingest(account, ingest, chrono::Utc::now()).unwrap();
     thread
 }
 
@@ -404,7 +404,7 @@ fn an_op_in_a_folder_place_keeps_the_row_while_its_mail_is_still_there() {
     // Once the server has moved it and a sync has seen it go, it is out of the folder.
     let mut gone = batch(acct_imap(), PROJECTS);
     gone.gone.push(remote(PROJECTS, 1));
-    store.ingest(acct_imap(), gone).unwrap();
+    store.ingest(acct_imap(), gone, chrono::Utc::now()).unwrap();
     assert!(
         !belongs(
             &crate::ui::fixtures::client(&store),

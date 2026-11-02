@@ -54,6 +54,7 @@ fn store_with_a_copy_target() -> (SqliteStore, ThreadId, LabelId) {
                 id: ChangeId::generate(),
                 changes: vec![Change::MessageUpsert(Box::new(held))],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     // The server holds it, so work on it is queued for the server: a message with no address
@@ -209,6 +210,7 @@ fn taking_back_a_move_withdraws_its_own_entry_and_no_other() {
                     id: ChangeId::generate(),
                     changes: vec![Change::MessageUpsert(Box::new(held))],
                 },
+                chrono::Utc::now(),
             )
             .unwrap();
         mail_store::testing::seed_remote_uid(&store, account(), "INBOX", 2, id);

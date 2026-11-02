@@ -64,6 +64,7 @@ fn schedule(store: &dyn Store, draft: &Draft, leaves: DateTime<Utc>) -> OutboxId
         .apply(
             acct_account(),
             &patch(vec![Change::DraftUpsert(Box::new(draft.clone()))]),
+            chrono::Utc::now(),
         )
         .unwrap();
     let id = store
@@ -202,6 +203,7 @@ fn taking_the_draft_back_takes_the_send_with_it() {
                     Change::DraftDelete(draft.id),
                     Change::DraftUpsert(Box::new(back.clone())),
                 ]),
+                chrono::Utc::now(),
             )
             .unwrap();
         assert_eq!(

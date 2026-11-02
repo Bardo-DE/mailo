@@ -119,6 +119,7 @@ fn seeded(raw: Option<Vec<u8>>) -> (Arc<SqliteStore>, tempfile::TempDir, ThreadI
                 provider_threads: Vec::new(),
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     (Arc::new(store), dir, thread)

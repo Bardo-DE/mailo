@@ -125,7 +125,10 @@ fn bytes_are_stored_once_whoever_names_them_and_attachments_are_held() {
 }
 
 fn alice() -> mail_crypto::smime::Identity {
-    identity(pki(), &Person::new("Alice", &["alice@example.test"], 10, 1001))
+    identity(
+        pki(),
+        &Person::new("Alice", &["alice@example.test"], 10, 1001),
+    )
 }
 
 fn signed(from_header: &str, by: &mail_crypto::smime::Identity) -> Vec<u8> {

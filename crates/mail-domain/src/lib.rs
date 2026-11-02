@@ -55,7 +55,7 @@ pub use account::{
 pub use address::Address;
 pub use autocrypt::{AutocryptPeer, PreferEncrypt, Sighting};
 // `Written` is `commit::Written`: another `Written` is exported below, and callers glob this crate.
-pub use commit::{Commit, Expect, Queue, Resolve, Row, UndoId, Unplaced};
+pub use commit::{Commit, Expect, Queue, Resolve, Row, Taught, UndoId, Unplaced};
 pub use content::{Attachment, Body, Inline, Label, PartContent};
 pub use draft::{Draft, PendingAttachment, ReplyScope, SendState};
 pub use error::{FolderError, ParseAddressError, ParseFingerprintError, ParseSectionError};
@@ -105,7 +105,7 @@ pub use state::{
 };
 pub use template::Template;
 pub use term::Term;
-pub use threading::{ThreadInput, normalize_id, sort_subject, thread};
+pub use threading::{ThreadInput, normalize_id, sort_subject, thread, thread_with};
 pub use view::{Cursor, GroupKey, Page, PageReq, Property, Query, Sort, SortDir, View, ViewKind};
 pub use words::{NO_SUBJECT, human_size, subject_or_none};
 

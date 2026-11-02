@@ -96,6 +96,7 @@ fn deliver(store: &SqliteStore, m: &Message) {
                 provider_threads: Vec::new(),
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap_or_else(|why| panic!("ingest {}: {why}", m.subject));
 }

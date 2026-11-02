@@ -19,7 +19,9 @@ fn put(store: &SqliteStore, messages: &[Message]) {
         .iter()
         .map(|m| Change::MessageUpsert(Box::new(m.clone())))
         .collect();
-    store.apply(acct_account(), &patch(changes)).unwrap();
+    store
+        .apply(acct_account(), &patch(changes), chrono::Utc::now())
+        .unwrap();
 }
 
 fn ids(page: &Page<mail_store::MessageRow>) -> Vec<MessageId> {

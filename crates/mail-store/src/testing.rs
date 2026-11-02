@@ -362,6 +362,7 @@ pub fn edit_messages(store: &SqliteStore, mut edit: impl FnMut(&mut mail_domain:
                     id: ChangeId::generate(),
                     changes: vec![Change::MessageUpsert(Box::new(message))],
                 },
+                chrono::Utc::now(),
             )
             .expect("write the edited message back");
     }

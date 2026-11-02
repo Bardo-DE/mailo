@@ -995,28 +995,45 @@ impl Store for SqliteStore {
         }
     }
 
-    fn apply(&self, _account: AccountId, patch: &Patch) -> Result<(), StoreError> {
-        self.write_patch(patch)
+    fn apply(
+        &self,
+        _account: AccountId,
+        patch: &Patch,
+        now: DateTime<Utc>,
+    ) -> Result<(), StoreError> {
+        self.write_patch(patch, now)
     }
 
-    fn import(&self, account: AccountId, import: mail_domain::Import) -> Result<Patch, StoreError> {
-        self.write_import(account, import)
+    fn import(
+        &self,
+        account: AccountId,
+        import: mail_domain::Import,
+        now: DateTime<Utc>,
+    ) -> Result<Patch, StoreError> {
+        self.write_import(account, import, now)
     }
 
     fn holds(&self, account: AccountId, key: &mail_domain::MessageKey) -> Result<bool, StoreError> {
         Ok(self.message_by_key(account, key)?.is_some())
     }
 
-    fn ingest(&self, account: AccountId, ingest: Ingest) -> Result<Patch, StoreError> {
-        self.write_ingest(account, ingest)
+    fn ingest_with(
+        &self,
+        account: AccountId,
+        ingest: Ingest,
+        rows: &[mail_domain::Row],
+        now: DateTime<Utc>,
+    ) -> Result<crate::Ingested, StoreError> {
+        self.write_ingest(account, ingest, rows, now)
     }
 
     fn refile(
         &self,
         account: AccountId,
         filed: &[(RemoteRef, mail_domain::MailboxRole)],
+        now: DateTime<Utc>,
     ) -> Result<Patch, StoreError> {
-        self.write_refile(account, filed)
+        self.write_refile(account, filed, now)
     }
 
     fn enqueue(

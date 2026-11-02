@@ -999,6 +999,7 @@ pub fn save(store: &SqliteStore, draft: &Draft) -> Result<(), CoreError> {
             id: ChangeId::generate(),
             changes: vec![Change::DraftUpsert(Box::new(draft.clone()))],
         },
+        draft.updated,
     )?;
     Ok(())
 }
@@ -1038,6 +1039,7 @@ pub fn discard(store: &SqliteStore, draft: DraftId) -> Result<String, CoreError>
             id: ChangeId::generate(),
             changes: vec![Change::DraftDelete(draft.id)],
         },
+        draft.updated,
     )?;
     // And off the server, where its copy was kept ([`keep_on_server`]). Discarded whatever
     // becomes of that: the draft is gone here, and a copy left there is only a copy.

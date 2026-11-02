@@ -303,6 +303,7 @@ async fn a_flag_changed_here_reaches_the_server_as_a_patch() {
                 id: ChangeId::generate(),
                 changes: vec![Change::MessageStar(hello.id, Star::Starred)],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     s.store
@@ -375,7 +376,9 @@ async fn a_copy_to_a_folder_adds_the_mailbox_and_keeps_the_rest() {
         &caps,
         now(),
     );
-    s.store.apply(acct_account(), &applied.forward).unwrap();
+    s.store
+        .apply(acct_account(), &applied.forward, chrono::Utc::now())
+        .unwrap();
     s.store
         .enqueue(
             acct_account(),
@@ -569,7 +572,9 @@ fn delete_forever(store: &SqliteStore, message: &Message) {
         )
         .unwrap()
         .expect("queued");
-    store.apply(acct_account(), &applied.forward).unwrap();
+    store
+        .apply(acct_account(), &applied.forward, chrono::Utc::now())
+        .unwrap();
 }
 
 fn all() -> MailboxRef {
@@ -798,6 +803,7 @@ async fn a_draft_kept_twice_leaves_one_copy_in_drafts_and_dropping_it_leaves_non
                     id: ChangeId::generate(),
                     changes: vec![Change::DraftUpsert(Box::new(draft))],
                 },
+                chrono::Utc::now(),
             )
             .unwrap();
     };
@@ -912,6 +918,7 @@ fn move_to(store: &SqliteStore, message: &Message, folder: &str) {
                         id: ChangeId::generate(),
                         changes: vec![Change::LabelUpsert(label.clone())],
                     },
+                    chrono::Utc::now(),
                 )
                 .unwrap();
             label.id
@@ -933,7 +940,9 @@ fn move_to(store: &SqliteStore, message: &Message, folder: &str) {
         )
         .unwrap()
         .expect("queued");
-    store.apply(acct_account(), &applied.forward).unwrap();
+    store
+        .apply(acct_account(), &applied.forward, chrono::Utc::now())
+        .unwrap();
 }
 
 /// A mailbox with no role, added to the fake's list.
@@ -1152,6 +1161,7 @@ fn queued_send(s: &Setup, identity: IdentityId, subject: &str) -> DraftId {
                 id: ChangeId::generate(),
                 changes: vec![Change::DraftUpsert(Box::new(draft.clone()))],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     let frozen = format!(

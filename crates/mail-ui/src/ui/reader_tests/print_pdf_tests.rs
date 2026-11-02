@@ -129,6 +129,7 @@ fn thread_of(store: &SqliteStore, seeds: Vec<Seed>) -> ThreadId {
                 provider_threads: Vec::new(),
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
     thread

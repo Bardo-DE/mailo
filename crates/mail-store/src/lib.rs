@@ -15,6 +15,7 @@ mod follow_up;
 mod graph_push;
 mod history;
 pub mod junk;
+mod learned;
 #[cfg(any(test, feature = "testing"))]
 pub mod memory;
 #[cfg(any(test, feature = "testing"))]
@@ -62,6 +63,15 @@ pub use sqlite::{Freed, Kept, MessageRow};
 pub use swept::Swept;
 
 pub use error::StoreError;
+
+/// What [`Store::ingest_with`] wrote.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Ingested {
+    /// What changed.
+    pub patch: Patch,
+    /// Whether the key rows written with it changed the keys or certificates held.
+    pub keys_changed: bool,
+}
 
 use chrono::{DateTime, Utc};
 use mail_domain::{
@@ -220,8 +230,13 @@ pub trait Store {
 
     fn message(&self, id: MessageId) -> Result<Message, StoreError>;
 
-    /// Write local mutations, atomically.
-    fn apply(&self, account: AccountId, patch: &Patch) -> Result<(), StoreError>;
+    /// Write local mutations, atomically. A message first stored by it is stamped `now`.
+    fn apply(
+        &self,
+        account: AccountId,
+        patch: &Patch,
+        now: DateTime<Utc>,
+    ) -> Result<(), StoreError>;
 
     /// Write server truth, then re-layer any still-pending local changes on top of it.
     ///
@@ -230,7 +245,32 @@ pub trait Store {
     ///
     /// Returns a [`Patch`] describing what actually moved, so the UI refreshes precisely
     /// instead of re-running every open query.
-    fn ingest(&self, account: AccountId, ingest: Ingest) -> Result<Patch, StoreError>;
+    ///
+    /// `now` stamps what the write itself records: when a message was first stored, and when a
+    /// mailbox was last heard from.
+    fn ingest(
+        &self,
+        account: AccountId,
+        ingest: Ingest,
+        now: DateTime<Utc>,
+    ) -> Result<Patch, StoreError> {
+        self.ingest_with(account, ingest, &[], now)
+            .map(|ingested| ingested.patch)
+    }
+
+    /// [`Store::ingest`], with other rows written in the transaction of its first chunk: what
+    /// the messages taught about keys ([`mail_domain::Row::KeyLearned`]). A key lesson that
+    /// cannot be kept is logged and passed over, and costs the mail nothing.
+    ///
+    /// Whether the keys held changed comes back with the patch. On [`StoreError::Partial`] it
+    /// does not, and a caller that wants the answer takes it as "perhaps".
+    fn ingest_with(
+        &self,
+        account: AccountId,
+        ingest: Ingest,
+        rows: &[mail_domain::Row],
+        now: DateTime<Utc>,
+    ) -> Result<Ingested, StoreError>;
 
     /// Server truth about where messages are filed, from a protocol that says so outright.
     ///
@@ -246,6 +286,7 @@ pub trait Store {
         &self,
         account: AccountId,
         filed: &[(RemoteRef, MailboxRole)],
+        now: DateTime<Utc>,
     ) -> Result<Patch, StoreError>;
 
     /// Keep messages that no server holds: imported mail, or an upload whose server did not say
@@ -259,7 +300,12 @@ pub trait Store {
     ///
     /// Returns what changed, like `ingest`: a new message is a
     /// [`mail_domain::Change::MessageUpsert`] in it, and one already held is not.
-    fn import(&self, account: AccountId, import: Import) -> Result<Patch, StoreError>;
+    fn import(
+        &self,
+        account: AccountId,
+        import: Import,
+        now: DateTime<Utc>,
+    ) -> Result<Patch, StoreError>;
 
     /// Whether this account already holds a message with this identity.
     ///

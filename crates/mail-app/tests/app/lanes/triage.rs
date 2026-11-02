@@ -388,7 +388,9 @@ fn in_trash_a_row_is_deleted_forever_and_the_trash_emptied_only_once_asked() {
             id: ChangeId::generate(),
             changes,
         };
-        store.apply(account(), &patch).expect("filed in Trash");
+        store
+            .apply(account(), &patch, chrono::Utc::now())
+            .expect("filed in Trash");
     });
     let alert = ".ds-alert";
     let in_trash =

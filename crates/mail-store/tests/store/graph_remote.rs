@@ -40,13 +40,17 @@ fn a_move_remaps_the_message_to_its_new_id_and_folder() {
         // The folder it left says it has gone: that is not a deletion any more.
         let mut left = ingest("INBOX");
         left.gone.push(graph("INBOX", "old"));
-        store.ingest(acct_account(), left).unwrap();
+        store
+            .ingest(acct_account(), left, chrono::Utc::now())
+            .unwrap();
         // And the folder it arrived in reports it read, under the new id.
         let mut arrived = ingest("Archive");
         arrived
             .flags
             .push((graph("Archive", "new"), ReadState::Read, Star::Unstarred));
-        store.ingest(acct_account(), arrived).unwrap();
+        store
+            .ingest(acct_account(), arrived, chrono::Utc::now())
+            .unwrap();
         let held = store.message(m.id).unwrap();
         (
             store.remote_refs(&mailbox("INBOX")).unwrap(),
@@ -72,7 +76,9 @@ fn a_remap_onto_an_address_a_sync_already_mapped_leaves_one_row() {
             raw: BlobId::generate(),
             message: m.clone(),
         });
-        store.ingest(acct_account(), there).unwrap();
+        store
+            .ingest(acct_account(), there, chrono::Utc::now())
+            .unwrap();
         store
             .remap(
                 acct_account(),
