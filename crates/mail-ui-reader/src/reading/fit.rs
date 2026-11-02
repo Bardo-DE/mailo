@@ -60,7 +60,7 @@ pub(super) struct Drawn {
 /// centre and past the frame's edge. Written into a document ([`zoomed`]) only when such widths
 /// are what makes it wider than its frame ([`decide`]), so a table a sender sized to a wide pane
 /// with a cell is not narrowed to what that cell holds.
-const RELAXED: &str = "td:only-child, th:only-child { width: auto; }";
+const RELAXED: &str = "td:only-child,th:only-child{width:auto}";
 
 /// How `frame`'s document is drawn for a person who asked for its text at `text` (the reader's
 /// text size, 1 for its own), given how it is `now`: at `text`, unless the document would then be
