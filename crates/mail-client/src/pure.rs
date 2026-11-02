@@ -32,8 +32,8 @@ pub mod auth {
 }
 pub mod bimi {
     pub use mail_core::bimi::{
-        Cached, Lookup, Setting, SystemDns, anchors, brand_logo, cached, client_builder, domain_of,
-        load,
+        Cached, Lookup, Setting, Shared, SystemDns, anchors, brand_logo, cached, client_builder,
+        domain_of, load, shared,
     };
 }
 pub mod compose {
@@ -110,6 +110,14 @@ pub mod notify {
     #[cfg(feature = "desktop")]
     pub mod desktop {
         pub use mail_core::notify::desktop::Desktop;
+        /// What the app hands the macOS notification centre's banners through, and the click it
+        /// hears back.
+        #[cfg(target_os = "macos")]
+        pub use mail_core::notify::desktop::heard;
+    }
+    #[cfg(all(feature = "desktop", target_os = "macos"))]
+    pub mod banner {
+        pub use mail_core::notify::banner::{Banner, Click, Posts, Pressed};
     }
 }
 pub mod offline {
@@ -215,7 +223,7 @@ pub mod trust {
     pub use mail_core::trust::{Destination, destination, spoof};
 }
 pub mod undo {
-    pub use mail_core::undo::{Resend, Undo, UndoHandle, UndoStack, reverse_folder, said_of};
+    pub use mail_core::undo::{Resend, Undo, UndoHandle, UndoStack, reverse_folder};
 }
 pub mod unsubscribe {
     pub use mail_core::unsubscribe::{Found, Outcome, client};
