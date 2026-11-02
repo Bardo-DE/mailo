@@ -96,3 +96,38 @@ fn each_undo_waits_for_its_own_gesture() {
     assert!(underway.done(second));
     assert!(underway.done(first));
 }
+
+/// Tickets are handed on in the order they were asked, however the answers came: a gesture asked
+/// second, answered first, waits for the one asked before it, so its undo goes on the stack
+/// second.
+#[test]
+fn answers_are_handed_on_in_the_order_the_tickets_were_asked() {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let handing = |n: u32| {
+        let seen = Rc::clone(&seen);
+        Box::new(move || seen.borrow_mut().push(n)) as Box<dyn FnOnce()>
+    };
+    assert!(super::Turns::idle());
+    let (mut star, mut mute, mut trash) = (
+        super::Turns::take(),
+        super::Turns::take(),
+        super::Turns::take(),
+    );
+    assert!(!super::Turns::idle());
+    mute.run(handing(2));
+    trash.run(handing(3));
+    assert!(seen.borrow().is_empty(), "both wait for the first");
+    star.run(handing(1));
+    assert_eq!(*seen.borrow(), [1, 2, 3]);
+    assert!(super::Turns::idle());
+
+    // A turn given up (its task dropped) does not hold the ones after it.
+    let (gone, mut next) = (super::Turns::take(), super::Turns::take());
+    next.run(handing(4));
+    assert_eq!(*seen.borrow(), [1, 2, 3]);
+    drop(gone);
+    assert_eq!(*seen.borrow(), [1, 2, 3, 4]);
+}
