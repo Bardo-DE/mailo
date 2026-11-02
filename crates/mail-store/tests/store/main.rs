@@ -6,8 +6,10 @@
 
 mod account_prefs;
 mod accounts;
+mod blobs;
 mod cards;
 mod changes;
+mod checkpoint;
 mod concurrency;
 mod contacts;
 mod destroy;
@@ -49,6 +51,7 @@ mod sort_indexes;
 mod sort_orders;
 mod sqlite_capabilities;
 mod support;
+mod sweep;
 mod sweeps;
 mod templates;
 mod two_writers;

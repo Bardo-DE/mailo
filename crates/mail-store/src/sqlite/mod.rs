@@ -9,7 +9,9 @@ mod destroyed;
 mod draft;
 mod folders;
 mod forget;
+mod sweep;
 pub use forget::Freed;
+pub use sweep::BlobsSwept;
 mod cards;
 mod found;
 mod graph_push;
@@ -149,15 +151,26 @@ fn private_files(path: &Path) -> Result<(), StoreError> {
     Ok(())
 }
 
+/// How much of the write-ahead log a checkpoint is to fold back, and how hard to try.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Checkpoint {
+    /// As much as no reader or writer is in the way of, without waiting for anyone. Cheap enough
+    /// to run after every sync pass.
+    Passive,
+    /// All of it, waiting out readers if need be, and then the file is cut to nothing. For when
+    /// the process is ending or the file is already large.
+    Truncate,
+}
+
 /// How many read-only connections to open beside the writer.
 ///
-/// Three: the window's list, whatever the reader pane is showing, and a sync pass asking what it
+/// Three: the window's list, whatever the reader is showing, and a sync pass asking what it
 /// already holds. More would be file handles against a mailbox that belongs to one person.
 const READERS: usize = 3;
 
 thread_local! {
-    /// Whether this thread is one of the client's read workers ([`SqliteStore::mark_worker_thread`]).
-    static WORKER: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// Whether the last reader is kept for this thread ([`SqliteStore::reserve_reader_for_this_thread`]).
+    static RESERVED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 /// How many prepared statements each connection keeps.
@@ -222,10 +235,17 @@ impl SqliteStore {
         // tests measure in milliseconds. Written down rather than inherited: `rusqlite` happens
         // to default to the same five seconds, and a default that nothing names is a behaviour
         // nobody notices changing.
+        //
+        // `journal_size_limit` is what lets the `-wal` file shrink: without it SQLite keeps the
+        // file at its largest size forever, since it only ever rewinds to the start and reuses
+        // the space. One big sync would leave hundreds of megabytes on disk for good. With it, a
+        // checkpoint that has folded the whole log back in truncates what is past the limit.
+        // Sixty-four megabytes is room for any ordinary pass to run without growing the file.
         db.execute_batch(
             "PRAGMA journal_mode = WAL;
              PRAGMA synchronous = NORMAL;
-             PRAGMA busy_timeout = 5000;",
+             PRAGMA busy_timeout = 5000;
+             PRAGMA journal_size_limit = 67108864;",
         )
         .map_err(StoreError::db)?;
         db.set_prepared_statement_cache_capacity(STATEMENT_CACHE);
@@ -476,12 +496,12 @@ impl SqliteStore {
         self.changes.subscribe(Some(wake))
     }
 
-    /// Say that the calling thread is a worker that reads for others, as the client's read threads
-    /// are: it may hold a reader for as long as a read takes (a pinned snapshot, a slow query),
-    /// so it is kept off the last reader, which is the one the other threads — the window's
-    /// drawing among them — can always get.
-    pub fn mark_worker_thread() {
-        WORKER.set(true);
+    /// Keep the last reader for the calling thread, the one whose reads must never queue behind
+    /// another thread's: every other thread — the client's read workers holding a snapshot, a
+    /// sync pass reading what it already holds — reads on the others, however long it holds one.
+    /// Several threads may say so; they share the last reader among themselves alone.
+    pub fn reserve_reader_for_this_thread() {
+        RESERVED.set(true);
     }
 
     /// How many connections read beside the writer: none for an in-memory database. What a
@@ -531,6 +551,45 @@ impl SqliteStore {
         self.file.as_deref()
     }
 
+    /// How many bytes the `-wal` file beside the database holds on disk: zero in memory, or when
+    /// there is none.
+    pub fn log_size(&self) -> u64 {
+        let Some(file) = &self.file else { return 0 };
+        let mut log = file.as_os_str().to_owned();
+        log.push("-wal");
+        std::fs::metadata(log).map_or(0, |meta| meta.len())
+    }
+
+    /// Fold the write-ahead log back into the database file, as `how` says.
+    ///
+    /// The writer is held for this one pragma and no longer. A failure is returned. A
+    /// checkpoint a reader kept from finishing is logged and is not one: the log stays valid, and
+    /// the next checkpoint tries again.
+    pub fn checkpoint(&self, how: Checkpoint) -> Result<(), StoreError> {
+        let sql = match how {
+            Checkpoint::Passive => "PRAGMA wal_checkpoint(PASSIVE)",
+            Checkpoint::Truncate => "PRAGMA wal_checkpoint(TRUNCATE)",
+        };
+        let (busy, log, checkpointed) = self
+            .connection()
+            .query_row(sql, [], |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, i64>(2)?,
+                ))
+            })
+            .map_err(StoreError::db)?;
+        if busy != 0 {
+            log::warn!(
+                "a {how:?} checkpoint was held up by a reader: {checkpointed} of {log} pages folded back"
+            );
+        } else {
+            log::debug!("a {how:?} checkpoint folded {checkpointed} of {log} pages back");
+        }
+        Ok(())
+    }
+
     /// A number that differs from the last one it returned once another connection has
     /// committed: another process's, such as `mailo watch` beside the window. Commits through
     /// this store's own connection do not change it.
@@ -568,8 +627,9 @@ impl SqliteStore {
     /// A thread inside [`Self::read_pinned`] is handed its pinned reader again, so every read it
     /// makes is of the one snapshot.
     ///
-    /// The last reader is not a worker's ([`Self::mark_worker_thread`]): a thread that waits for a
-    /// reader waits on that one, so the window's drawing never waits behind a worker's pinned read.
+    /// The last reader is kept for the threads it is reserved for
+    /// ([`Self::reserve_reader_for_this_thread`]), so their reads never wait behind another
+    /// thread's, pinned or slow.
     pub(crate) fn reader(&self) -> ReentrantMutexGuard<'_, Connection> {
         if self.db.is_owned_by_current_thread() {
             return self.db.lock();
@@ -581,19 +641,18 @@ impl SqliteStore {
         {
             return pinned.lock();
         }
-        // The last reader is kept for threads that are not workers: workers, which may hold a
-        // reader for a whole pinned read, take the others, so the thread that draws never waits
-        // on one.
         let Some((reserved, others)) = self.readers.split_last() else {
             return self.db.lock();
         };
-        if WORKER.get() && !others.is_empty() {
+        if !RESERVED.get() && !others.is_empty() {
             for reader in others {
                 if let Some(free) = reader.try_lock() {
                     return free;
                 }
             }
-            // Every reader a worker may use is busy with other workers: wait on one of them.
+            // Every reader this thread may use is busy: wait on one of them, never on the
+            // reserved one or on the writer, which may be held for a whole ingest chunk. A thread
+            // holding the writer never gets here, so this wait cannot close a cycle with one.
             return others[0].lock();
         }
         if let Some(free) = reserved.try_lock() {
@@ -604,10 +663,7 @@ impl SqliteStore {
                 return free;
             }
         }
-        // Every reader busy: wait on the reserved one, which only threads that are not workers
-        // hold, rather than on a worker's or on the writer, which may be held for a whole ingest
-        // chunk. A thread holding the writer never gets here, so this wait cannot close a cycle
-        // with one.
+        // Every reader busy: wait on the reserved one, which only the threads it is kept for hold.
         reserved.lock()
     }
 }
@@ -664,8 +720,11 @@ impl<'a> Pinned<'a> {
 impl Drop for Pinned<'_> {
     fn drop(&mut self) {
         // A read transaction has nothing to keep or lose, and a reader whose `COMMIT` failed is
-        // still a connection the next read can use: SQLite ends the transaction either way.
-        let _ = self.0.execute_batch("COMMIT");
+        // still a connection the next read can use: SQLite ends the transaction either way. Said
+        // all the same, because a failure here is not one that should pass unseen.
+        if let Err(e) = self.0.execute_batch("COMMIT") {
+            log::warn!("a read transaction did not end cleanly: {e}");
+        }
     }
 }
 
