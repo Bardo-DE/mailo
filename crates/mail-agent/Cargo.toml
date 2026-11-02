@@ -46,6 +46,8 @@ uuid = { workspace = true }
 # lock through notify-rust, at this version and with these (its default) features. MIT.
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
 zbus = { version = "5.19", optional = true }
+# Asking the notification server whether it answers, off any runtime (`notify/desktop.rs`).
+mail-secrets.workspace = true
 
 # Desktop notifications for new mail (`notify/desktop.rs`), one API over each platform's own: the
 # freedesktop interface on the session bus (through zbus, already in the lock through the
