@@ -60,6 +60,17 @@ fn the_app_s_lock_is_the_watch_s_own_and_refuses_a_second_holder() {
 }
 
 #[test]
+fn a_watch_that_keeps_panicking_is_left_down_longer_each_time_up_to_five_minutes() {
+    let mut wait = Duration::ZERO;
+    let mut waits = Vec::new();
+    for _ in 0..9 {
+        wait = revive_after(wait);
+        waits.push(wait.as_secs());
+    }
+    assert_eq!(waits, [5, 10, 20, 40, 80, 160, 300, 300, 300]);
+}
+
+#[test]
 fn a_burst_of_writes_is_one_look_and_looks_keep_their_distance() {
     let (tx, written) = std::sync::mpsc::channel();
     let gap = Duration::from_millis(150);
