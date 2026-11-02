@@ -9,6 +9,7 @@ use ds::components::controls::progress::model::{Progress, ProgressStyle};
 use ds::components::controls::progress::view::ProgressIndicator;
 use ds::motion::detail::operation::{Operation, PendingToken};
 use ds::prelude::*;
+use ds::style::tokens::control_size::ControlSize;
 
 /// Rows in outline where content will be: two lines each, the third row's title short. The same
 /// rows whichever pane waits, so only how many differs.

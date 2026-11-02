@@ -20,7 +20,7 @@ use std::rc::Rc;
 use dioxus::prelude::*;
 
 use super::{Busy, Tried};
-use crate::press::{available, on_primary};
+use crate::press::on_primary;
 use mail_logic::password::Password;
 
 /// The field and its button: `prompt` says what it is for, `act` is the button's words, `noun`
