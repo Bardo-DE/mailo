@@ -1971,10 +1971,12 @@ pub fn sync_folder(
     store: std::sync::Arc<SqliteStore>,
     account: &str,
     path: &str,
+    config: Option<&std::path::Path>,
 ) -> Result<String, String> {
     let id = account_named(&store, account)?;
-    let mail = mail_edge::mail(&store);
-    let end = mail_edge::block_on(mail.sync().folder_now(id, path)).map_err(remedy::error)?;
+    let mail = mail_edge::mail(&store, config);
+    let end = mail_edge::block_on(mail.sync().folder_now(id, path, Default::default()))
+        .map_err(remedy::error)?;
     sync::folder_text(&end, path)
 }
 

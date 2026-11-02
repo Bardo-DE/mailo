@@ -136,8 +136,6 @@ pub struct Seams {
     pub pass: Pass,
     pub listen: Listen,
     pub pushers: Pushers,
-    /// Where the person's settings of how often to check are kept, when they are.
-    pub config: Option<std::path::PathBuf>,
     /// Where a pass that stored mail says so.
     pub announce: Option<Announce>,
     /// Whether the background daemon holds the one connection per account.
@@ -209,8 +207,8 @@ pub(crate) struct Fetcher {
 }
 
 /// The accounts as the store and the person's settings have them now.
-fn read_accounts(seams: &Seams, store: &SqliteStore) -> Accounts {
-    let settings = mail_core::gather::settings(seams.config.as_deref(), Default::default());
+fn read_accounts(config: Option<&std::path::Path>, store: &SqliteStore) -> Accounts {
+    let settings = mail_core::gather::settings(config, Default::default());
     mail_core::gather::accounts(store, &settings).unwrap_or_else(|why| {
         log::warn!("the accounts could not be read: {why}");
         Accounts::default()
@@ -237,8 +235,8 @@ impl Fetcher {
 
     /// Find the accounts to fetch and where each one's link stands, and tell the scheduler. Reads
     /// the store, so it is called on the fetching thread and never on the caller's.
-    fn begin(&self, store: &SqliteStore, now: DateTime<Utc>) {
-        let accounts = read_accounts(&self.seams, store);
+    fn begin(&self, config: Option<&std::path::Path>, store: &SqliteStore, now: DateTime<Utc>) {
+        let accounts = read_accounts(config, store);
         let every = mail_core::sync::due::intervals(&accounts);
         let links = schedule::initial(store, &every, now);
         let pushed = (self.seams.pushers)(store, &accounts);
@@ -273,8 +271,8 @@ impl Fetcher {
     }
 
     /// The accounts may have changed: tell the scheduler when they have.
-    pub(crate) fn accounts(&self, store: &SqliteStore) {
-        let accounts = read_accounts(&self.seams, store);
+    pub(crate) fn accounts(&self, config: Option<&std::path::Path>, store: &SqliteStore) {
+        let accounts = read_accounts(config, store);
         let now = mail_core::sync::due::intervals(&accounts);
         let pushed_now = (self.seams.pushers)(store, &accounts);
         let mut every = self.every.lock();
@@ -379,7 +377,7 @@ impl Host for ClientHost {
 
     fn pushers(&self) -> Vec<AccountId> {
         let fetcher = self.fetcher();
-        let accounts = read_accounts(&fetcher.seams, self.shared.store());
+        let accounts = read_accounts(self.shared.config_dir().as_deref(), self.shared.store());
         (fetcher.seams.pushers)(self.shared.store(), &accounts)
     }
 
@@ -396,6 +394,10 @@ impl Host for ClientHost {
         self.fetcher().seams.timing
     }
 
+    fn wanted(&self) -> mail_core::wanted::Wanted {
+        self.shared.wanted.clone()
+    }
+
     fn pass(&self, call: PassCall) -> Local<'_, Event> {
         let store = self.shared.store_arc();
         let pass = self.fetcher().seams.pass.clone();
@@ -404,6 +406,7 @@ impl Host for ClientHost {
             let PassCall {
                 account,
                 started,
+                wanted,
                 cancel,
                 progress,
             } = call;
@@ -418,6 +421,8 @@ impl Host for ClientHost {
                 let hooks = Hooks {
                     progress: Some(&said),
                     cancel: BTreeMap::from([(this_account.clone(), cancel)]),
+                    wanted,
+                    now: Some(started),
                 };
                 let done = pass(store.clone(), started, this_account, hooks);
                 if let (Some(on), Ok(ends)) = (&announcing, &done) {
@@ -489,7 +494,7 @@ impl Host for ClientHost {
 pub(crate) fn run(shared: Arc<Shared>) -> Option<impl std::future::Future<Output = ()>> {
     let fetcher = shared.fetcher()?;
     let (inbox, asked) = fetcher.inboxes.lock().take()?;
-    fetcher.begin(shared.store(), shared.now());
+    fetcher.begin(shared.config_dir().as_deref(), shared.store(), shared.now());
     let links = fetcher.state.borrow().links.clone();
     let every = fetcher.every.lock().iter().cloned().collect();
     let tx = fetcher.tx.clone();

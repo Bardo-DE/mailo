@@ -164,7 +164,7 @@ fn main() {
             // The one command that is the intents' and not the cli's: the process is where the
             // two meet.
             mail_cli::Command::Intents => mail_app::intents::serve(store),
-            command => mail_cli::exec::execute(store, command),
+            command => mail_cli::exec::execute(store, command, Some(roots.config.as_path())),
         };
         if let Err(message) = done {
             eprintln!("{message}");
@@ -173,9 +173,9 @@ fn main() {
         return;
     }
     {
-        let config = mail_core::config::config_dir();
+        let config = Some(roots.config.clone());
         let look = mail_ui_kit::view::Appearance {
-            marks: mail_ui_model::settings::person_root()
+            marks: mail_ui_model::settings::person_root_in(Some(roots.config.as_path()))
                 .map(|root| mail_ui_model::settings::load(&root))
                 .unwrap_or_default()
                 .window
@@ -208,6 +208,7 @@ fn main() {
             look,
             spaces,
             dirs,
+            Some(roots.config.clone()),
             start.unwrap_or_else(mail_ui::ui::ask::Open::raise),
         ) {
             eprintln!("mailo: the window could not open: {why}");

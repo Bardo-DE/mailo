@@ -32,6 +32,7 @@ pub use tasks::Local;
 use chrono::{DateTime, TimeDelta, Utc};
 use live::{Keeping, Lives, keep};
 use mail_runtime::fetch::{self, Effect, Event, Link, Live, Trigger};
+use mail_runtime::wanted::Wanted;
 use mail_store::SqliteStore;
 use porter_core::AccountId;
 use std::collections::BTreeMap;
@@ -96,8 +97,10 @@ pub enum Change {
 #[derive(Debug)]
 pub struct PassCall {
     pub account: AccountId,
-    /// When the pass was started.
+    /// When the pass was started: the pass's own now.
     pub started: DateTime<Utc>,
+    /// What the host's window is about to read and fetching itself ([`Host::wanted`]).
+    pub wanted: Wanted,
     /// Ends the pass: set, or its sender dropped.
     pub cancel: watch::Receiver<bool>,
     /// Where the pass says where it has got to. Dropped by the host when it has said everything.
@@ -145,6 +148,13 @@ pub trait Host {
 
     fn timing(&self) -> Timing {
         Timing::default()
+    }
+
+    /// What this host's window is about to read and fetching itself, which each pass it runs
+    /// fetches bodies around. Nothing, for a host with no window: a `mailo watch` cannot know
+    /// what a window is looking at, and fetches in the ordinary order.
+    fn wanted(&self) -> Wanted {
+        Wanted::default()
     }
 
     /// Run one pass over `call.account`, saying where it is on `call.progress`.
@@ -506,6 +516,7 @@ async fn run_pass(running: Running<'_>) {
     let call = PassCall {
         account: account.clone(),
         started: host.now(),
+        wanted: host.wanted(),
         cancel: cancel.subscribe(),
         progress,
     };

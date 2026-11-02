@@ -160,7 +160,7 @@ mod tests {
             ("delta", "do compose it", 40),
         ]);
         let now = at(10_000);
-        let mail = mail_edge::mail(&store).with_clock(Arc::new(FixedClock::at(now)));
+        let mail = mail_edge::mail(&store, None).with_clock(Arc::new(FixedClock::at(now)));
         let out = crate::run(
             &mail,
             &crate::Command::Search {

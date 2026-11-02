@@ -560,7 +560,6 @@ fn counting() -> (mail_client::fetch::Seams, Arc<Mutex<Vec<AccountId>>>) {
             })
         }),
         pushers: Arc::new(|_, _| Vec::new()),
-        config: None,
         announce: None,
         daemon: Arc::new(|| mail_core::schedule::Daemon::Absent),
         schedule: Arc::new(|| mail_core::schedule::Schedule::Window),
@@ -602,6 +601,31 @@ fn a_client_fetches_on_a_thread_of_its_own_the_accounts_it_has_and_those_added_a
         passes.lock().unwrap().contains(&later) && fetched.borrow().links.contains_key(&later)
     });
     assert_eq!(passes.lock().unwrap().len(), 2, "each fetched once");
+    client.shutdown(Duration::from_secs(1));
+}
+
+/// A pass is handed the client's own `wanted`: what a window asks of its client reaches the
+/// passes that client runs, and a second client's passes do not hear it.
+#[test]
+fn a_pass_is_handed_what_its_clients_window_wants() {
+    let (store, _dir) = on_disk();
+    let account = imap_account(&store, 1);
+    let client = client(&store);
+    let other = self::client(&store);
+    let thread = mail_domain::ThreadId::from_uuid(uuid::Uuid::from_u128(11));
+    client.wanted().ask_first(&[thread]);
+    let (mut seams, passes) = counting();
+    let heard: Arc<Mutex<Vec<Vec<mail_domain::ThreadId>>>> = Arc::default();
+    let hearing = heard.clone();
+    let inner = seams.pass.clone();
+    seams.pass = Arc::new(move |store, started, account, hooks| {
+        hearing.lock().unwrap().push(hooks.wanted.first());
+        inner(store, started, account, hooks)
+    });
+    assert!(client.fetch(seams).is_none());
+    until("the pass", || passes.lock().unwrap().contains(&account));
+    assert_eq!(heard.lock().unwrap()[0], [thread]);
+    assert!(other.wanted().first().is_empty());
     client.shutdown(Duration::from_secs(1));
 }
 

@@ -397,8 +397,13 @@ impl JmapEngine {
     ) -> Result<(), RuntimeError> {
         // What the window is showing first, and nothing it is fetching for itself. However old:
         // a JMAP pass is not cut by the account's window, which only the other protocols read.
-        let (backlog, _) =
-            crate::wanted::backlog(self.store.as_ref(), &self.mailbox(), None, budget as u32)?;
+        let (backlog, _) = crate::wanted::backlog(
+            &self.wanted,
+            self.store.as_ref(),
+            &self.mailbox(),
+            None,
+            budget as u32,
+        )?;
         let wanted = email_ids(&backlog);
         if wanted.is_empty() {
             return Ok(());

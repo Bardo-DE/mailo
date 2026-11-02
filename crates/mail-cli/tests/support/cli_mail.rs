@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 /// The handle over `store`, at `now`, with no OAuth client at hand.
 pub fn mail_at(store: &Arc<SqliteStore>, now: DateTime<Utc>) -> Mail {
-    mail_edge::mail(store)
+    mail_edge::mail(store, None)
         .with_clients(ClientRegistry::default())
         .with_clock(Arc::new(FixedClock::at(now)))
 }

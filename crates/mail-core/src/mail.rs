@@ -175,7 +175,7 @@ impl Mail {
     }
 
     /// Where the person's syncing choices are kept, when the program said.
-    pub(crate) fn config_dir(&self) -> Option<&std::path::Path> {
+    pub fn config_dir(&self) -> Option<&std::path::Path> {
         self.config.as_deref()
     }
 

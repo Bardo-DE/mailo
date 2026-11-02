@@ -15,6 +15,7 @@ use mail_domain::*;
 use mail_engine::AccountEngine;
 use mail_proto::backend::{Authenticate, Pop3Backend};
 use mail_proto::{Pop3Command, Pop3Session};
+use mail_runtime::wanted::Wanted;
 use mail_secrets::AccountSecrets;
 use mail_store::{SqliteStore, Store};
 use porter_core::SecretText;
@@ -587,21 +588,31 @@ async fn the_first_sync_fetches_the_newest_mail_first_within_each_band() {
 /// message the window is fetching for itself is left to it (`mail_runtime::wanted`).
 /// `wanted` is process-global, and this is its only user in the `runtime` binary (all of
 /// `tests/runtime/`): no second test there may touch it.
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn the_body_pass_fetches_what_the_window_is_showing_first() {
-    let (port, _, heard) = serve_maildrop(vec![
+/// Four messages a maildrop holds, one conversation each, oldest first.
+fn dated_four() -> Vec<(&'static str, String)> {
+    vec![
         ("uidl-2020", dated(2020, "oldest", 1_000)),
         ("uidl-2021", dated(2021, "older", 1_000)),
         ("uidl-2022", dated(2022, "newer", 1_000)),
         ("uidl-2023", dated(2023, "newest-and-large", 200 * 1024)),
-    ])
-    .await;
+    ]
+}
 
+/// Sync a maildrop of [`dated_four`] with an engine holding `wanted`, and fetch its bodies, with
+/// `ask` the subject of the conversation shown and `claimed` that of the message the window is
+/// fetching for itself. The order the maildrop was asked for them in.
+async fn bodies_fetched_with(
+    wanted: Wanted,
+    ask: Option<&str>,
+    claimed: Option<&str>,
+) -> Vec<String> {
+    let (port, _, heard) = serve_maildrop(dated_four()).await;
     let Fixture {
         store,
-        mut engine,
+        engine,
         _dir,
     } = fixture(port);
+    let mut engine = engine.with_wanted(wanted.clone());
     let mailbox = inbox();
     let (_tx, mut cancel) = watch::channel(false);
 
@@ -632,24 +643,54 @@ async fn the_body_pass_fetches_what_the_window_is_showing_first() {
             .unwrap_or_else(|| panic!("no {subject:?}"))
             .id
     };
-    let older = store.thread(thread("older")).unwrap().messages[0];
-
-    // The oldest conversation is on the screen; the window is fetching `older` itself.
-    mail_runtime::wanted::ask_first(&[thread("oldest")]);
-    let claim = mail_runtime::wanted::claim(older);
+    if let Some(subject) = ask {
+        wanted.ask_first(&[thread(subject)]);
+    }
+    let claim =
+        claimed.map(|subject| wanted.claim(store.thread(thread(subject)).unwrap().messages[0]));
     let bodies = engine
         .fetch_bodies(&mailbox, &mut cancel, now(), 50)
         .await
         .unwrap();
     drop(claim);
-    mail_runtime::wanted::ask_first(&[]);
-    assert_eq!(bodies.bodies_fetched, 3, "{:?}", bodies.needs_attention);
+    let fetched = if claimed.is_some() { 3 } else { 4 };
+    assert_eq!(
+        bodies.bodies_fetched, fetched,
+        "{:?}",
+        bodies.needs_attention
+    );
 
     let heard = heard.lock().unwrap().clone();
-    let retr: Vec<&str> = heard
+    heard
         .iter()
         .filter_map(|line| line.strip_prefix("RETR "))
-        .collect();
-    // Asked for first, the claimed one not at all, then the backlog by band as before.
-    assert_eq!(retr, ["1", "3", "4"], "{heard:?}");
+        .map(str::to_owned)
+        .collect()
+}
+
+/// A conversation the window asks for is fetched ahead of the backlog, whatever its age, and a
+/// message the window is fetching for itself is left to it (`mail_runtime::wanted`).
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn the_body_pass_fetches_what_the_window_is_showing_first() {
+    // The oldest conversation is on the screen; the window is fetching `older` itself. Asked for
+    // first, the claimed one not at all, then the backlog by band as before.
+    let retr = bodies_fetched_with(Wanted::default(), Some("oldest"), Some("older")).await;
+    assert_eq!(retr, ["1", "3", "4"]);
+}
+
+/// What one window shows is its engines' alone: two engines holding different `Wanted`s fetch
+/// the same maildrop in their own orders, run side by side, and one holding none in the ordinary
+/// one.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn engines_with_different_wanted_sets_fetch_in_their_own_orders() {
+    let (oldest, newer, none) = (Wanted::default(), Wanted::default(), Wanted::default());
+    let (first, second, third) = tokio::join!(
+        bodies_fetched_with(oldest, Some("oldest"), None),
+        bodies_fetched_with(newer, Some("older"), None),
+        bodies_fetched_with(none, None, None),
+    );
+    // Asked for first, then the backlog by size band, newest first within one.
+    assert_eq!(first, ["1", "3", "2", "4"]);
+    assert_eq!(second, ["2", "3", "1", "4"]);
+    assert_eq!(third, ["3", "2", "1", "4"]);
 }

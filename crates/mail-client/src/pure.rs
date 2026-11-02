@@ -213,7 +213,7 @@ pub mod conversation {
     };
 }
 pub mod wanted {
-    pub use mail_core::wanted::{ask_first, claim};
+    pub use mail_core::wanted::{Claim, Wanted};
 }
 pub use mail_core::Storage;
 pub mod junk {

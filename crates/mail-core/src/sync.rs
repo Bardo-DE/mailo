@@ -242,18 +242,27 @@ impl crate::mail::SyncOps<'_> {
     /// is nothing to fetch for: POP3, which has one mailbox and fetches it every pass, and an
     /// account whose folders are labels, where a folder's mail is the mail with that label and
     /// arrives with it.
-    pub async fn folder_now(&self, account: AccountId, path: &str) -> Result<PassEnd, CoreError> {
+    pub async fn folder_now(
+        &self,
+        account: AccountId,
+        path: &str,
+        wanted: mail_runtime::wanted::Wanted,
+    ) -> Result<PassEnd, CoreError> {
         let mail = self.0;
         let registry = mail.clients()?;
         let accounts = mail.roster()?;
+        let mailbox = MailboxRef {
+            account,
+            path: path.to_owned(),
+        };
         folder_now_with(
             mail.store().clone(),
             mail.secrets(),
             &registry,
             &accounts,
-            account,
-            path,
+            &mailbox,
             mail.now(),
+            wanted,
         )
         .await
     }
@@ -311,6 +320,8 @@ async fn pass_over(
     accounts: Vec<Configured>,
     hooks: Hooks<'_>,
 ) -> Result<Vec<PassEnd>, CoreError> {
+    // The pass's own start, when its caller counted one: a window's pass is the window's time.
+    let now = hooks.now.unwrap_or(now);
     // All the accounts at once.
     //
     // Accounts are independent by construction: `AccountId` partitions every table, and two
@@ -338,6 +349,7 @@ async fn pass_over(
             registry,
             now,
             account,
+            wanted: hooks.wanted.clone(),
         };
         let result = one(&run, mode, &hooks).await;
         let end = ended(account, result, hooks.cancel.get(&account.id).cloned());
@@ -747,6 +759,7 @@ pub async fn check_sign_in(
         registry: &registry,
         now,
         account: &account,
+        wanted: Default::default(),
     };
     access(&account.plan.incoming).check_sign_in(&run).await
 }
@@ -905,6 +918,7 @@ pub async fn fetch_part_with(
         registry,
         now,
         account: &account,
+        wanted: Default::default(),
     };
     let mut engine = access::imap::signed_engine(&run, Mode::Once)
         .await
@@ -936,6 +950,7 @@ pub async fn drain_with(
         registry,
         now,
         account: &account,
+        wanted: Default::default(),
     };
     let mut engine = access::imap::signed_engine(&run, Mode::Once)
         .await
@@ -1276,11 +1291,11 @@ pub async fn folder_now_with(
     secrets: Arc<dyn AccountSecrets>,
     registry: &ClientRegistry,
     accounts: &Accounts,
-    account: AccountId,
-    path: &str,
+    mailbox: &MailboxRef,
     now: chrono::DateTime<chrono::Utc>,
+    wanted: mail_runtime::wanted::Wanted,
 ) -> Result<PassEnd, CoreError> {
-    let account = connected_one(accounts, &account).ok_or(CoreError::NoSuchAccount)?;
+    let account = connected_one(accounts, &mailbox.account).ok_or(CoreError::NoSuchAccount)?;
     let access = access(&account.plan.incoming);
     let run = Run {
         store: &store,
@@ -1288,6 +1303,7 @@ pub async fn folder_now_with(
         registry,
         now,
         account: &account,
+        wanted,
     };
     if !account.plan.incoming.caps().fetches_one {
         // Not a pass that failed: a request there is nothing to fetch for.
@@ -1298,7 +1314,7 @@ pub async fn folder_now_with(
             address: account.address,
         });
     }
-    let done = access.folder_now(&run, path).await;
+    let done = access.folder_now(&run, &mailbox.path).await;
     Ok(ended(&account, done, None))
 }
 

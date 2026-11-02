@@ -23,7 +23,8 @@ pub(crate) struct Graph;
 async fn built(run: &Run<'_>, mode: Mode) -> Result<AccountEngine<OverHttp>, Failure> {
     let Signed { renewal, .. } = signed_in(run, mode).await?;
     let engine = graph_engine(run.store, run.account, run.secrets.clone())
-        .map_err(|e| Failure::fatal(e.to_string()))?;
+        .map_err(|e| Failure::fatal(e.to_string()))?
+        .with_wanted(run.wanted.clone());
     Ok(match renewal {
         Some(source) => engine.with_tokens(source),
         None => engine,

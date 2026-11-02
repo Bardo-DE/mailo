@@ -34,24 +34,34 @@ fn an_autosave_taken_before_a_discard_does_not_bring_the_draft_back() {
     use mail_ui_compose::compose::life;
     let (store, _dir) = seeded();
     let draft = fresh_draft(&store);
+    let client = crate::ui::fixtures::client(&store);
     let page = life::load(
-        &crate::ui::fixtures::client(&store),
+        &client,
         draft.id,
         &mut Vec::new(),
         &mail_ui_model::settings::ComposeSettings::default(),
     )
     .expect("the draft's page");
-    let taken = life::stamp();
-    life::discard(&crate::ui::fixtures::client(&store), draft.id)
-        .unwrap_or_else(|why| panic!("discard: {why}"));
-    let saved = life::save_stamped(
-        &crate::ui::fixtures::client(&store),
-        &page,
-        taken,
-        Utc::now(),
-    );
+    let taken = life::stamp(&client);
+    life::discard(&client, draft.id).unwrap_or_else(|why| panic!("discard: {why}"));
+    let saved = life::save_stamped(&client, &page, taken, Utc::now());
     assert!(matches!(saved, Ok(None)), "{saved:?}");
     assert!(store.draft(draft.id).is_err(), "the draft came back");
+}
+
+/// What a window has written of its drafts is its client's: a second client counts its own pages
+/// and is not refused by the first's discards.
+#[test]
+fn two_clients_keep_their_own_record_of_the_drafts_they_wrote() {
+    use mail_ui_compose::compose::life;
+    let (store, _dir) = seeded();
+    let (one, other) = (
+        crate::ui::fixtures::client(&store),
+        crate::ui::fixtures::client(&store),
+    );
+    assert_eq!(life::stamp(&one), 1);
+    assert_eq!(life::stamp(&one), 2);
+    assert_eq!(life::stamp(&other), 1, "its own count");
 }
 
 /// Autosave asks for a copy on the server at most once every [`life::KEEP_EVERY`]; closing or
@@ -117,8 +127,9 @@ fn an_autosave_queues_the_draft_s_copy_for_the_server_s_drafts_folder() {
     };
     store.put_caps(acct_account(), &caps, Utc::now()).unwrap();
     let draft = fresh_draft(&store);
+    let client = crate::ui::fixtures::client(&store);
     let mut page = life::load(
-        &crate::ui::fixtures::client(&store),
+        &client,
         draft.id,
         &mut Vec::new(),
         &mail_ui_model::settings::ComposeSettings::default(),
@@ -126,7 +137,7 @@ fn an_autosave_queues_the_draft_s_copy_for_the_server_s_drafts_folder() {
     .expect("the draft's page");
     page.subject = "half a thought".to_owned();
     let now = Utc::now();
-    life::save(&crate::ui::fixtures::client(&store), &mut page, now).unwrap();
+    life::save(&client, &mut page, now).unwrap();
 
     let keeps = |store: &SqliteStore| {
         store
@@ -139,34 +150,19 @@ fn an_autosave_queues_the_draft_s_copy_for_the_server_s_drafts_folder() {
             .count()
     };
     assert_eq!(
-        life::keep_on_server(
-            &crate::ui::fixtures::client(&store),
-            draft.id,
-            now,
-            Keeping::WhenDue
-        ),
+        life::keep_on_server(&client, draft.id, now, Keeping::WhenDue),
         Ok(true)
     );
     assert_eq!(keeps(&store), 1);
     let soon = now + chrono::TimeDelta::seconds(5);
     assert_eq!(
-        life::keep_on_server(
-            &crate::ui::fixtures::client(&store),
-            draft.id,
-            soon,
-            Keeping::WhenDue
-        ),
+        life::keep_on_server(&client, draft.id, soon, Keeping::WhenDue),
         Ok(false),
         "a second copy five seconds later"
     );
     // Closing the page keeps one now, in place of the one still waiting.
     assert_eq!(
-        life::keep_on_server(
-            &crate::ui::fixtures::client(&store),
-            draft.id,
-            soon,
-            Keeping::Now
-        ),
+        life::keep_on_server(&client, draft.id, soon, Keeping::Now),
         Ok(true)
     );
     assert_eq!(keeps(&store), 1);

@@ -303,7 +303,6 @@ fn seams(client: &Client, speaking: Arc<std::sync::Mutex<Speaking>>) -> Seams {
         daemon: listener.daemon,
         schedule: delegate.0,
         folder: folder.0,
-        config: try_consume_context::<crate::appearance::WindowDirs>().map(|dirs| dirs.config),
         announce: try_consume_context::<crate::notices::Notices>().map(|notices| Announce {
             notifier: notices.0,
             speaking,

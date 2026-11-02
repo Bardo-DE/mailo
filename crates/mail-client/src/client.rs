@@ -148,9 +148,17 @@ pub(crate) struct Shared {
     clock_told: Condvar,
     /// How servers are reached, once the program says (`net`).
     pub(crate) reach: OnceLock<crate::net::Reach>,
+    /// What the window is about to read and fetching itself: the client's, handed to each pass
+    /// it runs and to the folders it fetches ([`Client::wanted`]).
+    pub(crate) wanted: mail_core::wanted::Wanted,
+    /// What callers keep with the client, one value of each type ([`Client::local`]).
+    pub(crate) locals: Mutex<std::collections::HashMap<std::any::TypeId, LocalValue>>,
     /// The [`Mail`](mail_core::Mail) `reach` last made, and when (`Net::mail`).
     pub(crate) mail: Mutex<Option<(Instant, mail_core::Mail)>>,
 }
+
+/// A value a caller keeps with a client ([`Client::local`]).
+pub(crate) type LocalValue = Arc<dyn std::any::Any + Send + Sync>;
 
 /// Fetching run where the caller runs it: what [`Client::fetch`] hands a client that reads on
 /// its caller's thread. Runs until it is dropped.
@@ -394,12 +402,43 @@ impl Client {
         self.store_arc()
     }
 
-    pub(crate) fn reached(&self) -> &OnceLock<crate::net::Reach> {
-        &self.0.shared.reach
+    /// What this client's window is about to read and fetching itself. A body pass run for this
+    /// client fetches the conversations asked for first, and leaves out the messages claimed.
+    pub fn wanted(&self) -> &mail_core::wanted::Wanted {
+        &self.0.shared.wanted
     }
 
-    pub(crate) fn mail_kept(&self) -> &Mutex<Option<(Instant, mail_core::Mail)>> {
-        &self.0.shared.mail
+    #[cfg(test)]
+    pub(crate) fn config_dir(&self) -> Option<std::path::PathBuf> {
+        self.0.shared.config_dir()
+    }
+
+    /// The one `T` kept with this client, made by `T::default()` the first time it is asked for.
+    ///
+    /// A per-client type map, not a global: the values live in this client's `Shared`, so two
+    /// clients never see each other's. Public because the window's crates keep their state with the
+    /// client they were given.
+    ///
+    /// For state that belongs to whoever holds the client (a window's record of the drafts it
+    /// has written) and would otherwise be a process-wide static: two clients each have their own,
+    /// and a value is dropped with its client.
+    pub fn local<T: Default + Send + Sync + 'static>(&self) -> Arc<T> {
+        let mut kept = self.0.shared.locals.lock();
+        let value = kept
+            .entry(std::any::TypeId::of::<T>())
+            .or_insert_with(|| Arc::new(T::default()))
+            .clone();
+        value
+            .downcast::<T>()
+            .unwrap_or_else(|_| unreachable!("a value is kept under its own type"))
+    }
+
+    pub(crate) fn shared_mail(&self) -> mail_core::Mail {
+        self.0.shared.mail()
+    }
+
+    pub(crate) fn reached(&self) -> &OnceLock<crate::net::Reach> {
+        &self.0.shared.reach
     }
 
     pub(crate) fn store_arc(&self) -> Arc<SqliteStore> {
@@ -607,6 +646,8 @@ impl Shared {
             clock_poked: Mutex::new(false),
             clock_told: Condvar::new(),
             reach: OnceLock::new(),
+            wanted: mail_core::wanted::Wanted::default(),
+            locals: Mutex::new(std::collections::HashMap::new()),
             mail: Mutex::new(None),
         }
     }
@@ -686,7 +727,7 @@ impl Shared {
     pub(crate) fn invalidate(&self, topics: Topics) {
         if let Some(fetcher) = self.fetcher() {
             if topics.intersects(Topics::ACCOUNTS) {
-                fetcher.accounts(&self.store);
+                fetcher.accounts(self.config_dir().as_deref(), &self.store);
             }
             if topics.intersects(Topics::OUTBOX) {
                 fetcher.outbox_moved();

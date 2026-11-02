@@ -15,6 +15,9 @@ pub(crate) struct Run<'a> {
     pub registry: &'a ClientRegistry,
     pub now: chrono::DateTime<chrono::Utc>,
     pub account: &'a Configured,
+    /// What the window is about to read and fetching itself, for the passes that fetch bodies
+    /// (an empty one, for the rest).
+    pub wanted: mail_runtime::wanted::Wanted,
 }
 
 /// A credential good for the operation that asked for it, and what keeps it good for as long

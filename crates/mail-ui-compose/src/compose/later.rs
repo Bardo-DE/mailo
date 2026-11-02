@@ -254,7 +254,7 @@ pub fn cancel_scheduled(shell: Signal<Shell>, draft: DraftId) -> Result<(), Stri
             resend: Some(Resend {
                 draft,
                 at,
-                pictures: super::life::pictures_queued(draft),
+                pictures: super::life::pictures_queued(&client, draft),
             }),
         }],
         copy::toasts::SENDING_CANCELLED.to_owned(),

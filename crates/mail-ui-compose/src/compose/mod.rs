@@ -62,8 +62,6 @@ use seal::{BarAct, SealBar, SealWarn, Sealed, seal_and_queue};
 pub use body::Body;
 pub use desk::{Desk, park_current, reopen, use_desk};
 pub use later::{cancel_scheduled, scheduled, scheduled_in, send_again, sending_in};
-/// Discarding a draft, for every caller in this process: the window's and the intents'.
-pub use life::discarding as discarding_draft;
 pub use page::Page;
 pub use page::PageKind;
 pub use page::When;
@@ -228,7 +226,7 @@ fn PageView(initial: Page, shell: Signal<Shell>) -> Element {
                 // frame. The next save is not asked for until this one is done, and a save on
                 // close or Send meanwhile is a later page, which this one does not overwrite.
                 let client = mail_ui_kit::live::client();
-                let (taken, stamp) = (page.peek().clone(), life::stamp());
+                let (taken, stamp) = (page.peek().clone(), life::stamp(&client));
                 let now = chrono::Utc::now();
                 let saved = tokio::task::spawn_blocking(move || {
                     let saved = life::save_stamped(&client, &taken, stamp, now)?;
@@ -427,7 +425,7 @@ fn send_page(
         &secrets,
         &mut page.write(),
         anyway,
-        life::grace(),
+        *desk.grace.peek(),
         life::Dated {
             // The window's clock, which a reminder asked for here is later measured against.
             now: mail_ui_kit::clock::now(),

@@ -45,6 +45,10 @@ pub struct Desk {
     pub dirs: Signal<Option<WindowDirs>>,
     /// Whether the body's spelling is checked: `compose.spelling`, followed as it changes.
     pub spelling: Memo<spelling::Setting>,
+    /// How long a send waits in the outbox before it may leave, which is how long Undo has: the
+    /// person's `compose.undo_send`, read when Send is pressed, so a change in Settings counts
+    /// from the next send and never moves one already counting down. `Off` is no wait at all.
+    pub grace: Memo<chrono::TimeDelta>,
     /// The emoji picked last, newest first: `emoji.json` in the state directory.
     pub emoji: Signal<Vec<&'static crate::emoji::Emoji>>,
 }
@@ -53,8 +57,10 @@ pub struct Desk {
 pub fn use_desk(today: Signal<Today>, spaces: Signal<Spaces>, dirs: Option<WindowDirs>) -> Desk {
     let settings = mail_ui_kit::prefs::use_settings();
     let spelling = use_memo(move || settings.read().compose.spelling);
+    let grace = use_memo(move || settings.read().compose.undo_send.grace());
     let desk = use_context_provider(|| Desk {
         spelling,
+        grace,
         emoji: Signal::new(
             dirs.as_ref()
                 .map(|dirs| crate::emoji::recent::load(&dirs.state))

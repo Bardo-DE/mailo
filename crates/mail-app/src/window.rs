@@ -14,6 +14,7 @@ pub fn open(
     look: mail_ui_kit::view::Appearance,
     spaces: mail_ui_kit::space::Spaces,
     dirs: Option<mail_ui_kit::appearance::WindowDirs>,
+    config: Option<std::path::PathBuf>,
     start: mail_ui::ui::ask::Open,
 ) -> Result<(), mail_ui::ui::LaunchError> {
     // The desktop launcher's copy of the recent conversations and the address book, kept while
@@ -26,7 +27,7 @@ pub fn open(
     // starts here, before the window, so the window finds it.
     let stays = crate::background::stays_open(crate::background::Os::HERE);
     if stays {
-        crate::background::start(store.clone(), profile.clone());
+        crate::background::start(store.clone(), profile.clone(), config.clone());
     }
     // This thread is the one the window draws on, and what it reads it reads before it can draw
     // again: the last reader is kept for it, so it never waits behind a sync pass's reads or a
@@ -34,8 +35,11 @@ pub fn open(
     SqliteStore::reserve_reader_for_this_thread();
     // The one client every window reads mail through, reaching the servers as the program does.
     let client = mail_client::Client::open(store.clone(), mail_client::ClientConfig::default());
-    client.reach(mail_client::Reach::new(|store| {
-        mail_edge::mail(&store).with_junk(mail_ui_model::settings::junk_policy())
+    let kept = config.clone();
+    client.reach(mail_client::Reach::new(move |store| {
+        mail_edge::mail(&store, kept.as_deref()).with_junk(mail_ui_model::settings::junk_policy(
+            mail_ui_model::settings::person_root_in(kept.as_deref()).as_ref(),
+        ))
     }));
     let resident = mail_ui::ui::Resident {
         stays,

@@ -9,72 +9,82 @@
 //! The window also says which message it is fetching for itself as it is opened ([`claim`]), so
 //! a pass that runs meanwhile does not fetch the same body a second time.
 //!
-//! # One per process
+//! # One per client
 //!
-//! This is the state of the one window in this process, and it is a process global rather than
-//! a value handed down through every pass because nothing else could use it: a `mailo watch` is
-//! another process, and its passes fetch in the ordinary order. The lists are small (a screenful
-//! of conversations, the one or two messages being opened) and replaced or released whole, so a
+//! This is the state of the one window of a client, and it is a value, [`Wanted`], that client
+//! owns and hands to every pass it runs: two clients (two windows, two tests) do not hear each
+//! other. A `mailo watch` is another process, and has a [`Wanted`] of its own that nothing asks
+//! anything of, so its passes fetch in the ordinary order. The lists are small (a screenful of
+//! conversations, the one or two messages being opened) and replaced or released whole, so a
 //! lock held for the length of a copy is all they need.
 
 use mail_domain::{MailboxRef, MessageId, RemoteRef, ThreadId};
 use mail_store::{Store, StoreError};
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 /// How many conversations the window may ask for. More than a screen and its neighbours is a
 /// second backlog, which is what the ordinary order is for.
 pub const ASKED: usize = 64;
 
-struct Wanted {
+#[derive(Debug, Default)]
+struct Lists {
     first: Vec<ThreadId>,
     /// One entry per claim, so two claims of one message are released one at a time.
     claimed: Vec<MessageId>,
 }
 
-static WANTED: Mutex<Wanted> = Mutex::new(Wanted {
-    first: Vec::new(),
-    claimed: Vec::new(),
-});
+/// What one window is about to read and is fetching itself. Cloning it gives another handle on
+/// the same lists, which is how a client hands it to its passes.
+#[derive(Debug, Clone, Default)]
+pub struct Wanted(Arc<Mutex<Lists>>);
 
-fn held() -> MutexGuard<'static, Wanted> {
-    // Nothing done under the lock can leave it half-changed: a panic elsewhere while it was held
-    // is no reason for every later pass to fail.
-    WANTED.lock().unwrap_or_else(PoisonError::into_inner)
-}
+impl Wanted {
+    fn held(&self) -> MutexGuard<'_, Lists> {
+        // Nothing done under the lock can leave it half-changed: a panic elsewhere while it was
+        // held is no reason for every later pass to fail.
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
 
-/// The conversations to fetch bodies for first, most wanted first. Replaces what was asked
-/// before; past [`ASKED`] is dropped.
-pub fn ask_first(threads: &[ThreadId]) {
-    let mut wanted = held();
-    wanted.first.clear();
-    wanted.first.extend(threads.iter().take(ASKED).copied());
-}
+    /// The conversations to fetch bodies for first, most wanted first. Replaces what was asked
+    /// before; past [`ASKED`] is dropped.
+    pub fn ask_first(&self, threads: &[ThreadId]) {
+        let mut wanted = self.held();
+        wanted.first.clear();
+        wanted.first.extend(threads.iter().take(ASKED).copied());
+    }
 
-/// What [`ask_first`] last asked for.
-pub fn first() -> Vec<ThreadId> {
-    held().first.clone()
-}
+    /// What [`Wanted::ask_first`] last asked for.
+    pub fn first(&self) -> Vec<ThreadId> {
+        self.held().first.clone()
+    }
 
-/// Being fetched now by the window itself, until the returned [`Claim`] is dropped.
-pub fn claim(message: MessageId) -> Claim {
-    held().claimed.push(message);
-    Claim(message)
-}
+    /// Being fetched now by the window itself, until the returned [`Claim`] is dropped.
+    pub fn claim(&self, message: MessageId) -> Claim {
+        self.held().claimed.push(message);
+        Claim {
+            wanted: self.clone(),
+            message,
+        }
+    }
 
-/// The messages claimed now.
-pub fn claimed() -> Vec<MessageId> {
-    held().claimed.clone()
+    /// The messages claimed now.
+    pub fn claimed(&self) -> Vec<MessageId> {
+        self.held().claimed.clone()
+    }
 }
 
 /// A message being fetched by the window. Dropping it gives the message back to the passes.
 #[derive(Debug)]
 #[must_use = "the claim ends when this is dropped"]
-pub struct Claim(MessageId);
+pub struct Claim {
+    wanted: Wanted,
+    message: MessageId,
+}
 
 impl Drop for Claim {
     fn drop(&mut self) {
-        let mut wanted = held();
-        if let Some(at) = wanted.claimed.iter().position(|id| *id == self.0) {
+        let mut wanted = self.wanted.held();
+        if let Some(at) = wanted.claimed.iter().position(|id| *id == self.message) {
             wanted.claimed.remove(at);
         }
     }
@@ -89,16 +99,17 @@ impl Drop for Claim {
 /// downloaded only so far back. The conversations on the screen are wanted whatever their age,
 /// as one opened is: the window is how far back a pass reaches by itself, not what may be read.
 pub fn backlog(
+    wanted: &Wanted,
     store: &dyn Store,
     mailbox: &MailboxRef,
     since: Option<chrono::DateTime<chrono::Utc>>,
     limit: u32,
 ) -> Result<(Vec<RemoteRef>, usize), StoreError> {
-    let asked = first();
+    let asked = wanted.first();
     let hinted = store.unfetched_in_threads(mailbox, &asked, limit)?;
     let rest = store.unfetched_in(mailbox, since, limit)?;
     let (mut order, mut first) = ahead(&asked, hinted, rest, limit as usize);
-    let claimed = claimed();
+    let claimed = wanted.claimed();
     if !claimed.is_empty() {
         let mut taken = Vec::new();
         for message in claimed {
@@ -190,26 +201,42 @@ mod tests {
 
     #[test]
     fn a_claim_lasts_until_it_is_dropped() {
+        let wanted = Wanted::default();
         let message = MessageId::from_uuid(uuid::Uuid::from_u128(0xc1a1));
-        let held = claim(message);
-        let again = claim(message);
-        assert!(claimed().contains(&message));
+        let held = wanted.claim(message);
+        let again = wanted.claim(message);
+        assert!(wanted.claimed().contains(&message));
         drop(held);
         assert!(
-            claimed().contains(&message),
+            wanted.claimed().contains(&message),
             "the second claim still holds it"
         );
         drop(again);
-        assert!(!claimed().contains(&message));
+        assert!(!wanted.claimed().contains(&message));
     }
 
     #[test]
     fn asking_again_replaces_and_is_bounded() {
+        let wanted = Wanted::default();
         let many: Vec<ThreadId> = (1..=(ASKED as u128 + 10)).map(thread).collect();
-        ask_first(&many);
-        assert_eq!(first().len(), ASKED);
-        ask_first(&many[..2]);
-        assert_eq!(first(), many[..2]);
-        ask_first(&[]);
+        wanted.ask_first(&many);
+        assert_eq!(wanted.first().len(), ASKED);
+        wanted.ask_first(&many[..2]);
+        assert_eq!(wanted.first(), many[..2]);
+        wanted.ask_first(&[]);
+    }
+
+    #[test]
+    fn two_values_do_not_hear_each_other_and_a_clone_is_the_same_one() {
+        let (one, other) = (Wanted::default(), Wanted::default());
+        one.ask_first(&[thread(1)]);
+        let message = MessageId::from_uuid(uuid::Uuid::from_u128(0xc1a2));
+        let claim = one.clone().claim(message);
+        assert_eq!(one.first(), [thread(1)]);
+        assert!(one.claimed().contains(&message));
+        assert!(other.first().is_empty());
+        assert!(other.claimed().is_empty());
+        drop(claim);
+        assert!(one.claimed().is_empty());
     }
 }

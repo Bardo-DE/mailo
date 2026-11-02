@@ -91,9 +91,12 @@ pub fn signing() -> Arc<dyn SigningStore> {
 
 /// The handle on `mail-core` over `store`, with the process's environment, its OAuth clients, its
 /// Profile's signing keys and the application's runtime.
-pub fn mail(store: &Arc<SqliteStore>) -> Mail {
+///
+/// `config` is the config directory `main` resolved, where the person's syncing choices are kept;
+/// `None`, as a test passes, means every account at the defaults and no file of the machine's read.
+pub fn mail(store: &Arc<SqliteStore>, config: Option<&std::path::Path>) -> Mail {
     Mail::new(store.clone(), runtime().handle().clone())
-        .with_config(mail_core::config::config_dir())
+        .with_config(config.map(std::path::Path::to_path_buf))
         .with_environment(environment())
         .with_oauth_clients(clients())
         .with_signing(signing())
@@ -132,7 +135,7 @@ mod tests {
     fn a_handle_made_from_the_edge_carries_the_edges_pieces() {
         let dir = tempfile::tempdir().unwrap();
         let store = Arc::new(SqliteStore::in_memory(dir.path()).unwrap());
-        let handle = mail(&store);
+        let handle = mail(&store, None);
         assert!(Arc::ptr_eq(handle.store(), &store));
     }
 }

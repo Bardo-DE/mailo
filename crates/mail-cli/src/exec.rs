@@ -220,11 +220,15 @@ fn reads_settings(command: &Command) -> bool {
 ///
 /// A command that reads a settings file that is there and cannot be used says which and why, and
 /// stops: running on the defaults in its place would hide it, and a write would replace it.
-pub fn execute(store: Arc<SqliteStore>, command: Command) -> Result<(), String> {
+pub fn execute(
+    store: Arc<SqliteStore>,
+    command: Command,
+    config: Option<&std::path::Path>,
+) -> Result<(), String> {
     if reads_settings(&command)
-        && let Some(config) = mail_core::config::config_dir()
+        && let Some(config) = config
     {
-        let found = mail_ui_model::damage::of_config(&config);
+        let found = mail_ui_model::damage::of_config(config);
         if !found.is_empty() {
             let mut said: Vec<String> = found.iter().map(ToString::to_string).collect();
             said.push("fix or move the file aside, then run the command again".to_owned());
@@ -234,7 +238,7 @@ pub fn execute(store: Arc<SqliteStore>, command: Command) -> Result<(), String> 
     // Sync needs an async runtime and the store by Arc, so it is dispatched here rather than
     // inside super::run, which is deliberately synchronous and testable.
     if matches!(command, Command::Sync) {
-        let mail = mail_edge::mail(&store);
+        let mail = mail_edge::mail(&store, config);
         let ends = mail_edge::block_on(mail.sync().run(Default::default()))
             .map_err(super::remedy::error)?;
         let accounts = mail.roster().map_err(super::remedy::error)?;
@@ -242,7 +246,7 @@ pub fn execute(store: Arc<SqliteStore>, command: Command) -> Result<(), String> 
         return Ok(());
     }
     if let Command::SyncFolder { account, path } = &command {
-        print!("{}", super::sync_folder(store, account, path)?);
+        print!("{}", super::sync_folder(store, account, path, config)?);
         return Ok(());
     }
     // Saving an attachment may have to download it first — a large IMAP message's attachments
@@ -253,7 +257,7 @@ pub fn execute(store: Arc<SqliteStore>, command: Command) -> Result<(), String> 
         dir,
     } = &command
     {
-        let mail = mail_edge::mail(&store);
+        let mail = mail_edge::mail(&store, config);
         let download = |section: &mail_domain::Section| {
             mail_edge::block_on(mail.sync().fetch_part(*message, section))
         };
@@ -265,11 +269,15 @@ pub fn execute(store: Arc<SqliteStore>, command: Command) -> Result<(), String> 
     // they need the store by `Arc`, which `super::run` has not.
     match &command {
         Command::Daemon { stop: false } => {
+            let kept = config.map(std::path::Path::to_path_buf);
             let ended = mail_agent::ipc::daemon::serve(
                 store,
-                std::sync::Arc::new(|store| {
-                    let mail =
-                        mail_edge::mail(&store).with_junk(mail_ui_model::settings::junk_policy());
+                std::sync::Arc::new(move |store| {
+                    let mail = mail_edge::mail(&store, kept.as_deref()).with_junk(
+                        mail_ui_model::settings::junk_policy(
+                            mail_ui_model::settings::person_root_in(kept.as_deref()).as_ref(),
+                        ),
+                    );
                     match mail_edge::block_on(mail.sync().run(Default::default())) {
                         Ok(ends) => match mail.roster() {
                             Ok(accounts) => print!("{}", super::sync::run_text(&accounts, &ends)),
@@ -330,8 +338,12 @@ pub fn execute(store: Arc<SqliteStore>, command: Command) -> Result<(), String> 
     // A Web Key Directory lookup needs the network: dispatched here with the other commands that
     // do, so `super::run` stays something a test can call without one.
     if let Command::Pgp(super::pgp::PgpCommand::Lookup { address }) = &command {
-        let found = mail_edge::block_on(mail_edge::mail(&store).crypto().lookup_address(address))
-            .map_err(|message| message.to_string())?;
+        let found = mail_edge::block_on(
+            mail_edge::mail(&store, config)
+                .crypto()
+                .lookup_address(address),
+        )
+        .map_err(|message| message.to_string())?;
         print!("{}", super::pgp::lookup(found.as_ref(), address));
         return Ok(());
     }
@@ -343,14 +355,18 @@ pub fn execute(store: Arc<SqliteStore>, command: Command) -> Result<(), String> 
         && openpgp.is_some_and(mail_domain::Mode::encrypts)
     {
         let addresses: Vec<String> = to.iter().chain(cc).map(|a| a.email.clone()).collect();
-        let found = mail_edge::block_on(mail_edge::mail(&store).crypto().discover(&addresses));
+        let found = mail_edge::block_on(
+            mail_edge::mail(&store, config)
+                .crypto()
+                .discover(&addresses),
+        );
         eprint!("{}", super::pgp::discovered(&found));
     }
 
     // Import and export print progress as they go, to stderr, and an upload needs the network:
     // dispatched here for the same reasons as `sync`.
     if let Command::Import { path, into } = &command {
-        print!("{}", super::import::run(&store, path, into)?);
+        print!("{}", super::import::run(&store, path, into, config)?);
         return Ok(());
     }
     if let Command::Export { query, target } = &command {
@@ -360,23 +376,21 @@ pub fn execute(store: Arc<SqliteStore>, command: Command) -> Result<(), String> 
     }
 
     if let Command::Notify { set } = &command {
-        let said = super::settings::notify(mail_ui_model::settings::person_root().as_ref(), *set)?;
+        let said = super::settings::notify(
+            mail_ui_model::settings::person_root_in(config).as_ref(),
+            *set,
+        )?;
         print!("{said}");
         return Ok(());
     }
     if let Command::Offline { address, set } = &command {
-        let accounts = mail_edge::mail(&store)
+        let accounts = mail_edge::mail(&store, config)
             .roster()
             .map_err(super::remedy::error)?
             .addresses();
-        let said = super::offline::command(
-            mail_core::config::config_dir().as_deref(),
-            store.as_ref(),
-            &accounts,
-            address.as_deref(),
-            *set,
-        )
-        .map_err(super::remedy::error)?;
+        let said =
+            super::offline::command(config, store.as_ref(), &accounts, address.as_deref(), *set)
+                .map_err(super::remedy::error)?;
         print!("{said}");
         return Ok(());
     }
@@ -418,7 +432,7 @@ pub fn execute(store: Arc<SqliteStore>, command: Command) -> Result<(), String> 
         println!("watching. Ctrl-C to stop.");
         // Said as it happens, and flushed: a watch is read by someone waiting on it. An open
         // window sees what was stored from the store's file, not from here.
-        let mail = mail_edge::mail(&store);
+        let mail = mail_edge::mail(&store, config);
         let say = |watched: mail_core::sync::report::Watched| {
             use std::io::Write as _;
             print!("{}", super::sync::watched_text(&watched));
@@ -440,7 +454,7 @@ pub fn execute(store: Arc<SqliteStore>, command: Command) -> Result<(), String> 
                 let desktop = mail_os::desktop::connect();
                 Some(mail_ui_model::settings::Notices::new(
                     Box::new(move |notification, sound| desktop.show_with(notification, sound)),
-                    mail_ui_model::settings::person_root(),
+                    mail_ui_model::settings::person_root_in(config),
                 ))
             }
         };
@@ -460,7 +474,11 @@ pub fn execute(store: Arc<SqliteStore>, command: Command) -> Result<(), String> 
             notifier,
             mail_core::sync::watcher::Live {
                 whom: &whom,
-                junk: &mail_ui_model::settings::junk_policy,
+                junk: &|| {
+                    mail_ui_model::settings::junk_policy(
+                        mail_ui_model::settings::person_root_in(config).as_ref(),
+                    )
+                },
             },
             &say,
             asked,
@@ -471,7 +489,10 @@ pub fn execute(store: Arc<SqliteStore>, command: Command) -> Result<(), String> 
         return Err("stopped watching; nothing left to watch".to_owned());
     }
 
-    print!("{}", super::run(&mail_edge::mail(&store), &command)?);
+    print!(
+        "{}",
+        super::run(&mail_edge::mail(&store, config), &command)?
+    );
     Ok(())
 }
 
