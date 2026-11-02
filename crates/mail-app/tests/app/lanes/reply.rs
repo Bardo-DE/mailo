@@ -117,6 +117,15 @@ fn a_reply_goes_out_quoted_its_answer_threads_back_and_reply_all_answers_everyon
     // have gone, so the key is the window's shortcut and not a letter typed into it; a slow
     // runner can still draw the answer before the window takes keys back, so a press nothing
     // took is pressed again, and only while no composer is open to type into.
+    // It goes when Send's hold is over, which is the window's clock running on, not the machine's:
+    // ten milliseconds a try would need more tries than a busy machine makes in its time.
+    let hold = mail_ui_model::settings::MailSettings::default()
+        .compose
+        .undo_send
+        .grace()
+        .to_std()
+        .unwrap_or_default();
+    window.harness.advance(hold + std::time::Duration::from_secs(1));
     window.until("the first reply's composer has gone", |h| {
         h.count(".c-body") == 0
     });
