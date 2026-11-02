@@ -236,7 +236,17 @@ fn rows_picked_together_are_acted_on_as_one_gesture_and_one_undo() {
     // The bar's Star and Mute act on both; each is one Ctrl-Z.
     let starred = |window: &Window| stored_where(window, |t| t.star == Star::Starred);
     window.click(&labelled(&copy::aria::on_selected(copy::menus::STAR, 2)));
-    window.until_stored("the bar stars both", |_| true);
+    window.until_stored("the bar stars both", |store| {
+        listed(
+            store,
+            mail_domain::Filter::Account(account()),
+            chrono::Utc::now(),
+        )
+        .iter()
+        .filter(|t| t.star == Star::Starred)
+        .count()
+            == 2
+    });
     assert_eq!(starred(&window), [subjects[0], subjects[2]]);
     window.press(&[PRIMARY], Key::Char('z'), 1);
     // The undo goes through the client, which commits it a moment after the key.
@@ -259,7 +269,9 @@ fn rows_picked_together_are_acted_on_as_one_gesture_and_one_undo() {
             chrono::Utc::now(),
         )
         .iter()
-        .any(|t| t.mute == Mute::Muted)
+        .filter(|t| t.mute == Mute::Muted)
+        .count()
+            == 2
     });
     assert_eq!(muted(&window), [subjects[0], subjects[2]]);
     window.press(&[PRIMARY], Key::Char('z'), 1);
