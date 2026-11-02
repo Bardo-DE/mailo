@@ -259,6 +259,9 @@ fn a_call_for_an_account_whose_plan_does_not_read_is_told_why() {
     // Not connected yet, and not there at all, are the accounts they were.
     for other in [id(4), id(9)] {
         let gone = runtime.block_on(sync.quota(other));
-        assert!(matches!(gone, Err(mail_core::CoreError::AccountGone)), "{gone:?}");
+        assert!(
+            matches!(gone, Err(mail_core::CoreError::AccountGone)),
+            "{gone:?}"
+        );
     }
 }
