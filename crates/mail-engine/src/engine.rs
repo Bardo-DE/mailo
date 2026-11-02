@@ -118,7 +118,7 @@ fn by_band(wanted: &mut [(RemoteRef, u64)]) {
 /// message was read, starred or deleted somewhere else. That is not an edge case; it is every
 /// user with a phone.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Schedule {
+pub struct Cadence {
     /// New mail: IDLE where offered, otherwise this interval.
     pub watch: Duration,
     /// Flag changes: a `CHANGEDSINCE` sweep where CONDSTORE is usable, else a full flag fetch.
@@ -133,7 +133,7 @@ pub struct Schedule {
     pub outbox: Duration,
 }
 
-impl Default for Schedule {
+impl Default for Cadence {
     fn default() -> Self {
         Self {
             watch: Duration::from_secs(300),
@@ -154,7 +154,7 @@ pub struct AccountEngine<B: Backend> {
     backend: B,
     store: Arc<SqliteStore>,
     secrets: Arc<dyn AccountSecrets>,
-    schedule: Schedule,
+    cadence: Cadence,
     /// Where [`Outgoing::Graph`] posts. Graph's own address, except under test.
     graph_url: String,
     /// Keeps an OAuth account's tokens fresh between and within passes. `None` for a password
@@ -296,7 +296,7 @@ impl<B: Backend> AccountEngine<B> {
             backend,
             store,
             secrets,
-            schedule: Schedule::default(),
+            cadence: Cadence::default(),
             graph_url: mail_runtime::graph::SEND_MAIL.to_owned(),
             tokens: None,
             graph: None,
@@ -396,8 +396,8 @@ impl<B: Backend> AccountEngine<B> {
     }
 
     /// Override the default intervals.
-    pub fn with_schedule(mut self, schedule: Schedule) -> Self {
-        self.schedule = schedule;
+    pub fn with_cadence(mut self, cadence: Cadence) -> Self {
+        self.cadence = cadence;
         self
     }
 
@@ -1761,7 +1761,7 @@ impl<B: Backend> AccountEngine<B> {
         }
         if due(
             self.store.swept(mailbox)?.expunges,
-            self.schedule.expunges,
+            self.cadence.expunges,
             now,
         ) {
             return Ok(None);
@@ -2423,7 +2423,7 @@ impl<B: Backend> AccountEngine<B> {
         // remembered was always nothing, so every pass swept everything.
         let swept = self.store.swept(mailbox)?;
 
-        if due(swept.flags, self.schedule.flags, now) {
+        if due(swept.flags, self.cadence.flags, now) {
             // No modseq means a full flag fetch: either the server has no CONDSTORE, or its
             // HIGHESTMODSEQ was seen not to advance, which Dovecot 2.0.18 did while EXISTS
             // climbed. Trusting a frozen modseq would mean never seeing another flag change.
@@ -2448,7 +2448,7 @@ impl<B: Backend> AccountEngine<B> {
             }
         }
 
-        if due(swept.expunges, self.schedule.expunges, now) {
+        if due(swept.expunges, self.cadence.expunges, now) {
             let since = self.resync_from(mailbox);
             match self
                 .run(
@@ -2852,7 +2852,7 @@ mod tests {
 
     #[test]
     fn the_three_intervals_are_ordered_by_what_they_cost() {
-        let s = Schedule::default();
+        let s = Cadence::default();
         assert!(
             s.flags < s.watch,
             "flag changes must be noticed sooner than a poll interval: reading mail on a phone \
