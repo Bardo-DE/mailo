@@ -441,9 +441,7 @@ fn copy_to_lists_a_conversation_in_the_folder_and_where_it_was_and_undo_takes_th
     window.until("the copy is queued and the picker gone", |h| {
         h.count(".ds-pick-list") == 0
     });
-    window.until_stored("the copy is queued", |store| {
-        !copies_in(store).is_empty()
-    });
+    window.until_stored("the copy is queued", |store| !copies_in(store).is_empty());
     assert_eq!(
         copies(&window),
         [PROJECTS],

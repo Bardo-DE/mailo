@@ -125,7 +125,9 @@ fn a_reply_goes_out_quoted_its_answer_threads_back_and_reply_all_answers_everyon
         .grace()
         .to_std()
         .unwrap_or_default();
-    window.harness.advance(hold + std::time::Duration::from_secs(1));
+    window
+        .harness
+        .advance(hold + std::time::Duration::from_secs(1));
     window.until("the first reply's composer has gone", |h| {
         h.count(".c-body") == 0
     });
