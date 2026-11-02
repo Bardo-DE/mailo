@@ -416,7 +416,7 @@ fn MutedAccounts(mut failed: Signal<Option<String>>) -> Element {
     let muted = mail_ui_kit::prefs::current().notifications.muted_accounts;
     rsx! {
         if rows.is_empty() {
-            FieldRow { label: copy::empty::NO_ACCOUNTS_TO_NOTIFY }
+            super::account_split::NoAccounts {}
         }
         for row in rows {
             {

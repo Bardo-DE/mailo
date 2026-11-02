@@ -33,6 +33,7 @@
 //! open: quire's harness has no event loop to open a window on.
 
 pub mod account;
+pub mod account_split;
 pub mod accounts;
 pub mod keys;
 pub mod offline;
@@ -55,9 +56,7 @@ use ds::components::chrome::sidebar_model::SidebarSection;
 use ds::prelude::*;
 use ds_blitz::{WindowHandle, WindowSpec};
 use mail_ui_kit::settings_at::{OpenSettings, SettingsAsked, SettingsAt, SettingsWindows};
-use mail_ui_kit::view::{
-    AccountStep, AccountsPane, ContactsPage, PageId, RulesAt, Shell, SpacesPage, VacationAt,
-};
+use mail_ui_kit::view::{AccountStep, ContactsPage, PageId, RulesAt, Shell, SpacesPage};
 use mail_ui_model::copy;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -67,7 +66,7 @@ use std::sync::Arc;
 pub const TITLE: &str = copy::titles::SETTINGS;
 
 /// The size the window opens at, in logical pixels.
-const SIZE: (u32, u32) = (780, 620);
+const SIZE: (u32, u32) = (960, 640);
 
 /// What the window hands Settings that it cannot draw itself: the Signatures page, which is written
 /// in the composer's body, and the window's stylesheet.
@@ -113,22 +112,21 @@ impl OpenSettings for Quire {
     }
 }
 
-/// Show `page` in this Settings window, Accounts and Rules at their lists as System Settings shows
-/// a pane chosen in its sidebar.
+/// Show `page` in this Settings window, each per-account page on the account it last showed and
+/// with what it pushed closed, as System Settings shows a pane chosen in its sidebar.
 pub fn go(mut shell: Signal<Shell>, page: PageId) {
     let mut write = shell.write();
     write.settings = Some(page);
     if write.accounts_pane.step != AccountStep::Removing {
-        write.accounts_pane = AccountsPane::default();
+        write.accounts_pane.step = AccountStep::Showing;
     }
     write.rules.path = PanePath::new(RulesAt::List);
     write.spaces_pane = PanePath::new(SpacesPage::List);
     write.contacts_pane = PanePath::new(ContactsPage::List);
-    write.vacation_pane = PanePath::new(VacationAt::List);
 }
 
-/// Turn this Settings window to `at`: a page, an account's page over Accounts, or a Space's
-/// over Spaces.
+/// Turn this Settings window to `at`: a page, an account's page beside Accounts' list, or a
+/// Space's over Spaces.
 pub fn go_to(shell: Signal<Shell>, at: SettingsAt) {
     match at {
         SettingsAt::Page(page) => go(shell, page),

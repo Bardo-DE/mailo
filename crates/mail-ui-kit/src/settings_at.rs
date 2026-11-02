@@ -11,7 +11,7 @@ use porter_core::AccountId;
 use std::sync::Arc;
 use tokio::sync::watch;
 
-/// Where the Settings window is asked to be: a page, one account's page pushed over Accounts,
+/// Where the Settings window is asked to be: a page, one account's page beside Accounts' list,
 /// one Space's pushed over Spaces, or one person's card pushed over Contacts.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SettingsAt {
@@ -32,15 +32,14 @@ impl SettingsAt {
         }
     }
 
-    /// The Accounts pane as it stands there: the list, or the account's page over it.
+    /// The Accounts pane as it stands there: the first account, or the account asked for.
     pub fn pane(&self) -> AccountsPane {
         match self {
             SettingsAt::Page(_) | SettingsAt::Space(_) | SettingsAt::Card(_) => {
                 AccountsPane::default()
             }
             SettingsAt::Account(account) => AccountsPane {
-                path: PanePath::new(AccountsPage::List)
-                    .pushed(AccountsPage::Account(account.clone())),
+                shown: Some(AccountsPage::Account(account.clone())),
                 step: AccountStep::Showing,
             },
         }
@@ -139,7 +138,7 @@ pub fn open_at(page: PageId) {
     ask(Some(SettingsAt::Page(page)));
 }
 
-/// Open Settings on `account`'s page, pushed over Accounts, or raise it and turn it there.
+/// Open Settings on `account`'s page, beside Accounts' list, or raise it and turn it there.
 pub fn open_account(account: AccountId) {
     ask(Some(SettingsAt::Account(account)));
 }

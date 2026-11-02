@@ -17,7 +17,7 @@ use ds::prelude::*;
 use ds::root::common::Common;
 use mail_client::Syncing;
 use mail_domain::MailboxRole;
-use mail_ui_kit::common::{Problem, classed};
+use mail_ui_kit::common::Problem;
 use mail_ui_kit::data::AccountRow;
 use mail_ui_model::copy;
 use mail_ui_model::copy::fields::account as field;
@@ -64,7 +64,7 @@ pub fn About(row: AccountRow) -> Element {
                     label: field::DESCRIPTION.to_owned(),
                     value: typed(),
                     placeholder: row.address.clone(),
-                    common: Common { id: Some("acct-description".to_owned()), ..classed("acct-field") },
+                    common: Common { id: Some("acct-description".to_owned()), ..Common::default() },
                     oninput: move |value: String| typed.set(value),
                     onchange: move |value: String| {
                         let account = described.clone();

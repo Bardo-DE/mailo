@@ -20,7 +20,7 @@ use crate::ui::fixtures::{
 use crate::ui::settings_tests::rules_away::{answering, own_server};
 use mail_ui_kit::data::{AccountRow, account_rows};
 use mail_ui_kit::files::Phase;
-use mail_ui_kit::view::{RulesAt, Shell, VacationAt};
+use mail_ui_kit::view::{RulesAt, Shell};
 use mail_ui_model::copy;
 use mail_ui_settings::rules::RulesPage;
 use mail_ui_settings::rules::list::RunProgress;
@@ -44,8 +44,8 @@ async fn landed(dom: &mut VirtualDom, mut seen: Seen) -> Seen {
     seen.merge(drain_seen(dom))
 }
 
-/// The page on `account`, at `at`; Settings' Vacation Reply page instead, for `vacation`, with
-/// `account`'s reply pushed over the accounts.
+/// The page on `account`, at `at`; Settings' Vacation Reply page instead, for `vacation`, on
+/// `account`'s reply.
 #[component]
 fn Page(account: Option<AccountId>, at: RulesAt, #[props(default)] vacation: bool) -> Element {
     let shell = use_signal(|| Shell {
@@ -53,12 +53,7 @@ fn Page(account: Option<AccountId>, at: RulesAt, #[props(default)] vacation: boo
             account: account.clone(),
             path: PanePath::new(RulesAt::List).pushed(at.clone()),
         },
-        vacation_pane: match account.clone() {
-            Some(account) if vacation => {
-                PanePath::new(VacationAt::List).pushed(VacationAt::Account(account))
-            }
-            _ => PanePath::new(VacationAt::List),
-        },
+        vacation_account: account.clone(),
         ..Shell::default()
     });
     mail_ui_kit::motion::use_motion();
