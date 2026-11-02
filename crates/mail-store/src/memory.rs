@@ -18,7 +18,7 @@ use mail_domain::{
 use porter_core::AccountId;
 use serde::Serialize;
 
-use crate::{Dispatch, OutboxEntry, Settle, Store, StoreError, Term};
+use crate::{Dispatch, OutboxEntry, Settle, Store, StoreError, Swept, Term};
 
 mod cards;
 mod contacts;
@@ -79,6 +79,8 @@ struct Inner {
     next_outbox: i64,
     pending: Vec<PendingRow>,
     sync: BTreeMap<(AccountId, String), SyncCursor>,
+    /// When each mailbox with a cursor was last swept, as `sync_state` holds it.
+    swept: BTreeMap<(AccountId, String), Swept>,
     /// Every mailbox the server listed, by account and path.
     folders: BTreeMap<(AccountId, String), mail_domain::Folder>,
     /// What the user answered each message's read-receipt request. Dropped with the message,
@@ -169,6 +171,7 @@ impl Default for Inner {
             next_outbox: 1,
             pending: Vec::new(),
             sync: BTreeMap::new(),
+            swept: BTreeMap::new(),
             folders: BTreeMap::new(),
             receipts: BTreeMap::new(),
             invites: BTreeMap::new(),
@@ -301,6 +304,37 @@ impl Store for MemoryStore {
             .sync
             .get(&(mailbox.account.clone(), mailbox.path.clone()))
             .cloned())
+    }
+
+    fn swept(&self, mailbox: &MailboxRef) -> Result<Swept, StoreError> {
+        Ok(self
+            .inner
+            .borrow()
+            .swept
+            .get(&(mailbox.account.clone(), mailbox.path.clone()))
+            .copied()
+            .unwrap_or(Swept {
+                flags: None,
+                expunges: None,
+            }))
+    }
+
+    fn mark_flags_swept(&self, mailbox: &MailboxRef, at: DateTime<Utc>) -> Result<(), StoreError> {
+        self.inner
+            .borrow_mut()
+            .mark_swept(mailbox, |s| s.flags = Some(at));
+        Ok(())
+    }
+
+    fn mark_expunges_swept(
+        &self,
+        mailbox: &MailboxRef,
+        at: DateTime<Utc>,
+    ) -> Result<(), StoreError> {
+        self.inner
+            .borrow_mut()
+            .mark_swept(mailbox, |s| s.expunges = Some(at));
+        Ok(())
     }
 
     fn put_caps(
@@ -964,6 +998,15 @@ impl Store for MemoryStore {
 }
 
 impl Inner {
+    /// As `SqliteStore`'s marks: only a mailbox that has a cursor holds a time, as the columns
+    /// live on its `sync_state` row.
+    fn mark_swept(&mut self, mailbox: &MailboxRef, mark: impl FnOnce(&mut Swept)) {
+        let key = (mailbox.account.clone(), mailbox.path.clone());
+        if self.sync.contains_key(&key) {
+            mark(self.swept.entry(key).or_default());
+        }
+    }
+
     /// One page, filtered only by [`Filter::fit`].
     fn threads(
         &self,
@@ -1322,28 +1365,46 @@ impl Inner {
             }
         }
 
+        // Only what differs from what is held, as `SqliteStore` does: the flags of a whole
+        // mailbox arrive every pass, and what has not changed has nothing to say.
         for (remote, read, star) in &ingest.flags {
-            if let Some(id) = self.message_by_remote(account.clone(), remote) {
-                let read_change = Change::MessageRead(id, *read);
-                let star_change = Change::MessageStar(id, *star);
-                self.write_change(&read_change)?;
-                self.write_change(&star_change)?;
-                changes.push(read_change);
-                changes.push(star_change);
-                if let Some(thread) = self.thread_of(id) {
-                    touched.insert(thread);
-                }
+            let Some(id) = self.message_by_remote(account.clone(), remote) else {
+                continue;
+            };
+            let Some(held) = self.messages.get(&id) else {
+                continue;
+            };
+            let mut differs = Vec::new();
+            if held.read != *read {
+                differs.push(Change::MessageRead(id, *read));
+            }
+            if held.star != *star {
+                differs.push(Change::MessageStar(id, *star));
+            }
+            if differs.is_empty() {
+                continue;
+            }
+            for change in differs {
+                self.write_change(&change)?;
+                changes.push(change);
+            }
+            if let Some(thread) = self.thread_of(id) {
+                touched.insert(thread);
             }
         }
 
         for (remote, hue) in &ingest.flag_colors {
-            if let Some(id) = self.message_by_remote(account.clone(), remote) {
-                let change = Change::MessageFlag(id, *hue);
-                self.write_change(&change)?;
-                changes.push(change);
-                if let Some(thread) = self.thread_of(id) {
-                    touched.insert(thread);
-                }
+            let Some(id) = self.message_by_remote(account.clone(), remote) else {
+                continue;
+            };
+            if self.messages.get(&id).is_none_or(|held| held.flag == *hue) {
+                continue;
+            }
+            let change = Change::MessageFlag(id, *hue);
+            self.write_change(&change)?;
+            changes.push(change);
+            if let Some(thread) = self.thread_of(id) {
+                touched.insert(thread);
             }
         }
 
