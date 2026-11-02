@@ -17,11 +17,10 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use dioxus::prelude::*;
 use ds::components::content::label::{LabelRole, LabelStyle};
-use ds::components::controls::progress::model::{Progress, ProgressStyle};
-use ds::components::controls::progress::view::ProgressIndicator;
 use ds::prelude::*;
 
 use crate::motion::{Follow, tell};
+use crate::pending::Meter;
 use crate::view::{FileSheet, Shell};
 
 /// Where the sheets suggest and start, and Save writes: the downloads directory, unless the
@@ -148,13 +147,7 @@ pub fn Report(phase: Phase, verb: &'static str) -> Element {
                 work::messages(done)
             };
             rsx! {
-                div { class: "files-progress", role: "status",
-                    Label { text: format!("{verb}… {total}"), role: LabelRole::Secondary }
-                    ProgressIndicator {
-                        style: ProgressStyle::Bar,
-                        progress: Progress::Known(Fraction(u16::try_from(share).unwrap_or(1000))),
-                    }
-                }
+                Meter { label: format!("{verb}… {total}"), thousandths: u16::try_from(share).unwrap_or(1000) }
             }
         }
         Phase::Finished(said) => rsx! {

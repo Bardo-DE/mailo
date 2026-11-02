@@ -264,13 +264,9 @@ pub fn RunProgress(phase: Signal<Phase>, name: String) -> Element {
             let share = (done.min(of) * 1000).checked_div(of).unwrap_or(0);
             rsx! {
                 FormSection {
-                    FieldRow {
+                    mail_ui_kit::pending::Meter {
                         label: format!("Running “{name}”…"),
-                        ProgressIndicator {
-                            style: ProgressStyle::Bar,
-                            progress: Progress::Known(Fraction(u16::try_from(share).unwrap_or(1000))),
-                            common: classed("rules-progress"),
-                        }
+                        thousandths: u16::try_from(share).unwrap_or(1000),
                     }
                 }
             }

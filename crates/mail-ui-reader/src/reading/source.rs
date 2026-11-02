@@ -197,11 +197,7 @@ fn RawBody(asked: RawAsked, title: &'static str, shell: Signal<Shell>) -> Elemen
         return rsx! {
             div { class: "raw-sheet",
                 Label { text: title, style: LabelStyle::Title }
-                Label {
-                    text: copy::status::LOADING,
-                    role: LabelRole::Tertiary,
-                    style: LabelStyle::Footnote,
-                }
+                mail_ui_kit::pending::Pending { label: copy::status::LOADING.to_owned() }
                 div { class: "sheet-actions",
                     SheetClose { label: copy::controls::DONE, on_close: move |()| close(shell) }
                 }

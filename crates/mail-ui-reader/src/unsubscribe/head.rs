@@ -65,11 +65,12 @@ pub fn Lookout(
 
 /// What will happen, and the one button that does it: a quire alert. A page gets its address and
 /// Copy instead: this client never opens it and never fetches it. While the way out is being
-/// taken the alert stays up and says "Working…", and a failure is said in its message.
+/// taken the alert stays up and shows a spinner with "Working…", and a failure is said in its message.
 #[component]
 pub fn Confirm(offer: Offer, asked: Ask, phase: Signal<Phase>) -> Element {
+    let working = phase() == Phase::Working;
     let message = match (phase(), &asked) {
-        (Phase::Working, _) => "Working\u{2026}".to_owned(),
+        (Phase::Working, _) => asked.sentence(),
         (Phase::Failed(why), _) => why,
         (_, Ask::Web { url }) => format!("{} {url}", asked.sentence()),
         _ => asked.sentence(),
@@ -110,6 +111,9 @@ pub fn Confirm(offer: Offer, asked: Ask, phase: Signal<Phase>) -> Element {
                 aria_label: Some("Leave this list".to_owned()),
                 ..Common::default()
             },
+            if working {
+                mail_ui_kit::pending::Pending { label: "Working\u{2026}".to_owned() }
+            }
         }
     }
 }

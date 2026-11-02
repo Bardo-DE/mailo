@@ -21,5 +21,4 @@
 .sheet-actions {
   display: flex; align-items: center; justify-content: flex-end; gap: var(--s-8); flex-wrap: wrap;
 }
-.sheet-actions > .files-progress, .sheet-actions > [role="status"] { flex: 1; min-width: 0; }
-.files-progress { display: grid; gap: var(--s-4); min-width: 0; }
+.sheet-actions > [role="status"] { flex: 1; min-width: 0; }

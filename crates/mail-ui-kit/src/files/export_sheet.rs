@@ -70,12 +70,13 @@ pub(super) fn ExportSheet(shell: Signal<Shell>) -> Element {
             .to_string(),
     };
     let (validity, count_words, count) = match counted() {
-        None => (Validity::Valid, "Counting…".to_owned(), None),
+        None => (Validity::Valid, String::new(), None),
         Some(Counted::Blank) => (Validity::Valid, "A place or a search".to_owned(), None),
         Some(Counted::Some(0)) => (refusal("Nothing matches."), String::new(), None),
         Some(Counted::Some(n)) => (Validity::Valid, work::messages(n), Some(n)),
         Some(Counted::Refused(why)) => (refusal(&why), String::new(), None),
     };
+    let counting = counted().is_none();
     let busy = phase.read().running();
     let can_run = count.is_some() && !busy && !target_path.trim().is_empty();
     let formats: Vec<Choice<&'static dyn Writer>> =
@@ -123,6 +124,9 @@ pub(super) fn ExportSheet(shell: Signal<Shell>) -> Element {
                                 shell.write().files = Some(FileSheet::Export { query: value });
                             },
                         }
+                        if counting {
+                            crate::pending::Pending { label: "Counting…".to_owned() }
+                        }
                     }
                     FieldRow {
                         label: "As",
@@ -166,8 +170,8 @@ pub(super) fn ExportSheet(shell: Signal<Shell>) -> Element {
                     SheetClose { label: "Cancel".to_owned(), on_close: move |()| super::close(shell) }
                     Button {
                         answers: Answers::Return,
-                        label: if busy { "Exporting…" } else { "Export" },
-                        availability: available(can_run),
+                        label: "Export",
+                        availability: if busy { Availability::Busy } else { available(can_run) },
                         onclick: on_primary(move || start(())),
                     }
                 }

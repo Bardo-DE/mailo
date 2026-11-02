@@ -159,6 +159,8 @@ article.frame:last-of-type .html { height: auto; min-height: 320px; flex: 1 0 32
 .peek-link-url b { color: var(--ink-soft); }
 .peek-link-actions { display: flex; gap: var(--s-8); margin-top: var(--s-10); }
 .reader-loading { flex: 1; padding: var(--s-22); }
+/* The off-thread render keeps the frame's box, and the outline inside it stays inside. */
+.html[aria-busy="true"] { overflow: hidden; }
 .reader-empty { flex: 1; display: grid; place-items: center; padding: var(--s-22); }
 
 .reader-head .bar-tools, .c-head .bar-tools { gap: var(--s-5); }

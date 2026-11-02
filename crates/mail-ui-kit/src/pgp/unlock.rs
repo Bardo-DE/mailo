@@ -110,8 +110,8 @@ pub fn Passphrase(
             }
             Button {
                 answers: Answers::Return,
-                label: if working == Busy::Working { "Working…".to_owned() } else { act.to_string() },
-                availability: available(working != Busy::Working),
+                label: act.to_string(),
+                availability: if working == Busy::Working { Availability::Busy } else { Availability::Enabled },
                 onclick: on_primary(give),
                 common: Common { aria_label: Some(act.to_string()), ..Common::default() },
             }

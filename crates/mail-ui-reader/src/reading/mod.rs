@@ -195,15 +195,15 @@ fn cannot_load() -> Element {
     }
 }
 
+/// How many outline rows stand where a conversation, or one message's body, will be.
+const OUTLINE_ROWS: usize = 3;
+
 /// Outline lines where the conversation will be, while the client reads it for the first time:
-/// the pane reads as "coming", not as empty.
-fn loading() -> Element {
+/// the pane reads as "coming", not as empty. A body that is downloading or being rendered shows
+/// these same rows, so a wait is one look from opening to drawn.
+pub(crate) fn loading() -> Element {
     rsx! {
-        div { class: "reader-loading", "aria-busy": "true",
-            for n in 0..3 {
-                SkeletonRow { key: "{n}", lines: SkeletonLines::Two }
-            }
-        }
+        div { class: "reader-loading", mail_ui_kit::pending::Outline { rows: OUTLINE_ROWS } }
     }
 }
 
@@ -715,9 +715,11 @@ pub fn Reader(
                     if fold != fold::Fold::Folded {
                         match body.as_deref() {
                             // Being rendered off the thread: the frame's own box, so nothing moves
-                            // when it lands.
+                            // when it lands, holding the same outline a download shows.
                             None => rsx! {
-                                div { key: "{message.id}-rendering", class: "html", aria_busy: "true" }
+                                div { key: "{message.id}-rendering", class: "html", aria_busy: "true",
+                                    {loading()}
+                                }
                             },
                             Some(FrameBody::NotFetched) => rsx! {
                                 fetch::BodyPane {

@@ -25,8 +25,8 @@ crates/mail-ui-kit/src/downloads/open.rs 14
 crates/mail-ui-kit/src/downloads/panel.rs 13
 crates/mail-ui-kit/src/fetching/face.rs 3
 crates/mail-ui-kit/src/fetching/mod.rs 1
-crates/mail-ui-kit/src/files/export_sheet.rs 18
-crates/mail-ui-kit/src/files/import_sheet.rs 20
+crates/mail-ui-kit/src/files/export_sheet.rs shows only 17 literal words: lower the 18 in scripts/copy-literals.txt to 17
+crates/mail-ui-kit/src/files/import_sheet.rs shows only 19 literal words: lower the 20 in scripts/copy-literals.txt to 19
 crates/mail-ui-kit/src/files/mod.rs 1
 crates/mail-ui-kit/src/files/work.rs 14
 crates/mail-ui-kit/src/menus/mod.rs 9
@@ -37,7 +37,7 @@ crates/mail-ui-kit/src/pgp/keys_page.rs 7
 crates/mail-ui-kit/src/pgp/look.rs 3
 crates/mail-ui-kit/src/pgp/mod.rs 4
 crates/mail-ui-kit/src/pgp/seal.rs 6
-crates/mail-ui-kit/src/pgp/unlock.rs 3
+crates/mail-ui-kit/src/pgp/unlock.rs shows only 2 literal words: lower the 3 in scripts/copy-literals.txt to 2
 crates/mail-ui-reader/src/brand.rs 1
 crates/mail-ui-reader/src/invite/card.rs 25
 crates/mail-ui-reader/src/invite/draw.rs 24
