@@ -65,12 +65,17 @@ mod tests {
     fn drawn(root: fn() -> Element) -> String {
         let mut dom = VirtualDom::new(root);
         dom.rebuild_in_place();
-        dioxus_ssr::render(&dom)
+        // Past the stylesheet the window wrapper writes, whose selectors name these classes too.
+        let html = dioxus_ssr::render(&dom);
+        html.rsplit_once("</style>")
+            .map_or(html.clone(), |(_, page)| page.to_owned())
     }
 
     #[test]
     fn a_wait_with_no_count_is_a_small_spinner_then_its_words() {
-        let html = drawn(|| rsx! { Pending { label: "Sending…".to_owned() } });
+        let html = drawn(
+            || rsx! { Ds { appearance: Appearance::default(), material: Material::Window, Pending { label: "Sending…".to_owned() } } },
+        );
         assert!(html.contains(r#"class="pending""#), "{html}");
         assert!(html.contains(r#"data-style="spinner""#), "{html}");
         assert!(html.contains(r#"data-size="small""#), "{html}");
@@ -82,8 +87,9 @@ mod tests {
 
     #[test]
     fn known_progress_is_its_words_above_a_full_bar() {
-        let html =
-            drawn(|| rsx! { Meter { label: "Importing… 3 of 9".to_owned(), thousandths: 333 } });
+        let html = drawn(
+            || rsx! { Ds { appearance: Appearance::default(), material: Material::Window, Meter { label: "Importing… 3 of 9".to_owned(), thousandths: 333 } } },
+        );
         assert!(html.contains(r#"class="meter""#), "{html}");
         assert!(html.contains(r#"data-style="bar""#), "{html}");
         assert!(html.contains(r#"aria-valuemax"#), "{html}");
@@ -95,8 +101,10 @@ mod tests {
 
     #[test]
     fn the_outline_is_as_many_rows_as_asked_and_busy() {
-        let html = drawn(|| rsx! { Outline { rows: 5 } });
+        let html = drawn(
+            || rsx! { Ds { appearance: Appearance::default(), material: Material::Window, Outline { rows: 5 } } },
+        );
         assert!(html.contains(r#"aria-busy="true""#), "{html}");
-        assert_eq!(html.matches(r#"data-lines="#).count(), 5, "{html}");
+        assert_eq!(html.matches(r#"class="ds-skeleton-row""#).count(), 5);
     }
 }

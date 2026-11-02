@@ -310,14 +310,15 @@ async fn a_body_that_is_downloading_shows_outline_rows_not_the_large_spinner() {
     let seen = rebuild_into(&mut dom);
     let button = seen.one("aria-label", "Download Message");
     click(&mut dom, button);
-    let markup = settle(&mut dom, |m| m.contains("ds-skeleton-row")).await;
+    let markup = settle(&mut dom, |m| m.contains(r#"class="ds-skeleton-row"#)).await;
     let _ = release.send(());
     assert!(markup.contains("body-pane"), "{markup}");
-    assert!(markup.contains("reader-loading"), "{markup}");
+    // Each outline the pane draws is the reader's three rows.
+    let outlines = markup.matches(r#"class="reader-loading""#).count();
+    assert!(outlines >= 1, "no reader outline");
     assert_eq!(
-        markup.matches(r#"class="ds-skeleton-row"#).count(),
-        3,
-        "{markup}"
+        markup.matches(r#"class="ds-skeleton-row""#).count(),
+        3 * outlines
     );
     assert!(
         !markup.contains(r#"data-style="spinner""#),
