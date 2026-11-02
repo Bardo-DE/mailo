@@ -5,16 +5,15 @@
 //! and queue them", never "open a connection". A send that depended on the network being up at
 //! the moment the user pressed the key would lose the message on a train.
 
-use crate::error::{CoreError, Logged, TimeError};
-use crate::pgp::OpenPgp;
-use crate::protect::Seal;
-use crate::rich_text::plain_to_flowed;
-use crate::smime::Smime;
+use crate::error::{CoreError, Logged};
 use chrono::{DateTime, Local, Utc};
 use mail_domain::signing::{SigningKeyRef, SigningSecret};
 use mail_domain::*;
-use mail_mime::posting;
-use mail_runtime::{Failure, RuntimeError};
+use mail_editor::{FORWARDED, plain_to_flowed};
+use mail_logic::picture::PictureSize;
+use mail_logic::snooze::TimeError;
+use mail_net::Failure;
+use mail_secrets::CredentialError;
 use mail_store::{SqliteStore, Store};
 use porter_core::AccountId;
 
@@ -22,6 +21,7 @@ pub mod addresses;
 mod doc;
 mod enclosed;
 mod format;
+pub mod freeze;
 mod modes;
 mod pictures;
 mod submit;
@@ -33,7 +33,7 @@ pub use modes::{
     Answer, Quote, Redirected, Saying, draft_again, draft_answer, draft_answer_in, list_post,
     redirect, withdraw_redirect,
 };
-pub use pictures::{PictureSize, sized};
+pub use pictures::sized;
 pub use weight::{
     Fit, Measure, Picture, Said, SendLimit, USUAL_LIMIT, Weight, can_ask_delivery_report, fit,
     send_limit, weigh,
@@ -214,7 +214,7 @@ where
         &original,
         zone,
     ));
-    draft.attachments = carried(&original.attachments);
+    draft.attachments = carried(store, &original);
     Ok(draft)
 }
 
@@ -227,13 +227,17 @@ where
 ///
 /// Only a part kept counts against the budget: one left behind takes nothing of it, so a smaller
 /// part after it still goes.
-fn carried(attachments: &[Attachment]) -> Vec<PendingAttachment> {
+fn carried(store: &SqliteStore, original: &Message) -> Vec<PendingAttachment> {
     let mut total = 0u64;
-    attachments
+    original
+        .attachments
         .iter()
-        .filter(|a| a.inline == Inline::Attached)
-        .filter_map(|a| {
-            let blob = a.blob()?;
+        .enumerate()
+        .filter(|(_, a)| a.inline == Inline::Attached)
+        .filter(|(_, a)| a.is_here())
+        .filter_map(|(index, a)| {
+            let blob = crate::attach::blob_of(store, original, index)
+                .or_log("a part to forward could not be read")?;
             let with = total.saturating_add(a.size);
             (with <= ATTACHMENT_BUDGET).then(|| {
                 total = with;
@@ -262,7 +266,7 @@ pub fn sending_accounts(store: &SqliteStore) -> Vec<(String, AccountId)> {
     else {
         return Vec::new();
     };
-    // Read row by row rather than through `sync::configured`, which gives up on the whole list
+    // Read row by row rather than through `gather::accounts`, which gives up on the whole list
     // when one plan does not parse: an account whose plan cannot be read is still offered, as it
     // always was, and only a plan that says Local is left out.
     let keeps_locally = |plan: &Result<AccountPlan, mail_store::StoreError>| {
@@ -922,10 +926,6 @@ pub fn new_sealed_message(
     Ok(Composed { draft, refused })
 }
 
-/// The line a forward's header block starts with. What follows it is the original's, not the
-/// sender's own words.
-pub const FORWARDED: &str = "---------- Forwarded message ----------";
-
 /// The forward body: what the user wrote, then the original beneath a header block.
 ///
 /// Not `>`-quoted. A forward is the message itself being passed on rather than answered, and
@@ -948,11 +948,11 @@ where
     out.push_str(&format!(
         "Date: {}\r\n",
         // Twenty-four hours, as the attribution line in [`quoted`] is written.
-        crate::when::stamp(
+        mail_logic::when::stamp(
             original.date,
             zone,
-            crate::when::Stamp::Quote,
-            crate::when::Clock::H24
+            mail_logic::when::Stamp::Quote,
+            mail_logic::when::Clock::H24
         )
     ));
     out.push_str(&format!("Subject: {}\r\n", original.subject));
@@ -1003,6 +1003,7 @@ pub fn save(store: &SqliteStore, draft: &Draft) -> Result<(), CoreError> {
             id: ChangeId::generate(),
             changes: vec![Change::DraftUpsert(Box::new(draft.clone()))],
         },
+        draft.updated,
     )?;
     Ok(())
 }
@@ -1022,7 +1023,7 @@ pub fn reflow_stored(store: &SqliteStore) -> Result<usize, CoreError> {
 /// Delete a draft.
 ///
 /// There was no way to do this anywhere in the application. The composer's "Discard" only closed
-/// the pane without saving — which for a draft that had never been saved is the same thing, and
+/// the composer without saving — which for a draft that had never been saved is the same thing, and
 /// for every other draft is not: a reply is persisted the moment it is created, and one opened
 /// from the drafts list came off disk, so "Discard" left it sitting in Drafts for ever. Drafts
 /// could be made and never unmade.
@@ -1042,6 +1043,7 @@ pub fn discard(store: &SqliteStore, draft: DraftId) -> Result<String, CoreError>
             id: ChangeId::generate(),
             changes: vec![Change::DraftDelete(draft.id)],
         },
+        draft.updated,
     )?;
     // And off the server, where its copy was kept ([`keep_on_server`]). Discarded whatever
     // becomes of that: the draft is gone here, and a copy left there is only a copy.
@@ -1100,19 +1102,13 @@ fn drafts_on_server(store: &SqliteStore, account: &AccountId) -> Option<MailboxR
     let plan = stored
         .plan
         .or_log("the plan of the account a draft is on could not be read")?;
-    if !plan.incoming.caps().server_drafts {
-        return None;
-    }
     let caps = stored
         .caps?
         .or_log("the capabilities of the account a draft is on could not be read")?;
-    if !mail_runtime::server_drafts::keeps_copies(&caps) {
-        return None;
-    }
-    let path = caps.folders.path(MailboxRole::Drafts)?;
+    let path = mail_runtime::server_drafts::drafts_folder(&plan.incoming, &caps)?;
     Some(MailboxRef {
         account: account.clone(),
-        path: path.to_owned(),
+        path,
     })
 }
 
@@ -1133,18 +1129,16 @@ fn signed_new(
         .as_ref()
         .filter(|signature| signature.html.is_some())
         .map(|signature| {
-            let mut nodes = crate::rich_text::nodes_from_plain(body.trim());
+            let mut nodes = mail_editor::nodes_from_plain(body.trim());
             if nodes.is_empty() {
-                nodes.push(crate::rich_text::Node::plain(
-                    crate::rich_text::ParaKind::Paragraph,
+                nodes.push(mail_editor::Node::plain(
+                    mail_editor::ParaKind::Paragraph,
                     "",
                 ));
             }
-            nodes.push(crate::rich_text::Node::Object(
-                crate::rich_text::Object::Signature,
-            ));
+            nodes.push(mail_editor::Node::Object(mail_editor::Object::Signature));
             nodes.extend(signature::nodes_of(signature));
-            crate::rich_text::to_html(&crate::rich_text::Doc { nodes })
+            mail_editor::to_html(&mail_editor::Doc { nodes })
         });
     Ok((text, html))
 }
@@ -1246,11 +1240,11 @@ where
     // Twenty-four hours, whatever this person's clock: the line is read in someone else's
     // mailbox, by a reader whose clock is not known here, and it is the one reading nobody takes
     // for the other half of the day.
-    let when = crate::when::stamp(
+    let when = mail_logic::when::stamp(
         original.date,
         zone,
-        crate::when::Stamp::Quote,
-        crate::when::Clock::H24,
+        mail_logic::when::Stamp::Quote,
+        mail_logic::when::Clock::H24,
     );
     let mut out = String::new();
     if !body.is_empty() {
@@ -1311,23 +1305,23 @@ pub fn send(
 /// signed or encrypted is refused rather than looked up in a keyring this function was not given.
 struct NoKeys;
 
-impl mail_runtime::SigningStore for NoKeys {
-    fn get(&self, _: &SigningKeyRef) -> Result<SigningSecret, RuntimeError> {
+impl mail_secrets::SigningStore for NoKeys {
+    fn get(&self, _: &SigningKeyRef) -> Result<SigningSecret, CredentialError> {
         Err(Self::refusal())
     }
 
-    fn put(&self, _: &SigningKeyRef, _: &SigningSecret) -> Result<(), RuntimeError> {
+    fn put(&self, _: &SigningKeyRef, _: &SigningSecret) -> Result<(), CredentialError> {
         Err(Self::refusal())
     }
 
-    fn forget(&self, _: &SigningKeyRef) -> Result<(), RuntimeError> {
+    fn forget(&self, _: &SigningKeyRef) -> Result<(), CredentialError> {
         Err(Self::refusal())
     }
 }
 
 impl NoKeys {
-    fn refusal() -> RuntimeError {
-        RuntimeError::Secrets(Failure::said("no signing keys are available to this send"))
+    fn refusal() -> CredentialError {
+        CredentialError::Secrets(Failure::said("no signing keys are available to this send"))
     }
 }
 
@@ -1393,7 +1387,7 @@ impl SendError {
 /// for its passphrase named.
 pub fn send_with(
     store: &SqliteStore,
-    secrets: &dyn mail_runtime::SigningStore,
+    secrets: &dyn mail_secrets::SigningStore,
     ask: crate::pgp::Ask<'_>,
     draft: DraftId,
     now: DateTime<Utc>,
@@ -1409,7 +1403,7 @@ pub struct Scheduled {
     pub at: DateTime<Utc>,
 }
 
-/// Queue a draft to leave at `phrase`, in the words [`crate::snooze::snooze_until`] takes:
+/// Queue a draft to leave at `phrase`, in the words [`mail_logic::snooze::snooze_until`] takes:
 /// `tomorrow`, `tonight`, `+2h`, `2026-09-25 09:00`.
 pub fn send_later(
     store: &SqliteStore,
@@ -1423,13 +1417,13 @@ pub fn send_later(
 /// [`send_later`], with the keyring and the passphrase prompt named, as [`send_with`] has them.
 pub fn send_later_with(
     store: &SqliteStore,
-    secrets: &dyn mail_runtime::SigningStore,
+    secrets: &dyn mail_secrets::SigningStore,
     ask: crate::pgp::Ask<'_>,
     draft: DraftId,
     phrase: &str,
     now: DateTime<Utc>,
 ) -> Result<Scheduled, SendError> {
-    let at = crate::snooze::snooze_until(phrase, now, &Local)?;
+    let at = mail_logic::snooze::snooze_until(phrase, now, &Local)?;
     let (draft, post) = queue_with(store, secrets, ask, draft, Leaves::At(at), now)?;
     Ok(Scheduled { draft, post, at })
 }
@@ -1445,7 +1439,7 @@ pub fn send_later_in<Tz: chrono::TimeZone>(
 where
     Tz::Offset: std::fmt::Display,
 {
-    let at = crate::snooze::snooze_until(phrase, now, zone)?;
+    let at = mail_logic::snooze::snooze_until(phrase, now, zone)?;
     let (draft, post) = queue(store, draft, Leaves::At(at), now)?;
     Ok(Scheduled { draft, post, at })
 }
@@ -1468,7 +1462,7 @@ pub fn queue(
         &NoKeys,
         &crate::pgp::no_passphrase,
         (draft, PictureSize::Actual),
-        leaves,
+        (leaves, None),
         now,
     )
 }
@@ -1480,7 +1474,7 @@ pub fn queue(
 /// frozen, so what the outbox holds is already signed and encrypted — see `protect::Seal`.
 pub fn queue_with(
     store: &SqliteStore,
-    secrets: &dyn mail_runtime::SigningStore,
+    secrets: &dyn mail_secrets::SigningStore,
     ask: crate::pgp::Ask<'_>,
     draft: DraftId,
     leaves: Leaves,
@@ -1495,156 +1489,144 @@ pub fn queue_with(
 /// not draw, unless `pictures` is [`PictureSize::Actual`].
 pub fn queue_sized(
     store: &SqliteStore,
-    secrets: &dyn mail_runtime::SigningStore,
+    secrets: &dyn mail_secrets::SigningStore,
     ask: crate::pgp::Ask<'_>,
     draft: DraftId,
     leaves: Leaves,
     pictures: PictureSize,
     now: DateTime<Utc>,
 ) -> Result<(Draft, mail_mime::Posting), SendError> {
-    queue_inner(store, secrets, ask, (draft, pictures), leaves, now).map_err(SendError::from)
+    queue_reminding(store, secrets, ask, (draft, pictures), (leaves, None), now)
 }
+
+/// [`queue_sized`], with a reminder held for the message until it has left: due at `remind`, and
+/// with none, one an earlier send of the draft held goes. Held in the commit that queues the
+/// send, so a send is never queued without the reminder the person asked for or the reverse.
+pub fn queue_reminding(
+    store: &SqliteStore,
+    secrets: &dyn mail_secrets::SigningStore,
+    ask: crate::pgp::Ask<'_>,
+    (draft, pictures): (DraftId, PictureSize),
+    (leaves, remind): (Leaves, Option<DateTime<Utc>>),
+    now: DateTime<Utc>,
+) -> Result<(Draft, mail_mime::Posting), SendError> {
+    queue_inner(
+        store,
+        secrets,
+        ask,
+        (draft, pictures),
+        (leaves, remind),
+        now,
+    )
+    .map_err(SendError::from)
+}
+
+/// How many times a send decides again over a draft that changed while it was being made, before
+/// it gives up and says so.
+const DECISIONS: usize = 3;
 
 fn queue_inner(
     store: &SqliteStore,
-    secrets: &dyn mail_runtime::SigningStore,
+    secrets: &dyn mail_secrets::SigningStore,
     ask: crate::pgp::Ask<'_>,
     (draft, pictures): (DraftId, PictureSize),
-    leaves: Leaves,
+    (leaves, remind): (Leaves, Option<DateTime<Utc>>),
     now: DateTime<Utc>,
 ) -> Result<(Draft, mail_mime::Posting), CoreError> {
-    // Before anything is taken back, so a time that has gone leaves an existing schedule alone.
+    // Before anything is read, so a time that has gone leaves an existing schedule alone.
     if let Leaves::At(at) = leaves
         && at <= now
     {
         return Err(CoreError::SendTimePassed {
             // The command line's refusal (it names `--at`); the window refuses a time that
             // has passed before it gets here, in its own words.
-            stamp: crate::when::stamp(
+            stamp: mail_logic::when::stamp(
                 at,
                 &Local,
-                crate::when::Stamp::Full,
-                crate::when::Clock::H24,
+                mail_logic::when::Stamp::Full,
+                mail_logic::when::Clock::H24,
             ),
         });
     }
-    let mut draft = store.draft(draft)?;
-    match draft.state {
-        SendState::Sent { at, .. } => {
-            return Err(CoreError::DraftSentAt { at });
+    for _ in 0..DECISIONS {
+        let snapshot = crate::gather::sending(store, draft, pictures)?;
+        // Before anything is queued, so a send OpenPGP or S/MIME refuses (no key for a
+        // recipient, no passphrase, both asked at once) leaves the draft, and a submission it
+        // already has, as they were.
+        let keys = freeze::keys(store, secrets, ask, &snapshot, now)?;
+        let frozen = freeze::freeze(
+            &snapshot,
+            keys,
+            leaves,
+            remind,
+            now,
+            freeze::Ids::generate(),
+        )?;
+        // Content-addressed: the same bytes put again are the same blob, and one that is put and
+        // then not referenced is swept.
+        let raw = store.blobs().put(&frozen.post.message)?;
+        match store.commit(&frozen.commit(raw)) {
+            Ok(_) => return Ok((frozen.draft, frozen.post)),
+            // Edited, queued or settled since it was read: decide again over what is there.
+            Err(mail_store::StoreError::Stale) => continue,
+            Err(mail_store::StoreError::NotQueued) => return Err(CoreError::SubmissionNotQueued),
+            Err(other) => return Err(other.into()),
         }
-        SendState::Sending => return Err(CoreError::AlreadySending),
-        SendState::Queued | SendState::Scheduled { .. } | SendState::Failed { .. } => {
-            draft = unsend(store, draft.id, now)?;
-        }
-        SendState::Editing => {}
     }
-    // Refused before anything is built or queued: an entry in the outbox of an account with no
-    // server would sit there for ever, and the draft would say "queued" the whole time.
-    if crate::sync::local_accounts(store).contains(&draft.account) {
-        return Err(mail_runtime::RuntimeError::NoServer("send from").into());
-    }
-    let identity = identity_of(store, draft.account.clone(), Some(draft.identity))?;
-    let parent = draft
-        .in_reply_to
-        .and_then(|id| store.message(id).or_log("a message could not be read"));
-
-    // Attachment bytes come from the blob store, because `posting` is pure and takes them as
-    // an argument rather than reading anything.
-    let mut parts = Vec::with_capacity(draft.attachments.len());
-    for attachment in &draft.attachments {
-        let bytes = store
-            .blobs()
-            .get(attachment.blob)
-            .map_err(|e| CoreError::context(format!("attachment {}", attachment.name), e))?;
-        let bytes = match pictures::sized(&bytes, pictures) {
-            std::borrow::Cow::Owned(smaller) => smaller,
-            std::borrow::Cow::Borrowed(_) => bytes,
-        };
-        parts.push((attachment.blob, bytes));
-    }
-
-    let mut post = posting(&draft, &identity, parent.as_ref(), &parts)?;
-    // Before anything is taken back or queued, so a send OpenPGP or S/MIME refuses (no key for a
-    // recipient, no passphrase, both asked at once) leaves the draft as it was.
-    crate::protect::check_both(store, &draft, &identity, now)?;
-    post.message = OpenPgp::outgoing(store, secrets, ask, &draft, &identity, post.message, now)?;
-    post.message = Smime::outgoing(store, secrets, ask, &draft, &identity, post.message, now)?;
-    let raw = store.blobs().put(&post.message)?;
-
-    let queued = store.enqueue(
-        draft.account.clone(),
-        RemoteIntent::Send {
-            draft: draft.id,
-            raw,
-            mail_from: post.mail_from.clone(),
-            rcpt_to: post.rcpt_to.clone(),
-            delivery: post.delivery,
-        },
-        // No undo. Unsending is not something the outbox can offer once the bytes are on
-        // the wire, and a patch that pretended otherwise would revert something real.
-        &Patch {
-            id: ChangeId::generate(),
-            changes: Vec::new(),
-        },
-        // The entry's `next_attempt`, which is the whole of what holds a scheduled send:
-        // the outbox does not hand out an entry before it.
-        match leaves {
-            Leaves::Now => now,
-            Leaves::At(at) => at,
-        },
-    )?;
-    if queued.is_none() {
-        return Err(CoreError::SubmissionNotQueued);
-    }
-    let state = match leaves {
-        Leaves::Now => SendState::Queued,
-        Leaves::At(at) => SendState::Scheduled { at },
-    };
-    store.set_send_state(draft.id, &state, now)?;
-    Ok((
-        Draft {
-            state,
-            updated: now,
-            ..draft
-        },
-        post,
-    ))
+    Err(CoreError::DraftChanging)
 }
 
 /// Take back a send that has not left: the queued submission goes, the draft is editable again.
 ///
-/// One write of two changes. Deleting the draft withdraws its outbox entry (334b758), and the
-/// upsert puts the same draft back as `Editing`, so what comes back is exactly what was sent.
+/// One commit of two changes and the reminder's release. Deleting the draft withdraws its outbox
+/// entry (334b758), and the upsert puts the same draft back as `Editing`, so what comes back is
+/// exactly what was sent.
 /// A draft already `Sending` is on the wire and cannot be recalled; `Sent` is history.
 pub fn unsend(store: &SqliteStore, draft: DraftId, now: DateTime<Utc>) -> Result<Draft, CoreError> {
-    let stored = store.draft(draft)?;
-    match stored.state {
-        SendState::Sending => return Err(CoreError::AlreadySending),
-        SendState::Sent { .. } => return Err(CoreError::AlreadySent),
-        SendState::Editing
-        | SendState::Queued
-        | SendState::Scheduled { .. }
-        | SendState::Failed { .. } => {}
-    }
-    let back = Draft {
-        state: SendState::Editing,
-        updated: now,
-        ..stored
-    };
-    store.apply(
-        back.account.clone(),
-        &Patch {
-            id: ChangeId::generate(),
-            changes: vec![
-                Change::DraftDelete(back.id),
-                Change::DraftUpsert(Box::new(back.clone())),
+    for _ in 0..DECISIONS {
+        let stored = store.draft(draft)?;
+        match stored.state {
+            SendState::Sending => return Err(CoreError::AlreadySending),
+            SendState::Sent { .. } => return Err(CoreError::AlreadySent),
+            SendState::Editing
+            | SendState::Queued
+            | SendState::Scheduled { .. }
+            | SendState::Failed { .. } => {}
+        }
+        let seen = Expect::Draft {
+            draft: stored.id,
+            updated: stored.updated,
+            state: stored.state.clone(),
+        };
+        let back = Draft {
+            state: SendState::Editing,
+            updated: now,
+            ..stored
+        };
+        let commit = Commit {
+            account: back.account.clone(),
+            at: now,
+            forward: Patch {
+                id: ChangeId::generate(),
+                changes: vec![
+                    Change::DraftDelete(back.id),
+                    Change::DraftUpsert(Box::new(back.clone())),
+                ],
+            },
+            queue: Vec::new(),
+            rows: vec![
+                Row::Expect(seen),
+                // A reminder was for this send, and this send is not happening.
+                Row::FollowUpReleased { draft: back.id },
             ],
-        },
-    )?;
-    // A reminder was for this send, and this send is not happening.
-    crate::follow_up::release(store, back.id)?;
-    Ok(back)
+        };
+        match store.commit(&commit) {
+            Ok(_) => return Ok(back),
+            Err(mail_store::StoreError::Stale) => continue,
+            Err(other) => return Err(other.into()),
+        }
+    }
+    Err(CoreError::DraftChanging)
 }
 
 /// Every draft of every account, oldest account first, each with the state it got to.
@@ -1683,7 +1665,14 @@ mod carried_tests {
             part("huge.bin", ATTACHMENT_BUDGET),
             part("last.bin", ATTACHMENT_BUDGET / 4),
         ];
-        let kept: Vec<String> = carried(&parts).into_iter().map(|p| p.name).collect();
+        let mut original =
+            crate::support_tests::message(1, "s", "b", 0, ReadState::Read, Star::Unstarred);
+        original.attachments = parts.to_vec();
+        let store = mail_store::testing::in_memory();
+        let kept: Vec<String> = carried(&store, &original)
+            .into_iter()
+            .map(|p| p.name)
+            .collect();
         assert_eq!(kept, ["small.bin", "last.bin"]);
     }
 }

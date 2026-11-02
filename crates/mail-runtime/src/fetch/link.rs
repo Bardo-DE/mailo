@@ -132,15 +132,41 @@ pub struct Count {
     pub of: u32,
 }
 
-/// One folder a pass finished without.
+/// One thing that went wrong in a pass that otherwise ran, and what to do about it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Trouble {
-    /// The folder, when the failure was in one.
+    /// The mailbox it happened in. `None` for a step that belongs to the account, such as the
+    /// rules, the outbox or the folder list.
     pub mailbox: Option<String>,
-    /// What to do about it.
+    /// The decision: wait, ask the user to sign in, or give up on it.
     pub retry: Retry,
-    /// What to tell the person.
-    pub why: String,
+    /// What a person is told, as it has always been worded (the mailbox path is already in it
+    /// where there is one). `None` when the failure is classified but has nothing to add to a
+    /// line the same pass already said, such as an outbox that was refused its credential.
+    pub why: Option<String>,
+}
+
+impl Trouble {
+    /// What this says to a person, when the pass worded none: a classified failure has nothing to
+    /// add to a line the same pass already said, but the link keeps one per folder.
+    pub fn said(&self) -> String {
+        match (&self.why, &self.retry) {
+            (Some(why), _) => why.clone(),
+            (None, Retry::NeedsReauth) => "The sign-in was refused".to_owned(),
+            (None, Retry::NeedsGrant) => "Mail is no longer allowed to use this account".to_owned(),
+            (None, Retry::After(_)) => "The server asked to wait".to_owned(),
+            (None, Retry::Now) => "The connection dropped".to_owned(),
+            (None, Retry::Fatal(why)) => why.clone(),
+        }
+    }
+
+    /// This, with the words a person is told always said: how the link keeps it.
+    pub fn worded(self) -> Self {
+        Self {
+            why: Some(self.said()),
+            ..self
+        }
+    }
 }
 
 /// What asked for a pass.
@@ -360,7 +386,12 @@ fn failed(
         )
     };
     match retry {
-        Retry::Now => wait(RETRY_NOW),
+        // The first failure is most likely a dropped connection, worth a quick second try. One
+        // that fails again is a server or a network that is not coming back in seconds, and
+        // knocking every few seconds for as long as that lasts is a load on it and on this
+        // machine for nothing.
+        Retry::Now if failures < 2 => wait(RETRY_NOW),
+        Retry::Now => wait(backoff(failures, every).max(RETRY_NOW)),
         Retry::After(named) => {
             let own = backoff(failures, every);
             match pause {

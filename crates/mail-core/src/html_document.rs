@@ -1,6 +1,6 @@
 //! Printing: a message or a thread as one self-contained HTML document.
 //!
-//! The document itself is [`mail_mime::print`], which is pure. This module is the part that
+//! The document itself is [`mail_reader::print`], which is pure. This module is the part that
 //! reads the store — which messages, their stored bytes — and the part that writes a file.
 //! The window prints the same [`document`], as a PDF made by quire (`ui/print/paper.rs`), which
 //! adds its named faces ([`document_with`]) and, for a conversation whose remote images the
@@ -8,10 +8,11 @@
 
 use crate::error::CoreError;
 use crate::error::Logged;
-use crate::when::Clock;
 use chrono::{DateTime, TimeZone, Utc};
 use mail_domain::{Message, MessageId, ThreadId};
-use mail_mime::{Labels, Options, Pages, Parsed, Remote, Sheet};
+use mail_logic::when::Clock;
+use mail_mime::Parsed;
+use mail_reader::{Labels, Options, Pages, Remote, Sheet};
 use mail_store::{SqliteStore, Store};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -117,7 +118,7 @@ where
 /// Where a printout's consented remote images come from.
 ///
 /// A remote image is a read receipt, so this is only ever built from the reader's consent: which
-/// messages it covers, and how to fetch what they show. [`mail_mime::remote_images`] lists what
+/// messages it covers, and how to fetch what they show. [`mail_reader::remote_images`] lists what
 /// the consented messages' printout would draw, and only that list is handed to `fetch`.
 pub struct Pictures<'a> {
     /// Whether the reader's consent to remote images covers this message.
@@ -159,7 +160,8 @@ where
     let none = BTreeMap::new();
     let fetched = match pictures {
         Some(pictures) if consented.contains(&true) => {
-            let wanted = mail_mime::remote_images(&sheets(messages, &parsed, &consented, &none));
+            let wanted =
+                mail_reader::remote_images(&documents(messages, &parsed, &consented, &none));
             if wanted.is_empty() {
                 none.clone()
             } else {
@@ -173,8 +175,8 @@ where
             .first()
             .map(|message| message.subject.clone())
             .unwrap_or_default(),
-        html: mail_mime::print_with(
-            &sheets(messages, &parsed, &consented, &fetched),
+        html: mail_reader::print_with(
+            &documents(messages, &parsed, &consented, &fetched),
             zone,
             now,
             options,
@@ -182,9 +184,9 @@ where
     }
 }
 
-/// Each message as a sheet: a consented one's remote images drawn from `fetched`, every other
+/// Each message as a document: a consented one's remote images drawn from `fetched`, every other
 /// one's named.
-fn sheets<'a>(
+fn documents<'a>(
     messages: &'a [Message],
     parsed: &'a [Option<Parsed>],
     consented: &[bool],
@@ -289,8 +291,8 @@ pub fn write_file_into(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::when::time_of_day;
     use chrono::FixedOffset;
+    use mail_logic::when::time_of_day;
 
     #[test]
     fn a_printout_writes_its_hours_as_the_rest_of_mail_does() {
@@ -303,7 +305,7 @@ mod tests {
                 .unwrap()
                 .with_timezone(&Utc);
             for clock in [Clock::H12, Clock::H24] {
-                let html = mail_mime::print_with(&[], &zone, at, &options(Pages::Flow, clock));
+                let html = mail_reader::print_with(&[], &zone, at, &options(Pages::Flow, clock));
                 let there = at.with_timezone(&zone);
                 let line = format!(
                     "Printed {} {} +08:00",

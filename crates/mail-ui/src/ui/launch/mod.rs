@@ -6,16 +6,16 @@
 //! window.
 
 use super::app::App;
-use crate::ui::appearance::WindowDirs;
-use crate::ui::space::Spaces;
-use crate::ui::view::Appearance;
 use dioxus::prelude::*;
 use ds::base::spawner::Spawner;
 use ds::style::kit::{StyleHomes, Styles, UserStyle};
-use ds_settings::{AppName, ConfigRoot, Store, SystemPrefsSource, use_environment};
+use ds_settings::use_environment;
 use mail_client::Client;
 use mail_client::profile::ProfileId;
 use mail_client::provider::icon::Loaded;
+use mail_ui_kit::appearance::WindowDirs;
+use mail_ui_kit::space::Spaces;
+use mail_ui_kit::view::Appearance;
 use std::sync::Arc;
 
 pub(super) mod gate;
@@ -56,7 +56,7 @@ pub struct Resident {
 }
 
 /// What keeps the Dock's count with the badge the window found.
-pub type KeepBadge = Arc<dyn Fn(Arc<dyn crate::launcher::Badge>) + Send + Sync>;
+pub type KeepBadge = Arc<dyn Fn(Arc<dyn mail_os::launcher::Badge>) + Send + Sync>;
 
 impl std::fmt::Debug for Resident {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -89,35 +89,16 @@ impl Resident {
     }
 }
 
-static PROFILE: std::sync::OnceLock<ProfileId> = std::sync::OnceLock::new();
-static WATCHING_HERE: std::sync::OnceLock<fn() -> bool> = std::sync::OnceLock::new();
-
-/// Whose mail the running program is over: the default Profile's until [`run`] records it.
-#[cfg(not(test))]
-pub(in crate::ui) fn profile() -> ProfileId {
-    PROFILE
-        .get()
-        .cloned()
-        .unwrap_or_else(|| mail_client::profile::Profile::default().id().clone())
-}
-
-/// Whether the program's own watch, in this process, holds the lock: a window of this process asks
-/// it before it knocks on the lock's door.
-#[cfg(not(test))]
-pub(in crate::ui) fn watching_here() -> bool {
-    WATCHING_HERE.get().is_some_and(|here| here())
-}
-
 /// What the window is opened with.
 pub(super) struct Opening {
     pub program: Program,
     pub look: Appearance,
     pub spaces: Spaces,
     pub dirs: Option<WindowDirs>,
-    pub start: super::ask::Open,
+    pub start: crate::ui::ask::Open,
     pub icons: Loaded,
     /// Where brand logos are cached, when there is a cache directory.
-    pub brand: Option<super::brand::BrandCache>,
+    pub brand: Option<mail_ui_reader::brand::BrandCache>,
     /// The settings files that are there and cannot be read, asked about before the window opens.
     pub found: gate::Found,
 }
@@ -130,16 +111,16 @@ pub fn run(
     look: Appearance,
     spaces: Spaces,
     dirs: Option<WindowDirs>,
-    start: super::ask::Open,
+    start: crate::ui::ask::Open,
 ) -> Result<(), ds_blitz::LaunchError> {
-    let _ = PROFILE.set(program.profile.clone());
-    let _ = WATCHING_HERE.set(program.resident.watching_here);
+    mail_ui_kit::add_account::record_opener(super::add_account::quire);
+    mail_ui_kit::program::record(program.profile.clone(), program.resident.watching_here);
     let cache = mail_client::config::cache_dir();
     let icons = cache
         .as_ref()
-        .map(|dir| super::provider_chip::read(&dir.join("providers")))
+        .map(|dir| mail_ui_kit::provider_chip::read(&dir.join("providers")))
         .unwrap_or_default();
-    let brand = cache.map(|dir| super::brand::BrandCache(dir.join("bimi")));
+    let brand = cache.map(|dir| mail_ui_reader::brand::BrandCache(dir.join("bimi")));
     let found = gate::Found(dirs.as_ref().map(gate::found).unwrap_or_default());
     let opening = Opening {
         program,
@@ -154,36 +135,7 @@ pub fn run(
     native::run(opening)
 }
 
-/// Where the launched window reads the desktop's appearance from: the person's own
-/// (`ConfigRoot::Xdg`, the settings portal), or, in a test, a scratch directory and fixed
-/// preferences. A root context; a window without one reads the person's.
-#[derive(Debug, Clone)]
-pub struct DesktopSettings {
-    pub root: ConfigRoot,
-    pub prefs: SystemPrefsSource,
-}
-
-impl Default for DesktopSettings {
-    fn default() -> Self {
-        DesktopSettings {
-            root: ConfigRoot::Xdg,
-            prefs: SystemPrefsSource::Portal,
-        }
-    }
-}
-
-impl DesktopSettings {
-    /// The settings in force for this window: its context, else the person's.
-    pub(in crate::ui) fn current() -> Self {
-        try_consume_context::<DesktopSettings>().unwrap_or_default()
-    }
-
-    /// The desktop's one store, `quire/` in the config root, which the shell and detent read
-    /// and write too. mailo keeps no appearance file of its own.
-    pub(in crate::ui) fn store(&self) -> Store {
-        Store::new(self.root.clone(), AppName::QUIRE)
-    }
-}
+pub use mail_ui_kit::program::DesktopSettings;
 
 /// The launched window's root: the window's settings, then [`Shell`].
 ///
@@ -192,7 +144,7 @@ impl DesktopSettings {
 /// reads (`ds_settings::use_environment`), so a theme, accent or motion change restyles this
 /// window while it runs; the person's own `style.css`, watched the same way and drawn after
 /// quire's and mailo's sheets unless "Use my styles" is off (CONSUMING.md section 12); and mailo's own settings
-/// (`crate::settings`), watched so a change made in the desktop's Settings app reaches the window. `main` migrated mailo's old appearance
+/// (`mail_ui_model::settings`), watched so a change made in the desktop's Settings app reaches the window. `main` migrated mailo's old appearance
 /// file into the desktop's before the window opened (`appearance::adopt`). Only the launched
 /// window watches; a test renders `App` (or [`Shell`]) without this and never touches the real
 /// config directory.
@@ -231,7 +183,7 @@ pub(super) fn ShellRoot() -> Element {
     use_context_provider(|| ReadSignal::new(styles));
     // mailo's own settings (`mailo/settings.toml`), watched the same way: detent writes the same
     // file, and the window follows it.
-    super::prefs::use_window_settings();
+    mail_ui_kit::prefs::use_window_settings();
     rsx! { gate::Gate {} }
 }
 
@@ -241,7 +193,7 @@ pub(super) fn ShellRoot() -> Element {
 /// the first window asked: what it carries in from outside comes through the hand-off's queue.
 #[component]
 pub(super) fn ReopenedRoot() -> Element {
-    use_context_provider(super::ask::Open::raise);
+    use_context_provider(crate::ui::ask::Open::raise);
     use_context_provider(gate::Found::default);
     rsx! { ShellRoot {} }
 }
@@ -256,8 +208,8 @@ fn Shell() -> Element {
     let loaded = try_consume_context::<Loaded>().unwrap_or_default();
     let icons = use_signal(|| loaded);
     use_context_provider(|| icons);
-    crate::ui::provider_chip::use_fetch_missing(icons);
-    super::host::use_window_host();
+    mail_ui_kit::provider_chip::use_fetch_missing(icons);
+    mail_ui_kit::host::use_window_host();
     rsx! { App {} }
 }
 

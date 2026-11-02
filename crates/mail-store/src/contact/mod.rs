@@ -27,7 +27,7 @@ pub mod vip;
 
 pub use card::{CardId, PersonCard};
 pub use group::{Edit, Group, GroupHome, GroupId};
-pub use learn::{no_reply, normalise};
+pub use learn::normalise;
 pub use vip::Vip;
 
 use chrono::{DateTime, Utc};

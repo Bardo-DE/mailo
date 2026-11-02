@@ -1,14 +1,14 @@
 use super::{Age, candidates};
 use crate::ui::app::App;
-use crate::ui::clock::WallClock;
 use crate::ui::fixtures::{
     INSIDE_THE_SHELL, PRIMARY, chord, click, dispatching, pick_named, rebuild_into, settle,
     thread_like, work,
 };
 use chrono::{TimeDelta, Utc};
 use dioxus::prelude::*;
-use mail_core::{SqliteStore, Store};
+use mail_client::testing::{SqliteStore, Store};
 use mail_domain::*;
+use mail_ui_kit::clock::WallClock;
 use std::sync::Arc;
 
 /// The fixture's one read conversation that nobody starred: Sam's notes are read but starred.
@@ -41,7 +41,7 @@ fn only_old_read_conversations_nobody_marked_are_offered() {
     // Thirty days on, nothing in the fixture is three months old.
     assert!(subjects(&store, None, Age::ThreeMonths).is_empty());
     let accepted = thread_like(&store, "Accepted");
-    assert!(mail_core::snooze::pin(&store, accepted, Utc::now()).unwrap_or(false));
+    assert!(mail_client::testing::core::snooze::pin(&store, accepted, Utc::now()).unwrap_or(false));
     assert!(
         subjects(&store, None, Age::OneWeek).is_empty(),
         "a pinned conversation is offered"
@@ -82,12 +82,12 @@ async fn the_sheet_archives_what_it_lists_and_undo_restores_it() {
 
     let opened = click(
         &mut dom,
-        seen.one("aria-label", crate::ui::copy::aria::SIDEBAR_MENU),
+        seen.one("aria-label", mail_ui_model::copy::aria::SIDEBAR_MENU),
     );
     let opened = settle(&mut dom, opened);
-    let seen = pick_named(&mut dom, &opened, crate::ui::copy::menus::TIDY_UP).await;
+    let seen = pick_named(&mut dom, &opened, mail_ui_model::copy::menus::TIDY_UP).await;
     let page = dioxus_ssr::render(&dom);
-    let button = crate::ui::copy::controls::archive_count(1);
+    let button = mail_ui_model::copy::controls::archive_count(1);
     assert!(
         page.contains(ACCEPTED),
         "the sheet does not name it:\n{page}"

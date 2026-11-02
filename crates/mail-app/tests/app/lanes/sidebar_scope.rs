@@ -12,9 +12,9 @@ use ds_harness::Harness;
 use mail_core::{Arrival, SqliteStore, Store};
 use mail_domain::id::account_id_from_uuid;
 use mail_domain::*;
-use mail_ui::ui::appearance::WindowDirs;
-use mail_ui::ui::copy;
-use mail_ui::ui::space::{self, Mail};
+use mail_ui_kit::appearance::WindowDirs;
+use mail_ui_kit::space::{self, Mail};
+use mail_ui_model::copy;
 use porter_core::AccountId;
 
 use super::drive::Drive;
@@ -125,7 +125,7 @@ fn thread_called(store: &SqliteStore, subject: &str) -> ThreadId {
 /// `op` on `thread`, as the window would do it.
 fn act(store: &SqliteStore, thread: ThreadId, op: Op) {
     // The undo is the window's; nothing here takes it back.
-    let _ = mail_core::act::perform(store, thread, op, mail_core::when::Clock::H24);
+    let _ = mail_core::act::perform(store, thread, op);
 }
 
 /// The first account's Travel label on its first conversation, and a second account, an IMAP

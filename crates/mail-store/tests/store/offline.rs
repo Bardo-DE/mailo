@@ -98,6 +98,7 @@ fn deliver(store: &dyn Store, m: &Message, at: RemoteRef, raw: BlobId) {
                 provider_threads: Vec::new(),
                 gone: vec![],
             },
+            chrono::Utc::now(),
         )
         .unwrap();
 }

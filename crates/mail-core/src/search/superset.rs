@@ -8,8 +8,9 @@ use mail_domain::*;
 use mail_store::{MemoryStore, Store};
 use proptest::prelude::*;
 
-use super::source::{Source, Term};
-use super::{expand, parse};
+use mail_logic::search::{Source, expand, parse};
+
+use super::StoreSource;
 use crate::support_tests::{self as support, at};
 
 const WORDS: &[&str] = &[
@@ -36,7 +37,7 @@ impl Source for Indexed<'_> {
     }
 
     fn listed(&self, filter: &Filter, page: PageReq, now: DateTime<Utc>) -> Vec<ThreadSummary> {
-        <MemoryStore as Source>::listed(self.store, filter, page, now)
+        Source::listed(&StoreSource(self.store), filter, page, now)
     }
 
     fn top(
@@ -46,7 +47,7 @@ impl Source for Indexed<'_> {
         window: &[ThreadId],
         now: DateTime<Utc>,
     ) -> Vec<(ThreadSummary, f64)> {
-        <MemoryStore as Source>::top(self.store, filter, k, window, now)
+        Source::top(&StoreSource(self.store), filter, k, window, now)
     }
 }
 
@@ -145,7 +146,7 @@ proptest! {
         let full = WORDS[word];
         let take = prefix_len.clamp(1, full.chars().count());
         let query: String = full.chars().take(take).collect();
-        let parsed = parse(&query, &Utc, &crate::query::unnamed);
+        let parsed = parse(&query, &Utc, &mail_logic::query::unnamed);
         let expansion = expand(&parsed, &indexed);
         let plain = Filter::Text(TextMatch::Contains(query.clone()));
         let expanded_ids = matching(&store, &expansion.filter, now);

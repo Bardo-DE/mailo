@@ -4,7 +4,7 @@
 //! Modelled on [`super::fetch_part_with`]. It differs in what it returns. A part download reports
 //! prose; this reports a [`Retry`] beside the prose, so the reader can offer "try again" for a
 //! dropped connection and "sign in again" for a rejected credential, which are different
-//! buttons.
+//! choices.
 //!
 //! IMAP and Graph address one message by its own reference, so those work. POP3 does not: a
 //! message is `RETR`ed by a number that only the session which listed it can resolve, and a
@@ -24,10 +24,14 @@ impl crate::mail::SyncOps<'_> {
         let registry = mail
             .clients()
             .map_err(|e| (Retry::Fatal(e.to_string()), e.to_string()))?;
+        let accounts = mail
+            .roster()
+            .map_err(|e| (Retry::Fatal(e.to_string()), e.to_string()))?;
         fetch_body_with(
             mail.store().clone(),
             mail.secrets(),
             &registry,
+            &accounts,
             message,
             mail.now(),
         )
@@ -40,6 +44,7 @@ pub async fn fetch_body_with(
     store: Arc<SqliteStore>,
     secrets: Arc<dyn AccountSecrets>,
     registry: &ClientRegistry,
+    accounts: &Accounts,
     message: mail_domain::MessageId,
     now: chrono::DateTime<chrono::Utc>,
 ) -> Result<(), (Retry, String)> {
@@ -49,19 +54,16 @@ pub async fn fetch_body_with(
         .message(message)
         .map_err(|e| fatal(e.to_string()))?
         .account;
-    let account = configured(&store)
-        .map_err(|e| fatal(e.to_string()))?
-        .into_iter()
-        .find(|a| a.id == owner)
-        .ok_or_else(|| {
-            fatal("the account this message belongs to is no longer configured".to_owned())
-        })?;
+    let account = connected_one(accounts, &owner).ok_or_else(|| {
+        fatal("the account this message belongs to is no longer configured".to_owned())
+    })?;
     let run = Run {
         store: &store,
         secrets,
         registry,
         now,
         account: &account,
+        wanted: Default::default(),
     };
     access(&account.plan.incoming)
         .body(&run, message)

@@ -57,6 +57,9 @@ pub struct State {
     pub quotas: Vec<Value>,
     /// The account's `VacationResponse` as last set, `None` until it is.
     pub vacation: Option<Value>,
+    /// The `type` and `description` of the refusal `EmailSubmission/set` answers with, in place
+    /// of accepting the submission; `None` accepts it.
+    pub refuse_submission: Option<(String, String)>,
     next: u64,
 }
 
@@ -540,8 +543,13 @@ fn method(
         }
         "EmailSubmission/set" => {
             let mut made = Map::new();
+            let mut refused = Map::new();
             let mut done: Vec<(String, String)> = Vec::new();
             for (creation, submission) in args["create"].as_object().cloned().unwrap_or_default() {
+                if let Some((kind, why)) = state.refuse_submission.clone() {
+                    refused.insert(creation, json!({ "type": kind, "description": why }));
+                    continue;
+                }
                 let email_ref = submission["emailId"].as_str().unwrap();
                 let email = match email_ref.strip_prefix('#') {
                     Some(c) => created
@@ -569,7 +577,8 @@ fn method(
                 made.insert(creation.clone(), json!({ "id": sub }));
                 done.push((creation, email));
             }
-            let mut out = one(json!({ "accountId": ACCOUNT_ID, "created": made }));
+            let mut out =
+                one(json!({ "accountId": ACCOUNT_ID, "created": made, "notCreated": refused }));
             // onSuccessUpdateEmail, answered as the implicit Email/set RFC 8621 §7.5 describes.
             let mut updated = Map::new();
             for (key, patch) in args["onSuccessUpdateEmail"]

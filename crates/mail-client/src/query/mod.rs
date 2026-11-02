@@ -233,8 +233,8 @@ impl Query for Pins {
     }
 }
 
-/// The drafts of some accounts, every kind: what Drafts lists, and from which Scheduled and the
-/// sidebar's wish to draw it are told. A draft written, sent, held or taken back changes it.
+/// The drafts of some accounts, every kind: what Drafts lists, and from which Scheduled and
+/// whatever shows a count of it are told. A draft written, sent, held or taken back changes it.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct DraftsOf(pub Vec<AccountId>);
 
@@ -264,9 +264,6 @@ pub use conversation::{Conversation, Messages};
 pub use conversations::{Conversations, Found, How, Search};
 pub use paces::Paces;
 pub use summaries::Summaries;
-
-// A search as typed, read into a filter.
-pub use mail_core::query::{Known, Token, is_either, named, parse_with, tokens, unnamed};
 
 /// The people marked as VIPs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

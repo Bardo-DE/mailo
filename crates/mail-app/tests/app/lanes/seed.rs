@@ -60,8 +60,14 @@ pub fn hours_ago(hours: i64) -> String {
 
 /// Add the account `id`, at `address`, with an identity named Me.
 pub fn with_account(store: &SqliteStore, id: porter_core::AccountId, address: &str) {
-    mail_store::testing::seed_account(store, id.clone(), address);
-    mail_store::testing::seed_identity_for(store, IdentityId::generate(), id, address, Some("Me"));
+    mail_core::fixtures::seed::seed_account(store, id.clone(), address);
+    mail_core::fixtures::seed::seed_identity_for(
+        store,
+        IdentityId::generate(),
+        id,
+        address,
+        Some("Me"),
+    );
 }
 
 /// A store in `dir` with one account, its identity and capabilities, and [`INBOX`].
@@ -84,7 +90,7 @@ pub fn seeded(dir: &Path) -> Arc<SqliteStore> {
             connections: ConnectionBudget::default(),
             observed_at: chrono::Utc::now(),
         };
-        mail_store::testing::seed_caps(&store, account(), &caps, chrono::Utc::now()).unwrap();
+        mail_core::fixtures::seed::seed_caps(&store, account(), &caps, chrono::Utc::now()).unwrap();
     }
     for (n, (from, subject)) in INBOX.iter().enumerate() {
         let raw = format!(

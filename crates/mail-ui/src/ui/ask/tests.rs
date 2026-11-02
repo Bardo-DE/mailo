@@ -5,10 +5,10 @@ use super::{
 };
 use crate::ui::app::App;
 use crate::ui::fixtures::{dispatching, realistic, rebuild_into, settle_quiet, thread_like};
-use crate::ui::view::Shell;
 use dioxus::dioxus_core::VirtualDom;
-use mail_core::{SqliteStore, Store as _};
+use mail_client::testing::{SqliteStore, Store as _};
 use mail_domain::ThreadId;
+use mail_ui_kit::view::Shell;
 use std::sync::Arc;
 
 fn args(words: &[&str]) -> Vec<String> {
@@ -110,21 +110,30 @@ fn every_ask_reads_back_from_the_command_line_it_writes() {
     }
     // The banner's buttons, as the notification code writes them.
     for (act, want) in [
-        (mail_core::notify::Act::Open, Thread(one).args()),
-        (mail_core::notify::Act::Reply, Reply(one).args()),
-        (mail_core::notify::Act::Archive, Archive(one).args()),
+        (
+            mail_client::testing::core::notify::Act::Open,
+            Thread(one).args(),
+        ),
+        (
+            mail_client::testing::core::notify::Act::Reply,
+            Reply(one).args(),
+        ),
+        (
+            mail_client::testing::core::notify::Act::Archive,
+            Archive(one).args(),
+        ),
     ] {
-        let launch = mail_core::notify::desktop::Launch {
-            opens: mail_core::notify::Opens::Thread(one),
+        let launch = mail_client::notify::desktop::Launch {
+            opens: mail_client::testing::core::notify::Opens::Thread(one),
             act,
         };
         assert_eq!(launch.args(), want);
     }
-    let summary = mail_core::notify::desktop::Launch {
-        opens: mail_core::notify::Opens::Inbox(mail_domain::id::account_id_from_uuid(
-            uuid::Uuid::from_u128(0xacc),
-        )),
-        act: mail_core::notify::Act::Open,
+    let summary = mail_client::notify::desktop::Launch {
+        opens: mail_client::testing::core::notify::Opens::Inbox(
+            mail_domain::id::account_id_from_uuid(uuid::Uuid::from_u128(0xacc)),
+        ),
+        act: mail_client::testing::core::notify::Act::Open,
     };
     assert_eq!(
         summary.args(),
@@ -232,17 +241,17 @@ fn a_window_started_on_a_thread_opens_in_the_space_that_holds_its_account() {
     let Ok(account) = store.thread(thread).map(|thread| thread.summary.account) else {
         panic!("the fixture's conversation");
     };
-    let spaces = crate::ui::space::built(
+    let spaces = mail_ui_kit::space::built(
         vec![
             (
                 "Elsewhere".to_owned(),
                 ds::prelude::SpaceLook::default(),
-                crate::ui::space::Mail::of(Vec::new()),
+                mail_ui_kit::space::Mail::of(Vec::new()),
             ),
             (
                 "Supervision".to_owned(),
                 ds::prelude::SpaceLook::default(),
-                crate::ui::space::Mail::of(vec![account]),
+                mail_ui_kit::space::Mail::of(vec![account]),
             ),
         ],
         0,
@@ -281,7 +290,7 @@ fn a_window_started_on_a_thread_opens_in_the_space_that_holds_its_account() {
 #[test]
 fn a_mailto_link_saves_the_draft_it_asks_for() {
     let (store, _dir) = realistic();
-    let accounts = mail_core::compose::sending_accounts(&store);
+    let accounts = mail_client::testing::core::compose::sending_accounts(&store);
     let Some(account) = accounts.first().map(|(_, id)| id.clone()) else {
         panic!("the fixture has no sending account");
     };
@@ -354,7 +363,7 @@ async fn a_window_started_on_an_archive_archives_it_and_offers_undo() {
     use mail_domain::MailboxRole;
     dispatching();
     let built = work();
-    let in_inbox = |store: &mail_core::SqliteStore| {
+    let in_inbox = |store: &mail_client::testing::SqliteStore| {
         store
             .thread(built.dana)
             .unwrap()

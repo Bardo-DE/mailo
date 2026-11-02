@@ -33,7 +33,9 @@ fn message(store: &SqliteStore, uid: u32) -> MessageId {
         raw,
         message,
     });
-    store.ingest(acct_account(), batch).unwrap();
+    store
+        .ingest(acct_account(), batch, chrono::Utc::now())
+        .unwrap();
     id
 }
 
@@ -43,7 +45,9 @@ fn label_sweep(store: &SqliteStore, rows: Vec<(RemoteRef, Vec<String>)>) -> Patc
         label_names: rows,
         ..ingest("INBOX")
     };
-    store.ingest(acct_account(), batch).unwrap()
+    store
+        .ingest(acct_account(), batch, chrono::Utc::now())
+        .unwrap()
 }
 
 fn names_on(store: &SqliteStore, message: MessageId) -> Vec<String> {
@@ -94,7 +98,7 @@ fn a_label_the_server_reports_is_created_attached_and_found() {
 #[test]
 fn the_same_name_twice_is_the_same_label() {
     // Two messages, one label. `UNIQUE (account, name)` is what makes that safe, and a client
-    // that made a new row per message would show the same label several times in a sidebar.
+    // that made a new row per message would show the same label several times in a list of labels.
     let store = sqlite();
     let first = message(&store, 42);
     let second = message(&store, 43);
@@ -202,6 +206,7 @@ fn a_labels_chosen_colour_survives_a_sync_that_reports_it_again() {
                     id: ChangeId::generate(),
                     changes: vec![Change::LabelUpsert(label.clone())],
                 },
+                chrono::Utc::now(),
             )
             .unwrap();
     };

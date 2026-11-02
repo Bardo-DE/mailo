@@ -9,29 +9,19 @@
 //! Today.
 
 use crate::ui::add_account::{AddPick, Join, add_menu, offered_redirects, picked};
-use crate::ui::appearance::WindowDirs;
-use crate::ui::copy;
-use crate::ui::data::account_rows;
-use crate::ui::space::{Handle, Mail, Member, Recall, SpaceId, with_member};
-use crate::ui::today::Today;
 use dioxus::prelude::*;
 use ds::components::app::spaces::SpaceMenu;
 use ds::components::menus::item::item::{AfterPick, MenuItem};
 use ds::prelude::{Availability, Check, Icon, MenuImage};
 use mail_client::profile::ProfileId;
+use mail_ui_kit::appearance::WindowDirs;
+pub(in crate::ui) use mail_ui_kit::data::account_names as accounts;
+use mail_ui_kit::data::use_account_rows;
+pub(in crate::ui) use mail_ui_kit::space::toggled;
+use mail_ui_kit::space::{Handle, Mail, Recall, SpaceId};
+use mail_ui_kit::today::Today;
+use mail_ui_model::copy;
 use porter_core::AccountId;
-
-/// Every account there is, in order, and how the window names it.
-pub(in crate::ui) fn accounts() -> Vec<(AccountId, String)> {
-    crate::ui::live::try_client()
-        .map(|client| {
-            account_rows(&client)
-                .into_iter()
-                .map(|row| (row.id.clone(), row.shown()))
-                .collect()
-        })
-        .unwrap_or_default()
-}
 
 /// A pick in Accounts ▸: an account put in or taken out, or a way to add one.
 #[derive(Debug, Clone, PartialEq)]
@@ -83,20 +73,11 @@ pub(in crate::ui) fn accounts_menu(
     }]
 }
 
-/// `accounts` with `account` switched: out when the Space shows it, in when it does not.
-pub(in crate::ui) fn toggled(accounts: &[AccountId], account: AccountId) -> Vec<AccountId> {
-    let member = if accounts.contains(&account) {
-        Member::Out
-    } else {
-        Member::In
-    };
-    with_member(accounts, account, member)
-}
-
 /// The Space's menu, wherever it was opened.
 #[component]
 pub(in crate::ui) fn MailSpaceMenu(handle: Handle, mut today: Signal<Today>) -> Element {
-    let every = accounts();
+    let rows = use_account_rows();
+    let every = accounts(&rows.read());
     let extra = handle
         .open()
         .and_then(|open| {
@@ -121,11 +102,11 @@ pub(in crate::ui) fn MailSpaceMenu(handle: Handle, mut today: Signal<Today>) -> 
                 AccountPick::Add(pick) => picked(pick, Join::Into(space)),
             },
             kept: "Your mail".to_owned(),
-            on_edit: move |space: SpaceId| crate::ui::settings_window::open_space(space),
+            on_edit: move |space: SpaceId| mail_ui_kit::settings_at::open_space(space),
             on_deleted: move |space: SpaceId| {
                 today.write().drop_space(space);
                 if let Some(dirs) = try_consume_context::<WindowDirs>() {
-                    let _ = crate::ui::today::save(&dirs.state, &today.peek());
+                    let _ = mail_ui_kit::today::save(&dirs.state, &today.peek());
                 }
             },
         }

@@ -8,7 +8,7 @@
 
 use super::access::access;
 use super::run::Run;
-use super::{configured, pass_error};
+use super::{connected_one, pass_error};
 use crate::error::CoreError;
 use mail_proto::Storage;
 use porter_core::AccountId;
@@ -20,16 +20,14 @@ impl crate::mail::SyncOps<'_> {
         let mail = self.0;
         let (store, secrets, now) = (mail.store(), mail.secrets(), mail.now());
         let registry = mail.clients()?;
-        let account = configured(store)?
-            .into_iter()
-            .find(|a| a.id == account)
-            .ok_or(CoreError::AccountGone)?;
+        let account = connected_one(&mail.roster()?, &account).ok_or(CoreError::AccountGone)?;
         let run = Run {
             store,
             secrets,
             registry: &registry,
             now,
             account: &account,
+            wanted: Default::default(),
         };
         access(&account.plan.incoming)
             .quota(&run)

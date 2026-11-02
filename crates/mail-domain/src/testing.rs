@@ -29,6 +29,11 @@ pub fn now() -> DateTime<Utc> {
     Utc.timestamp_opt(1_700_000_000, 0).unwrap()
 }
 
+/// `secs` seconds after [`now`].
+pub fn at(secs: i64) -> DateTime<Utc> {
+    now() + chrono::TimeDelta::seconds(secs)
+}
+
 /// An unread, unstarred one-message conversation in the Inbox, from `a@example.test`, on an
 /// account of its own.
 pub fn summary() -> ThreadSummary {
@@ -70,5 +75,64 @@ pub fn identity() -> Identity {
         reply_to: None,
         signature: None,
         default: IsDefault::Default,
+    }
+}
+
+/// A conversation as a search test builds one: thread number `n` (`ThreadId::from_uuid(n)`), on
+/// [`account`], from `email`, last written `secs` seconds after [`now`].
+pub fn listed(
+    n: u128,
+    subject: &str,
+    snippet: &str,
+    email: &str,
+    secs: i64,
+    read: ReadState,
+    star: Star,
+) -> ThreadSummary {
+    ThreadSummary {
+        id: ThreadId::from_uuid(Uuid::from_u128(n)),
+        account: account(),
+        subject: subject.to_owned(),
+        snippet: snippet.to_owned(),
+        from: Address {
+            name: None,
+            email: email.to_owned(),
+        },
+        last_date: at(secs),
+        read,
+        star,
+        ..summary()
+    }
+}
+
+/// Message number `n` in the Inbox of [`account`], from `from`, unread, with a stored body of
+/// `text`; its ids come from `n`, so two numbers are two messages and one number is one.
+pub fn message(n: u128, from: &str, subject: &str, text: &str) -> crate::Message {
+    use crate::{BlobId, Body, MailboxRole, Message, MessageId, MessageKey};
+    Message {
+        id: MessageId::from_uuid(Uuid::from_u128(0x9000 + n)),
+        thread: ThreadId::from_uuid(Uuid::from_u128(0x7000 + n)),
+        account: account(),
+        key: MessageKey::Rfc(format!("m{n}@example.test")),
+        date: at(n as i64),
+        from: Address::new(from),
+        reply_to: vec![],
+        to: vec![Address::named("Ada Lovelace", "ada@example.test")],
+        cc: vec![],
+        bcc: vec![],
+        subject: subject.to_owned(),
+        in_reply_to: None,
+        references: vec![],
+        rfc_message_id: None,
+        read: ReadState::Unread,
+        star: Star::Unstarred,
+        flag: crate::Hue::Red,
+        mailbox: MailboxRole::Inbox,
+        labels: vec![],
+        body: Body::Present {
+            text: Some(text.to_owned()),
+            raw: BlobId::from_uuid(Uuid::from_u128(0xB000 + n)),
+        },
+        attachments: vec![],
     }
 }

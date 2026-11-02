@@ -38,15 +38,16 @@ mod vacation;
 
 pub use client::{Auth, Client, find_session, safe_url};
 
-use crate::error::Failure;
-use crate::{AccountSecrets, RuntimeError, SyncReport};
+use crate::{RuntimeError, SyncReport};
 use chrono::{DateTime, Utc};
 use mail_domain::{
     AccountCaps, AccountPlan, ArchiveMeans, Condstore, ConnectionBudget, ExpungeMeans, HttpAuth,
-    Incoming, JMAP_ALL, JmapEmailId, MailboxRef, MailboxRole, MessageId, MoveExt, RemoteRef,
-    Retryable, ServerLabels, ServerThreads, Supported, SyncCursor, WatchMode,
+    Incoming, JMAP_ALL, JmapEmailId, MailboxRef, MailboxRole, MoveExt, RemoteRef, Retryable,
+    ServerLabels, ServerThreads, Supported, SyncCursor, WatchMode,
 };
+use mail_net::Failure;
 use mail_proto::jmap::{Identity, Mailboxes};
+use mail_secrets::AccountSecrets;
 use mail_store::{SqliteStore, Store};
 use porter_core::{AccountId, Credential, SecretKey, SecretPurpose};
 use std::sync::Arc;
@@ -81,6 +82,8 @@ pub struct JmapEngine {
     identities: Option<Vec<Identity>>,
     /// How often a waiting watch looks in the outbox for a send that has come due.
     outbox_every: Duration,
+    /// What the window is about to read and fetching itself ([`JmapEngine::with_wanted`]).
+    wanted: crate::wanted::Wanted,
 }
 
 impl std::fmt::Debug for JmapEngine {
@@ -104,12 +107,20 @@ impl JmapEngine {
             plan,
             store,
             secrets,
-            http: crate::http::http_client()?,
+            http: mail_net::http::http_client()?,
             client: None,
             mailboxes: None,
             identities: None,
             outbox_every: Duration::from_secs(15),
+            wanted: crate::wanted::Wanted::default(),
         })
+    }
+
+    /// Fetch bodies in the order `wanted` says, and leave out what it says the window is
+    /// fetching itself. An engine without it fetches in the ordinary order.
+    pub fn with_wanted(mut self, wanted: crate::wanted::Wanted) -> Self {
+        self.wanted = wanted;
+        self
     }
 
     /// The one mailbox every address of this account is held under.
@@ -245,48 +256,49 @@ impl JmapEngine {
         })
     }
 
-    /// One whole pass: the mailbox list, what changed, headers, bodies, then the outbox.
+    /// The store the account's mail is kept in.
+    pub fn store(&self) -> &SqliteStore {
+        &self.store
+    }
+
+    /// The first half of a pass: the mailbox list, what changed, headers and bodies.
     ///
-    /// `on_arrival` is called between the bodies and the outbox with the emails the pass stored
-    /// for the first time, so what it queues leaves in the same pass, as an IMAP pass's rules do
-    /// (`AccountEngine::run_rules`). It is given the store and what the server was seen to
-    /// support.
+    /// It stops short of the outbox so that the caller can act on what arrived, with what the
+    /// server was seen to support, before the outbox drains: what that queues leaves in the same
+    /// pass ([`Midway`]), as an IMAP pass's rules do. [`JmapEngine::outbox`] is the second half.
     ///
     /// Failures after the session is fetched are folded into the report rather than returned,
     /// like an IMAP pass's: a body that will not download is worth seeing and is no reason to
     /// abandon the headers already in hand. A refused credential ends the pass at once and says
     /// so, so a watch stops instead of retrying it every minute.
-    pub async fn pass(
+    pub async fn pass_until_outbox(
         &mut self,
         cancel: &mut crate::Cancel,
         now: DateTime<Utc>,
-        on_arrival: &mut dyn FnMut(&SqliteStore, &AccountCaps, &[MessageId]),
-    ) -> Result<SyncReport, RuntimeError> {
+    ) -> Result<Midway, RuntimeError> {
         let mut report = SyncReport::default();
         if let Err(e) = self.connect().await {
             let retry = e.retry();
             if retry.needs_person() {
                 report.saw(&retry);
                 report.needs_attention.push(e.to_string());
-                return Ok(report);
+                return Ok(Midway {
+                    report,
+                    caps: None,
+                    stopped: true,
+                });
             }
             return Err(e);
         }
-        let steps: [Step; 4] = [Step::Mail, Step::Bodies, Step::Arrivals, Step::Outbox];
-        for step in steps {
+        let mut stopped = false;
+        for step in [Step::Mail, Step::Bodies] {
             if *cancel.borrow() {
+                stopped = true;
                 break;
             }
             let done = match step {
                 Step::Mail => self.sync(now, HEADERS_PER_PASS, &mut report).await,
                 Step::Bodies => self.fetch_bodies(now, BODIES_PER_PASS, &mut report).await,
-                Step::Arrivals => {
-                    if let Some(mailboxes) = &self.mailboxes {
-                        on_arrival(&self.store, &self.caps(mailboxes, now), &report.arrived);
-                    }
-                    Ok(())
-                }
-                Step::Outbox => self.drain_into(now, &mut report).await,
             };
             if let Err(e) = done {
                 self.forget_if_stale(&e);
@@ -294,11 +306,45 @@ impl JmapEngine {
                 report.saw(&retry);
                 report.needs_attention.push(e.to_string());
                 if retry.needs_person() {
+                    stopped = true;
                     break;
                 }
             }
         }
-        Ok(report)
+        let caps = self
+            .mailboxes
+            .as_ref()
+            .map(|mailboxes| self.caps(mailboxes, now));
+        Ok(Midway {
+            report,
+            caps,
+            stopped,
+        })
+    }
+
+    /// The second half of a pass: the outbox drains, with whatever the caller queued since
+    /// [`JmapEngine::pass_until_outbox`]. Not at all when that stopped, or `cancel` has fired.
+    pub async fn outbox(
+        &mut self,
+        cancel: &mut crate::Cancel,
+        now: DateTime<Utc>,
+        midway: Midway,
+    ) -> SyncReport {
+        let Midway {
+            mut report,
+            stopped,
+            ..
+        } = midway;
+        if stopped || *cancel.borrow() {
+            return report;
+        }
+        if let Err(e) = self.drain_into(now, &mut report).await {
+            self.forget_if_stale(&e);
+            let retry = e.retry();
+            report.saw(&retry);
+            report.needs_attention.push(e.to_string());
+        }
+        report
     }
 
     /// The outbox alone, as `mailo import --to-mailbox` wants it after queueing uploads.
@@ -309,13 +355,23 @@ impl JmapEngine {
     }
 }
 
-/// The parts of a pass, in order.
+/// What a pass has done before its outbox drains: its report so far and what the server was seen to
+/// support, for the caller to act on what arrived in between.
+#[derive(Debug)]
+pub struct Midway {
+    pub report: SyncReport,
+    /// What the server was seen to support, once its mailboxes are known.
+    pub caps: Option<AccountCaps>,
+    /// Whether the pass ended early (a credential refused, or the pass cancelled): the outbox
+    /// is then left for the next one.
+    pub stopped: bool,
+}
+
+/// The parts of a pass before its outbox.
 #[derive(Debug, Clone, Copy)]
 enum Step {
     Mail,
     Bodies,
-    Arrivals,
-    Outbox,
 }
 
 /// The ids among `remotes` that are JMAP emails, each once.

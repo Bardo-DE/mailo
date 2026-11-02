@@ -18,10 +18,10 @@ use settle::settle_until;
 
 use crate::drive;
 use drive::Drive;
+use mail_core::fixtures::absorb_rebuilt_into;
 use mail_core::{Arrival, Destination, absorb};
 use mail_core::{SqliteStore, Store};
 use mail_domain::*;
-use mail_runtime::assemble::absorb_rebuilt_into;
 use std::io::Cursor;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -134,8 +134,8 @@ fn rebuilt(date: &str) -> String {
 pub(super) fn with_account(dir: &std::path::Path) -> SqliteStore {
     std::fs::create_dir_all(dir.join("blobs")).unwrap();
     let store = SqliteStore::open(dir.join("mail.db"), dir.join("blobs")).unwrap();
-    mail_store::testing::seed_account(&store, acct_account(), "me@example.test");
-    mail_store::testing::seed_identity_for(
+    mail_core::fixtures::seed::seed_account(&store, acct_account(), "me@example.test");
+    mail_core::fixtures::seed::seed_identity_for(
         &store,
         IdentityId::generate(),
         acct_account(),
@@ -227,7 +227,7 @@ fn open() -> Window {
     let store = seeded(dir.path());
     let contexts = mail_ui::ui::native::contexts(
         mail_client::Client::open(store.clone(), mail_client::ClientConfig::default()),
-        mail_ui::ui::view::Appearance::default(),
+        mail_ui_kit::view::Appearance::default(),
         None,
         None,
         mail_ui::ui::ask::Open::raise(),
@@ -333,7 +333,7 @@ fn a_stored_picture_and_pdf_show_thumbnails_that_open_peek() {
         "Peek's picture is no larger than the thumbnail: {:?}",
         drawn.size
     );
-    head_button(harness, mail_ui::ui::copy::controls::SAVE);
+    head_button(harness, mail_ui_model::copy::controls::SAVE);
     assert_eq!(harness.count(PAGE), 0, "a picture was given pages");
 
     harness.key(Key::Escape);
@@ -406,12 +406,12 @@ fn a_stored_picture_and_pdf_show_thumbnails_that_open_peek() {
         h.text_of(PAGE).as_deref() == Some("Page 1 of 2")
             && h.attr(PICTURE, "src").as_deref() == Some(first.as_str())
     });
-    let next = head_button(harness, mail_ui::ui::copy::aria::NEXT_PAGE);
+    let next = head_button(harness, mail_ui_model::copy::aria::NEXT_PAGE);
     click(harness, &next);
     settle_until(harness, |h| {
         h.text_of(PAGE).as_deref() == Some("Page 2 of 2")
     });
-    head_button(harness, mail_ui::ui::copy::controls::SAVE);
+    head_button(harness, mail_ui_model::copy::controls::SAVE);
 
     harness.key(Key::Escape);
     settle_until(harness, |h| h.count(PEEK) == 0);

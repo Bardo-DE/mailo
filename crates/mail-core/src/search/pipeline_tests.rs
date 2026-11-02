@@ -5,18 +5,19 @@ use std::cell::RefCell;
 use chrono::{DateTime, Utc};
 use mail_domain::{Filter, PageReq, ReadState, Star, ThreadId, ThreadSummary};
 
-use super::super::ranking::Affinity;
-use super::super::source::{Source, Term, first};
-use super::{TOP_LIMIT, search_list};
+use mail_domain::Term;
+use mail_logic::search::{Affinity, Searched, Source, TOP_LIMIT, first, search_list};
+
+use super::StoreSource;
 use crate::support_tests::{at, sqlite_with, summary};
 
-fn searched(input: &str, store: &mail_store::SqliteStore) -> super::Searched {
+fn searched(input: &str, store: &mail_store::SqliteStore) -> Searched {
     search_list(
         input,
-        store,
+        &StoreSource(store),
         &Affinity::default(),
         &Utc,
-        &crate::query::unnamed,
+        &mail_logic::query::unnamed,
         first(100),
         at(10_000),
     )
@@ -137,7 +138,7 @@ fn a_search_asks_for_one_page_and_a_bounded_window_never_every_match() {
             &asked,
             &Affinity::default(),
             &Utc,
-            &crate::query::unnamed,
+            &mail_logic::query::unnamed,
             first(100),
             at(0),
         )

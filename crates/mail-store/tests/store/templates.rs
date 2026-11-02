@@ -156,7 +156,9 @@ fn a_draft_started_from_a_template_is_saved_beside_it_and_leaves_it_alone() {
     let started = kept.draft(at(30));
     let patch = patch(vec![Change::DraftUpsert(Box::new(started.clone()))]);
     for store in [&b.sqlite as &dyn Store, &b.memory] {
-        store.apply(acct_account(), &patch).unwrap();
+        store
+            .apply(acct_account(), &patch, chrono::Utc::now())
+            .unwrap();
         assert_eq!(store.draft(started.id).unwrap(), started);
         assert_eq!(store.template(kept.id).unwrap(), kept);
     }

@@ -23,6 +23,7 @@ pub(super) fn engine(run: &Run<'_>) -> Result<JmapEngine, Failure> {
         run.store.clone(),
         run.secrets.clone(),
     )
+    .map(|engine| engine.with_wanted(run.wanted.clone()))
     .map_err(|e| Failure::of("", &e))
 }
 
