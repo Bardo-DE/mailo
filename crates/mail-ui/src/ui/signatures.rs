@@ -1,7 +1,8 @@
-//! Signatures: the accounts that send in a list on the left ([`super::account_split`]), and on the
-//! right a pane of two levels for the chosen one. Its root has the signatures of each address the
-//! account sends from, ending in New Signature (a group for each only when the account has more
-//! than one address, aliases); a signature's row pushes its page.
+//! Signatures: a pane of three levels. Its root lists the accounts that send
+//! ([`mail_ui_settings::settings::account_list`]); an account pushes the signatures of each
+//! address it sends from, ending in New Signature (a group for each only when the account has more
+//! than one address, aliases); a signature's row pushes its page. Which are shown is the window's
+//! `Shell` (`signatures_pane`).
 //!
 //! A signature's page is its name, its words, written in the composer's own body (`compose::Body`
 //! over a page of its own that is never a draft), whether it is the default for new messages and
@@ -25,21 +26,14 @@ use mail_editor::{Doc, Node, ParaKind, Session};
 use mail_ui_compose::compose::{Body, Page};
 use mail_ui_kit::data::{AccountRow, use_account_rows};
 use mail_ui_kit::motion::{Follow, Restore, tell};
-use mail_ui_kit::view::Shell;
+use mail_ui_kit::view::{Shell, SignaturesAt};
 use mail_ui_model::copy;
-use mail_ui_settings::settings::account_split::{AccountSplit, NoAccountsPage, shown};
+use mail_ui_settings::settings::account_list::{self, AccountList};
 use porter_core::AccountId;
 
-/// The stack's element id: its back button is `signatures-pane-back-detail`. The accounts' rows
-/// are `signatures-pane-open-<account>`.
+/// The stack's element id: its back buttons are `signatures-pane-back-root` and `-detail`. The
+/// accounts' rows are `signatures-pane-open-<account>`.
 const STACK: &str = "signatures-pane";
-
-/// A page of the pane: the list, or one signature's page over it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum SignaturesAt {
-    List,
-    Signature(SignatureId),
-}
 
 /// The element id of the row that pushes `signature`, where the keyboard goes back to.
 pub(in crate::ui) fn row_id(signature: SignatureId) -> String {
@@ -97,76 +91,91 @@ impl Unkept {
     }
 }
 
-/// The page: the accounts that send, and the chosen one's signatures beside them.
+/// Push `at` over the page shown.
+fn push(mut shell: Signal<Shell>, at: SignaturesAt) {
+    let pushed = shell.peek().signatures_pane.pushed(at);
+    shell.write().signatures_pane = pushed;
+}
+
+/// Back one page.
+fn back(mut shell: Signal<Shell>) {
+    let back = shell.peek().signatures_pane.popped();
+    shell.write().signatures_pane = back;
+}
+
+/// The accounts that send.
+fn sending(rows: Vec<AccountRow>) -> Vec<AccountRow> {
+    let client = mail_ui_kit::live::client();
+    let sending = client.compose().sending_accounts();
+    rows.into_iter()
+        .filter(|row| sending.iter().any(|(_, id)| *id == row.id))
+        .collect()
+}
+
+/// The pane: the accounts that send at its root, an account's signatures over them, a
+/// signature's page over those.
 #[component]
 pub(super) fn Signatures(shell: Signal<Shell>) -> Element {
     use_context_provider(|| Refusals(Signal::new(Vec::new())));
-    // Read again when an account comes or goes.
-    let _ = mail_ui_kit::live::moved_for(mail_client::Topics::ACCOUNTS);
-    let client = mail_ui_kit::live::client();
-    let sending = client.compose().sending_accounts();
-    let rows: Vec<AccountRow> = use_account_rows()()
-        .into_iter()
-        .filter(|row| sending.iter().any(|(_, id)| *id == row.id))
-        .collect();
-    if rows.is_empty() {
-        return rsx! { NoAccountsPage { title: copy::titles::SIGNATURES } };
-    }
-    let held = shell.read().signatures_account.clone();
-    let chosen = shown(&rows, held.as_ref()).cloned();
+    let path = shell.read().signatures_pane.clone();
+    let rows = use_account_rows();
+    let titled = mail_ui_kit::live::client();
+    let title = use_callback(move |at: SignaturesAt| {
+        let named = |account: &AccountId| {
+            rows.read()
+                .iter()
+                .find(|row| row.id == *account)
+                .map_or_else(|| account.to_string(), AccountRow::shown)
+        };
+        match at {
+            SignaturesAt::List => copy::titles::SIGNATURES.to_owned(),
+            SignaturesAt::Account(account) => named(&account),
+            SignaturesAt::Signature(account, id) => titled
+                .stored()
+                .signature(id)
+                .map_or_else(|_| named(&account), |kept| kept.name),
+        }
+    });
+    let page = use_callback(move |at: SignaturesAt| match at {
+        SignaturesAt::List => rsx! { Accounts { shell } },
+        SignaturesAt::Account(account) => {
+            rsx! { SignatureList { key: "{account}", shell, account } }
+        }
+        SignaturesAt::Signature(_, id) => rsx! { SignaturePage { key: "{id}", shell, id } },
+    });
+    let opener = use_callback(|at: SignaturesAt| match at {
+        SignaturesAt::List => None,
+        SignaturesAt::Account(account) => Some(account_list::row_id(STACK, &account)),
+        SignaturesAt::Signature(_, id) => Some(row_id(id)),
+    });
     rsx! {
-        AccountSplit {
-            pane: STACK,
-            label: copy::titles::SIGNATURES,
-            rows: rows.clone(),
-            chosen: chosen.as_ref().map(|row| row.id.clone()),
-            onpick: move |id: AccountId| {
-                let mut shell = shell;
-                shell.write().signatures_account = Some(id);
-            },
-            if let Some(row) = chosen {
-                AccountSignatures { key: "{row.id}", shell, row }
-            }
+        PaneStack::<SignaturesAt> {
+            path,
+            title,
+            page,
+            opener: Some(opener),
+            on_back: move |()| back(shell),
+            common: Common { id: Some(STACK.to_owned()), ..Common::default() },
         }
     }
 }
 
-/// One account's signatures: its addresses' at the root, a signature's page over them.
+/// The root: the accounts that send, each opening its signatures.
 #[component]
-fn AccountSignatures(shell: Signal<Shell>, row: AccountRow) -> Element {
-    let client = mail_ui_kit::live::client();
-    let mut path = use_signal(|| PanePath::new(SignaturesAt::List));
-    let account = row.id.clone();
-    let name = row.shown();
-    let titled = client.clone();
-    let title = use_callback(move |at: SignaturesAt| match at {
-        SignaturesAt::List => name.clone(),
-        SignaturesAt::Signature(id) => titled
-            .stored()
-            .signature(id)
-            .map_or_else(|_| name.clone(), |kept| kept.name),
-    });
-    let page = use_callback(move |at: SignaturesAt| match at {
-        SignaturesAt::List => rsx! { SignatureList { path, account: account.clone() } },
-        SignaturesAt::Signature(id) => rsx! {
-            SignaturePage { key: "{id}", shell, path, id }
-        },
-    });
-    let opener = use_callback(|at: SignaturesAt| match at {
-        SignaturesAt::List => None,
-        SignaturesAt::Signature(id) => Some(row_id(id)),
-    });
+fn Accounts(shell: Signal<Shell>) -> Element {
+    // Read again when an account comes or goes.
+    let _ = mail_ui_kit::live::moved_for(mail_client::Topics::ACCOUNTS);
+    let rows = sending(use_account_rows()());
     rsx! {
-        PaneStack::<SignaturesAt> {
-            path: path(),
-            title,
-            page,
-            opener: Some(opener),
-            on_back: move |()| {
-                let back = path.peek().popped();
-                path.set(back);
+        AccountList {
+            pane: STACK,
+            label: copy::titles::SIGNATURES,
+            rows,
+            onopen: move |account: AccountId| {
+                let mut shell = shell;
+                shell.write().signatures_pane =
+                    PanePath::new(SignaturesAt::List).pushed(SignaturesAt::Account(account));
             },
-            common: Common { id: Some(STACK.to_owned()), ..Common::default() },
         }
     }
 }
@@ -186,7 +195,7 @@ fn defaults_of(signature: &Signature) -> String {
 /// The root: the account's identities, each with its signatures and New Signature, in a group of
 /// its own titled by the address only where there is more than one to tell apart.
 #[component]
-fn SignatureList(path: Signal<PanePath<SignaturesAt>>, account: AccountId) -> Element {
+fn SignatureList(shell: Signal<Shell>, account: AccountId) -> Element {
     // Read again with each change: a signature made, renamed, made a default or deleted.
     let _ = mail_ui_kit::live::moved_for(
         mail_client::Topics::IDENTITIES | mail_client::Topics::ACCOUNTS,
@@ -207,7 +216,7 @@ fn SignatureList(path: Signal<PanePath<SignaturesAt>>, account: AccountId) -> El
                 FormSection { key: "{identity.id}", title: aliased.then(|| heading(&identity)),
                     List::<String> {
                         label: heading(&identity),
-                        items: rows(&identity, &signatures, path),
+                        items: rows(&identity, &signatures, shell),
                         style: ListStyle::Grouped,
                     }
                 }
@@ -221,12 +230,10 @@ fn SignatureList(path: Signal<PanePath<SignaturesAt>>, account: AccountId) -> El
 fn rows(
     identity: &Identity,
     signatures: &[Signature],
-    path: Signal<PanePath<SignaturesAt>>,
+    shell: Signal<Shell>,
 ) -> Vec<ListItem<String>> {
-    let push = move |id: SignatureId| {
-        let mut path = path;
-        path.set(PanePath::new(SignaturesAt::List).pushed(SignaturesAt::Signature(id)));
-    };
+    let account = identity.account.clone();
+    let open = move |id: SignatureId| push(shell, SignaturesAt::Signature(account.clone(), id));
     let mut items: Vec<ListItem<String>> = signatures
         .iter()
         .map(|kept| {
@@ -240,7 +247,10 @@ fn rows(
                         title: name.clone(),
                         accessory: Accessory::Text(defaults_of(kept)),
                         size: RowSize::Settings,
-                        onclick: move |_| push(id),
+                        onclick: {
+                            let open = open.clone();
+                            move |_| open(id)
+                        },
                         common: Common {
                             id: Some(row_id(id)),
                             aria_label: Some(copy::aria::details_for(&name)),
@@ -263,7 +273,7 @@ fn rows(
                 onclick: move |_| {
                     let client = mail_ui_kit::live::client();
                     if let Ok(made) = client.signing().create(whose, "") {
-                        push(made.id);
+                        open(made.id);
                     }
                 },
                 common: Common {
@@ -292,11 +302,7 @@ fn editing(kept: &Signature, identity: &Identity) -> Page {
 
 /// A signature's page: its name, its words, its defaults, and Delete Signature.
 #[component]
-fn SignaturePage(
-    shell: Signal<Shell>,
-    path: Signal<PanePath<SignaturesAt>>,
-    id: SignatureId,
-) -> Element {
+fn SignaturePage(shell: Signal<Shell>, id: SignatureId) -> Element {
     // Read again with each change, so the switches say what was kept.
     let _ = mail_ui_kit::live::moved_for(
         mail_client::Topics::IDENTITIES | mail_client::Topics::ACCOUNTS,
@@ -322,14 +328,13 @@ fn SignaturePage(
             rsx! {}
         };
     };
-    rsx! { SignatureEditor { shell, path, kept, identity } }
+    rsx! { SignatureEditor { shell, kept, identity } }
 }
 
 /// [`SignaturePage`] once its signature and identity are read.
 #[component]
 fn SignatureEditor(
     shell: Signal<Shell>,
-    path: Signal<PanePath<SignaturesAt>>,
     kept: Signature,
     identity: Identity,
 ) -> Element {
@@ -441,8 +446,7 @@ fn SignatureEditor(
                         };
                         let said = copy::toasts::signature_deleted(&had.name);
                         tell(said, Follow::Restore(Restore::Signature(had)));
-                        let mut path = path;
-                        path.set(PanePath::new(SignaturesAt::List));
+                        back(shell);
                     }),
                 }
             }

@@ -85,7 +85,7 @@ pub fn RulesList(
             },
         ));
     }
-    let new_id = row_id(&RulesAt::Rule(None));
+    let new_id = row_id(&RulesAt::Rule(row.id.clone(), None));
     // New Rule is a list of its own under the rules, as New Space is under the Spaces.
     let add = vec![ListItem::row(
         NEW.to_owned(),
@@ -96,7 +96,10 @@ pub fn RulesList(
                 title: copy::controls::NEW_RULE,
                 size: RowSize::Settings,
                 accessory: Accessory::Chevron,
-                onclick: move |_| open(shell, RulesAt::Rule(None)),
+                onclick: {
+                    let account = row.id.clone();
+                    move |_| open(shell, RulesAt::Rule(account.clone(), None))
+                },
                 common: Common { id: new_id, aria_label: Some(copy::controls::NEW_RULE.to_owned()), ..Common::default() },
             }
         },
@@ -138,6 +141,8 @@ fn RuleRow(
     let rule = listed.rule.clone();
     let on = rule.state == RuleState::Enabled;
     let id = rule.id;
+    let account = row.id.clone();
+    let element = row_id(&RulesAt::Rule(account.clone(), Some(id)));
     let toggled = rule.clone();
     let opened = listed.clone();
     rsx! {
@@ -157,10 +162,10 @@ fn RuleRow(
                     let mut menu = menu;
                     menu.set(Some((opened.clone(), Rect { origin: press.at, size: Size::default() })));
                 } else {
-                    open(shell, RulesAt::Rule(Some(id)));
+                    open(shell, RulesAt::Rule(account.clone(), Some(id)));
                 }
             },
-            common: Common { id: row_id(&RulesAt::Rule(Some(id))), ..Common::default() },
+            common: Common { id: element, ..Common::default() },
         }
     }
 }
