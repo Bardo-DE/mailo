@@ -9,7 +9,7 @@
 use crate::data::PAGE;
 use crate::debounce::use_debounced;
 use crate::list_search::{Listed, Request};
-use crate::live::use_live;
+use crate::live::use_live_as_read;
 use crate::view::Shell;
 use dioxus::prelude::*;
 use mail_client::{Generation, Snapshot};
@@ -57,7 +57,7 @@ pub fn use_list(shell: Signal<Shell>, pages: Signal<u32>) -> ListView {
         let question = Request::of(&shell, &settled.text, 0);
         (request, question, pages())
     });
-    let found = use_live(move || request().0.asked());
+    let found = use_live_as_read(move || request().0.asked());
     let mut drawn = use_signal(|| {
         found
             .peek()

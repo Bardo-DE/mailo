@@ -116,6 +116,8 @@ impl<T> Snapshot<T> {
 pub struct Live<T> {
     source: Arc<dyn Source<T>>,
     told: tokio::sync::watch::Receiver<u64>,
+    /// Moved by every reading that ends, news or not.
+    read: tokio::sync::watch::Receiver<u64>,
 }
 
 impl<T> Clone for Live<T> {
@@ -123,6 +125,7 @@ impl<T> Clone for Live<T> {
         Self {
             source: self.source.clone(),
             told: self.told.clone(),
+            read: self.read.clone(),
         }
     }
 }
@@ -145,6 +148,14 @@ impl<T: Send + Sync + 'static> Live<T> {
     /// change.
     pub async fn changed(&mut self) -> bool {
         self.told.changed().await.is_ok()
+    }
+
+    /// Resolves once a reading has ended since this `Live` last saw one, whether or not it came
+    /// to a different answer: for a front end that waits for its own write to be in the value
+    /// (`Snapshot::Ready::as_of`), which an answer equal to the last one, read after the write,
+    /// would otherwise never tell it. `false` when the client has stopped and none ever will.
+    pub async fn read_again(&mut self) -> bool {
+        self.read.changed().await.is_ok()
     }
 
     /// Wait up to `timeout` for the value to be read, here on this thread: for a caller that must
@@ -201,6 +212,8 @@ pub(crate) struct Entry<Q: Query> {
     query: Q,
     state: Mutex<State<Q::Output>>,
     tell: tokio::sync::watch::Sender<u64>,
+    /// Moved each time a reading ends, whether it was news or not.
+    read: tokio::sync::watch::Sender<u64>,
 }
 
 struct State<T> {
@@ -225,6 +238,7 @@ impl<Q: Query> Entry<Q> {
                 again: false,
             }),
             tell: tokio::sync::watch::Sender::new(0),
+            read: tokio::sync::watch::Sender::new(0),
         })
     }
 
@@ -232,6 +246,7 @@ impl<Q: Query> Entry<Q> {
     pub(crate) fn live(self: &Arc<Self>) -> Live<Q::Output> {
         Live {
             told: self.tell.subscribe(),
+            read: self.read.subscribe(),
             source: self.clone(),
         }
     }
@@ -318,6 +333,7 @@ impl<Q: Query> Job for Entry<Q> {
         if news {
             self.tell.send_modify(|told| *told += 1);
         }
+        self.read.send_modify(|read| *read += 1);
         again
     }
 }
