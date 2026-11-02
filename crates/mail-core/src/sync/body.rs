@@ -55,7 +55,10 @@ pub async fn fetch_body_with(
         .map_err(|e| fatal(e.to_string()))?
         .account;
     let account = connected_one(accounts, &owner).ok_or_else(|| {
-        fatal("the account this message belongs to is no longer configured".to_owned())
+        fatal(match crate::gather::unreadable(&store, &owner) {
+            Some(why) => why.to_string(),
+            None => "the account this message belongs to is no longer configured".to_owned(),
+        })
     })?;
     let run = Run {
         store: &store,

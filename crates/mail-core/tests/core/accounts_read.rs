@@ -232,3 +232,33 @@ fn an_account_that_never_connected_is_still_told_how_to_sign_in() {
     };
     assert_eq!(with, SignInWith::Unknown);
 }
+
+/// A call for one account whose plan does not read says so, where it used to say there is no such
+/// account; one nothing has connected for, and one nobody stored, are still gone.
+#[test]
+fn a_call_for_an_account_whose_plan_does_not_read_is_told_why() {
+    let store = std::sync::Arc::new(five());
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let mail = mail_core::Mail::new(store, runtime.handle().clone())
+        .with_secrets(std::sync::Arc::new(porter_secrets::MemorySecrets::default()));
+    let sync = mail.sync();
+    let broken = runtime.block_on(sync.quota(id(5)));
+    assert!(
+        matches!(&broken, Err(mail_core::CoreError::PlanUnreadable { address, .. })
+            if address == "five@example.test"),
+        "{broken:?}"
+    );
+    let broken = runtime.block_on(sync.drain(id(5)));
+    assert!(
+        matches!(broken, Err(mail_core::CoreError::PlanUnreadable { .. })),
+        "{broken:?}"
+    );
+    // Not connected yet, and not there at all, are the accounts they were.
+    for other in [id(4), id(9)] {
+        let gone = runtime.block_on(sync.quota(other));
+        assert!(matches!(gone, Err(mail_core::CoreError::AccountGone)), "{gone:?}");
+    }
+}

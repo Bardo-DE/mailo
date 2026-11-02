@@ -3,7 +3,7 @@
 
 use super::access::access;
 use super::run::Run;
-use super::{AccountSecrets, ClientRegistry, Configured, connected_one, pass_error};
+use super::{AccountSecrets, ClientRegistry, Configured, connected_one, gone, pass_error};
 use crate::error::CoreError;
 use mail_domain::{Filter, LabelId};
 use mail_runtime::Searched;
@@ -23,7 +23,8 @@ impl crate::mail::SyncOps<'_> {
     ) -> Result<Searched, CoreError> {
         let mail = self.0;
         let registry = mail.clients()?;
-        let account = connected_one(&mail.roster()?, &account).ok_or(CoreError::AccountGone)?;
+        let account = connected_one(&mail.roster()?, &account)
+            .ok_or_else(|| gone(mail.store(), &account, CoreError::AccountGone))?;
         search_server_with(
             mail.store(),
             mail.secrets(),
