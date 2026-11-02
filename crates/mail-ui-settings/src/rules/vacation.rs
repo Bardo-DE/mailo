@@ -59,14 +59,18 @@ pub fn VacationPage(shell: Signal<Shell>) -> Element {
     let path = shell.read().vacation_pane.clone();
     let title = use_callback(move |at: VacationAt| match at {
         VacationAt::List => copy::titles::VACATION_REPLY.to_owned(),
-        VacationAt::Account(id) => replying(&all.read()).iter().find(|row| row.id == id).map_or_else(
-            || copy::titles::VACATION_REPLY.to_owned(),
-            AccountRow::shown,
-        ),
+        VacationAt::Account(id) => replying(&all.read())
+            .iter()
+            .find(|row| row.id == id)
+            .map_or_else(
+                || copy::titles::VACATION_REPLY.to_owned(),
+                AccountRow::shown,
+            ),
     });
     let page = use_callback(move |at: VacationAt| match at {
         VacationAt::List => rsx! { VacationList { shell } },
-        VacationAt::Account(id) => match replying(&all.read()).into_iter().find(|row| row.id == id) {
+        VacationAt::Account(id) => match replying(&all.read()).into_iter().find(|row| row.id == id)
+        {
             // Read again for another account.
             Some(row) => rsx! { AwayPage { key: "{row.id}", row, pushed } },
             None => rsx! {},

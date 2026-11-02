@@ -333,11 +333,7 @@ fn SignaturePage(shell: Signal<Shell>, id: SignatureId) -> Element {
 
 /// [`SignaturePage`] once its signature and identity are read.
 #[component]
-fn SignatureEditor(
-    shell: Signal<Shell>,
-    kept: Signature,
-    identity: Identity,
-) -> Element {
+fn SignatureEditor(shell: Signal<Shell>, kept: Signature, identity: Identity) -> Element {
     let id = kept.id;
     let page = use_signal({
         let kept = kept.clone();
