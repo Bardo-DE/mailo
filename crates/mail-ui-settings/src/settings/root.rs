@@ -114,6 +114,31 @@ fn SettingsShell(slots: Slots) -> Element {
     mail_ui_kit::frame::use_followed_configuration(shell, spaces, Some(handle), keys);
     let on_key = move |event: Event<KeyboardData>| {
         let key = event.key().to_string();
+        // Escape with the keyboard outside a pane (on the window itself, or the sidebar) still goes
+        // back from a page pushed in the accounts' panes; inside one the pane's stack took it.
+        if key == "Escape" {
+            let (page, accounts, rules, signatures, reply) = {
+                let shell = shell.read();
+                (
+                    shell.settings,
+                    !shell.accounts_pane.path.is_root(),
+                    !shell.rules_pane.is_root(),
+                    !shell.signatures_pane.is_root(),
+                    !shell.vacation_pane.is_root(),
+                )
+            };
+            if page == Some(PageId::ACCOUNTS) && accounts {
+                super::account::back(shell);
+            } else if page == Some(PageId::RULES) && rules {
+                crate::rules::back(shell);
+            } else if page == Some(PageId::SIGNATURES) && signatures {
+                let mut shell = shell;
+                let popped = shell.peek().signatures_pane.popped();
+                shell.write().signatures_pane = popped;
+            } else if page == Some(PageId::VACATION) && reply {
+                crate::rules::vacation_back(shell);
+            }
+        }
         let space_pushed = !shell.read().spaces_pane.is_root();
         if key == "Escape" && space_pushed && shell.read().settings == Some(PageId::SPACES) {
             super::spaces::back(shell, handle);

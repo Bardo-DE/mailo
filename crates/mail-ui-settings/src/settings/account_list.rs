@@ -1,25 +1,20 @@
-//! The layout every per-account page of Settings shares, as Apple Mail's Accounts and Signatures
-//! panes have it: the accounts in a list on the left, and on the right what the page keeps for
-//! the one chosen (Accounts, Signatures, Rules, Vacation Reply). A page gives [`AccountSplit`] its
-//! accounts, which one is chosen and what to do when another is picked, then draws the account's
-//! own content as its children, keyed by the account so that what a page of it held (a field
-//! half typed, a rule's page pushed over its list) is not carried to the next.
+//! The root every per-account page of Settings shares (Accounts, Signatures, Rules, Vacation
+//! Reply), as System Settings lists its Internet Accounts: a grouped list of the accounts, each by
+//! its provider's mark and its address, a chevron row that pushes that account's page for the
+//! tab into the tab's own pane. Each tab keeps its pages in its own `PaneStack` (the path is in
+//! the window's `Shell`), and gives [`AccountList`] its accounts and what to do when one is
+//! opened; the list shows even with one account, so every tab is click first, then edit.
 //!
-//! The list always shows, even with one account. The page keeps which is chosen in the window's
-//! `Shell`, as [`shown`] reads it: the one that was held while it is still there, else the first.
-//! Anything a page pushes (a rule's page, a signature's) is pushed in the right pane, under the
-//! list, which stays put. A page's own list actions (Accounts' Add Account…) stand under the
-//! accounts in the `under` slot.
+//! A tab's own list actions (Accounts' Add Account… and Other Keys) stand in the `under` slot,
+//! below the accounts.
 //!
-//! With no account at all there is nothing to choose between: [`NoAccounts`] stands in for the
-//! pair, saying so with an Add Account… to start from, as the Notifications switches say it.
+//! With no account at all there is nothing to open: [`NoAccounts`] stands in for the list, saying
+//! so with an Add Account… to start from, as the Notifications switches say it.
 
 use dioxus::prelude::*;
-use ds::base::vocab::RowState;
-use ds::components::chrome::split_view::model::{Collapsing, PaneSize, PaneSpec, SplitPane};
-use ds::components::chrome::split_view::view::SplitView;
 use ds::components::fields::field_row::FieldRow;
 use ds::components::lists::list::model::ListStyle;
+use ds::components::lists::row::size::RowSize;
 use ds::host::measure::MountedRef;
 use ds::prelude::*;
 use ds::root::common::Common;
@@ -30,52 +25,38 @@ use mail_ui_kit::press::on_primary;
 use mail_ui_model::copy;
 use porter_core::AccountId;
 
-/// The list's pane: 230 wide, 180 to 320, and it does not fold.
-const LIST: PaneSpec = PaneSpec {
-    preferred: PaneSize::Fixed(Px(230.0)),
-    min: PaneSize::Fixed(Px(180.0)),
-    max: PaneSize::Fixed(Px(320.0)),
-    collapsing: Collapsing::Never,
-};
-
-/// The account of `rows` a page shows: `held` while it is still there, else the first.
-pub fn shown<'a>(rows: &'a [AccountRow], held: Option<&AccountId>) -> Option<&'a AccountRow> {
-    held.and_then(|held| rows.iter().find(|row| row.id == *held))
-        .or_else(|| rows.first())
-}
-
-/// The element id of the row that picks `account` on the page whose panes are `pane`.
+/// The element id of the row that opens `account` on the page whose pane is `pane`, where the
+/// keyboard goes back to.
 pub fn row_id(pane: &str, account: &AccountId) -> String {
     format!("{pane}-open-{account}")
 }
 
-/// The accounts `rows` in a list beside `children`. `pane` names the page for its elements'
-/// ids; `chosen` is the account highlighted (none while the page shows something that is no
-/// account's); `onpick` hears another. `under` stands beneath the list.
+/// The accounts `rows` as a grouped list, a chevron each, in a form with `under` below it.
+/// `pane` names the page for its elements' ids; `onopen` hears the one pressed. `statuses` is
+/// what a row says at its end in place of the chevron, for the accounts it has one for.
 #[component]
-pub fn AccountSplit(
+pub fn AccountList(
     pane: &'static str,
     label: &'static str,
     rows: Vec<AccountRow>,
-    chosen: Option<AccountId>,
-    onpick: EventHandler<AccountId>,
+    onopen: EventHandler<AccountId>,
+    #[props(default)] statuses: Vec<(AccountId, String)>,
     #[props(default)] under: Option<Element>,
-    children: Element,
 ) -> Element {
-    let picked = rows.clone();
     let items: Vec<ListItem<String>> = rows
         .iter()
         .map(|row| {
             let shown = row.shown();
-            let selection = if chosen.as_ref() == Some(&row.id) {
-                Selection::Selected
-            } else {
-                Selection::Unselected
-            };
             // The address under a name the person gave: where the name is the address, once is
             // enough.
             let detail = (shown != row.address && !row.is_local())
                 .then(|| TextLine::from(row.address.clone()));
+            let accessory = statuses
+                .iter()
+                .find(|(id, _)| *id == row.id)
+                .map_or(Accessory::Chevron, |(_, status)| {
+                    Accessory::Text(status.clone())
+                });
             let id = row.id.clone();
             ListItem::row(
                 row.id.to_string(),
@@ -85,11 +66,12 @@ pub fn AccountSplit(
                         leading: mail_ui_kit::provider_chip::account_mark(row),
                         title: shown.clone(),
                         detail,
-                        state: RowState { selection, ..RowState::default() },
-                        onclick: move |_| onpick.call(id.clone()),
+                        size: RowSize::Settings,
+                        accessory,
+                        onclick: move |_| onopen.call(id.clone()),
                         common: Common {
                             id: Some(row_id(pane, &row.id)),
-                            aria_label: Some(shown.clone()),
+                            aria_label: Some(copy::aria::details_for(&shown)),
                             ..Common::default()
                         },
                     }
@@ -97,29 +79,22 @@ pub fn AccountSplit(
             )
         })
         .collect();
-    let list = rsx! {
-        div { class: "account-list",
-            List::<String> {
-                label,
-                items,
-                style: ListStyle::Plain,
-                cursor: chosen.as_ref().map(ToString::to_string),
-                onselect: move |key: String| {
-                    if let Some(row) = picked.iter().find(|row| row.id.to_string() == key) {
-                        onpick.call(row.id.clone());
+    rsx! {
+        Form {
+            FormSection {
+                if rows.is_empty() {
+                    NoAccounts {}
+                } else {
+                    List::<String> {
+                        label,
+                        items,
+                        style: ListStyle::Grouped,
                     }
-                },
+                }
             }
             if let Some(under) = under {
                 {under}
             }
-        }
-    };
-    rsx! {
-        SplitView {
-            label,
-            panes: vec![SplitPane::new(LIST, list)],
-            div { class: "account-detail", {children} }
         }
     }
 }
@@ -197,16 +172,5 @@ pub fn NoAccounts() -> Element {
             }
         }
         {adding.menu()}
-    }
-}
-
-/// A page with no account: its title, and [`NoAccounts`] in a form of its own.
-#[component]
-pub fn NoAccountsPage(title: &'static str) -> Element {
-    rsx! {
-        PageHeader { title }
-        Form {
-            FormSection { NoAccounts {} }
-        }
     }
 }
