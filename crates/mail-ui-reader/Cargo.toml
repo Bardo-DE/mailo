@@ -64,18 +64,18 @@ dioxus = { version = "0.7" }
 # display). quire re-exports only `StandardAction`; mailo names `Action`, `AppAction`, `Context` and
 # `Chord` as well. The rev quire pins (`docs/workspace-deps.toml`), so one chordkit is built.
 chordkit = { git = "https://github.com/PoHsuanLai/chordkit.git", rev = "99eec9ddd03ee345b669fcc7954ed44590724290" }
-ds = { git = "https://github.com/PoHsuanLai/quire.git", rev = "39f34fc1a5aec73240010b3c7643844f6e05713b" }  # 39f34fc1 (v0.3.58 + scroll-together; forks blitz 841386a7, blitz-kit 5b5380d0)
+ds = { git = "https://github.com/PoHsuanLai/quire.git", rev = "5664ee9a54fa4452ac3f377fb78708c6186c13fd" }  # 5664ee9a (master, scroll-together merged; forks blitz 841386a7, blitz-kit 5b5380d0)
 # anyview, the viewer's light tier, at the rev of its main that names the quire rev above (the same
 # spelling as quire, so one quire is built). `anyview-core` is the vocabulary (`Input`, `ReadAt`:
 # how the store's bytes go in); `anyview-peek` the peek worker and, with `pane`, the card that draws
 # what was peeked. Headless otherwise: no media player, no D-Bus.
-anyview-core = { git = "https://github.com/PoHsuanLai/anyview.git", rev = "66b3fba6810aed65805b2e9e589507130221e4c8", optional = true }
-anyview-peek = { git = "https://github.com/PoHsuanLai/anyview.git", rev = "66b3fba6810aed65805b2e9e589507130221e4c8", default-features = false, features = ["pane"], optional = true }
+anyview-core = { git = "https://github.com/PoHsuanLai/anyview.git", rev = "b4a4306429178b96bd99c5fb14e9ea573cabcb33", optional = true }
+anyview-peek = { git = "https://github.com/PoHsuanLai/anyview.git", rev = "b4a4306429178b96bd99c5fb14e9ea573cabcb33", default-features = false, features = ["pane"], optional = true }
 # The window: quire's Blitz host (the window, its fonts, focus, clipboard, PDF output), and
 # `print`: the system's print dialog for a PDF (the desktop portal on Linux, else the PDF opened
 # in the viewer); `spell`: the composer's spelling, against the system's Hunspell dictionaries
 # (none is bundled); `pdf` also rasterises a PDF attachment's first page (`PdfFileThumb`).
-ds-blitz = { git = "https://github.com/PoHsuanLai/quire.git", rev = "39f34fc1a5aec73240010b3c7643844f6e05713b", features = ["pdf", "print", "spell"] }  # 39f34fc1 (v0.3.58 + scroll-together; forks blitz 841386a7, blitz-kit 5b5380d0)
+ds-blitz = { git = "https://github.com/PoHsuanLai/quire.git", rev = "5664ee9a54fa4452ac3f377fb78708c6186c13fd", features = ["pdf", "print", "spell"] }  # 5664ee9a (master, scroll-together merged; forks blitz 841386a7, blitz-kit 5b5380d0)
 blitz-dom = { workspace = true }
 dioxus-native-dom = { workspace = true }
 base64 = "0.22"
