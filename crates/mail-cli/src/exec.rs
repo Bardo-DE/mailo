@@ -489,6 +489,8 @@ pub fn execute(
             asked,
             Some(accounts),
             mail_core::schedule::End::Never,
+            // No window here to say what is about to be read.
+            Default::default(),
         ))
         .map_err(super::remedy::error)?;
         let accounts = mail.roster().map_err(super::remedy::error)?;

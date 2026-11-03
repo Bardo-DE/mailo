@@ -18,6 +18,7 @@ use mail_engine::schedule::{
     Change, Daemon, End, Host, ListenCall, Local, Lost, Note, PassCall, Schedule, Scheduler,
 };
 use mail_logic::junk::Policy;
+use mail_runtime::wanted::Wanted;
 use porter_core::AccountId;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
@@ -114,8 +115,16 @@ impl SyncOps<'_> {
         tell: &dyn Fn(Watched),
         asked: Option<Asked>,
     ) -> Result<Vec<PassEnd>, CoreError> {
-        self.watch_until(notifier, live, tell, asked, None, End::WhenStuck)
-            .await
+        self.watch_until(
+            notifier,
+            live,
+            tell,
+            asked,
+            None,
+            End::WhenStuck,
+            Wanted::default(),
+        )
+        .await
     }
 
     /// [`watch`](Self::watch), for a watch that follows the accounts: `mailo watch`, and the one
@@ -127,6 +136,10 @@ impl SyncOps<'_> {
     /// signed in ([`follow`]). `end` is when the run returns: [`End::WhenStuck`] for a run that
     /// has nothing left to do once every account is refused; [`End::Never`] for a watch that
     /// runs for the session (`mailo watch`, the app's), which a sign-in may bring back to life.
+    /// `wanted` is what that window is about to read and fetching itself
+    /// (`mail_client::Client::wanted`): each pass fetches bodies around it, as the window's own
+    /// passes do. `mailo watch` has no window and passes the default.
+    #[allow(clippy::too_many_arguments)]
     pub async fn watch_until(
         &self,
         notifier: Option<&dyn Notifier>,
@@ -135,6 +148,7 @@ impl SyncOps<'_> {
         asked: Option<Asked>,
         accounts: Option<Asked>,
         end: End,
+        wanted: Wanted,
     ) -> Result<Vec<PassEnd>, CoreError> {
         let Live { whom, junk } = live;
         let mail = self.0;
@@ -154,6 +168,7 @@ impl SyncOps<'_> {
             announce,
             junk,
             tell,
+            wanted,
             ends: RefCell::new(BTreeMap::new()),
         };
         let (tx, inbox) = tokio::sync::mpsc::unbounded_channel();
@@ -285,6 +300,8 @@ struct Watching<'a> {
     /// How the junk filter behaves, asked as each pass starts.
     junk: &'a dyn Fn() -> Policy,
     tell: &'a dyn Fn(Watched),
+    /// What the window of this process is about to read, if there is one.
+    wanted: Wanted,
     /// How each account's latest pass ended.
     ends: RefCell<BTreeMap<AccountId, PassEnd>>,
 }
@@ -321,6 +338,10 @@ impl Host for Watching<'_> {
 
     fn folder_in_flight(&self, _: &AccountId) -> bool {
         false
+    }
+
+    fn wanted(&self) -> Wanted {
+        self.wanted.clone()
     }
 
     fn pass(&self, call: PassCall) -> Local<'_, crate::fetch::Event> {
@@ -443,6 +464,7 @@ mod tests {
             announce: Announce::Quietly,
             junk: &junk,
             tell: &|_| {},
+            wanted: Wanted::default(),
             ends: RefCell::new(BTreeMap::new()),
         };
         assert_eq!(host.mail_now().junk().filtering, Filtering::Off);
@@ -531,5 +553,32 @@ mod tests {
         moves.send_modify(|n| *n += 1);
         assert!(matches!(next!(), Some(Note::Accounts(_))));
         assert!(notes.try_recv().is_err(), "the same pass told twice");
+    }
+
+    /// The window's `Wanted` is the watch's: what the window asks first, and claims, is seen by
+    /// the passes the watch runs, which a default would not show them.
+    #[test]
+    fn the_watch_hands_its_passes_the_windows_wanted() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let mail = Mail::new(
+            std::sync::Arc::new(mail_store::testing::in_memory()),
+            runtime.handle().clone(),
+        );
+        let window = Wanted::default();
+        let junk = Policy::default;
+        let host = Watching {
+            mail: &mail,
+            announce: Announce::Quietly,
+            junk: &junk,
+            tell: &|_| {},
+            wanted: window.clone(),
+            ends: RefCell::new(BTreeMap::new()),
+        };
+        let thread = ThreadId::from_uuid(uuid::Uuid::from_u128(7));
+        window.ask_first(&[thread]);
+        assert_eq!(Host::wanted(&host).first(), vec![thread]);
     }
 }

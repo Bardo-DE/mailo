@@ -274,19 +274,21 @@ fn a_long_inbox_mounts_the_rows_near_the_viewport_and_pages_as_its_end_comes_nea
     let store = seeded(dir.path());
     let mut harness = Harness::new(mail_ui::ui::native::root, config(&store, dir.path()));
     settle_until(&mut harness, listed);
-    // A page of a hundred is listed; only a window of it is drawn: what an 800 px window shows of
-    // 66 px rows, and a few more on each side.
-    settle_until(&mut harness, |h| set_size(h) == Some(100));
+    // A page of a hundred is listed, and only a window of it is drawn: what an 800 px window
+    // shows of 66 px rows, and the overscan on each side. The next page is asked for with sixty
+    // rows still below, so it may already be on its way.
+    settle_until(&mut harness, |h| matches!(set_size(h), Some(100 | 200)));
     let mounted = harness.count(".list .ds-thread");
     assert!(
-        (8..=30).contains(&mounted),
-        "{mounted} of 100 rows are mounted"
+        (8..=40).contains(&mounted),
+        "{mounted} of {:?} rows are mounted",
+        set_size(&harness)
     );
-    // Scrolled down towards the end of the page, the next page is asked for and drawn: there is
-    // no "Show more" to press.
+    // Scrolled down, each page is asked for while rows are still below, and drawn: there is no
+    // "Show more" to press.
     let over = harness.centre(".list").expect("the list is drawn");
     let deadline = Instant::now() + WAIT_BOUND;
-    while set_size(&harness) != Some(200) {
+    while set_size(&harness) != Some(THREADS) {
         assert!(
             Instant::now() < deadline,
             "the next page never came: {:?} rows listed",
@@ -299,8 +301,37 @@ fn a_long_inbox_mounts_the_rows_near_the_viewport_and_pages_as_its_end_comes_nea
     }
     let mounted = harness.count(".list .ds-thread");
     assert!(
-        (8..=30).contains(&mounted),
-        "{mounted} of 200 rows are mounted"
+        (8..=40).contains(&mounted),
+        "{mounted} of {THREADS} rows are mounted"
+    );
+}
+
+#[test]
+#[ignore = "a measurement, not a check; run with --ignored --nocapture"]
+fn from_a_scroll_to_the_frame_after_a_new_page() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = seeded(dir.path());
+    let mut harness = Harness::new(mail_ui::ui::native::root, config(&store, dir.path()));
+    settle_until(&mut harness, listed);
+    settle_until(&mut harness, |h| set_size(h).is_some());
+    let over = harness.centre(".list").expect("the list is drawn");
+    let (mut longest, mut total, mut frames) = (Duration::ZERO, Duration::ZERO, 0u32);
+    let deadline = Instant::now() + WAIT_BOUND;
+    while set_size(&harness) != Some(THREADS) {
+        assert!(Instant::now() < deadline, "the pages never came");
+        harness.wheel(over, Px(0.0), Px(-120.0));
+        let start = Instant::now();
+        harness.advance(Duration::from_millis(20));
+        let took = start.elapsed();
+        longest = longest.max(took);
+        total += took;
+        frames += 1;
+        std::thread::yield_now();
+    }
+    println!(
+        "{THREADS} threads scrolled to the end: {frames} frames, longest {:.2} ms, mean {:.2} ms",
+        ms(longest),
+        ms(total) / f64::from(frames)
     );
 }
 

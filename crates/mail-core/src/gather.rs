@@ -34,6 +34,18 @@ pub fn accounts(store: &SqliteStore, settings: &Settings) -> Result<Accounts, Co
     Ok(Accounts::new(out))
 }
 
+/// Why `account` is not among [`accounts`], when it is stored and its plan or capabilities will
+/// not read: the error a call for that one account answers with, so that it is not reported as an
+/// account that does not exist. `None` for one that reads, and for one that is not stored.
+pub fn unreadable(store: &SqliteStore, account: &porter_core::AccountId) -> Option<CoreError> {
+    let stored = store
+        .list_accounts()
+        .or_log("the accounts could not be read")?
+        .into_iter()
+        .find(|stored| &stored.id == account)?;
+    read_one(store, stored, &Settings::default()).err()
+}
+
 /// One stored account as an [`Account`], or why it cannot be.
 fn read_one(
     store: &SqliteStore,

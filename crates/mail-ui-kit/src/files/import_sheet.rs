@@ -205,8 +205,8 @@ pub(super) fn ImportSheet(shell: Signal<Shell>) -> Element {
                     SheetClose { label: "Cancel".to_owned(), on_close: move |()| super::close(shell) }
                     Button {
                         answers: Answers::Return,
-                        label: if busy { "Importing…" } else { "Import" },
-                        availability: available(can_run),
+                        label: "Import",
+                        availability: if busy { Availability::Busy } else { available(can_run) },
                         onclick: on_primary(move || start(())),
                     }
                 }

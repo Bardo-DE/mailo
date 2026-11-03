@@ -6,9 +6,8 @@
 //! it is filling. A component of its own, so a tick of the clock draws the bar and not the list.
 
 use dioxus::prelude::*;
-use ds::prelude::*;
-use ds::root::common::Common;
 use mail_ui_kit::fetching::use_status;
+use mail_ui_kit::pending::Meter;
 use mail_ui_kit::view::Shell;
 use mail_ui_model::fetching::status::thousandths;
 
@@ -22,11 +21,7 @@ pub fn ListProgress(shell: Signal<Shell>) -> Element {
     };
     rsx! {
         div { class: "list-progress",
-            ProgressIndicator {
-                style: ProgressStyle::Bar,
-                progress: Progress::Known(Fraction(thousandths(done, of))),
-                common: Common { aria_label: Some(line.text), ..Common::default() },
-            }
+            Meter { label: line.text, thousandths: thousandths(done, of) }
         }
     }
 }

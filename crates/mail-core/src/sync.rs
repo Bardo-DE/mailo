@@ -104,6 +104,12 @@ pub(crate) fn connected_one(accounts: &Accounts, id: &AccountId) -> Option<Confi
     accounts.get(id).and_then(Configured::of)
 }
 
+/// Why a call for `id` found no account to run for: its plan or capabilities would not read
+/// ([`crate::gather::unreadable`]), or else `otherwise`, that there is none.
+pub(crate) fn gone(store: &SqliteStore, id: &AccountId, otherwise: CoreError) -> CoreError {
+    crate::gather::unreadable(store, id).unwrap_or(otherwise)
+}
+
 /// A pass's classified failure as the error of a call that has no use for the classification.
 fn pass_error(failure: Failure) -> CoreError {
     CoreError::PassFailed {
@@ -907,7 +913,8 @@ pub async fn fetch_part_with(
 ) -> Result<(), CoreError> {
     use mail_store::Store as _;
     let owner = store.message(message)?.account;
-    let account = connected_one(accounts, &owner).ok_or(CoreError::MessageAccountGone)?;
+    let account = connected_one(accounts, &owner)
+        .ok_or_else(|| gone(store, &owner, CoreError::MessageAccountGone))?;
     if !account.plan.incoming.caps().writes_mailboxes {
         return Err(CoreError::OnlyImapLeavesAttachments);
     }
@@ -939,7 +946,8 @@ pub async fn drain_with(
     account: AccountId,
     now: chrono::DateTime<chrono::Utc>,
 ) -> Result<SyncReport, CoreError> {
-    let account = connected_one(accounts, &account).ok_or(CoreError::AccountGone)?;
+    let account = connected_one(accounts, &account)
+        .ok_or_else(|| gone(store, &account, CoreError::AccountGone))?;
     if !account.plan.incoming.caps().writes_mailboxes {
         return Err(CoreError::OnlyImapUploads);
     }
@@ -1295,7 +1303,8 @@ pub async fn folder_now_with(
     now: chrono::DateTime<chrono::Utc>,
     wanted: mail_runtime::wanted::Wanted,
 ) -> Result<PassEnd, CoreError> {
-    let account = connected_one(accounts, &mailbox.account).ok_or(CoreError::NoSuchAccount)?;
+    let account = connected_one(accounts, &mailbox.account)
+        .ok_or_else(|| gone(&store, &mailbox.account, CoreError::NoSuchAccount))?;
     let access = access(&account.plan.incoming);
     let run = Run {
         store: &store,

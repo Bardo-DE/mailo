@@ -211,3 +211,27 @@ fn a_click_opens_the_row() {
         assert_eq!(listed.open(click), Opens::Draft(id));
     }
 }
+
+/// A row's height is known without working the row out: it is the lines the working out draws.
+#[test]
+fn a_rows_lines_are_known_before_it_is_drawn() {
+    let held = SendState::Scheduled { at: now() };
+    let rows = [
+        Listed::Thread(summary("", ReadState::Read)),
+        Listed::Thread(summary("Lunch at noon", ReadState::Unread)),
+        Listed::Draft(draft("Plans", &["ada@example.test"], SendState::Editing)),
+        Listed::Draft(draft("Plans", &["ada@example.test"], held)),
+    ];
+    for row in &rows {
+        for snippets in [true, false] {
+            let model = row.row(
+                None,
+                snippets,
+                now(),
+                &Utc,
+                mail_logic::when::Clock::default(),
+            );
+            assert_eq!(model.lines, row.lines(snippets), "{row:?} {snippets}");
+        }
+    }
+}

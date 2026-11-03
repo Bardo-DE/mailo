@@ -336,3 +336,96 @@ fn a_block_table_cell_in_a_narrow_frame_still_lays_out_its_text() {
         "the button has no width"
     );
 }
+
+/// A frame's whole document as the reader builds it (`mail-reader`'s `frame_document`): the base
+/// sheet's rules that bear on width, then the sender's markup in the inset, in a `<body>` carrying
+/// `body_style`, the sender's own `<body>` style the sanitizer moves onto the frame's.
+fn document(body_style: &str, markup: &str) -> String {
+    format!(
+        "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><style>html, body {{ margin: 0; }} \
+         body {{ padding: 0; font: 14px sans-serif; background: #fff; }} \
+         img {{ max-width: max(100%, 64px); }} table {{ max-width: 100%; }}</style></head>\
+         <body style=\"{body_style}\"><div class=\"mailo-inset\" style=\"display:block!important;\
+         box-sizing:border-box!important;width:auto!important;max-width:none!important;\
+         min-width:0!important;float:none!important;position:static!important;margin:0!important;\
+         border:0!important;padding:18px!important\">{markup}</div></body></html>"
+    )
+}
+
+/// `html` in a window `width` wide, once the frame has been measured and drawn again.
+fn drawn(html: &str, width: u32) -> Harness {
+    let held = Held::new();
+    let page = Page {
+        body: html.to_owned(),
+        css: String::new(),
+    };
+    let view = Viewport {
+        width,
+        height: 800,
+        scale_percent: 100,
+    };
+    let mut harness = Harness::new(
+        Window,
+        HarnessConfig::new(view)
+            .with_clock(Clock::Virtual)
+            .with_context(page)
+            .with_net(held.0.net())
+            .with_frame_links(held.0.links())
+            .with_contexts(held.0.contexts()),
+    );
+    for _ in 0..8 {
+        harness.advance(Duration::from_millis(150));
+    }
+    harness
+}
+
+/// A notification's shape (a Facebook one's): a table of 100% around a table around a `td
+/// width="960"`, a stray `<body style="max-width: 480px; margin: 0 auto">` in that cell (the
+/// sanitizer moves its style onto the frame's own body), and the message itself, a table at most
+/// 480 px wide and centred, under it. A browser sizes the auto-width tables to what they hold, at
+/// most the room they have, so the message is 480 px: the cell's 960 is a wish. It is drawn at
+/// the text size, centred in the frame, not shrunk to fit a 960 px page and a centring margin.
+const NOTICE: &str = "<style>@media all and (max-width: 480px) { .row { width: 100% } }</style>\
+    <table width='100%'><tr><td width='100%' align='center'><table align='center'><tr>\
+    <td width='960' align='center'>\
+    <table id='message' align='center' style='border-collapse: collapse; max-width: 480px; \
+    margin: 0 auto'><tr><td><div class='copy' style='width: 440px'>A person you may know\
+    </div></td></tr></table></td></tr></table></td></tr></table>";
+
+#[test]
+fn a_message_in_a_wide_cell_is_drawn_at_the_text_size_not_shrunk_to_the_cell() {
+    let page = document("max-width: 480px; margin: 0 auto", NOTICE);
+    for window in [700_u32, 900] {
+        let harness = drawn(&page, window);
+        // At the text size the message is the 440 px it is laid out at (the body's 480 less the
+        // inset's two 18 px); shrunk to fit a 960 px cell it would be 0.4 to 0.7 of that.
+        let message = frame_width(&harness, ".copy");
+        assert!(
+            (message - 440.0).abs() < 1.0,
+            "{window} px window: the message is {message} px, not its own 440"
+        );
+        let frame = harness.frame(FRAME).expect("the frame has a document");
+        let middle = frame.centre("#message").expect("the message is drawn").x.0;
+        let frame_middle = width(&harness, FRAME) / 2.0;
+        assert!(
+            (middle - frame_middle).abs() < 10.0,
+            "{window} px window: the message is centred at {middle}, the frame at {frame_middle}"
+        );
+    }
+}
+
+/// A newsletter laid out for 800 px, its table and its picture fixed at that width, is still
+/// drawn smaller to fit a narrower pane (Mail's way, rather than cut at the right edge).
+#[test]
+fn a_newsletter_fixed_wider_than_the_frame_is_still_shrunk_to_fit() {
+    let markup = "<table width='100%'><tr><td align='center'>\
+        <table width='800' style='width: 800px'><tr><td width='800'>\
+        <div class='copy' style='width: 800px'>Fixed at 800</div></td></tr></table></td></tr></table>";
+    let harness = drawn(&document("", markup), 700);
+    let copy = frame_width(&harness, ".copy");
+    // 700 over the 800 and the inset's two 18 px: about 0.84 of 800.
+    assert!(
+        (600.0..700.0).contains(&copy),
+        "the 800 px newsletter is {copy} px in a 700 px pane"
+    );
+}

@@ -21,6 +21,7 @@ mod server_drafts;
 mod server_search;
 mod silent_server;
 mod submission_end_to_end;
+mod sync_slices;
 mod tokens;
 
 /// A new `tests/*.rs` is a new binary, linking everything again: it belongs here as a module.

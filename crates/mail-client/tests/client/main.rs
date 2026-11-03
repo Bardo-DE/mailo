@@ -387,6 +387,42 @@ fn a_change_is_told_and_the_same_answer_is_not() {
 }
 
 #[test]
+fn a_reading_that_finds_the_same_answer_is_still_told_as_read_with_the_generation_it_read_at() {
+    let (store, _dir) = on_disk();
+    let client = client(&store);
+    let mut views = client.live(Counted::new("views"));
+    views.wait();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_time()
+        .build()
+        .unwrap();
+    let read_at = |views: &Live<usize>| match views.snapshot() {
+        Snapshot::Ready { as_of, .. } => as_of,
+        _ => panic!("not read"),
+    };
+    let kept = view("Kept");
+    store.put_view(&kept).unwrap();
+    settled(&client);
+    // Take what has been told so far.
+    runtime.block_on(async {
+        while tokio::time::timeout(Duration::from_millis(50), views.read_again())
+            .await
+            .is_ok()
+        {}
+    });
+    let was = read_at(&views);
+
+    // A commit that leaves the count as it was: not news, but a front end waiting for the
+    // generation it wrote at is told a reading ended, and finds it newer.
+    store.put_view(&kept).unwrap();
+    runtime.block_on(async {
+        let told = tokio::time::timeout(Duration::from_secs(5), views.read_again()).await;
+        assert_eq!(told, Ok(true), "a reading of the same answer was not told");
+    });
+    assert!(read_at(&views) > was, "the reading is not newer");
+}
+
+#[test]
 fn a_stopped_client_reads_nothing_more() {
     let (store, _dir) = on_disk();
     let client = client(&store);

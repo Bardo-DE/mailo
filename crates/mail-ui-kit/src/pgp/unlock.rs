@@ -20,7 +20,7 @@ use std::rc::Rc;
 use dioxus::prelude::*;
 
 use super::{Busy, Tried};
-use crate::press::{available, on_primary};
+use crate::press::on_primary;
 use mail_logic::password::Password;
 
 /// The field and its button: `prompt` says what it is for, `act` is the button's words, `noun`
@@ -110,8 +110,8 @@ pub fn Passphrase(
             }
             Button {
                 answers: Answers::Return,
-                label: if working == Busy::Working { "Working…".to_owned() } else { act.to_string() },
-                availability: available(working != Busy::Working),
+                label: act.to_string(),
+                availability: if working == Busy::Working { Availability::Busy } else { Availability::Enabled },
                 onclick: on_primary(give),
                 common: Common { aria_label: Some(act.to_string()), ..Common::default() },
             }

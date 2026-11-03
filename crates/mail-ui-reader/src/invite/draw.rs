@@ -273,7 +273,7 @@ pub fn InviteCard(
                 Proposing { start, note, phase, on_send: propose_it }
             }
             if working {
-                p { class: "inv-before", Label { text: "Sending\u{2026}", role: LabelRole::Secondary } }
+                p { class: "inv-before", mail_ui_kit::pending::Pending { label: "Sending\u{2026}".to_owned() } }
             }
             if let Phase::Failed(why) = now {
                 InlineBanner { severity: Severity::Danger, text: why }

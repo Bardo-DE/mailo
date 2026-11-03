@@ -1,7 +1,6 @@
 /* The Rules page of Settings is quire's groups of rows; what it sizes here is a control in a
-   row: the vacation reply's fields, and the bar a run on existing mail fills. */
+   row: the vacation reply's fields. */
 .rules-field { width: 18rem; max-width: 100%; }
-.rules-progress { width: 10rem; }
 /* The Keyboard page: an action's keys, side by side in its row. */
 .kb-key { display: inline-flex; align-items: center; gap: var(--s-6); }
 /* A line of a rule's "When all of these match" or "Do" group: a condition's menus and value, an

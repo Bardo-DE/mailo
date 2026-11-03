@@ -178,6 +178,22 @@ impl Clock for Ahead {
 /// another's; while it is being read the value shows the last one's, so a change of Space does
 /// not flash empty.
 pub fn use_live<Q: Query>(key: impl FnMut() -> Q + 'static) -> Memo<Snapshot<Q::Output>> {
+    use_following(key, false)
+}
+
+/// [`use_live`], moved by every reading that ends and not only by one that read something
+/// different: the snapshot then carries the generation it was read at, which a caller waiting
+/// for its own write to be in the rows is watching (`Snapshot::Ready::as_of`). A reading made
+/// after that write, which found the rows as they were before it (the write and its undo
+/// landed between two readings), is otherwise never told, and the caller waits for good.
+pub fn use_live_as_read<Q: Query>(key: impl FnMut() -> Q + 'static) -> Memo<Snapshot<Q::Output>> {
+    use_following(key, true)
+}
+
+fn use_following<Q: Query>(
+    key: impl FnMut() -> Q + 'static,
+    every_reading: bool,
+) -> Memo<Snapshot<Q::Output>> {
     let client = use_client();
     let query = use_memo(key);
     let held = use_memo(move || Held(client.live(query())));
@@ -199,8 +215,14 @@ pub fn use_live<Q: Query>(key: impl FnMut() -> Q + 'static) -> Memo<Snapshot<Q::
             task.cancel();
         }
         following.set(Some(spawn(async move {
-            while live.changed().await {
-                told += 1;
+            if every_reading {
+                while live.read_again().await {
+                    told += 1;
+                }
+            } else {
+                while live.changed().await {
+                    told += 1;
+                }
             }
         })));
     });
