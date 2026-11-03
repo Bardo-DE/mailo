@@ -1035,3 +1035,14 @@ fn every_page_id_names_one_page_of_the_sidebar() {
         assert!(!named[..at].contains(id), "{id:?} names two pages");
     }
 }
+
+/// Each page in the sidebar has an icon of its own, so no two read as the same page at a glance.
+#[test]
+fn no_two_pages_share_an_icon() {
+    let mut seen = std::collections::HashMap::new();
+    for page in mail_ui_settings::settings::PAGES {
+        if let Some(other) = seen.insert(page.icon(), page.name()) {
+            panic!("{} and {} share an icon", other, page.name());
+        }
+    }
+}
