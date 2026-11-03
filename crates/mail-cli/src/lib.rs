@@ -18,6 +18,7 @@ pub mod contacts;
 pub mod discover;
 pub mod exec;
 pub mod export;
+pub mod following;
 mod folder;
 mod icons;
 pub mod import;

@@ -876,6 +876,32 @@ async fn a_refused_sign_in_ends_a_run_that_waits_for_that() {
 }
 
 #[tokio::test]
+async fn a_run_that_never_ends_idles_once_every_account_is_refused() {
+    // The watch a service runs: nothing to fetch is not an exit (which would be started again),
+    // and the refused account is asked of once, not on every turn.
+    let refused = Event::Failed {
+        retry: Retry::NeedsReauth,
+        why: "no credential stored".to_owned(),
+        pause: Pause::ServerBusy,
+    };
+    let host = Scripted::ending(refused);
+    let (store, _dir) = empty_store();
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+    let scheduler = Scheduler::new(
+        &host,
+        Arc::new(store),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        tx.clone(),
+    );
+    tx.send(Note::Accounts(vec![(acct_account(), every())]))
+        .unwrap();
+    let ran = tokio::time::timeout(Duration::from_millis(300), scheduler.run(rx, End::Never)).await;
+    assert!(ran.is_err(), "the run ended with nothing left to fetch");
+    assert_eq!(host.runs(), 1, "a refused account is not tried again");
+}
+
+#[tokio::test]
 async fn a_run_over_no_accounts_has_nothing_to_wait_for() {
     let host = Scripted::ending(finished());
     let (store, _dir) = empty_store();
