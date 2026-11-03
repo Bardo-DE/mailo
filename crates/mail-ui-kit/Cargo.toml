@@ -64,13 +64,13 @@ dioxus = { version = "0.7" }
 # display). quire re-exports only `StandardAction`; mailo names `Action`, `AppAction`, `Context` and
 # `Chord` as well. The rev quire pins (`docs/workspace-deps.toml`), so one chordkit is built.
 chordkit = { git = "https://github.com/PoHsuanLai/chordkit.git", rev = "99eec9ddd03ee345b669fcc7954ed44590724290" }
-ds = { git = "https://github.com/PoHsuanLai/quire.git", rev = "e19728b7ee9e369d360c646bf5e7ed559bc3d6f9" }  # e19728b7 (v0.3.58; forks blitz 841386a7, blitz-kit fd08b468)
+ds = { git = "https://github.com/PoHsuanLai/quire.git", rev = "5664ee9a54fa4452ac3f377fb78708c6186c13fd" }  # 5664ee9a (master, scroll-together merged; forks blitz 841386a7, blitz-kit 5b5380d0)
 # Settings I/O: `appearance.toml` (imported once from `appearance.json`), the settings portal.
-ds-settings = { git = "https://github.com/PoHsuanLai/quire.git", rev = "e19728b7ee9e369d360c646bf5e7ed559bc3d6f9", features = ["dioxus"] }  # e19728b7 (v0.3.58; forks blitz 841386a7, blitz-kit fd08b468)
+ds-settings = { git = "https://github.com/PoHsuanLai/quire.git", rev = "5664ee9a54fa4452ac3f377fb78708c6186c13fd", features = ["dioxus"] }  # 5664ee9a (master, scroll-together merged; forks blitz 841386a7, blitz-kit 5b5380d0)
 # `mailo.toml`, and the `appearance.toml` written once on the first run after the move.
 toml = "1"
 # The window: quire's Blitz host (the window, its fonts, focus, clipboard, PDF output).
-ds-blitz = { git = "https://github.com/PoHsuanLai/quire.git", rev = "e19728b7ee9e369d360c646bf5e7ed559bc3d6f9", features = ["pdf", "print", "spell"] }  # e19728b7 (v0.3.58; forks blitz 841386a7, blitz-kit fd08b468)
+ds-blitz = { git = "https://github.com/PoHsuanLai/quire.git", rev = "5664ee9a54fa4452ac3f377fb78708c6186c13fd", features = ["pdf", "print", "spell"] }  # 5664ee9a (master, scroll-together merged; forks blitz 841386a7, blitz-kit 5b5380d0)
 blitz-dom = { workspace = true }
 dioxus-native-dom = { workspace = true }
 # A contact photo as a `data:` address (`book.rs`).

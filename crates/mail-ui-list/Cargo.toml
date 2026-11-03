@@ -38,7 +38,7 @@ dioxus = { version = "0.7" }
 # chordkit, the keymap core quire resolves keys with. The rev quire pins, so one chordkit is built.
 chordkit = { git = "https://github.com/PoHsuanLai/chordkit.git", rev = "99eec9ddd03ee345b669fcc7954ed44590724290" }
 # quire, the shared design system, pinned as the desktop manifest pins it.
-ds = { git = "https://github.com/PoHsuanLai/quire.git", rev = "e19728b7ee9e369d360c646bf5e7ed559bc3d6f9" }  # e19728b7 (v0.3.58; forks blitz 841386a7, blitz-kit fd08b468)
+ds = { git = "https://github.com/PoHsuanLai/quire.git", rev = "5664ee9a54fa4452ac3f377fb78708c6186c13fd" }  # 5664ee9a (master, scroll-together merged; forks blitz 841386a7, blitz-kit 5b5380d0)
 
 [dev-dependencies]
 # The values a test starts from (`mail_domain::testing`): the program never has them.
