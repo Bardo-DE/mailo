@@ -35,8 +35,8 @@ fn wait_to_look(
     while written.try_recv().is_ok() {}
 }
 
-/// A receiver that moves whenever the accounts that have a server, or how often each is
-/// fetched, have changed: read again after each write to the store, and every
+/// A receiver that moves whenever the accounts that have a server, how often each is fetched,
+/// or when each last finished a pass have changed: read again after each write to the store, and every
 /// [`ACCOUNTS_EVERY`], by a thread of its own.
 pub fn follow_accounts(
     store: &Arc<SqliteStore>,
@@ -56,12 +56,17 @@ pub fn follow_accounts(
                 })
             });
             let mail = mail_edge::mail(&store, config.as_deref());
-            let intervals = || match mail.roster() {
-                Ok(accounts) => mail_core::sync::due::intervals(&accounts),
-                Err(why) => {
-                    log::warn!("the accounts could not be read: {why}");
-                    Vec::new()
-                }
+            // How often each account is fetched, and when each last finished a pass: a pass
+            // finished in a window that signed an account in is news to a watch that gave up on it.
+            let intervals = || {
+                let every = match mail.roster() {
+                    Ok(accounts) => mail_core::sync::due::intervals(&accounts),
+                    Err(why) => {
+                        log::warn!("the accounts could not be read: {why}");
+                        Vec::new()
+                    }
+                };
+                (every, mail_core::sync::watcher::finished(&mail))
             };
             let mut known = intervals();
             let mut looked = Some(Instant::now());

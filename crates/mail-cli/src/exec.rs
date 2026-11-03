@@ -468,9 +468,14 @@ pub fn execute(
         };
         // A Sync asked for at the watch's door (`ipc::watching`) is a pass now, here.
         let asked = Some(watching.asked());
-        // Only ends when every account has stopped for a reason worth stopping for — a
-        // credential the server refused, which no amount of retrying fixes.
-        let ends = mail_edge::block_on(mail.sync().watch(
+        // The accounts as they change: one added, or one signed in by a window, is fetched
+        // from then on.
+        let accounts =
+            crate::following::follow_accounts(&store, config.map(std::path::Path::to_path_buf));
+        // Never ends for an account that cannot sync (none signed in yet, a credential the
+        // server refused): that is said once, and the watch idles until the accounts change.
+        // Ended by its unit, by Ctrl-C, or by an error the watch itself cannot run past.
+        let ends = mail_edge::block_on(mail.sync().watch_until(
             notifier,
             mail_core::sync::watcher::Live {
                 whom: &whom,
@@ -482,6 +487,8 @@ pub fn execute(
             },
             &say,
             asked,
+            Some(accounts),
+            mail_core::schedule::End::Never,
         ))
         .map_err(super::remedy::error)?;
         let accounts = mail.roster().map_err(super::remedy::error)?;
