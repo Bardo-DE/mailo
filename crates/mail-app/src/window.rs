@@ -26,15 +26,22 @@ pub fn open(
     // the one that does whether a window is open or not (`crate::background`): its scheduler
     // starts here, before the window, so the window finds it.
     let stays = crate::background::stays_open(crate::background::Os::HERE);
-    if stays {
-        crate::background::start(store.clone(), profile.clone(), config.clone());
-    }
     // This thread is the one the window draws on, and what it reads it reads before it can draw
     // again: the last reader is kept for it, so it never waits behind a sync pass's reads or a
     // worker's snapshot.
     SqliteStore::reserve_reader_for_this_thread();
     // The one client every window reads mail through, reaching the servers as the program does.
     let client = mail_client::Client::open(store.clone(), mail_client::ClientConfig::default());
+    // The watch is lent the window's own `Wanted`, so its passes fetch around what the window is
+    // showing and leave what it is opening to it.
+    if stays {
+        crate::background::start(
+            store.clone(),
+            profile.clone(),
+            config.clone(),
+            client.wanted().clone(),
+        );
+    }
     let kept = config.clone();
     client.reach(mail_client::Reach::new(move |store| {
         mail_edge::mail(&store, kept.as_deref()).with_junk(mail_ui_model::settings::junk_policy(

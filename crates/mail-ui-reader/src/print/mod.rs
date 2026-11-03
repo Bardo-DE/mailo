@@ -345,11 +345,12 @@ pub mod native_print {
         }
 
         /// The system's print dialog, one print at a time across the process. In this crate's
-        /// tests, a dialog that refuses: a window drawn by a test never opens a real one.
+        /// tests and the window's (`testing`), a dialog that refuses: a window drawn by a test
+        /// never opens a real one.
         fn system() -> Printer {
             static BUSY: std::sync::LazyLock<Arc<AtomicBool>> =
                 std::sync::LazyLock::new(|| Arc::new(AtomicBool::new(false)));
-            if cfg!(test) {
+            if cfg!(any(test, feature = "testing")) {
                 return Printer::with_dialog(|_, _| {
                     Err(PrintError::NoViewer(
                         "there is no print dialog in tests".to_owned(),

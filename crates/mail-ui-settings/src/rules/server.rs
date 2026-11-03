@@ -36,7 +36,7 @@ impl std::fmt::Debug for Pusher {
 impl Pusher {
     /// The server, signed in to as `mailo sieve push` signs in. Never replaces a script someone
     /// else made: the refusal says so, and the command line is where that is chosen.
-    #[cfg(not(test))]
+    #[cfg(not(any(test, feature = "testing")))]
     pub fn server() -> Self {
         Self(Arc::new(|client, account, _now| {
             client
@@ -48,7 +48,7 @@ impl Pusher {
 
     /// Not in a test build: the real one reads the keyring and opens a socket, and a test that
     /// forgot to provide its own must fail in words rather than reach either.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "testing"))]
     pub fn server() -> Self {
         Self(Arc::new(|_, account, _| {
             Err(format!(
@@ -76,7 +76,7 @@ impl std::fmt::Debug for AwaySetter {
 
 impl AwaySetter {
     /// The server, signed in to as `mailo vacation on` signs in.
-    #[cfg(not(test))]
+    #[cfg(not(any(test, feature = "testing")))]
     pub fn server() -> Self {
         use mail_client::rules::server::PushDone;
         Self(Arc::new(|client, account| {
@@ -88,7 +88,7 @@ impl AwaySetter {
     }
 
     /// Not in a test build, as [`Pusher::server`] is not.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "testing"))]
     pub fn server() -> Self {
         Self(Arc::new(|_, account| {
             Err(format!(

@@ -118,6 +118,7 @@ pub fn start(
     store: Arc<SqliteStore>,
     profile: mail_logic::profile::ProfileId,
     config: Option<std::path::PathBuf>,
+    wanted: mail_core::wanted::Wanted,
 ) {
     let first = claimed(&profile);
     if first.is_some() {
@@ -129,7 +130,7 @@ pub fn start(
             let mut next = first;
             loop {
                 match next.take() {
-                    Some(held) => watch(&store, held, config.as_deref()),
+                    Some(held) => watch(&store, held, config.as_deref(), &wanted),
                     None => std::thread::sleep(AGAIN),
                 }
                 next = claimed(&profile);
@@ -150,7 +151,12 @@ fn claimed(profile: &mail_logic::profile::ProfileId) -> Option<Watching> {
 
 /// Watch `store` while holding the lock, for as long as the process runs. The lock stays with
 /// the process once taken, so a watch that ended on an error is started again after [`AGAIN`].
-fn watch(store: &Arc<SqliteStore>, held: Watching, config: Option<&std::path::Path>) -> ! {
+fn watch(
+    store: &Arc<SqliteStore>,
+    held: Watching,
+    config: Option<&std::path::Path>,
+    wanted: &mail_core::wanted::Wanted,
+) -> ! {
     WATCHING_HERE.store(true, Ordering::Release);
     if let Some(why) = held.doorless() {
         log::warn!("Sync in another process will not reach mailo: {why}");
@@ -186,6 +192,7 @@ fn watch(store: &Arc<SqliteStore>, held: Watching, config: Option<&std::path::Pa
                 Some(held.asked()),
                 Some(accounts.clone()),
                 End::Never,
+                wanted.clone(),
             ))
         }));
         match ran {
