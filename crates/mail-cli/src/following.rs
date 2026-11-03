@@ -81,7 +81,6 @@ pub fn follow_accounts(
     accounts
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

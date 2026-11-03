@@ -148,7 +148,8 @@ fn watch(store: &Arc<SqliteStore>, held: Watching, config: Option<&std::path::Pa
     if let Some(why) = held.doorless() {
         log::warn!("Sync in another process will not reach mailo: {why}");
     }
-    let accounts = mail_cli::following::follow_accounts(store, config.map(std::path::Path::to_path_buf));
+    let accounts =
+        mail_cli::following::follow_accounts(store, config.map(std::path::Path::to_path_buf));
     // The app runs for days: what is said, whose mail, in which mailboxes, with which sound, and
     // how the junk filter behaves are each read as they are used, so Settings is followed from
     // the next pass and not from the next start.
