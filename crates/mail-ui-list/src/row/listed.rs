@@ -88,6 +88,17 @@ impl Listed {
         }
     }
 
+    /// How many lines of text the row draws when `snippets` are shown: what its height is
+    /// computed from, known without working out the row (`row` agrees with it).
+    pub fn lines(&self, snippets: bool) -> ThreadLines {
+        match self {
+            Listed::Thread(summary) | Listed::Message(summary, _) => {
+                lines(snippets && !summary.snippet.is_empty())
+            }
+            Listed::Draft(_) => lines(snippets && self.held().is_none()),
+        }
+    }
+
     /// The row as drawn at `now` in `zone`, its hours by `clock`: with a search's marks (`hit`), and a line of
     /// snippet when `snippets` are shown.
     pub fn row<Tz: TimeZone>(
