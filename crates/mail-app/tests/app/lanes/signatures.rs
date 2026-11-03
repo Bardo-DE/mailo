@@ -23,6 +23,9 @@ fn a_signature_made_in_settings_signs_a_new_message() {
     );
 
     window.in_settings(copy::titles::SIGNATURES, |settings| {
+        let row = format!("#signatures-pane-open-{}", account());
+        until(settings, "the account is listed", |h| h.count(&row) == 1);
+        click(settings, &row);
         let new = format!("[*|aria-label=\"{}\"]", copy::aria::new_signature_for(ME));
         until(settings, "the address offers New Signature", |h| {
             h.count(&new) == 1

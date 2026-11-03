@@ -289,3 +289,39 @@ async fn an_attachment_that_will_not_download_says_so_in_a_danger_banner() {
     );
     assert!(markup.contains(r#"data-severity="danger""#), "{markup}");
 }
+
+#[tokio::test]
+async fn a_body_that_is_downloading_shows_outline_rows_not_the_large_spinner() {
+    dispatching();
+    let (store, thread, _dir) = headers_only();
+    // A fetch that waits until the test lets it go, so the pane is drawn mid-download.
+    let (release, held) = std::sync::mpsc::channel::<()>();
+    let held = std::sync::Mutex::new(held);
+    let waiting = Fetchers {
+        body: Arc::new(move |_, _| {
+            let _ = held.lock().unwrap().recv_timeout(Duration::from_secs(10));
+            Err((Retry::Now, "released".to_owned()))
+        }),
+        part: Arc::new(|_, _, _| Err("the part is gone".to_owned())),
+    };
+    let mut dom = VirtualDom::new_with_props(Open, OpenProps { thread })
+        .with_root_context(crate::ui::fixtures::client(&store))
+        .with_root_context(waiting);
+    let seen = rebuild_into(&mut dom);
+    let button = seen.one("aria-label", "Download Message");
+    click(&mut dom, button);
+    let markup = settle(&mut dom, |m| m.contains(r#"class="ds-skeleton-row"#)).await;
+    let _ = release.send(());
+    assert!(markup.contains("body-pane"), "{markup}");
+    // Each outline the pane draws is the reader's three rows.
+    let outlines = markup.matches(r#"class="reader-loading""#).count();
+    assert!(outlines >= 1, "no reader outline");
+    assert_eq!(
+        markup.matches(r#"class="ds-skeleton-row""#).count(),
+        3 * outlines
+    );
+    assert!(
+        !markup.contains(r#"data-style="spinner""#),
+        "the default spinner is drawn:\n{markup}"
+    );
+}

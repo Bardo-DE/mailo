@@ -137,20 +137,17 @@ pub(crate) fn SealWarn(bar: SealBar, on_act: EventHandler<BarAct>) -> Element {
     let without = "Send without encryption";
     let (severity, text, actions, detail) = match bar {
         SealBar::Clear => return rsx! {},
-        SealBar::Sealing => (
-            Severity::Info,
-            "Signing and encrypting…".to_owned(),
-            rsx! {},
-            None,
-        ),
+        // Work with no count: a small spinner leading the words, not a banner.
+        SealBar::Sealing => {
+            return rsx! {
+                mail_ui_kit::pending::Pending { label: "Signing and encrypting…".to_owned() }
+            };
+        }
         SealBar::Looking(addresses) => {
             let listed = addresses.join(", ");
-            (
-                Severity::Info,
-                format!("Looking up keys for {listed}…"),
-                rsx! {},
-                None,
-            )
+            return rsx! {
+                mail_ui_kit::pending::Pending { label: format!("Looking up keys for {listed}…") }
+            };
         }
         SealBar::NoKeyFor(addresses) => {
             let listed = addresses.join(", ");

@@ -240,7 +240,11 @@ pub fn ServerSearch(
                     rsx! {
                         div { key: "{account}", class: "server-search-one",
                             if let Some(said) = answer.as_ref().and_then(|a| said(&address, a)) {
-                                p { class: if bad { "status bad" } else { "status" }, "{said}" }
+                                if matches!(answer, Some(Answer::Running)) {
+                                    mail_ui_kit::pending::Pending { label: said }
+                                } else {
+                                    p { class: if bad { "status bad" } else { "status" }, "{said}" }
+                                }
                             }
                             if ask {
                                 Button {

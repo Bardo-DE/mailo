@@ -24,6 +24,23 @@ const SUBJECT: &str = "The draft budget";
 /// Long enough for the reminders' sweep, which sleeps at most five minutes, to run again.
 const A_SWEEP: u64 = 6 * 60_000;
 
+/// Let the window's clock run on, a minute at a time, until `done` holds.
+///
+/// A sweep is asked at a moment of the window's clock and answered by a store thread in the
+/// machine's own time, and the clock does not wait for the answer: one that is slow has the
+/// clock a few minutes on by the time the sweep sleeps again, so the next is that much later in
+/// the clock, further than [`Window::until`], which moves it ten milliseconds a try, goes in the
+/// time it has. So the clock is moved the way a sweep needs, a minute at a time with a pause for
+/// the threads between, until the window shows what the sweep did.
+fn sweeping_until(window: &mut Window, what: &str, done: impl Fn(&Window) -> bool) {
+    let deadline = std::time::Instant::now() + super::settle::WAIT_BOUND;
+    while !done(window) && std::time::Instant::now() < deadline {
+        window.harness.wait(60_000);
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    assert!(done(window), "{what}\n{}", window.harness.html());
+}
+
 /// What a returned conversation's row says.
 fn no_reply() -> &'static str {
     let returned = FollowUp::Returned {
@@ -117,9 +134,9 @@ fn a_message_sent_tomorrow_at_eight_waits_then_its_reminder_comes_back_with_no_r
 
     // The window's next sweep puts the reminder on it: three days from when it left.
     window.harness.wait(A_SWEEP);
-    window.until_stored("the reminder joins its conversation", |store| {
+    sweeping_until(&mut window, "the reminder joins its conversation", |w| {
         matches!(
-            conversation(store, SUBJECT).follow_up,
+            conversation(&w.store, SUBJECT).follow_up,
             FollowUp::Until { .. }
         )
     });
@@ -158,11 +175,16 @@ fn a_message_sent_tomorrow_at_eight_waits_then_its_reminder_comes_back_with_no_r
 
     // Its time, and nobody has answered: back on top of the inbox, saying so, and said once.
     window.harness.wait(A_SWEEP);
-    window.until("the conversation comes back on top with no reply", |h| {
-        row_of(h, SUBJECT) == Some(1)
-            && h.text_of(".list .no-reply")
-                .is_some_and(|said| said.contains(no_reply()))
-    });
+    sweeping_until(
+        &mut window,
+        "the conversation comes back on top with no reply",
+        |w| {
+            row_of(&w.harness, SUBJECT) == Some(1)
+                && w.harness
+                    .text_of(".list .no-reply")
+                    .is_some_and(|said| said.contains(no_reply()))
+        },
+    );
     assert_eq!(
         window.harness.count(".list .no-reply"),
         1,

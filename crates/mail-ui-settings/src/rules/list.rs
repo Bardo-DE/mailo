@@ -8,9 +8,6 @@
 
 use dioxus::prelude::*;
 use ds::base::press::{PointerButton, Press};
-use ds::components::controls::progress::model::{Progress, ProgressStyle};
-use ds::components::controls::progress::view::ProgressIndicator;
-use ds::components::fields::field_row::FieldRow;
 use ds::components::lists::list::model::ListStyle;
 use ds::components::lists::row::size::RowSize;
 use ds::prelude::*;
@@ -21,7 +18,7 @@ use super::server::reach;
 use super::work::{self, Listed, Step};
 use super::{Said, open, row_id};
 use mail_ui_kit::common::Problem;
-use mail_ui_kit::common::{add_mark, classed};
+use mail_ui_kit::common::add_mark;
 use mail_ui_kit::data::AccountRow;
 use mail_ui_kit::files::Phase;
 use mail_ui_kit::menu::{Floating, MenuItem};
@@ -85,7 +82,7 @@ pub fn RulesList(
             },
         ));
     }
-    let new_id = row_id(&RulesAt::Rule(None));
+    let new_id = row_id(&RulesAt::Rule(row.id.clone(), None));
     // New Rule is a list of its own under the rules, as New Space is under the Spaces.
     let add = vec![ListItem::row(
         NEW.to_owned(),
@@ -96,7 +93,10 @@ pub fn RulesList(
                 title: copy::controls::NEW_RULE,
                 size: RowSize::Settings,
                 accessory: Accessory::Chevron,
-                onclick: move |_| open(shell, RulesAt::Rule(None)),
+                onclick: {
+                    let account = row.id.clone();
+                    move |_| open(shell, RulesAt::Rule(account.clone(), None))
+                },
                 common: Common { id: new_id, aria_label: Some(copy::controls::NEW_RULE.to_owned()), ..Common::default() },
             }
         },
@@ -138,6 +138,8 @@ fn RuleRow(
     let rule = listed.rule.clone();
     let on = rule.state == RuleState::Enabled;
     let id = rule.id;
+    let account = row.id.clone();
+    let element = row_id(&RulesAt::Rule(account.clone(), Some(id)));
     let toggled = rule.clone();
     let opened = listed.clone();
     rsx! {
@@ -157,10 +159,10 @@ fn RuleRow(
                     let mut menu = menu;
                     menu.set(Some((opened.clone(), Rect { origin: press.at, size: Size::default() })));
                 } else {
-                    open(shell, RulesAt::Rule(Some(id)));
+                    open(shell, RulesAt::Rule(account.clone(), Some(id)));
                 }
             },
-            common: Common { id: row_id(&RulesAt::Rule(Some(id))), ..Common::default() },
+            common: Common { id: element, ..Common::default() },
         }
     }
 }
@@ -264,13 +266,9 @@ pub fn RunProgress(phase: Signal<Phase>, name: String) -> Element {
             let share = (done.min(of) * 1000).checked_div(of).unwrap_or(0);
             rsx! {
                 FormSection {
-                    FieldRow {
+                    mail_ui_kit::pending::Meter {
                         label: format!("Running “{name}”…"),
-                        ProgressIndicator {
-                            style: ProgressStyle::Bar,
-                            progress: Progress::Known(Fraction(u16::try_from(share).unwrap_or(1000))),
-                            common: classed("rules-progress"),
-                        }
+                        thousandths: u16::try_from(share).unwrap_or(1000),
                     }
                 }
             }

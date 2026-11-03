@@ -20,7 +20,7 @@ use crate::ui::fixtures::{
 use crate::ui::settings_tests::rules_away::{answering, own_server};
 use mail_ui_kit::data::{AccountRow, account_rows};
 use mail_ui_kit::files::Phase;
-use mail_ui_kit::view::{RulesAt, Shell};
+use mail_ui_kit::view::{RulesAt, Shell, VacationAt};
 use mail_ui_model::copy;
 use mail_ui_settings::rules::RulesPage;
 use mail_ui_settings::rules::list::RunProgress;
@@ -44,17 +44,28 @@ async fn landed(dom: &mut VirtualDom, mut seen: Seen) -> Seen {
     seen.merge(drain_seen(dom))
 }
 
-/// The page on `account`, at `at`; Settings' Vacation Reply page instead, for `vacation`, on
-/// `account`'s reply.
+/// The page with its pane at `at`, a rule's page over its account's rules over the accounts;
+/// Settings' Vacation Reply page instead, for `vacation`, on `account`'s reply.
 #[component]
 fn Page(account: Option<AccountId>, at: RulesAt, #[props(default)] vacation: bool) -> Element {
-    let shell = use_signal(|| Shell {
-        rules: mail_ui_kit::view::RulesPage {
-            account: account.clone(),
-            path: PanePath::new(RulesAt::List).pushed(at.clone()),
-        },
-        vacation_account: account.clone(),
-        ..Shell::default()
+    let shell = use_signal(|| {
+        let accounts = PanePath::new(RulesAt::List);
+        Shell {
+            rules_pane: match &at {
+                RulesAt::List => accounts,
+                RulesAt::Account(_) => accounts.pushed(at.clone()),
+                RulesAt::Rule(of, _) => accounts
+                    .pushed(RulesAt::Account(of.clone()))
+                    .pushed(at.clone()),
+            },
+            vacation_pane: match &account {
+                Some(account) if vacation => {
+                    PanePath::new(VacationAt::List).pushed(VacationAt::Account(account.clone()))
+                }
+                _ => PanePath::new(VacationAt::List),
+            },
+            ..Shell::default()
+        }
     });
     mail_ui_kit::motion::use_motion();
     // Inside a quire root, as the window has it: the menus float in its overlay, and a toast is
@@ -74,19 +85,16 @@ fn Page(account: Option<AccountId>, at: RulesAt, #[props(default)] vacation: boo
     }
 }
 
-/// The page on `account`'s list, its pushes through `push`.
+/// The page on `account`'s rules, its pushes through `push`.
 fn sheet(store: &Arc<SqliteStore>, account: AccountId, push: Pusher) -> VirtualDom {
-    sheet_at(store, account, push, RulesAt::List)
+    sheet_at(store, account.clone(), push, RulesAt::Account(account))
 }
 
+/// The page on `account`, its pane at `at`.
 fn sheet_at(store: &Arc<SqliteStore>, account: AccountId, push: Pusher, at: RulesAt) -> VirtualDom {
-    let at = match at {
-        RulesAt::List => None,
-        other => Some(other),
-    };
     let props = PageProps {
         account: Some(account),
-        at: at.unwrap_or(RulesAt::List),
+        at,
         vacation: false,
     };
     VirtualDom::new_with_props(Page, props)
@@ -228,13 +236,62 @@ async fn a_condition_the_rules_cannot_read_says_why_and_save_is_refused() {
     );
 }
 
+/// Rules is nested: the accounts at its root, a row pushes that account's rules (no rule drawn
+/// at the root), New Rule pushes a rule's page over those, and back comes back a page at a time.
+#[tokio::test]
+async fn rules_open_on_the_accounts_and_nest_an_account_s_rules_and_a_rule() {
+    dispatching();
+    let (store, _dir) = crate::ui::fixtures::empty();
+    let row = own_server(&store);
+    two_rules(&store, row.id.clone());
+    let (push, _) = counting();
+    let mut dom = sheet_at(&store, row.id.clone(), push, RulesAt::List);
+    let seen = {
+        let first = rebuild_into(&mut dom);
+        landed(&mut dom, first).await
+    };
+    let account = format!("rules-pane-open-{}", row.id);
+    let page = dioxus_ssr::render(&dom);
+    assert!(page.contains(&format!("id=\"{account}\"")), "{page}");
+    assert!(!page.contains("Bills"), "a rule at the root: {page}");
+
+    let pushed = click(&mut dom, seen.one("id", &account));
+    let rules = landed(&mut dom, pushed).await;
+    let page = dioxus_ssr::render(&dom);
+    assert!(page.contains("Bills"), "{page}");
+    assert!(page.contains("rules-pane-new"), "{page}");
+
+    let new = click(&mut dom, rules.one("id", "rules-pane-new"));
+    let rule = landed(&mut dom, new).await;
+    assert!(dioxus_ssr::render(&dom).contains(copy::aria::SAVE_RULE));
+
+    // The stack alternates its two back buttons: the rule's page has the root one, the
+    // account's rules the detail one.
+    let back = click(&mut dom, rule.one("id", "rules-pane-back-root"));
+    let rules = landed(&mut dom, back).await;
+    let page = dioxus_ssr::render(&dom);
+    assert!(!page.contains(copy::aria::SAVE_RULE), "{page}");
+    assert!(page.contains("Bills"), "{page}");
+
+    let back = click(&mut dom, rules.one("id", "rules-pane-back-detail"));
+    let _ = landed(&mut dom, back).await;
+    let page = dioxus_ssr::render(&dom);
+    assert!(!page.contains("Bills"), "back left the rules: {page}");
+    assert!(page.contains(&format!("id=\"{account}\"")), "{page}");
+}
+
 #[tokio::test]
 async fn saving_a_rule_puts_the_rules_on_the_server_and_goes_back_to_the_list() {
     dispatching();
     let (store, _dir) = crate::ui::fixtures::empty();
     let row = own_server(&store);
     let (push, calls) = counting();
-    let mut dom = sheet_at(&store, row.id.clone(), push, RulesAt::Rule(None));
+    let mut dom = sheet_at(
+        &store,
+        row.id.clone(),
+        push,
+        RulesAt::Rule(row.id.clone(), None),
+    );
     let seen = {
         let first = rebuild_into(&mut dom);
         landed(&mut dom, first).await
@@ -282,7 +339,12 @@ async fn a_rule_can_match_any_of_its_conditions_and_notify() {
     let (store, _dir) = crate::ui::fixtures::empty();
     let row = own_server(&store);
     let (push, _) = counting();
-    let mut dom = sheet_at(&store, row.id.clone(), push, RulesAt::Rule(None));
+    let mut dom = sheet_at(
+        &store,
+        row.id.clone(),
+        push,
+        RulesAt::Rule(row.id.clone(), None),
+    );
     let seen = {
         let first = rebuild_into(&mut dom);
         landed(&mut dom, first).await
@@ -390,11 +452,14 @@ async fn the_list_names_each_rule_with_its_switch_and_its_menu_moves_it() {
     // Right-click Bills: Move Down, and the order on the page is the order in the store.
     let bills_row = seen.one(
         "id",
-        &mail_ui_settings::rules::row_id(&RulesAt::Rule(Some(
-            work::listed(&crate::ui::fixtures::client(&store), row.id.clone()).unwrap()[0]
-                .rule
-                .id,
-        )))
+        &mail_ui_settings::rules::row_id(&RulesAt::Rule(
+            row.id.clone(),
+            Some(
+                work::listed(&crate::ui::fixtures::client(&store), row.id.clone()).unwrap()[0]
+                    .rule
+                    .id,
+            ),
+        ))
         .unwrap(),
     );
     let opened = right_click(&mut dom, bills_row);
@@ -616,7 +681,7 @@ async fn every_state(store: &Arc<SqliteStore>) -> String {
         store,
         row.id.clone(),
         push.clone(),
-        RulesAt::Rule(Some(first)),
+        RulesAt::Rule(row.id.clone(), Some(first)),
     );
     let seen = {
         let first = rebuild_into(&mut rule);
@@ -638,7 +703,12 @@ async fn every_state(store: &Arc<SqliteStore>) -> String {
     crate::ui::fixtures::drain(&mut rule);
 
     // And a new rule's rows, to draw them.
-    let mut rows = sheet_at(store, row.id.clone(), push.clone(), RulesAt::Rule(None));
+    let mut rows = sheet_at(
+        store,
+        row.id.clone(),
+        push.clone(),
+        RulesAt::Rule(row.id.clone(), None),
+    );
     {
         let first = rebuild_into(&mut rows);
         landed(&mut rows, first).await
@@ -702,7 +772,7 @@ async fn undo_puts_a_deleted_rule_back_as_it_was() {
         .id;
     let news_row = seen.one(
         "id",
-        &mail_ui_settings::rules::row_id(&RulesAt::Rule(Some(news))).unwrap(),
+        &mail_ui_settings::rules::row_id(&RulesAt::Rule(row.id.clone(), Some(news))).unwrap(),
     );
     let opened = right_click(&mut dom, news_row);
     let opened = landed(&mut dom, opened).await;
@@ -772,7 +842,12 @@ async fn a_replying_rule_has_the_days_between_answers() {
     );
 
     let (push, _) = counting();
-    let mut dom = sheet_at(&store, row.id.clone(), push, RulesAt::Rule(Some(ids[0])));
+    let mut dom = sheet_at(
+        &store,
+        row.id.clone(),
+        push,
+        RulesAt::Rule(row.id.clone(), Some(ids[0])),
+    );
     let seen = {
         let first = rebuild_into(&mut dom);
         landed(&mut dom, first).await
@@ -785,7 +860,12 @@ async fn a_replying_rule_has_the_days_between_answers() {
     assert_eq!(away.rule.reply_days, 9, "the days were not kept");
 
     let (push, _) = counting();
-    let mut dom = sheet_at(&store, row.id, push, RulesAt::Rule(Some(ids[1])));
+    let mut dom = sheet_at(
+        &store,
+        row.id.clone(),
+        push,
+        RulesAt::Rule(row.id, Some(ids[1])),
+    );
     let page = {
         let first = rebuild_into(&mut dom);
         landed(&mut dom, first).await;

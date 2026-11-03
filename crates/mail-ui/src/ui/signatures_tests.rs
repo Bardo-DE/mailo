@@ -1,5 +1,5 @@
-//! Settings › Signatures over the reference fixture: an account's signatures beside the list of
-//! accounts, a signature's page pushed from its row,
+//! Settings › Signatures over the reference fixture: the accounts that send listed first, an
+//! account's signatures pushed from its row, a signature's page pushed from its row,
 //! Delete Signature said in a toast whose Undo puts it back, and a change the store refuses said
 //! under the words.
 
@@ -29,8 +29,8 @@ fn work_signature(built: &Work) -> Signature {
     signature::create(&built.store, identity.id, "Work").unwrap()
 }
 
-/// The Settings window on Signatures, with `made`'s account chosen in the list and its page
-/// pushed from its row.
+/// The Settings window on Signatures, with `made`'s account pushed from its row in the list and
+/// then its page from its row.
 fn pushed(built: &Work, made: &Signature) -> (VirtualDom, Seen) {
     let (mut dom, seen) = opened_on(built, PageId::SIGNATURES);
     let account = built
@@ -43,7 +43,7 @@ fn pushed(built: &Work, made: &Signature) -> (VirtualDom, Seen) {
         &mut dom,
         seen.one(
             "id",
-            &mail_ui_settings::settings::account_split::row_id("signatures-pane", &account),
+            &mail_ui_settings::settings::account_list::row_id("signatures-pane", &account),
         ),
     );
     let seen = seen.merge(picked).merge(drain_seen(&mut dom));

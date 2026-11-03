@@ -236,7 +236,17 @@ fn rows_picked_together_are_acted_on_as_one_gesture_and_one_undo() {
     // The bar's Star and Mute act on both; each is one Ctrl-Z.
     let starred = |window: &Window| stored_where(window, |t| t.star == Star::Starred);
     window.click(&labelled(&copy::aria::on_selected(copy::menus::STAR, 2)));
-    window.until_stored("the bar stars both", |_| true);
+    window.until_stored("the bar stars both", |store| {
+        listed(
+            store,
+            mail_domain::Filter::Account(account()),
+            chrono::Utc::now(),
+        )
+        .iter()
+        .filter(|t| t.star == Star::Starred)
+        .count()
+            == 2
+    });
     assert_eq!(starred(&window), [subjects[0], subjects[2]]);
     window.press(&[PRIMARY], Key::Char('z'), 1);
     // The undo goes through the client, which commits it a moment after the key.
@@ -259,7 +269,9 @@ fn rows_picked_together_are_acted_on_as_one_gesture_and_one_undo() {
             chrono::Utc::now(),
         )
         .iter()
-        .any(|t| t.mute == Mute::Muted)
+        .filter(|t| t.mute == Mute::Muted)
+        .count()
+            == 2
     });
     assert_eq!(muted(&window), [subjects[0], subjects[2]]);
     window.press(&[PRIMARY], Key::Char('z'), 1);
@@ -290,7 +302,9 @@ fn rows_picked_together_are_acted_on_as_one_gesture_and_one_undo() {
     window.press(&[Key::Shift], Key::Char('j'), 1);
     window.press(&[], Key::Char('e'), 1);
     window.until("the three leave", |h| h.count(".list .ds-thread") == 1);
-    assert_eq!(inbox_at(&window.store, chrono::Utc::now()), [subjects[0]]);
+    window.until_stored("the three are archived", |store| {
+        inbox_at(store, chrono::Utc::now()) == [subjects[0]]
+    });
     window.press(&[PRIMARY], Key::Char('z'), 1);
     window.until("one Ctrl-Z brings all three back", |h| {
         h.count(".list .ds-thread") == INBOX.len()
@@ -310,6 +324,9 @@ fn snooze_until_tomorrow(window: &mut Window, subject: &str) -> chrono::DateTime
     window.menu_item(copy::menus::TOMORROW);
     window.until("the snoozed row leaves the inbox", |h| {
         row_of(h, subject).is_none()
+    });
+    window.until_stored("the snooze is stored", |store| {
+        matches!(conversation(store, subject).snooze, Snooze::Until(_))
     });
     let Snooze::Until(at) = conversation(&window.store, subject).snooze else {
         panic!("{subject:?} is not snoozed");

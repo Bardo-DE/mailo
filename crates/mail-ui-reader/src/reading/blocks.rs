@@ -56,6 +56,7 @@ pub fn Sandbox(
     // frame smaller, to fit it (`super::fit::shrink`); a plain-text message wraps to the frame
     // and is never wider.
     let mut zoom = use_signal(|| text);
+    let relaxed = use_signal(|| false);
     // The frame's node, and what was selected in it when the last left press let go.
     let mut frame = use_signal(|| None::<Rc<MountedData>>);
     let mut reading = use_signal(Vec::<Task>::new);
@@ -73,7 +74,7 @@ pub fn Sandbox(
             started.push(super::fit::follow(frame.clone(), height));
         }
         if !plain {
-            started.push(super::fit::shrink(frame, zoom, text));
+            started.push(super::fit::shrink(frame, zoom, relaxed, text));
         }
         reading.set(started);
     };
@@ -87,7 +88,7 @@ pub fn Sandbox(
             measure(text);
         }
     }));
-    let html = super::fit::zoomed(&html, zoom());
+    let html = super::fit::zoomed(&html, zoom(), relaxed());
     let found = use_hook(try_consume_context::<super::find::Frames>);
     // A new document in the frame (a zoom to fit is one) holds none of what ⌘F marked.
     {

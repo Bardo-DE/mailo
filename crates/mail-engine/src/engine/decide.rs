@@ -147,6 +147,22 @@ pub(super) fn header_batch(wanted: &[(RemoteRef, u64)], edge: u64, left: usize) 
         .collect()
 }
 
+/// Headers asked for in the first slice of a pass: few enough that the first rows show after one
+/// short round trip.
+const FIRST_SLICE: usize = 25;
+
+/// Headers asked for in every slice after the first: a round trip is most of a slice's cost, so
+/// these are as many as keeps the list moving at a few redraws a second.
+const SLICE: usize = 50;
+
+/// How many headers the next operation asks for, given how many this pass has fetched and how
+/// many its budget leaves. Counted rather than timed: it keeps clocks out of the decision, and a
+/// round trip is what a slice costs whatever the server's speed. A pass with fewer wanted than
+/// this is one operation, as it was.
+pub(super) fn header_slice(fetched: usize, left: usize) -> usize {
+    (if fetched == 0 { FIRST_SLICE } else { SLICE }).min(left)
+}
+
 /// The state to remember as held through, once everything the survey listed is held: where the
 /// cursor stands, without its modseq (this is a place to start listing from, and the sweep owns
 /// that). Nothing when the cursor is not an IMAP one, or the state is remembered already.

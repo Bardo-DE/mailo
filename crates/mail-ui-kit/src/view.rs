@@ -388,29 +388,29 @@ pub enum FileSheet {
     Export { query: String },
 }
 
-/// The Rules page of Settings: which account's rules it shows (`None` is the first account there
-/// is), and the pages of that account's pane (quire's `PanePath`, the list at its root).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RulesPage {
-    pub account: Option<AccountId>,
-    pub path: PanePath<RulesAt>,
-}
-
-impl Default for RulesPage {
-    fn default() -> Self {
-        RulesPage {
-            account: None,
-            path: PanePath::new(RulesAt::List),
-        }
-    }
-}
-
-/// A page of Settings' Rules pane: the list, or a rule's own page pushed over it (`None` is a new
-/// rule).
+/// A page of Settings' Rules pane: the accounts, one account's rules pushed over them, and a
+/// rule's own page (`None` is a new rule) pushed over those.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RulesAt {
     List,
-    Rule(Option<RuleId>),
+    Account(AccountId),
+    Rule(AccountId, Option<RuleId>),
+}
+
+/// A page of Settings' Vacation Reply pane: the accounts, or one account's reply pushed over them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VacationAt {
+    List,
+    Account(AccountId),
+}
+
+/// A page of Settings' Signatures pane: the accounts, one account's signatures pushed over them,
+/// and a signature's own page pushed over those.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SignaturesAt {
+    List,
+    Account(AccountId),
+    Signature(AccountId, SignatureId),
 }
 
 /// A page of Settings' Spaces pane: the list of Spaces, or one Space's own page pushed over it.
@@ -433,27 +433,28 @@ pub enum ContactsPage {
     Group(mail_client::contacts::GroupId),
 }
 
-/// What Settings' Accounts pane shows beside its list of accounts: an account's own page, or the
-/// keys and certificates no account here owns.
+/// A page of Settings' Accounts pane: the list of accounts, one account's own page pushed over
+/// it, or the keys and certificates no account here owns.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AccountsPage {
+    List,
     Account(AccountId),
     OtherKeys,
 }
 
-/// Settings' Accounts pane: what is shown (`None` is the first account there is), and how far a
-/// removal on an account's page has got. It keeps nothing of the account itself, which the page
-/// reads from the client.
+/// Settings' Accounts pane: the pages shown (quire's `PanePath`, the list at its root), and how
+/// far a removal on an account's page has got. It keeps nothing of the account itself, which the
+/// page reads from the client.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AccountsPane {
-    pub shown: Option<AccountsPage>,
+    pub path: PanePath<AccountsPage>,
     pub step: AccountStep,
 }
 
 impl Default for AccountsPane {
     fn default() -> Self {
         AccountsPane {
-            shown: None,
+            path: PanePath::new(AccountsPage::List),
             step: AccountStep::Showing,
         }
     }
@@ -466,16 +467,14 @@ pub struct PageId(pub &'static str);
 
 impl PageId {
     pub const GENERAL: PageId = PageId("general");
-    /// A list of accounts, the chosen one's page beside it: its mail, its encryption keys and its
-    /// removal.
+    /// Every account, each with its own page: its mail, its encryption keys and its removal.
     /// Nothing about a key is kept in the shell: the page reads the client, and a passphrase, a
     /// password or a secret key never passes through it.
     pub const ACCOUNTS: PageId = PageId("accounts");
     /// The address book: every person's card and every group, each with its own page.
     pub const CONTACTS: PageId = PageId("contacts");
-    /// A list of accounts, and beside it the chosen one's signatures for each address it sends
-    /// from, each with its own page: its name, its words and its defaults. Read from the client,
-    /// as the composer reads them.
+    /// Every account that sends, each with its addresses' signatures, each with its own page: its
+    /// name, its words and its defaults. Read from the client, as the composer reads them.
     pub const SIGNATURES: PageId = PageId("signatures");
     /// Every Space, each with its own page: its name, colour, theme and accounts, and Delete.
     pub const SPACES: PageId = PageId("spaces");
@@ -491,7 +490,7 @@ impl PageId {
     /// How mail the junk filter calls junk is treated, and what the filter never calls junk.
     pub const JUNK_MAIL: PageId = PageId("junk-mail");
     pub const RULES: PageId = PageId("rules");
-    /// A list of accounts, and beside it the chosen one's vacation reply, which its server sends.
+    /// An account's vacation reply, which its server sends.
     pub const VACATION: PageId = PageId("vacation");
     pub const KEYBOARD: PageId = PageId("keyboard");
 }
@@ -761,18 +760,19 @@ pub struct Shell {
     /// The Import or Export sheet while it is open, with the text its field holds. `None` is
     /// closed.
     pub files: Option<FileSheet>,
-    /// Which account the Rules page of Settings shows.
-    pub rules: RulesPage,
-    /// Settings' Accounts pane: the account or the other keys shown beside the list.
+    /// Settings' Rules pane: the accounts, an account's rules over them, a rule over those.
+    pub rules_pane: PanePath<RulesAt>,
+    /// Settings' Accounts pane: the list, or an account's page over it.
     pub accounts_pane: AccountsPane,
     /// Settings' Spaces pane: the list, or a Space's page over it.
     pub spaces_pane: PanePath<SpacesPage>,
     /// Settings' Contacts pane: the people and groups, or a card or group over them.
     pub contacts_pane: PanePath<ContactsPage>,
-    /// Which account Settings' Signatures page shows (`None` is the first account there is).
-    pub signatures_account: Option<AccountId>,
-    /// Which account Settings' Vacation Reply page shows (`None` is the first account there is).
-    pub vacation_account: Option<AccountId>,
+    /// Settings' Signatures pane: the accounts, an account's signatures over them, a signature
+    /// over those.
+    pub signatures_pane: PanePath<SignaturesAt>,
+    /// Settings' Vacation Reply pane: the accounts, or one account's reply over them.
+    pub vacation_pane: PanePath<VacationAt>,
     /// Settings while it is open, on the page shown. `None` is closed.
     pub settings: Option<PageId>,
     /// The saved-view editor while it is open, with what its fields hold. `None` is closed.
@@ -959,15 +959,15 @@ impl Default for Shell {
             page_menu: PageMenu::Closed,
             bar: Bar::Closed,
             files: None,
-            rules: RulesPage::default(),
+            rules_pane: PanePath::new(RulesAt::List),
             view_editor: None,
             keymap: crate::keymap::Keymap::default(),
             keyboard: KeyboardPage::default(),
             accounts_pane: AccountsPane::default(),
             spaces_pane: PanePath::new(SpacesPage::List),
             contacts_pane: PanePath::new(ContactsPage::List),
-            signatures_account: None,
-            vacation_account: None,
+            signatures_pane: PanePath::new(SignaturesAt::List),
+            vacation_pane: PanePath::new(VacationAt::List),
             settings: None,
             destroying: None,
             applying_rules: None,

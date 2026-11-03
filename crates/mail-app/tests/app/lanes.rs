@@ -69,7 +69,9 @@ mod signatures;
 // 18: how an account is synced.
 mod syncing;
 
-// 19: a notification's click, in the Space that holds its account.
+// 19: a notification's click, in the Space that holds its account. Windows has no request queue
+// (`handoff/none.rs`), so nothing reaches a window there to push into.
+#[cfg(not(windows))]
 mod clicks;
 
 // 20: sorting the list.

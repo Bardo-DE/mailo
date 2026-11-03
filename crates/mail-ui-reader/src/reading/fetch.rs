@@ -311,6 +311,7 @@ pub(super) fn BodyPane(message: MessageId, account: AccountId, mut landed: Signa
             div { class: "body-pane",
                 Loadable {
                     phase,
+                    placeholder: super::loading(),
                     onretry: match again {
                         Again::Offer => Some(EventHandler::new(move |()| ask())),
                         Again::SignIn(_) | Again::Withhold => None,

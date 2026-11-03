@@ -26,7 +26,12 @@ fn make_the_rule(settings: &mut Harness, store: &SqliteStore) {
     let from = format!("input{}", labelled(copy::fields::FROM));
     let save = labelled(copy::aria::SAVE_RULE);
     let add = labelled(copy::aria::ADD_ACTION);
-    click(settings, &labelled(copy::controls::NEW_RULE));
+    let row = format!("#rules-pane-open-{}", super::window::account());
+    until(settings, "the account is listed", |h| h.count(&row) == 1);
+    click(settings, &row);
+    let new = labelled(copy::controls::NEW_RULE);
+    until(settings, "the account's rules open", |h| h.count(&new) == 1);
+    click(settings, &new);
     until(settings, "the rule's page opens", |h| h.count(&from) == 1);
     click(settings, &format!("input{}", labelled(copy::fields::NAME)));
     type_text(settings, "Edsger");
@@ -57,7 +62,7 @@ fn make_the_rule(settings: &mut Harness, store: &SqliteStore) {
     });
     // A run says nothing when it ends: what it did is in the mail, and its bar goes.
     until(settings, "the rule ran to its end", |h| {
-        h.count(".rules-progress") == 0
+        h.count(".meter") == 0
             && !inbox_at(store, chrono::Utc::now()).contains(&ARRIVING.to_owned())
     });
     // The fixture's account has no password to reach its server with, so the save's push to it

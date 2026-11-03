@@ -283,6 +283,17 @@ fn until(harness: &mut Harness, what: &str, done: impl Fn(&Harness) -> bool) {
     }
 }
 
+/// Advance until the open newsletter's frame is mounted and its inline logo, a `data:` image
+/// the frame decodes off the thread that draws, has its size: the document is read from the
+/// store and laid out by other threads, so a press that opens it has not drawn it yet.
+fn until_laid_out(harness: &mut Harness) {
+    until(harness, "the newsletter's frame to be laid out", |h| {
+        h.frame(FRAME)
+            .and_then(|frame| frame.width(LOGO))
+            .is_some_and(|width| width.0 == 7.0)
+    });
+}
+
 /// Rest the pointer on each of the rows `rows`, long enough for a card to open.
 fn hover_rows(harness: &mut Harness, rows: std::ops::RangeInclusive<usize>) {
     for n in rows {
@@ -325,6 +336,7 @@ fn the_newsletter_s_frame_is_sealed_its_links_are_checked_and_its_images_wait_fo
     hover_rows(&mut window.harness, 1..=3);
     assert_eq!(window.fetched.count(), 0, "hovering fetched");
     open_row(&mut window.harness, 1);
+    until_laid_out(&mut window.harness);
     assert!(
         window.harness.count(FRAME) >= 1,
         "the Original view did not mount"
@@ -435,6 +447,7 @@ fn the_newsletter_s_frame_is_sealed_its_links_are_checked_and_its_images_wait_fo
     );
     assert_eq!(window.fetched.count(), n, "the next thread fetched unasked");
     open_row(&mut window.harness, 1);
+    until_laid_out(&mut window.harness);
     assert_eq!(
         window.fetched.count(),
         n,

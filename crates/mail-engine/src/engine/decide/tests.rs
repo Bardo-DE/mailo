@@ -171,6 +171,15 @@ fn a_batch_is_one_band_in_order_and_no_more_than_is_left() {
 }
 
 #[test]
+fn a_pass_starts_with_a_small_slice_then_larger_ones_and_never_more_than_is_left() {
+    assert_eq!(header_slice(0, 200), 25);
+    assert_eq!(header_slice(25, 175), 50);
+    assert_eq!(header_slice(175, 25), 25);
+    assert_eq!(header_slice(0, 5), 5);
+    assert_eq!(header_slice(200, 0), 0);
+}
+
+#[test]
 fn everything_listed_is_held_through_where_the_cursor_stands_without_its_modseq() {
     let through = Some(SyncCursor::Imap {
         uidvalidity: 1,

@@ -235,6 +235,12 @@ fn badges(h: &Harness) -> usize {
     h.count(".side .ds-row-count") + h.count(".side .ds-badge")
 }
 
+/// Wait for every badge of the sidebar to go: the places' counts (the Inbox, the Spaces) are
+/// read apart from the labels' and folders' that [`draws_for`] waits for, so they follow them.
+fn no_badge_is_left(window: &mut Window) {
+    window.until("a badge is left", |h| badges(h) == 0);
+}
+
 /// What the sidebar draws now.
 fn seen(h: &Harness) -> Side {
     Side {
@@ -359,7 +365,7 @@ fn accounts_removed_from_the_space_take_their_labels_folders_and_badges() {
         none.labels.iter().all(|(_, drawn)| *drawn == Drawn::Not),
         "{none:?}"
     );
-    assert_eq!(badges(&window.harness), 0, "a badge is left");
+    no_badge_is_left(&mut window);
 }
 
 #[test]
@@ -387,7 +393,7 @@ fn accounts_removed_from_the_app_take_their_labels_folders_and_badges() {
         .expect("the store")
         .expect("the account was there");
     draws_for(&mut window, "nothing, with no account left", &[]);
-    assert_eq!(badges(&window.harness), 0, "a badge is left");
+    no_badge_is_left(&mut window);
 }
 
 #[test]
@@ -442,7 +448,7 @@ fn reading_then_deleting_every_message_clears_every_badge_and_keeps_the_labels()
         &[account(), other()],
     );
     assert_eq!(deleted, read);
-    assert_eq!(badges(&window.harness), 0, "a badge is left");
+    no_badge_is_left(&mut window);
 }
 
 #[test]

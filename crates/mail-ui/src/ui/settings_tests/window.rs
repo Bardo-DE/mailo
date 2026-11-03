@@ -9,6 +9,8 @@ use crate::ui::fixtures::{
 };
 use crate::ui::settings::settings_root;
 use dioxus::dioxus_core::{self, VirtualDom};
+use dioxus::prelude::*;
+use ds::prelude::*;
 use mail_ui_kit::settings_at::{OpenSettings, SettingsAt, SettingsWindows};
 use mail_ui_kit::view::PageId;
 use mail_ui_model::settings::{BrandLogos, LoadRemoteImages, MailSettings, Spelling};
@@ -424,8 +426,8 @@ const PAGES: &[(PageId, &str)] = &[
     (PageId::NOTIFICATIONS, "aria-label=\"Notifications\""),
     (PageId::PRIVACY, "Load remote images"),
     (PageId::JUNK_MAIL, "Filter Junk Mail"),
-    (PageId::RULES, mail_ui_model::copy::controls::NEW_RULE),
-    (PageId::VACATION, "id=\"vacation-pane-open-"),
+    (PageId::RULES, "id=\"rules-pane-open-"),
+    (PageId::VACATION, "id=\"vacation-pane\""),
     (PageId::KEYBOARD, "Change the key for"),
 ];
 
@@ -481,14 +483,59 @@ async fn every_page_is_drawn_in_the_window_from_its_sidebar_row() {
     }
 }
 
-/// Whether the element with `id` is drawn selected.
-fn selected(markup: &str, id: &str) -> bool {
-    let at = markup
-        .find(&format!("id=\"{id}\""))
-        .unwrap_or_else(|| panic!("no element {id}: {markup}"));
-    let start = markup[..at].rfind('<').unwrap_or(0);
-    let end = at + markup[at..].find('>').unwrap_or(0);
-    markup[start..end].contains("aria-selected=\"true\"")
+/// Vacation Reply is a pane as Spaces is: its root lists the accounts, each saying whether its
+/// reply is on, and a row pushes that account's reply, switch and all, as a page of its own.
+#[tokio::test]
+async fn vacation_reply_lists_the_accounts_and_a_row_pushes_its_reply() {
+    let built = work();
+    let (mut dom, seen) = opened_on(&built, PageId::VACATION);
+    let list = dioxus_ssr::render(&dom);
+    let rows: Vec<_> = mail_ui_kit::data::account_rows(&crate::ui::fixtures::client(&built.store))
+        .into_iter()
+        .filter(|row| !row.is_local())
+        .collect();
+    let first = rows
+        .first()
+        .expect("the fixture has an account with a server");
+    for row in &rows {
+        assert!(
+            list.contains(&format!("id=\"vacation-pane-open-{}\"", row.id)),
+            "{} has no row: {list}",
+            row.address
+        );
+    }
+    assert!(
+        !list.contains("role=\"switch\""),
+        "the root draws a reply: {list}"
+    );
+    // Each row says whether its reply is on: none was kept, so off.
+    assert!(
+        list.contains(mail_ui_model::copy::status::vacation::OFF),
+        "{list}"
+    );
+
+    let pushed = click(
+        &mut dom,
+        seen.one("id", &format!("vacation-pane-open-{}", first.id)),
+    )
+    .merge(drain_seen(&mut dom));
+    let page = dioxus_ssr::render(&dom);
+    assert!(
+        page.contains("role=\"switch\""),
+        "the reply's page has no switch: {page}"
+    );
+    assert!(
+        page.contains(&first.shown()),
+        "the page is not titled by its account: {page}"
+    );
+    let back = pushed.one("id", "vacation-pane-back-detail");
+    let _ = click(&mut dom, back);
+    // The page slides away before it is gone.
+    let _ = crate::ui::fixtures::later(&mut dom).await;
+    assert!(
+        !dioxus_ssr::render(&dom).contains("role=\"switch\""),
+        "back did not go back"
+    );
 }
 
 /// The accounts with a server, as the fixture has them.
@@ -499,113 +546,135 @@ fn served(built: &Work) -> Vec<mail_ui_kit::data::AccountRow> {
         .collect()
 }
 
-/// Vacation Reply lists the accounts, the first chosen, and beside the list is the chosen
-/// account's reply, switch and all; another row shows that account's.
-#[tokio::test]
-async fn vacation_reply_lists_the_accounts_and_shows_the_chosen_one_s_reply() {
-    let built = work();
-    let (mut dom, seen) = opened_on(&built, PageId::VACATION);
-    let list = dioxus_ssr::render(&dom);
-    let rows = served(&built);
-    for row in &rows {
-        assert!(
-            list.contains(&format!("id=\"vacation-pane-open-{}\"", row.id)),
-            "{} has no row: {list}",
-            row.address
-        );
-    }
-    assert!(
-        list.contains("role=\"switch\""),
-        "no reply beside the list: {list}"
-    );
-    assert!(selected(
-        &list,
-        &format!("vacation-pane-open-{}", rows[0].id)
-    ));
+/// The four pages of an account each, and the id their panes name their elements by.
+const PER_ACCOUNT: &[(PageId, &str)] = &[
+    (PageId::ACCOUNTS, "accounts-pane"),
+    (PageId::SIGNATURES, "signatures-pane"),
+    (PageId::RULES, "rules-pane"),
+    (PageId::VACATION, "vacation-pane"),
+];
 
-    let _ = click(
-        &mut dom,
-        seen.one("id", &format!("vacation-pane-open-{}", rows[1].id)),
-    )
-    .merge(drain_seen(&mut dom));
-    let page = dioxus_ssr::render(&dom);
-    assert!(page.contains("role=\"switch\""), "{page}");
-    assert!(selected(
-        &page,
-        &format!("vacation-pane-open-{}", rows[1].id)
-    ));
-    assert!(!selected(
-        &page,
-        &format!("vacation-pane-open-{}", rows[0].id)
-    ));
+/// Accounts, Signatures, Rules and Vacation Reply are all nested: each opens on the list of
+/// accounts with a row for every one and nothing of any account's own, a row pushes that
+/// account's page under a back button, and the back button comes back to the list.
+#[tokio::test]
+async fn each_per_account_page_opens_on_its_accounts_and_a_row_pushes_the_account() {
+    let built = work();
+    let first = served(&built).remove(0);
+    for (page, pane) in PER_ACCOUNT {
+        let (mut dom, seen) = opened_on(&built, *page);
+        let row = format!("{pane}-open-{}", first.id);
+        let back = format!("{pane}-back-detail");
+        let list = dioxus_ssr::render(&dom);
+        assert!(
+            list.contains(&format!("id=\"{row}\"")),
+            "{page:?}: no row: {list}"
+        );
+        assert!(
+            !list.contains(&format!("id=\"{back}\"")),
+            "{page:?}: pushed before a click: {list}"
+        );
+        assert!(
+            !list.contains("role=\"switch\""),
+            "{page:?}: the list draws a setting: {list}"
+        );
+
+        let pushed = click(&mut dom, seen.one("id", &row)).merge(drain_seen(&mut dom));
+        let drawn = dioxus_ssr::render(&dom);
+        assert!(
+            drawn.contains(&format!("id=\"{back}\"")),
+            "{page:?}: no back button: {drawn}"
+        );
+        assert!(
+            drawn.contains(&first.shown()),
+            "{page:?}: not titled by the account: {drawn}"
+        );
+
+        let _ = click(&mut dom, pushed.one("id", &back));
+        // The page slides away before it is gone.
+        let _ = crate::ui::fixtures::later(&mut dom).await;
+        let list = dioxus_ssr::render(&dom);
+        assert!(
+            !list.contains(&format!("id=\"{back}\"")),
+            "{page:?}: back did not go back: {list}"
+        );
+        assert!(list.contains(&format!("id=\"{row}\"")), "{page:?}: {list}");
+    }
 }
 
-/// Every per-account page is the same split: picking an account in its list changes what is
-/// beside it, and each page keeps its own choice while the window turns to others.
+/// The list of accounts is a component of its own, and shows with one account as with several;
+/// with none it says so beside an Add Account…, as every page that needs an account does.
+#[component]
+fn Listed(rows: Vec<mail_ui_kit::data::AccountRow>) -> Element {
+    rsx! {
+        Ds {
+            appearance: Appearance::default(),
+            material: Material::Window,
+            stylesheet: ds::assembly::ds::Inject::Host,
+            mail_ui_settings::settings::account_list::AccountList {
+                pane: "solo-pane",
+                label: "Accounts",
+                rows,
+                onopen: move |_| {},
+            }
+        }
+    }
+}
+
 #[tokio::test]
-async fn an_account_picked_in_the_list_is_kept_for_the_page_that_picked_it() {
+async fn the_list_shows_with_one_account_and_says_so_with_none() {
     let built = work();
-    let rows = served(&built);
+    let first = served(&built).remove(0);
     dispatching();
-    let mut dom = VirtualDom::new(settings_root)
-        .with_root_context(crate::ui::fixtures::client(&built.store))
-        .with_root_context(built.dirs.clone());
-    let window = rebuild_into(&mut dom).merge(drain_seen(&mut dom));
-    let seen = click(
-        &mut dom,
-        window.one("aria-label", mail_ui_model::copy::titles::ACCOUNTS),
+    let one = VirtualDom::new_with_props(
+        Listed,
+        ListedProps {
+            rows: vec![first.clone()],
+        },
     )
-    .merge(drain_seen(&mut dom));
-    let account = |row: &mail_ui_kit::data::AccountRow| format!("accounts-pane-open-{}", row.id);
-    let remove =
-        |row: &mail_ui_kit::data::AccountRow| format!("aria-label=\"Remove {}\"", row.address);
-    let page = dioxus_ssr::render(&dom);
-    assert!(page.contains(&remove(&rows[0])), "{page}");
-    assert!(selected(&page, &account(&rows[0])));
+    .with_root_context(crate::ui::fixtures::client(&built.store));
+    let mut one = one;
+    let _ = rebuild_into(&mut one).merge(drain_seen(&mut one));
+    let page = dioxus_ssr::render(&one);
+    assert!(
+        page.contains(&format!("id=\"solo-pane-open-{}\"", first.id)),
+        "{page}"
+    );
+    assert!(
+        !page.contains(mail_ui_model::copy::empty::ADD_AN_ACCOUNT_FIRST),
+        "{page}"
+    );
 
-    let _ = click(&mut dom, seen.one("id", &account(&rows[1]))).merge(drain_seen(&mut dom));
-    let page = dioxus_ssr::render(&dom);
-    assert!(page.contains(&remove(&rows[1])), "{page}");
-    assert!(!page.contains(&remove(&rows[0])), "{page}");
-
-    // Another page of the same layout has a choice of its own, the first by default.
-    let _ = click(
-        &mut dom,
-        window.one("aria-label", mail_ui_model::copy::titles::VACATION_REPLY),
-    )
-    .merge(drain_seen(&mut dom));
-    let page = dioxus_ssr::render(&dom);
-    assert!(selected(
-        &page,
-        &format!("vacation-pane-open-{}", rows[0].id)
-    ));
-
-    // And the first keeps what it was given.
-    let _ = click(
-        &mut dom,
-        window.one("aria-label", mail_ui_model::copy::titles::ACCOUNTS),
-    )
-    .merge(drain_seen(&mut dom));
-    let page = dioxus_ssr::render(&dom);
-    assert!(selected(&page, &account(&rows[1])), "{page}");
-    assert!(page.contains(&remove(&rows[1])), "{page}");
+    let none = VirtualDom::new_with_props(Listed, ListedProps { rows: Vec::new() })
+        .with_root_context(crate::ui::fixtures::client(&built.store));
+    let mut none = none;
+    let _ = rebuild_into(&mut none).merge(drain_seen(&mut none));
+    let page = dioxus_ssr::render(&none);
+    assert!(
+        page.contains(mail_ui_model::copy::empty::ADD_AN_ACCOUNT_FIRST),
+        "{page}"
+    );
+    assert!(
+        page.contains(mail_ui_model::copy::controls::ADD_ACCOUNT),
+        "{page}"
+    );
 }
 
 /// Each page that lists things, the add row under them, and the label of the list it stands in.
 const ADDS: &[(PageId, &str, &str)] = &[
     (
+        PageId::ACCOUNTS,
+        mail_ui_model::copy::controls::ADD_ACCOUNT,
+        mail_ui_model::copy::aria::ADD_ACCOUNT,
+    ),
+    (
         PageId::SPACES,
         mail_ui_model::copy::controls::NEW_SPACE,
         mail_ui_model::copy::aria::ADD_A_SPACE,
     ),
-    (
-        PageId::RULES,
-        mail_ui_model::copy::controls::NEW_RULE,
-        mail_ui_model::copy::aria::ADD_A_RULE,
-    ),
 ];
 
-/// Spaces and Rules set their add row alike: in a list of its own under the things it
+/// Accounts and Spaces set their add row alike: in a list of its own under the things it
 /// adds to, led by the plain plus and not a coloured tile.
 #[tokio::test]
 async fn every_add_row_stands_in_a_list_of_its_own_led_by_the_plain_plus() {
@@ -1033,5 +1102,16 @@ fn every_page_id_names_one_page_of_the_sidebar() {
     assert_eq!(listed, named, "the sidebar lists the ids in this order");
     for (at, id) in named.iter().enumerate() {
         assert!(!named[..at].contains(id), "{id:?} names two pages");
+    }
+}
+
+/// Each page in the sidebar has an icon of its own, so no two read as the same page at a glance.
+#[test]
+fn no_two_pages_share_an_icon() {
+    let mut seen = std::collections::HashMap::new();
+    for page in mail_ui_settings::settings::PAGES {
+        if let Some(other) = seen.insert(page.icon(), page.name()) {
+            panic!("{} and {} share an icon", other, page.name());
+        }
     }
 }

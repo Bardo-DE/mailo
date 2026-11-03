@@ -37,7 +37,8 @@ pub(crate) mod wait;
 
 use decide::{
     Backlog, MailboxState, Survey, Wanted, all_held, bodies_wanted, due, header_batch,
-    headers_wanted, held_mark, may_have_found_nothing, resting_since, sized, survey_kind,
+    header_slice, headers_wanted, held_mark, may_have_found_nothing, resting_since, sized,
+    survey_kind,
 };
 
 /// Bodies are fetched smallest band first.
@@ -1673,58 +1674,68 @@ impl<B: Backend> AccountEngine<B> {
         }
 
         for band in BANDS {
-            let batch = header_batch(&wanted, band, budget.saturating_sub(report.headers_fetched));
-            if batch.is_empty() {
-                continue;
-            }
-            // One operation for the whole band, on one connection. A per-message operation
-            // would need a connection each, because a session consumes the greeting once.
-            match self
-                .run(
-                    ProtoOp::FetchHeaders {
-                        remotes: batch.clone(),
-                    },
-                    cancel,
-                )
-                .await
-            {
-                Ok(ProtoOutcome::Fetched {
-                    items,
-                    flags,
-                    flag_colors,
-                    label_names,
-                }) => {
-                    report.headers_fetched += items.len();
-                    // What the survey said each weighs, before the headers say nothing of it.
-                    let sizes: Vec<(RemoteRef, u64)> = wanted
-                        .iter()
-                        .filter(|(remote, _)| batch.contains(remote))
-                        .cloned()
-                        .collect();
-                    let said = Said {
+            // The band goes in slices, each kept before the next is asked for, so the list grows
+            // as the pass goes rather than jumping when it ends. A slice stored is stored: the
+            // cursor never moves here (the ingest carries none), so a pass that stops after one
+            // leaves the rest wanted, and the next survey lists them again.
+            loop {
+                let left = budget.saturating_sub(report.headers_fetched);
+                let batch = header_batch(&wanted, band, header_slice(report.headers_fetched, left));
+                if batch.is_empty() {
+                    break;
+                }
+                if *cancel.borrow() {
+                    return Ok(report);
+                }
+                // One operation for the slice, on one connection. A per-message operation
+                // would need a connection each, because a session consumes the greeting once.
+                match self
+                    .run(
+                        ProtoOp::FetchHeaders {
+                            remotes: batch.clone(),
+                        },
+                        cancel,
+                    )
+                    .await
+                {
+                    Ok(ProtoOutcome::Fetched {
+                        items,
                         flags,
                         flag_colors,
                         label_names,
-                    };
-                    let stored = match self.absorb_headers(mailbox, items, said, now) {
-                        Ok(stored) => stored,
-                        Err(e) if report.stopped_by(&e) => return Ok(report),
-                        Err(e) => return Err(e),
-                    };
-                    report.unreadable(mailbox, stored.unreadable);
-                    self.store.mark_unreadable(mailbox, &stored.skipped, now)?;
-                    report.arrived.extend(first_stored(&stored.patch));
-                    self.keep_server_sizes(sizes)?;
+                    }) => {
+                        report.headers_fetched += items.len();
+                        // What the survey said each weighs, before the headers say nothing of it.
+                        let sizes: Vec<(RemoteRef, u64)> = wanted
+                            .iter()
+                            .filter(|(remote, _)| batch.contains(remote))
+                            .cloned()
+                            .collect();
+                        let said = Said {
+                            flags,
+                            flag_colors,
+                            label_names,
+                        };
+                        let stored = match self.absorb_headers(mailbox, items, said, now) {
+                            Ok(stored) => stored,
+                            Err(e) if report.stopped_by(&e) => return Ok(report),
+                            Err(e) => return Err(e),
+                        };
+                        report.unreadable(mailbox, stored.unreadable);
+                        self.store.mark_unreadable(mailbox, &stored.skipped, now)?;
+                        report.arrived.extend(first_stored(&stored.patch));
+                        self.keep_server_sizes(sizes)?;
+                    }
+                    Ok(_) => {}
+                    Err(RuntimeError::Cancelled) => return Ok(report),
+                    Err(e) => {
+                        report.needs_attention.push(e.to_string());
+                        return Ok(report);
+                    }
                 }
-                Ok(_) => {}
-                Err(RuntimeError::Cancelled) => return Ok(report),
-                Err(e) => {
-                    report.needs_attention.push(e.to_string());
-                    return Ok(report);
-                }
+                // Remove what this slice covered, so the next does not refetch it.
+                wanted.retain(|(remote, _)| !batch.contains(remote));
             }
-            // Remove what this band covered, so a later band does not refetch it.
-            wanted.retain(|(remote, _)| !batch.contains(remote));
         }
         // Every message the server listed is held now, so a message it moved here without
         // saying where would have been found by this sync. One the budget stopped short of is

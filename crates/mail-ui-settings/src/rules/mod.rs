@@ -1,7 +1,7 @@
-//! The Rules page of Settings: the accounts in a list on the left, and on the right the chosen
-//! one's rules, in the order they run, each a page of its own pushed over the list; and the
-//! Vacation Reply page, Settings' next: the same accounts, and the chosen one's reply
-//! ([`vacation`]).
+//! The Rules page of Settings: a pane of three levels. Its root lists the accounts
+//! ([`crate::settings::account_list`]); an account pushes its rules, in the order they run; a
+//! rule, or a new one, pushes its page over those. And the Vacation Reply page, Settings' next:
+//! the accounts, each one's reply a page of its own pushed over them ([`vacation`]).
 //!
 //! The search bar's "Rules Settings" opens Settings on it. Everything it writes goes through the
 //! same rows `mailo rules` and `mailo vacation` use — [`work`] and [`away`] are those questions
@@ -13,7 +13,7 @@
 //! push` does ([`server`]), and only a failure is said, at the head of the page. An account
 //! whose server runs no rules keeps them here, and nothing is said.
 //!
-//! The rule pages are quire's `PaneStack`; which are shown is the window's `Shell` (`rules.path`).
+//! The pages are quire's `PaneStack`; which are shown is the window's `Shell` (`rules_pane`).
 
 pub mod apply;
 pub mod away;
@@ -30,7 +30,7 @@ use dioxus::prelude::*;
 use ds::prelude::*;
 use ds::root::common::Common;
 
-use crate::settings::account_split::{AccountSplit, NoAccountsPage, shown};
+use crate::settings::account_list::{self, AccountList};
 use editor::RulePage;
 use list::RulesList;
 use mail_client::rules::server::AwayServer;
@@ -38,44 +38,51 @@ use mail_domain::Rule;
 use mail_ui_kit::common::Told;
 use mail_ui_kit::data::AccountRow;
 use mail_ui_kit::files::{Phase, run};
-use mail_ui_kit::view::{RulesAt, RulesPage as Showing, Shell};
+use mail_ui_kit::view::{RulesAt, Shell};
 use mail_ui_model::copy;
 use porter_core::AccountId;
 use server::{AwaySetter, Pusher, put, reach, reach_away, set_away};
-pub use vacation::VacationPage;
+pub use vacation::{VacationPage, back as vacation_back};
 
 /// What the last act on the page came to, when it failed: said in a dialog until it is closed.
 pub type Said = Signal<Option<Result<String, String>>>;
 
-/// The stack's element id: its back buttons are `rules-pane-back-root` and `-detail`.
+/// The stack's element id: its back buttons are `rules-pane-back-root`, `-account` and `-detail`.
 const STACK: &str = "rules-pane";
 
 /// The element id of the row that opens `at`, where the keyboard goes back to.
 pub fn row_id(at: &RulesAt) -> Option<String> {
     match at {
         RulesAt::List => None,
-        RulesAt::Rule(Some(id)) => Some(format!("rules-pane-open-{id}")),
-        RulesAt::Rule(None) => Some("rules-pane-new".to_owned()),
+        RulesAt::Account(account) => Some(account_list::row_id(STACK, account)),
+        RulesAt::Rule(_, Some(id)) => Some(format!("rules-pane-open-{id}")),
+        RulesAt::Rule(_, None) => Some("rules-pane-new".to_owned()),
     }
 }
 
-/// Push `at` over the list.
+/// Push `at` over the page shown.
 pub fn open(mut shell: Signal<Shell>, at: RulesAt) {
-    shell.write().rules.path = PanePath::new(RulesAt::List).pushed(at);
+    let pushed = shell.peek().rules_pane.pushed(at);
+    shell.write().rules_pane = pushed;
 }
 
-/// Back to the list.
+/// Push `account`'s rules over the list of accounts, whatever was shown.
+pub fn open_account(mut shell: Signal<Shell>, account: AccountId) {
+    shell.write().rules_pane = PanePath::new(RulesAt::List).pushed(RulesAt::Account(account));
+}
+
+/// Back one page.
 pub fn back(mut shell: Signal<Shell>) {
-    let back = shell.peek().rules.path.popped();
-    shell.write().rules.path = back;
+    let back = shell.peek().rules_pane.popped();
+    shell.write().rules_pane = back;
 }
 
-/// The page: the accounts in a list ([`super::settings_window::account_split`]), and beside it the
-/// chosen account's rules, its rule's page or a new rule's pushed over them.
+/// The page: the accounts at its root, an account's rules over them, a rule's page over those.
 #[component]
 pub fn RulesPage(shell: Signal<Shell>) -> Element {
-    let rows = mail_ui_kit::data::use_account_rows()();
-    let mut said: Said = use_signal(|| None);
+    let rows = mail_ui_kit::data::use_account_rows();
+    let path = shell.read().rules_pane.clone();
+    let said: Said = use_signal(|| None);
     // A rule or vacation reply kept here that its server did not take, said apart from a write
     // that did not happen at all.
     let unpushed: Said = use_signal(|| None);
@@ -87,65 +94,44 @@ pub fn RulesPage(shell: Signal<Shell>) -> Element {
     // Every save ends here: the account's script goes to its server, off the thread that draws,
     // and only a failure is said. Made here, so a push outlives the rule's page it was saved on.
     let pushed = use_callback(move |row: AccountRow| push(row, unpushed));
-    if rows.is_empty() {
-        return rsx! { NoAccountsPage { title: copy::titles::RULES } };
-    }
-    let held = shell.read().rules.account.clone();
-    let chosen = shown(&rows, held.as_ref()).cloned();
-    rsx! {
-        AccountSplit {
-            pane: STACK,
-            label: copy::titles::RULES,
-            rows: rows.clone(),
-            chosen: chosen.as_ref().map(|row| row.id.clone()),
-            onpick: move |id: AccountId| {
-                said.set(None);
-                let mut shell = shell;
-                shell.write().rules = Showing { account: Some(id), ..Showing::default() };
-            },
-            if let Some(row) = chosen {
-                AccountRules { key: "{row.id}", shell, row, said, pushed, phase, running, applied }
+    let title = use_callback(move |at: RulesAt| {
+        let named = |account: &AccountId| {
+            rows.read()
+                .iter()
+                .find(|row| row.id == *account)
+                .map_or_else(|| account.to_string(), AccountRow::shown)
+        };
+        match at {
+            RulesAt::List => copy::titles::RULES.to_owned(),
+            RulesAt::Account(account) => named(&account),
+            RulesAt::Rule(_, None) => copy::titles::NEW_RULE.to_owned(),
+            RulesAt::Rule(account, Some(id)) => {
+                let client = mail_ui_kit::live::client();
+                client
+                    .stored()
+                    .rules(account.clone())
+                    .ok()
+                    .and_then(|rules| rules.into_iter().find(|rule| rule.id == id))
+                    .map_or_else(|| named(&account), |rule| rule.name)
             }
-        }
-        Told { title: copy::titles::NOT_SAVED, said }
-        Told { title: copy::titles::NOT_ON_SERVER, said: unpushed }
-    }
-}
-
-/// One account's rules: its list at the root, a rule's page over it.
-#[component]
-fn AccountRules(
-    shell: Signal<Shell>,
-    row: AccountRow,
-    said: Said,
-    pushed: Callback<AccountRow>,
-    phase: Signal<Phase>,
-    running: Signal<String>,
-    applied: Callback<Rule>,
-) -> Element {
-    let path = shell.read().rules.path.clone();
-    let named = row.clone();
-    let title = use_callback(move |at: RulesAt| match at {
-        RulesAt::List => named.shown(),
-        RulesAt::Rule(None) => copy::titles::NEW_RULE.to_owned(),
-        RulesAt::Rule(Some(id)) => {
-            let client = mail_ui_kit::live::client();
-            client
-                .stored()
-                .rules(named.id.clone())
-                .ok()
-                .and_then(|rules| rules.into_iter().find(|rule| rule.id == id))
-                .map_or_else(|| named.shown(), |rule| rule.name)
         }
     });
-    let account = row.clone();
     let page = use_callback(move |at: RulesAt| {
-        let row = account.clone();
+        let of = |account: &AccountId| rows.read().iter().find(|row| row.id == *account).cloned();
         match at {
-            RulesAt::List => rsx! { RulesList { shell, row, said, pushed, phase, running } },
-            RulesAt::Rule(id) => {
-                rsx! { RulePage { key: "{id:?}", shell, row, id, said, pushed, applied } }
-            }
+            RulesAt::List => rsx! { Accounts { shell } },
+            RulesAt::Account(account) => match of(&account) {
+                Some(row) => {
+                    rsx! { RulesList { key: "{account}", shell, row, said, pushed, phase, running } }
+                }
+                None => rsx! {},
+            },
+            RulesAt::Rule(account, id) => match of(&account) {
+                Some(row) => {
+                    rsx! { RulePage { key: "{id:?}", shell, row, id, said, pushed, applied } }
+                }
+                None => rsx! {},
+            },
         }
     });
     let opener = use_callback(|at: RulesAt| row_id(&at));
@@ -157,6 +143,24 @@ fn AccountRules(
             opener: Some(opener),
             on_back: move |()| back(shell),
             common: Common { id: Some(STACK.to_owned()), ..Common::default() },
+        }
+        Told { title: copy::titles::NOT_SAVED, said }
+        Told { title: copy::titles::NOT_ON_SERVER, said: unpushed }
+    }
+}
+
+/// The root: the accounts, each opening its rules.
+#[component]
+fn Accounts(shell: Signal<Shell>) -> Element {
+    // Read again when an account comes or goes.
+    let _ = mail_ui_kit::live::moved_for(mail_client::Topics::ACCOUNTS);
+    let rows = mail_ui_kit::data::use_account_rows()();
+    rsx! {
+        AccountList {
+            pane: STACK,
+            label: copy::titles::RULES,
+            rows,
+            onopen: move |account: AccountId| open_account(shell, account),
         }
     }
 }

@@ -402,17 +402,116 @@ fn deletes_now() -> bool {
 /// that applies on this thread), otherwise from a task of the window's that outlives the
 /// component that asked, so a row that has left still has its undo kept. Returns what `then`
 /// did, when it ran here.
+///
+/// Tasks are woken in no order of their own, so two tickets the client answered one after the
+/// other can reach their tasks the other way round, and the second gesture's undo would then sit
+/// under the first's on the stack. What comes of the tickets is therefore handed on in the order
+/// they were asked ([`Turns`]).
 pub fn when_done<D: 'static, T: 'static>(
     mut ticket: Ticket<D>,
     then: impl FnOnce(Option<Acted<D>>) -> T + 'static,
 ) -> Option<T> {
     if let Some(acted) = ticket.now() {
-        return Some(then(Some(acted)));
+        if Turns::idle() {
+            return Some(then(Some(acted)));
+        }
+        // Answered already, but behind a ticket asked before it that is not handed on yet.
+        Turns::take().run(Box::new(move || {
+            then(Some(acted));
+        }));
+        return None;
     }
+    let mut place = Turns::take();
     dioxus::dioxus_core::spawn_forever(async move {
-        then(ticket.await);
+        let acted = ticket.await;
+        place.run(Box::new(move || {
+            then(acted);
+        }));
     });
     None
+}
+
+thread_local! {
+    static TURNS: std::cell::RefCell<Turns> = const { std::cell::RefCell::new(Turns::new()) };
+}
+
+type Handing = Box<dyn FnOnce()>;
+
+/// The order the window's tickets were asked in, and the answers that came early, kept until
+/// every ticket asked before them has been handed on.
+struct Turns {
+    /// The turn the next ticket asked is given.
+    next: u64,
+    /// The turn to be handed on next.
+    serving: u64,
+    /// Answers that came before their turn; `None` for a turn given up.
+    early: std::collections::BTreeMap<u64, Option<Handing>>,
+}
+
+impl Turns {
+    const fn new() -> Self {
+        Self {
+            next: 0,
+            serving: 0,
+            early: std::collections::BTreeMap::new(),
+        }
+    }
+
+    /// Whether every ticket asked has been handed on.
+    fn idle() -> bool {
+        TURNS.with_borrow(|turns| turns.serving == turns.next)
+    }
+
+    /// The next turn.
+    fn take() -> Place {
+        TURNS.with_borrow_mut(|turns| {
+            let at = turns.next;
+            turns.next += 1;
+            Place { at, spent: false }
+        })
+    }
+
+    /// Keep `handing` for turn `at`, then hand on every answer kept whose turn has come.
+    fn answer(at: u64, handing: Option<Handing>) {
+        TURNS.with_borrow_mut(|turns| turns.early.insert(at, handing));
+        loop {
+            // Not held while handing on, which may ask another ticket.
+            let ready = TURNS.with_borrow_mut(|turns| {
+                let handing = turns.early.remove(&turns.serving)?;
+                turns.serving += 1;
+                Some(handing)
+            });
+            match ready {
+                Some(Some(handing)) => handing(),
+                Some(None) => {}
+                None => return,
+            }
+        }
+    }
+}
+
+/// One ticket's turn.
+struct Place {
+    at: u64,
+    spent: bool,
+}
+
+impl Place {
+    fn run(&mut self, handing: Handing) {
+        self.spent = true;
+        Turns::answer(self.at, Some(handing));
+    }
+}
+
+impl Drop for Place {
+    /// A task dropped before its ticket was answered gives up its turn, or the ones after wait
+    /// on it for good.
+    fn drop(&mut self) {
+        // Not while the thread's own state is being torn down, when no one waits any more.
+        if !self.spent && TURNS.try_with(|_| ()).is_ok() {
+            Turns::answer(self.at, None);
+        }
+    }
 }
 
 /// Keep what the person made or forgot, written off the thread that draws like an op is: `then`

@@ -39,7 +39,15 @@ const LOOK: Duration = Duration::from_secs(2);
 const LOOK: Duration = Duration::from_millis(30);
 
 /// How often to look while the system says when the store is written to.
+///
+/// Windows says a write to a file another handle holds open (SQLite's `-wal`, written to for as
+/// long as the database is open) when that handle's metadata is next updated, not as the write is
+/// made, so there the system's word comes late or not at all and the looking is what hears a
+/// commit: it looks every second, which is one `PRAGMA data_version` on a lock nothing holds.
+#[cfg(not(windows))]
 const STEADY: Duration = Duration::from_secs(15);
+#[cfg(windows)]
+const STEADY: Duration = Duration::from_secs(1);
 
 /// How soon to look again after hearing a write that this look could not tell had committed.
 const OWED: Duration = Duration::from_millis(50);
