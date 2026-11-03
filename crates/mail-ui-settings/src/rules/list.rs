@@ -8,9 +8,6 @@
 
 use dioxus::prelude::*;
 use ds::base::press::{PointerButton, Press};
-use ds::components::controls::progress::model::{Progress, ProgressStyle};
-use ds::components::controls::progress::view::ProgressIndicator;
-use ds::components::fields::field_row::FieldRow;
 use ds::components::lists::list::model::ListStyle;
 use ds::components::lists::row::size::RowSize;
 use ds::prelude::*;
@@ -21,7 +18,7 @@ use super::server::reach;
 use super::work::{self, Listed, Step};
 use super::{Said, open, row_id};
 use mail_ui_kit::common::Problem;
-use mail_ui_kit::common::{add_mark, classed};
+use mail_ui_kit::common::add_mark;
 use mail_ui_kit::data::AccountRow;
 use mail_ui_kit::files::Phase;
 use mail_ui_kit::menu::{Floating, MenuItem};
@@ -269,13 +266,9 @@ pub fn RunProgress(phase: Signal<Phase>, name: String) -> Element {
             let share = (done.min(of) * 1000).checked_div(of).unwrap_or(0);
             rsx! {
                 FormSection {
-                    FieldRow {
+                    mail_ui_kit::pending::Meter {
                         label: format!("Running “{name}”…"),
-                        ProgressIndicator {
-                            style: ProgressStyle::Bar,
-                            progress: Progress::Known(Fraction(u16::try_from(share).unwrap_or(1000))),
-                            common: classed("rules-progress"),
-                        }
+                        thousandths: u16::try_from(share).unwrap_or(1000),
                     }
                 }
             }

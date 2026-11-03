@@ -104,3 +104,10 @@
    editor is the colour's row of swatches. */
 .label-hue { display: inline-flex; align-items: center; color: var(--warn); }
 .label-editor { display: grid; gap: var(--s-6); padding: var(--s-8); }
+
+/* Work that has not finished (`mail_ui_kit::pending`): rows in outline where content comes, a
+   small spinner leading its words where the wait has no count, the words over a bar where it has
+   one. Layout only. */
+.outline { display: flex; flex-direction: column; gap: var(--s-2); }
+.pending { display: flex; align-items: center; gap: var(--s-6); min-width: 0; }
+.meter { display: grid; gap: var(--s-4); width: 100%; min-width: 0; }

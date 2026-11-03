@@ -62,7 +62,7 @@ fn make_the_rule(settings: &mut Harness, store: &SqliteStore) {
     });
     // A run says nothing when it ends: what it did is in the mail, and its bar goes.
     until(settings, "the rule ran to its end", |h| {
-        h.count(".rules-progress") == 0
+        h.count(".meter") == 0
             && !inbox_at(store, chrono::Utc::now()).contains(&ARRIVING.to_owned())
     });
     // The fixture's account has no password to reach its server with, so the save's push to it

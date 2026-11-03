@@ -136,6 +136,7 @@ fn DownloadsList(
                         leading: RowLeading::Icon(icon_of(&going.name)),
                         title: going.name.clone(),
                         detail: Some(TextLine::from("Saving\u{2026}")),
+                        accessory: Accessory::Spinner,
                     }
                 },
             )
