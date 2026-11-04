@@ -248,7 +248,7 @@ fn rows_picked_together_are_acted_on_as_one_gesture_and_one_undo() {
             == 2
     });
     assert_eq!(starred(&window), [subjects[0], subjects[2]]);
-    window.press(&[PRIMARY], Key::Char('z'), 1);
+    undo_once_kept(&mut window);
     // The undo goes through the client, which commits it a moment after the key.
     window.until_stored("one Ctrl-Z, both", |store| {
         listed(
@@ -274,7 +274,7 @@ fn rows_picked_together_are_acted_on_as_one_gesture_and_one_undo() {
             == 2
     });
     assert_eq!(muted(&window), [subjects[0], subjects[2]]);
-    window.press(&[PRIMARY], Key::Char('z'), 1);
+    undo_once_kept(&mut window);
     window.until_stored("one Ctrl-Z, both", |store| {
         listed(
             store,
@@ -305,7 +305,7 @@ fn rows_picked_together_are_acted_on_as_one_gesture_and_one_undo() {
     window.until_stored("the three are archived", |store| {
         inbox_at(store, chrono::Utc::now()) == [subjects[0]]
     });
-    window.press(&[PRIMARY], Key::Char('z'), 1);
+    undo_once_kept(&mut window);
     window.until("one Ctrl-Z brings all three back", |h| {
         h.count(".list .ds-thread") == INBOX.len()
     });
@@ -566,7 +566,22 @@ fn a_row_is_flagged_orange_from_its_menu_and_cleared_again() {
         h.attr(&format!("{} .row", row_for_in(h, subject)), "data-flag")
             .is_none()
     });
-    assert_eq!(window.harness.count(".reader-head .flag-mark"), 0);
+    window.until("the reader says it is not flagged", |h| {
+        h.count(".reader-head .flag-mark") == 0
+    });
+}
+
+/// Ctrl-Z once the last gesture is kept: its undo goes on the stack when the client is done
+/// with it, a moment after the store shows the write, and its toast offering Undo says so.
+fn undo_once_kept(window: &mut Window) {
+    window.until("the gesture's toast offers Undo", |h| {
+        ["entering", "present"].iter().any(|presence| {
+            h.count(&format!(
+                ".ds-toast[*|data-presence={presence}] .ds-toast-action"
+            )) == 1
+        })
+    });
+    window.press(&[PRIMARY], Key::Char('z'), 1);
 }
 
 /// The list's item reading `subject`, from the harness alone.
