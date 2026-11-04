@@ -82,6 +82,23 @@ pub fn list_highlight<Tz: TimeZone>(
     })
 }
 
+/// The words of `input` that are text to look for in a message: its free words and quoted
+/// phrases, in that order, and not its operators (`from:dana`, `is:unread`) or its `re:/…/`
+/// pattern, which say which mail, not which words. What a search was opened from marks in the
+/// conversation it opened.
+pub fn text_words<Tz: TimeZone>(
+    input: &str,
+    zone: &Tz,
+    label: &dyn crate::query::Names,
+) -> Vec<String> {
+    let rest = extract(input).map_or_else(|_| input.to_owned(), |extracted| extracted.rest);
+    let parsed = parse(&rest, zone, label);
+    let mut words = parsed.query_words();
+    words.extend(parsed.phrases);
+    words.retain(|word| !word.trim().is_empty());
+    words
+}
+
 /// ⌘F, while it is open: what was typed, and which match is the current one.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Find {
@@ -133,7 +150,7 @@ fn merge(mut ranges: Vec<Range<usize>>) -> Vec<Range<usize>> {
 mod tests {
     use chrono::Utc;
 
-    use super::{Find, Step, list_highlight};
+    use super::{Find, Step, list_highlight, text_words};
 
     fn marked<'a>(text: &'a str, ranges: &[std::ops::Range<usize>]) -> Vec<&'a str> {
         ranges.iter().map(|range| &text[range.clone()]).collect()
@@ -161,6 +178,24 @@ mod tests {
                 .unwrap_or_else(|why| panic!("{input:?}: {why}"));
             let ranges = highlight.ranges(text);
             assert_eq!(marked(text, &ranges), *want, "typed {input:?}");
+        }
+    }
+
+    #[test]
+    fn a_search_gives_its_words_and_phrases_and_not_its_operators() {
+        let cases: &[(&str, &[&str])] = &[
+            ("", &[]),
+            ("from:dana is:unread", &[]),
+            ("invoice", &["invoice"]),
+            ("from:dana invoice march", &["invoice", "march"]),
+            ("\"sync review\" notes", &["notes", "sync review"]),
+            ("re:/[0-9]+/ cut", &["cut"]),
+            // A pattern that does not compile is the text it is, as ⌘F takes it.
+            ("re:/(/ cut", &["re:/(/", "cut"]),
+        ];
+        for (input, want) in cases {
+            let words = text_words(input, &Utc, &crate::query::unnamed);
+            assert_eq!(words, *want, "typed {input:?}");
         }
     }
 
