@@ -521,11 +521,13 @@ fn ActionPicker(
     on_pick: EventHandler<String>,
     on_close: EventHandler<()>,
 ) -> Element {
+    // The names are in memory, so the list narrows on every keystroke. Escape closes the list
+    // whatever the field holds, as in Move to (quire's `PickList` owns the field's keys).
     let mut query = use_signal(String::new);
     let (label, placeholder, items) = match adding {
         Adding::Labels => (
             "Label",
-            "Find or create a label",
+            copy::menus::FIND_OR_CREATE_A_LABEL,
             label_items(&names, &query()),
         ),
         Adding::Forward => (
@@ -550,7 +552,7 @@ fn ActionPicker(
         ),
         _ => (
             "Move to",
-            "Find a folder",
+            copy::menus::FIND_A_FOLDER,
             folders
                 .iter()
                 .map(|path| {
@@ -572,7 +574,7 @@ fn ActionPicker(
             placeholder,
             query: query(),
             groups: palette_groups(&shown, AvatarSize::Size22, None),
-            empty: "Nothing matches.".to_owned(),
+            empty: copy::empty::NOTHING_MATCHES.to_owned(),
             oninput: move |text: String| query.set(text),
             onpick: on_pick,
             onclose: on_close,

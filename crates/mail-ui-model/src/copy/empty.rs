@@ -23,6 +23,21 @@ pub const NO_FOLDERS: &str = "No folders";
 /// Move to… and Copy to…, when nothing typed names one of the folders.
 pub const NO_FOLDER_MATCHES: &str = "No folder matches.";
 
+/// The label picker, on an account with no label to offer.
+pub const NO_LABELS: &str = "No labels";
+/// The label picker, when nothing typed names one.
+pub const NO_LABEL_MATCHES: &str = "No label matches.";
+/// The rule editor's pickers, when nothing typed names a row.
+pub const NOTHING_MATCHES: &str = "Nothing matches.";
+/// The composer's list of templates, with none saved.
+pub const NO_TEMPLATES: &str = "No templates";
+/// The emoji picker, before any emoji has been picked.
+pub const NO_RECENT_EMOJI: &str = "Emoji you pick appear here.";
+/// The emoji picker, when nothing typed names one.
+pub fn no_emoji_called(typed: &str) -> String {
+    format!("No emoji called “{typed}”.")
+}
+
 /// The reader column with no conversation open.
 pub const NO_MESSAGE_SELECTED: &str = "No message selected";
 

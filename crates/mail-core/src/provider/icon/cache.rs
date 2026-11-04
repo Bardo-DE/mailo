@@ -3,54 +3,34 @@
 use super::decode::SIDE;
 use super::{IconError, PNG_MAGIC};
 use base64::Engine as _;
+pub use mail_logic::provider::Loaded;
 use mail_logic::provider::Provider;
 use std::path::{Path, PathBuf};
 
-/// Icons read once from the cache directory, each drawn ahead at the sizes a window asks for.
-///
-/// Missing files are absent. The chip then draws the letter, which is also what
-/// a window with the setting on letters draws even when the file is there.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Loaded {
-    uris: [Vec<(u32, String)>; 6],
-}
-
-impl Loaded {
-    /// Read every cached PNG under `dir`, and draw it at each of `sides` (in device pixels): the
-    /// renderer then puts the picture on the screen pixel for pixel instead of resampling the
-    /// 96 px file on the fly, which softens it. A file that is not a cached PNG is skipped.
-    pub fn read(dir: &Path, sides: &[u32]) -> Self {
-        let mut loaded = Self::default();
-        for provider in Provider::ALL {
-            let Some(path) = cached(dir, provider) else {
-                continue;
-            };
-            let Ok(bytes) = std::fs::read(&path) else {
-                continue;
-            };
-            let Ok(image) = image::load_from_memory_with_format(&bytes, image::ImageFormat::Png)
-            else {
-                continue;
-            };
-            loaded.uris[slot(provider)] = sides
+/// Every cached PNG under `dir`, drawn at each of `sides` (in device pixels): the renderer then
+/// puts the picture on the screen pixel for pixel instead of resampling the 96 px file on the
+/// fly, which softens it. A file that is not a cached PNG is skipped.
+pub fn read(dir: &Path, sides: &[u32]) -> Loaded {
+    let mut loaded = Loaded::default();
+    for provider in Provider::ALL {
+        let Some(path) = cached(dir, provider) else {
+            continue;
+        };
+        let Ok(bytes) = std::fs::read(&path) else {
+            continue;
+        };
+        let Ok(image) = image::load_from_memory_with_format(&bytes, image::ImageFormat::Png) else {
+            continue;
+        };
+        loaded = loaded.with(
+            provider,
+            sides
                 .iter()
                 .filter_map(|&side| Some((side, data_uri(&drawn_at(&image, &bytes, side)?))))
-                .collect();
-        }
-        loaded
+                .collect(),
+        );
     }
-
-    /// The `data:image/png;base64,` URI for `provider` drawn `side` device pixels across, when one
-    /// was cached: the size read for exactly that side, else the next larger, else the largest.
-    pub fn uri(&self, provider: Provider, side: u32) -> Option<String> {
-        let drawn = &self.uris[slot(provider)];
-        drawn
-            .iter()
-            .filter(|(at, _)| *at >= side)
-            .min_by_key(|(at, _)| *at)
-            .or_else(|| drawn.iter().max_by_key(|(at, _)| *at))
-            .map(|(_, uri)| uri.clone())
-    }
+    loaded
 }
 
 /// `image` (whose file is `png`) as a PNG `side` px square: the file itself at its own size.
@@ -115,17 +95,6 @@ pub fn file_stem(provider: Provider) -> &'static str {
         Provider::Icloud => "icloud",
         Provider::Yahoo => "yahoo",
         Provider::Imap => "imap",
-    }
-}
-
-fn slot(provider: Provider) -> usize {
-    match provider {
-        Provider::Google => 0,
-        Provider::Microsoft => 1,
-        Provider::Fastmail => 2,
-        Provider::Icloud => 3,
-        Provider::Yahoo => 4,
-        Provider::Imap => 5,
     }
 }
 

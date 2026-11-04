@@ -21,6 +21,7 @@
 
 use super::{Host, Note};
 use mail_domain::Retry;
+pub use mail_logic::schedule::{Daemon, Lost};
 use mail_runtime::Woke;
 use mail_runtime::fetch::{self, BACKOFF_CEILING, Event, Link, Live, Trigger};
 use porter_core::AccountId;
@@ -64,15 +65,6 @@ impl From<Woke> for Heard {
             Woke::Interval => Heard::Interval,
         }
     }
-}
-
-/// Why the watch is over, when nobody asked it to be.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Lost {
-    /// What to do about it: wait, ask for a sign-in, or give up.
-    pub retry: Retry,
-    /// What to tell a person.
-    pub why: String,
 }
 
 /// What a watch hears, as what the link is told.
@@ -122,13 +114,6 @@ pub fn reconnect(failures: u32, retry: &Retry, floor: Duration) -> Reconnect {
             nudge: None,
         },
     }
-}
-
-/// Whether the background daemon holds the lock that makes it the one account watcher.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Daemon {
-    Holding,
-    Absent,
 }
 
 /// Whether the server can push to an account.

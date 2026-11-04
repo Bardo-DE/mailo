@@ -14,7 +14,10 @@
 //! Microsoft mailbox, and the rule that only implicit TLS is used for a server found by
 //! discovery.
 
+pub mod offer;
 pub mod providers;
+
+pub use offer::{Looked, settle, typed, typed_domain};
 
 use chrono::{DateTime, Utc};
 use mail_domain::presets::{self, Manual, ManualPop3, Preset};

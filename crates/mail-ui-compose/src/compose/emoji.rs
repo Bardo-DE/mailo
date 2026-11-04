@@ -19,7 +19,9 @@ use super::desk::Desk;
 use super::float::{insert_emoji, pick_emoji};
 use super::page::Page;
 use crate::emoji::{self, Emoji, Group, recent};
+use mail_ui_kit::escape::clear_on_escape;
 use mail_ui_kit::host::Host;
+use mail_ui_model::copy;
 
 /// Cells per row of the picker's grid: as wide as the ten tabs over it.
 const COLUMNS: u8 = 10;
@@ -105,6 +107,14 @@ pub(super) fn Picker(page: Signal<Page>, on_done: EventHandler<()>) -> Element {
     };
     let count = cells.len();
     let keys = move |event: KeyboardEvent| {
+        // Escape empties the search first; with it empty the key reaches the popover, which
+        // closes. The emoji table is in memory, so a search runs on every keystroke.
+        if clear_on_escape(&event, &query.cloned(), || {
+            query.set(String::new());
+            selected.set(Some(0));
+        }) {
+            return;
+        }
         let step = match event.key() {
             Key::ArrowUp => GridStep::Up,
             Key::ArrowDown => GridStep::Down,
@@ -138,16 +148,16 @@ pub(super) fn Picker(page: Signal<Page>, on_done: EventHandler<()>) -> Element {
         })
         .collect();
     let empty = if typed.trim().is_empty() {
-        "Emoji you pick appear here.".to_owned()
+        copy::empty::NO_RECENT_EMOJI.to_owned()
     } else {
-        format!("No emoji called “{}”.", typed.trim())
+        copy::empty::no_emoji_called(typed.trim())
     };
     rsx! {
         div { class: "em-picker",
             TextField {
-                label: "Search emoji".to_owned(),
+                label: copy::fields::SEARCH_EMOJI.to_owned(),
                 value: typed.clone(),
-                placeholder: "Search emoji".to_owned(),
+                placeholder: copy::fields::SEARCH_EMOJI.to_owned(),
                 kind: FieldKind::Search,
                 tokens: Vec::new(),
                 oninput: move |value: String| {

@@ -20,11 +20,19 @@ name = "mail_logic"
 mail-domain.workspace = true
 # Reads a message's own headers (`X-Spam-Flag`); no I/O.
 mail-archive.workspace = true
+mail-editor.workspace = true
+mail-mime.workspace = true
+mail-pim.workspace = true
+mail-proto.workspace = true
+mail-reader.workspace = true
 porter-core.workspace = true
 porter-provider.workspace = true
 # Discovery's answers and its parsers (no `io` feature: no tokio, no resolver): the lookup is `mail-core`'s.
 porter-discover.workspace = true
 porter-ids.workspace = true
+porter-capability.workspace = true
+porter-sheet.workspace = true
+porter-calendar.workspace = true
 thiserror.workspace = true
 chrono.workspace = true
 serde.workspace = true

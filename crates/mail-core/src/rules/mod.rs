@@ -6,6 +6,8 @@
 //! with `rules run`. Where the account's server takes Sieve, `mailo sieve push` puts the ones
 //! it can run there too; see [`server`].
 
+pub use mail_logic::rules::ListedRule;
+
 pub mod block;
 pub mod guard;
 pub mod manage;
@@ -70,13 +72,6 @@ pub(crate) fn pick(
             _ => Err(CoreError::NameTheAccount),
         },
     }
-}
-
-/// One rule of a listing, with its condition written back in the search language.
-#[derive(Debug, Clone, PartialEq)]
-pub struct ListedRule {
-    pub rule: Rule,
-    pub condition: String,
 }
 
 /// An account's rules, in the order they run.

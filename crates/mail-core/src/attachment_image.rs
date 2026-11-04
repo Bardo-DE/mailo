@@ -17,6 +17,10 @@
 use std::io::Cursor;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
+pub use mail_logic::attachment_image::{
+    Fit, Kind, LARGE, PDF_PAGE, Page, Picture, Refusal, SMALL, Unavailable, sniff,
+};
+
 use image::{ImageFormat, ImageReader, Limits};
 use mail_domain::MessageId;
 use mail_store::{SqliteStore, Store};
@@ -39,130 +43,23 @@ const MAX_ALLOC: u64 = 256 << 20;
 /// How many bytes decide what a part is.
 const SNIFF: usize = 16;
 
-/// What a stored part's first bytes say it is, of what can be previewed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Kind {
-    Png,
-    Jpeg,
-    Gif,
-    WebP,
-    Pdf,
-}
-
-impl Kind {
-    fn format(self) -> Option<ImageFormat> {
-        match self {
-            Kind::Png => Some(ImageFormat::Png),
-            Kind::Jpeg => Some(ImageFormat::Jpeg),
-            Kind::Gif => Some(ImageFormat::Gif),
-            Kind::WebP => Some(ImageFormat::WebP),
-            Kind::Pdf => None,
-        }
-    }
-
-    /// The most bytes of this kind read to preview it.
-    fn max_bytes(self) -> u64 {
-        match self {
-            Kind::Pdf => MAX_PDF_BYTES,
-            Kind::Png | Kind::Jpeg | Kind::Gif | Kind::WebP => MAX_IMAGE_BYTES,
-        }
+/// The format an image of `kind` is decoded as: none for a PDF.
+fn format_of(kind: Kind) -> Option<ImageFormat> {
+    match kind {
+        Kind::Png => Some(ImageFormat::Png),
+        Kind::Jpeg => Some(ImageFormat::Jpeg),
+        Kind::Gif => Some(ImageFormat::Gif),
+        Kind::WebP => Some(ImageFormat::WebP),
+        Kind::Pdf => None,
     }
 }
 
-/// What `head`, a part's first bytes, is: one of the kinds drawn, or `None` for anything else,
-/// SVG included.
-pub fn sniff(head: &[u8]) -> Option<Kind> {
-    if head.starts_with(b"\x89PNG\r\n\x1a\n") {
-        Some(Kind::Png)
-    } else if head.starts_with(&[0xFF, 0xD8, 0xFF]) {
-        Some(Kind::Jpeg)
-    } else if head.starts_with(b"GIF87a") || head.starts_with(b"GIF89a") {
-        Some(Kind::Gif)
-    } else if head.len() >= 12 && head.starts_with(b"RIFF") && &head[8..12] == b"WEBP" {
-        Some(Kind::WebP)
-    } else if head.starts_with(b"%PDF-") {
-        Some(Kind::Pdf)
-    } else {
-        None
+/// The most bytes of `kind` read to preview it.
+fn max_bytes_of(kind: Kind) -> u64 {
+    match kind {
+        Kind::Pdf => MAX_PDF_BYTES,
+        Kind::Png | Kind::Jpeg | Kind::Gif | Kind::WebP => MAX_IMAGE_BYTES,
     }
-}
-
-/// The room a picture is fitted into, in device pixels. The aspect is kept.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Fit {
-    pub width: u32,
-    pub height: u32,
-}
-
-/// A strip thumbnail: 56 logical pixels square, drawn at up to 2x.
-pub const SMALL: Fit = Fit {
-    width: 112,
-    height: 112,
-};
-
-/// The viewer's picture.
-pub const LARGE: Fit = Fit {
-    width: 1600,
-    height: 1200,
-};
-
-/// The viewer's PDF page.
-pub const PDF_PAGE: Fit = Fit {
-    width: 1200,
-    height: 1600,
-};
-
-/// A picture ready to draw: a `data:` URI of a PNG, and its size in pixels.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Picture {
-    pub uri: String,
-    pub width: u32,
-    pub height: u32,
-}
-
-/// Why a part here is not drawn.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Refusal {
-    /// Its header claims more pixels than are decoded to preview anything.
-    TooLarge { width: u32, height: u32 },
-    /// More bytes than are read to preview a part of its kind.
-    TooManyBytes(u64),
-    /// A PDF that needs a password.
-    Locked,
-    /// A PDF with no pages.
-    Empty,
-    /// Damaged, or not what its first bytes said.
-    Unreadable,
-}
-
-impl Refusal {
-    /// What the strip and the viewer say instead of a picture.
-    pub fn sentence(self) -> String {
-        match self {
-            Refusal::TooLarge { width, height } => {
-                format!("Too large to preview ({width} × {height})")
-            }
-            Refusal::TooManyBytes(size) => {
-                format!("Too large to preview ({})", crate::attach::human_size(size))
-            }
-            Refusal::Locked => "Locked PDF, no preview".to_owned(),
-            Refusal::Empty => "A PDF with no pages".to_owned(),
-            Refusal::Unreadable => "No preview: the file could not be read".to_owned(),
-        }
-    }
-}
-
-/// Why a part has no preview at all.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Unavailable {
-    /// Still on the server: nothing is fetched to preview it.
-    NotHere,
-    /// Not a kind that is drawn.
-    NotAPicture,
-    /// A kind that is drawn, refused.
-    Refused(Refusal),
-    /// The store could not answer.
-    Store(String),
 }
 
 /// Attachment `index` of `message`'s stored bytes, if it is a kind that is drawn and not too
@@ -187,7 +84,7 @@ pub fn load(
     let size = blobs
         .size(blob)
         .map_err(|e| Unavailable::Store(e.to_string()))?;
-    if size > kind.max_bytes() {
+    if size > max_bytes_of(kind) {
         return Err(Unavailable::Refused(Refusal::TooManyBytes(size)));
     }
     let bytes = blobs
@@ -208,7 +105,7 @@ pub(crate) fn decodable(width: u32, height: u32) -> bool {
 /// `bytes`, an image of `kind`, fitted into `fit` and written as a PNG. The header is read
 /// first, and an image [`decodable`] refuses is never decoded.
 pub fn picture(bytes: &[u8], kind: Kind, fit: Fit) -> Result<Picture, Refusal> {
-    let Some(format) = kind.format() else {
+    let Some(format) = format_of(kind) else {
         return Err(Refusal::Unreadable);
     };
     // The header alone, under the reader's own default limits: the claim is what is measured,
@@ -258,15 +155,6 @@ fn png_uri(png: &[u8]) -> String {
         "data:image/png;base64,{}",
         base64::engine::general_purpose::STANDARD.encode(png)
     )
-}
-
-/// One page of a PDF, drawn, and how many it has.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Page {
-    pub picture: Picture,
-    /// Which page, from 0: the one asked for, held to the last there is.
-    pub number: u32,
-    pub count: u32,
 }
 
 /// Page `number` (from 0) of the PDF `bytes`, fitted into `fit` on white. A number past the end

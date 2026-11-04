@@ -6,6 +6,8 @@
 //! would name its file ([`suggested`]) and how many messages a search means ([`selection_size`]).
 //! Every answer is a value; the front end words it.
 
+pub use mail_logic::transfer::{IoCause, Refusal, Upload};
+
 use crate::error::CoreError;
 use crate::error::Logged;
 use crate::export;
@@ -40,37 +42,6 @@ pub fn expand_here(typed: &str) -> PathBuf {
         typed,
         crate::config::home_dir().as_deref().map(Path::as_os_str),
     )
-}
-
-/// Why the operating system would not do something with a path: its kind, and its own words.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct IoCause {
-    pub kind: ErrorKind,
-    pub text: String,
-}
-
-impl IoCause {
-    fn of(error: &std::io::Error) -> Self {
-        Self {
-            kind: error.kind(),
-            text: error.to_string(),
-        }
-    }
-}
-
-/// Why a typed path cannot be imported.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Refusal {
-    /// There is nothing at the path.
-    NothingThere,
-    /// Something is there, and it cannot be looked at.
-    CannotReach(IoCause),
-    /// A file that cannot be opened.
-    CannotOpen(IoCause),
-    /// A file with nothing in it.
-    Empty,
-    /// It is not mail, or not mail that can be read: [`import`]'s own words.
-    Unreadable(String),
 }
 
 /// What a typed path holds.
@@ -117,14 +88,6 @@ pub fn look(path: &Path) -> Seen {
         },
         Err(why) => Seen::Refused(Refusal::Unreadable(why.to_string())),
     }
-}
-
-/// An IMAP account's folder that imported mail can be uploaded into.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Upload {
-    pub account: AccountId,
-    pub address: String,
-    pub folder: String,
 }
 
 /// Every folder imported mail can be uploaded into: each IMAP account's folders as the store lists

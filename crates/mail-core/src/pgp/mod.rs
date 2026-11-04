@@ -9,7 +9,8 @@ pub mod keys;
 pub mod read;
 pub mod seal;
 
-pub use keys::{Imported, WithSecret, own_key};
+pub use keys::{Imported, own_key};
+pub use mail_logic::protection::{Ask, WithSecret, no_passphrase};
 pub use read::{Protected, open_bytes, open_message};
 pub use seal::OpenPgp;
 
@@ -18,18 +19,6 @@ use mail_crypto::CryptoError;
 use mail_domain::{Fingerprint, KeySource, PgpKey};
 use mail_runtime::RuntimeError;
 use mail_store::{SqliteStore, Store, StoreError};
-
-/// Asked for the passphrase of the user's key with this fingerprint, when a protected key has
-/// to sign or decrypt. `None` is "not given": the send is refused or the message stays locked.
-///
-/// The command line asks on the terminal; the window asks in the window; a test
-/// answers from a table. Nothing is asked for a key that has no passphrase.
-pub type Ask<'a> = &'a dyn Fn(Fingerprint) -> Option<String>;
-
-/// The [`Ask`] that never has an answer: for callers with nobody to ask.
-pub fn no_passphrase(_: Fingerprint) -> Option<String> {
-    None
-}
 
 /// Why an OpenPGP step could not be done, named so the caller can say what to do about it.
 #[derive(Debug, thiserror::Error)]

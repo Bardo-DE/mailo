@@ -4,6 +4,14 @@
 
 /// ⌘F's field over the open conversation, while nothing is typed.
 pub const FIND: &str = "Find";
+/// The composer's emoji picker: its field's label and placeholder. A field that searches says
+/// "Search", as Settings › Contacts' does.
+pub const SEARCH_EMOJI: &str = "Search emoji";
+/// The composer's To field, while nobody is in it.
+pub const ADD_A_PERSON: &str = "Add a person";
+/// The saved-view sheet: an example of a name, and of a search it can list.
+pub const SAVED_VIEW_NAME_EXAMPLE: &str = "Receipts";
+pub const SAVED_VIEW_QUERY_EXAMPLE: &str = "from:shop.example has:attachment";
 /// The chip that says the card finds in the open message and not in the mail.
 pub const IN_THIS_MESSAGE: &str = "In This Message";
 /// A folder's name, being written: the field's label and a rename's placeholder.
@@ -210,7 +218,7 @@ pub const DEFAULT_FOR_NEW_MESSAGES: &str = "Default for new messages";
 /// The switch that starts every reply and forward with it.
 pub const DEFAULT_FOR_REPLIES: &str = "Default for replies";
 // A person's card in Settings › Contacts, and a group's page.
-pub const FIND_CONTACTS: &str = "Search contacts";
+pub const SEARCH_CONTACTS: &str = "Search contacts";
 pub const ANOTHER_EMAIL: &str = "Add an address";
 pub const ANOTHER_PHONE: &str = "Add a number";
 pub const STREET: &str = "Street";

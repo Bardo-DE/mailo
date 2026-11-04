@@ -12,6 +12,8 @@
 //! root: those shipped in `roots.pem`, and any the user keeps in `bimi-roots.pem` beside
 //! `bimi.json`.
 
+pub use mail_logic::bimi::{Setting, domain_of};
+
 use mail_crypto::smime::{Cert, read_certs};
 use mail_mime::AuthResults;
 pub use mail_net::lookup::SystemDns;
@@ -20,15 +22,6 @@ pub use mail_net::lookup::SystemDns;
 pub use mail_runtime::bimi::{Cached, Lookup, Shared, cached, client_builder, shared};
 use mail_runtime::bimi::{Txt, logo};
 use std::path::Path;
-
-/// Whether brand logos are shown. Off unless someone turned it on.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Setting {
-    On,
-    #[default]
-    Off,
-}
 
 const FILE_NAME: &str = "bimi.json";
 
@@ -68,12 +61,6 @@ fn pem_certs(bytes: &[u8]) -> Vec<Cert> {
         return Vec::new();
     }
     read_certs(bytes).unwrap_or_default()
-}
-
-/// The domain of `address`, when it has one: after the last `@`.
-pub fn domain_of(address: &str) -> Option<&str> {
-    let (_, domain) = address.trim().rsplit_once('@')?;
-    (!domain.is_empty()).then_some(domain)
 }
 
 /// The logo of the sender at `from`, as a PNG, when every condition holds: the setting is on,

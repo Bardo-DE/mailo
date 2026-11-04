@@ -290,6 +290,20 @@ fn created(account: AccountId, path: &str, folders: &[Folder]) -> Folder {
     }
 }
 
+/// Why a folder change did not happen.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum Refusal {
+    /// The change itself cannot be made: the name, the folder, the protocol.
+    #[error(transparent)]
+    Folder(#[from] FolderError),
+    /// No configured account has this id.
+    #[error("no such account")]
+    NoAccount,
+    /// The store could not be read or written; nothing was changed.
+    #[error("{0}")]
+    Store(String),
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

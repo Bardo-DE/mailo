@@ -231,7 +231,19 @@ pub const RULE_SENDS_HELP: &str = "As mail arrives, while Mailo runs";
 pub const FORWARD_TO: &str = "Forward to";
 pub const AN_ADDRESS: &str = "Type an address";
 pub const REPLY_WITH: &str = "Reply with";
+/// The pickers that choose from a list say "Find", where a field that searches says "Search":
+/// a template, a folder and a label are picked out of what there is.
 pub const FIND_A_TEMPLATE: &str = "Find a template";
+pub const FIND_A_FOLDER: &str = "Find a folder";
+pub const FIND_A_LABEL: &str = "Find a label";
+/// The rule editor's label picker, which also makes one.
+pub const FIND_OR_CREATE_A_LABEL: &str = "Find or create a label";
+/// The composer's list of templates, as the palette is named.
+pub const START_FROM_A_TEMPLATE: &str = "Start from a template";
+/// The `/` menu's group of what can be done with the whole message.
+pub const THIS_MESSAGE: &str = "This message";
+/// The Import sheet's destination picker.
+pub const IMPORT_INTO: &str = "Import into";
 /// The row of the forward picker that takes what was typed.
 pub fn forward_to(address: &str) -> String {
     format!("Forward to {address}")

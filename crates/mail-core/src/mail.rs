@@ -22,6 +22,8 @@
 
 use crate::environment::Environment;
 use crate::error::Logged;
+pub use mail_logic::clock::Clock;
+
 use chrono::{DateTime, Utc};
 use mail_secrets::{
     AccountSecrets, ClientRegistry, KeyringSigningStore, SigningStore, platform_secrets,
@@ -29,12 +31,6 @@ use mail_secrets::{
 use mail_store::SqliteStore;
 use std::sync::Arc;
 use tokio::runtime::Handle;
-
-/// What time it is. The clock a [`Mail`] reads, so a test can stand still.
-pub trait Clock: Send + Sync {
-    /// Now.
-    fn now(&self) -> DateTime<Utc>;
-}
 
 /// The wall clock.
 #[derive(Debug, Clone, Copy, Default)]

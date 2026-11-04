@@ -53,6 +53,7 @@ impl FieldDraft {
     fn of(spec: &FieldSpec, kept: Option<&FieldDraft>) -> FieldDraft {
         let value = match (spec.entry, kept.map(|field| &field.value)) {
             (Entry::Plain, Some(FieldValue::Plain(text))) => FieldValue::Plain(text.clone()),
+            // A field with nothing to prefill starts empty.
             (Entry::Plain, _) => FieldValue::Plain(spec.prefill.clone().unwrap_or_default()),
             // A secret never survives a new view: what was sent is gone, and so is the rest.
             (Entry::Secret, _) => FieldValue::Secret(SecretText::new("")),
@@ -71,6 +72,7 @@ impl FieldDraft {
         let value = match (spec.entry, kept.map(|field| &field.value)) {
             (Entry::Secret, Some(secret @ FieldValue::Secret(_))) => secret.clone(),
             (Entry::Secret, _) => FieldValue::Secret(SecretText::new("")),
+            // A field with nothing to prefill starts empty.
             (Entry::Plain, _) => FieldValue::Plain(spec.prefill.clone().unwrap_or_default()),
         };
         FieldDraft {

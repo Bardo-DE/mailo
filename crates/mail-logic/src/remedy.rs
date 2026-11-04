@@ -9,6 +9,15 @@
 use mail_domain::Fingerprint;
 use porter_provider::Issuer;
 
+/// What a person can do about a pass that failed, when it is neither waiting nor signing in
+/// again: the one action the window offers beside the failure.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Offer {
+    /// Set the account up again to read and send through Microsoft Graph: Microsoft refused it
+    /// mail over IMAP (`mail_core::account::switch_to_graph`).
+    UseGraph,
+}
+
 /// How an account signs in, for the one remedy whose steps depend on it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SignInWith {

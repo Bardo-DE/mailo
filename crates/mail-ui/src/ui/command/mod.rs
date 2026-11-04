@@ -18,7 +18,7 @@ mod recent;
 mod sections;
 mod spotlight;
 mod suggest;
-mod templates;
+pub(in crate::ui) mod templates;
 
 pub(in crate::ui) use commands::{Acts, Command, Settings, Sidebar, TidyUp};
 #[cfg(test)]

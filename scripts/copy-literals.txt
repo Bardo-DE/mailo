@@ -25,11 +25,11 @@ crates/mail-ui-kit/src/downloads/open.rs 14
 crates/mail-ui-kit/src/downloads/panel.rs 13
 crates/mail-ui-kit/src/fetching/face.rs 3
 crates/mail-ui-kit/src/fetching/mod.rs 1
-crates/mail-ui-kit/src/files/export_sheet.rs shows only 17 literal words: lower the 18 in scripts/copy-literals.txt to 17
-crates/mail-ui-kit/src/files/import_sheet.rs shows only 19 literal words: lower the 20 in scripts/copy-literals.txt to 19
+crates/mail-ui-kit/src/files/export_sheet.rs 17
+crates/mail-ui-kit/src/files/import_sheet.rs 16
 crates/mail-ui-kit/src/files/mod.rs 1
 crates/mail-ui-kit/src/files/work.rs 14
-crates/mail-ui-kit/src/menus/mod.rs 9
+crates/mail-ui-kit/src/menus/mod.rs 5
 crates/mail-ui-kit/src/pgp/certs.rs 22
 crates/mail-ui-kit/src/pgp/key_row.rs 24
 crates/mail-ui-kit/src/pgp/keys.rs 11
@@ -37,7 +37,7 @@ crates/mail-ui-kit/src/pgp/keys_page.rs 7
 crates/mail-ui-kit/src/pgp/look.rs 3
 crates/mail-ui-kit/src/pgp/mod.rs 4
 crates/mail-ui-kit/src/pgp/seal.rs 6
-crates/mail-ui-kit/src/pgp/unlock.rs shows only 2 literal words: lower the 3 in scripts/copy-literals.txt to 2
+crates/mail-ui-kit/src/pgp/unlock.rs 2
 crates/mail-ui-reader/src/brand.rs 1
 crates/mail-ui-reader/src/invite/card.rs 25
 crates/mail-ui-reader/src/invite/draw.rs 24
@@ -54,7 +54,7 @@ crates/mail-ui-reader/src/unsubscribe/mod.rs 12
 crates/mail-ui-compose/src/compose/attach.rs 3
 crates/mail-ui-compose/src/compose/body.rs 14
 crates/mail-ui-compose/src/compose/desk.rs 2
-crates/mail-ui-compose/src/compose/emoji.rs 6
+crates/mail-ui-compose/src/compose/emoji.rs 2
 crates/mail-ui-compose/src/compose/float.rs 2
 crates/mail-ui-compose/src/compose/items.rs 6
 crates/mail-ui-compose/src/compose/later.rs 6
@@ -62,7 +62,7 @@ crates/mail-ui-compose/src/compose/life.rs 1
 crates/mail-ui-compose/src/compose/mod.rs 7
 crates/mail-ui-compose/src/compose/page.rs 3
 crates/mail-ui-compose/src/compose/pill.rs 10
-crates/mail-ui-compose/src/compose/props.rs 7
+crates/mail-ui-compose/src/compose/props.rs 6
 crates/mail-ui-compose/src/compose/protection.rs 22
 crates/mail-ui-compose/src/compose/receipt.rs 5
 crates/mail-ui-compose/src/compose/recipients.rs 3
@@ -70,16 +70,16 @@ crates/mail-ui-compose/src/compose/remind.rs 11
 crates/mail-ui-compose/src/compose/render.rs 7
 crates/mail-ui-compose/src/compose/seal.rs 20
 crates/mail-ui-compose/src/compose/surface.rs 1
-crates/mail-ui-compose/src/compose/templates.rs 15
+crates/mail-ui-compose/src/compose/templates.rs 10
 crates/mail-ui-compose/src/compose/wire.rs 1
 crates/mail-ui-compose/src/emoji/mod.rs 9
 crates/mail-ui-list/src/bar.rs 1
 crates/mail-ui-list/src/row.rs 2
 crates/mail-ui-list/src/server_search.rs 1
 crates/mail-ui-list/src/view_groups.rs 17
-crates/mail-ui-list/src/views.rs 14
+crates/mail-ui-list/src/views.rs 12
 crates/mail-ui-settings/src/keyboard.rs 5
-crates/mail-ui-settings/src/rules/editor.rs 21
+crates/mail-ui-settings/src/rules/editor.rs 18
 crates/mail-ui-settings/src/rules/list.rs 1
 crates/mail-ui-settings/src/rules/work.rs 18
 crates/mail-ui-settings/src/settings/account/mod.rs 2

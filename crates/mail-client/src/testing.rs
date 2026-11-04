@@ -27,3 +27,11 @@ pub mod core {
 pub mod runtime {
     pub use mail_runtime::pgp;
 }
+
+/// A source of mail at `path` in the format `archive`, as a window is handed one after looking.
+pub fn source(
+    archive: &'static dyn core::formats::Archive,
+    path: std::path::PathBuf,
+) -> crate::files::Source {
+    crate::files::Source(core::import::Source::new(archive, path))
+}

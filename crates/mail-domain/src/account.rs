@@ -247,6 +247,30 @@ pub struct Identity {
     pub default: IsDefault,
 }
 
+/// An identity as the person typed it: a name, an address and a Reply-To, each as written.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Typed {
+    pub name: String,
+    pub email: String,
+    pub reply_to: String,
+}
+
+impl Typed {
+    /// What `identity` says, as its fields would show it.
+    pub fn of(identity: &Identity) -> Typed {
+        // No name and no Reply-To are empty fields.
+        let name = identity.from.name.clone().unwrap_or_default();
+        let reply_to = identity.reply_to.as_ref().map(ToString::to_string);
+        // As above: none is an empty field.
+        let reply_to = reply_to.unwrap_or_default();
+        Typed {
+            name,
+            email: identity.from.email.clone(),
+            reply_to,
+        }
+    }
+}
+
 /// What the server turned out to support. Discovered, cached, and refreshed — never part of
 /// the user's saved configuration.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

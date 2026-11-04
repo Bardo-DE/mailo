@@ -27,7 +27,7 @@ use mail_ui_model::copy;
 
 /// What pressing Return with `typed` in the field comes to: the addresses, or why there are none.
 pub(super) fn recipients(typed: &str) -> Result<Vec<Address>, String> {
-    let to = mail_client::compose::addresses::parse_addresses(typed).map_err(String::from)?;
+    let to = mail_client::compose::addresses::parse_addresses(typed).map_err(|e| e.to_string())?;
     if to.is_empty() {
         return Err(copy::fields::REDIRECT_HELP.to_owned());
     }

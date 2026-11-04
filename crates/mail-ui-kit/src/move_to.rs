@@ -206,6 +206,9 @@ pub(crate) fn MoveMenu(
     let found = account
         .clone()
         .map_or_else(Vec::new, |a| destinations(&client, a));
+    // The folders are in memory, so the list narrows on every keystroke. Escape closes the list
+    // whatever the field holds: quire's `PickList` keeps the field's keys to itself and its
+    // popover takes Escape, so the clear-then-close rule (`escape`) cannot be put in front.
     let mut query = use_signal(String::new);
     let rows = match (gesture, &account) {
         // Said above the folders: they are this account's, and no other's.
