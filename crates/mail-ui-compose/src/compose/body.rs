@@ -21,7 +21,7 @@ use super::float::{
 use super::page::{Float, Page};
 use super::styling;
 use super::templates::{self, TemplateFloat, page_slash_items};
-use mail_editor::{InputEvent, Mark, Nest, Node, Op, Presence, Range};
+use mail_editor::{InputEvent, Mark, Nest, Node, Op, ParaKind, Presence, Range};
 use mail_ui_kit::actions::{Heard, Own};
 use mail_ui_kit::common::classed;
 use mail_ui_kit::menu::{MenuKey, anchor_at, menu_items, menu_key};
@@ -39,6 +39,14 @@ fn today_words() -> String {
     chrono::Local::now().format("%A %-d %B %Y").to_string()
 }
 
+/// Whether the body is one empty paragraph of plain text, which is what the hint stands in for.
+/// A heading, list item, quote or code block that is empty is already a choice of what to write,
+/// and the hint, in body text where a plain paragraph starts, would not fit inside it.
+fn hinted(nodes: &[Node]) -> bool {
+    matches!(nodes,
+        [Node::Para { kind: ParaKind::Paragraph, runs, .. }] if runs.is_empty())
+}
+
 #[component]
 pub fn Body(page: Signal<Page>, shell: Signal<Shell>, on_attach: EventHandler<()>) -> Element {
     // The float's box: quire's menus float against it when the caret has no rect yet.
@@ -50,8 +58,7 @@ pub fn Body(page: Signal<Page>, shell: Signal<Shell>, on_attach: EventHandler<()
     // being typed in.
     let focus = use_signal(|| EditFocus::Out);
     let read = page.read();
-    let only_empty = matches!(read.session.doc.nodes.as_slice(),
-        [Node::Para { runs, .. }] if runs.is_empty());
+    let only_empty = hinted(&read.session.doc.nodes);
     let float = read.float.clone();
     // Plain text carries no formatting, so there is none to offer.
     let bar = read.selection.is_some()
@@ -543,4 +550,36 @@ fn link(mut page: Signal<Page>) {
     write.float = Float::Closed;
     // The field goes with the float: the body takes the keyboard back, and the bar with it.
     mail_ui_kit::host::Host::focus_next_frame(".c-body");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::hinted;
+    use mail_editor::{Layout, Node, ParaKind};
+
+    #[test]
+    fn only_an_empty_plain_paragraph_is_hinted() {
+        assert!(hinted(&[Node::laid(
+            ParaKind::Paragraph,
+            Vec::new(),
+            Layout::default()
+        )]));
+        assert!(!hinted(&[Node::plain(ParaKind::Paragraph, "a")]));
+        for kind in [
+            ParaKind::Code,
+            ParaKind::Quote,
+            ParaKind::Bullet,
+            ParaKind::Numbered,
+        ] {
+            assert!(
+                !hinted(&[Node::laid(kind, Vec::new(), Layout::default())]),
+                "{kind:?}"
+            );
+        }
+        let two = [
+            Node::laid(ParaKind::Paragraph, Vec::new(), Layout::default()),
+            Node::laid(ParaKind::Paragraph, Vec::new(), Layout::default()),
+        ];
+        assert!(!hinted(&two));
+    }
 }
