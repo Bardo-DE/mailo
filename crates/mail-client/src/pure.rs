@@ -8,12 +8,9 @@
 //! uses of it.
 
 pub mod account {
-    pub use mail_core::account::{
-        Credentials, Mode, RemoveError, SignInError, authorize, oauth_client,
-    };
-    pub use mail_logic::account::{Outcome, Setup};
+    pub use mail_logic::account::{Mode, Outcome, RemoveError, Setup, SignInError};
     pub mod direct {
-        pub use mail_core::account::direct::{WAIT, signs_in_directly};
+        pub use mail_logic::account::{WAIT, signs_in_directly};
         pub use mail_secrets::authorize::Profiles;
     }
     pub mod draft {
