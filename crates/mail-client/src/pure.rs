@@ -147,7 +147,7 @@ pub mod provider {
     }
 }
 pub mod receipt {
-    pub use mail_core::receipt::ReceiptState;
+    pub use mail_logic::receipt::ReceiptState;
 }
 pub mod remote_image {
     pub use mail_net::remote_image::{Image, ImageFetcher, Route};
