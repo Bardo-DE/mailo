@@ -372,7 +372,7 @@ pub mod smime {
     }
 }
 pub mod sync {
-    pub use mail_core::sync::Configured;
+    pub use mail_logic::accounts::Configured;
     pub mod due {
         pub use mail_logic::accounts::IDLE;
     }
@@ -387,8 +387,13 @@ pub mod transfer {
     pub use mail_core::transfer::{IoCause, Refusal, Seen, expand_here, look, suggested};
 }
 pub mod unsubscribe {
-    pub use mail_core::unsubscribe::client;
     pub use mail_logic::unsubscribe::{Found, Outcome};
+
+    /// The HTTP client a one-click unsubscribe is made with: HTTPS only, and no redirect off it.
+    pub fn client() -> Result<reqwest::Client, crate::CallError> {
+        mail_runtime::unsubscribe::client()
+            .map_err(|e| crate::CallError::new(crate::Fault::Other, e.to_string()))
+    }
 }
 pub mod conversation {
     pub use mail_logic::conversation::{

@@ -109,6 +109,47 @@ impl Account {
     }
 }
 
+/// An account as a pass runs it: its plan, what its server supports and how the person syncs it.
+/// Only an account something has connected for is one ([`Configured::of`]).
+#[derive(Debug)]
+pub struct Configured {
+    pub id: AccountId,
+    pub address: String,
+    pub plan: AccountPlan,
+    pub caps: AccountCaps,
+    /// Whether a pass fetches the attachments a sync leaves on the server too. The window's
+    /// setting, not the store's ([`crate::offline`]).
+    pub keep: offline::Keep,
+    /// How often a timed pass checks it, from the same setting.
+    pub every: offline::Every,
+    /// How far back a pass downloads its bodies, from the same setting.
+    pub window: offline::Window,
+    /// When a POP3 pass removes the server's copies, from the same setting.
+    pub remove: offline::Remove,
+    /// How the junk filter judges what a pass brings ([`crate::junk`]): the window's setting,
+    /// as `keep` is.
+    pub junk: junk::Policy,
+}
+
+impl Configured {
+    /// `account` as a pass runs it; `None` while nothing has connected for it, which is an
+    /// ordinary state and no reason to log.
+    pub fn of(account: &Account) -> Option<Configured> {
+        let prefs = account.prefs;
+        Some(Configured {
+            id: account.id.clone(),
+            address: account.address.clone(),
+            plan: account.plan.clone(),
+            caps: account.caps.clone()?,
+            keep: prefs.keep,
+            every: prefs.every,
+            window: prefs.window,
+            remove: prefs.remove,
+            junk: prefs.junk,
+        })
+    }
+}
+
 /// Every account, in the order they were added.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Accounts(Vec<Account>);
