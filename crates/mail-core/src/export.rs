@@ -21,6 +21,8 @@ use mail_domain::{
 };
 use mail_store::{SqliteStore, Store};
 use std::io::Write;
+pub use mail_logic::transfer::{Exported, RawHead};
+
 use std::path::{Path, PathBuf};
 
 /// Where the messages go: a format, and the file or directory it writes.
@@ -39,17 +41,6 @@ impl Target {
 /// The format an export is written in unless another is chosen: an mbox.
 pub fn usual() -> &'static dyn Writer {
     &MboxWriter
-}
-
-/// What an export did.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Exported {
-    pub written: usize,
-    /// Only headers are here yet: the body was never downloaded.
-    pub absent: usize,
-    /// The body is here, but it was rebuilt from its parts with some attachment left on the
-    /// server, so the stored bytes are not the message as sent.
-    pub partial: usize,
 }
 
 /// How many threads are asked for at a time while choosing messages.
@@ -238,15 +229,6 @@ pub fn export(
 pub fn raw_message(store: &SqliteStore, id: MessageId) -> Result<Option<Vec<u8>>, CoreError> {
     let message = store.message(id)?;
     raw_of(store, &message)
-}
-
-/// The first bytes of a message's source, and how long the whole of it is.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RawHead {
-    /// At most the `limit` asked for.
-    pub bytes: Vec<u8>,
-    /// The size of the whole source.
-    pub whole: u64,
 }
 
 /// At most the first `limit` bytes of `id`'s [`raw_message`], and its whole size: what a view of

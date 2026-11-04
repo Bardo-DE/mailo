@@ -52,6 +52,7 @@ pub mod search;
 pub mod server_search;
 pub mod signature;
 pub mod snooze;
+pub mod transfer;
 pub mod trust;
 pub mod undo;
 pub mod unsubscribe;

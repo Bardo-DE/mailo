@@ -25,6 +25,8 @@ use mail_runtime::assemble::{self, Keep};
 use mail_store::{SqliteStore, Store};
 use porter_core::AccountId;
 use std::io::{BufReader, Read};
+pub use mail_logic::transfer::{Destination, Imported};
+
 use std::path::{Path, PathBuf};
 
 /// How many messages are written to the store at once.
@@ -50,15 +52,6 @@ impl Source {
 
 /// One source's messages, read one at a time.
 pub type Items = Box<dyn Iterator<Item = Result<Item, CoreError>>>;
-
-/// Where imported mail goes.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Destination {
-    /// The local-only account.
-    Local,
-    /// A mailbox on an IMAP account, by the account's address and the folder's path.
-    Mailbox { account: String, folder: String },
-}
 
 /// Which format `path` is: the first of [`formats::ARCHIVES`] to claim it.
 pub fn detect(path: &Path) -> Result<Source, CoreError> {
@@ -644,24 +637,6 @@ fn maildir_files(root: &Path) -> Result<Vec<Found>, CoreError> {
 fn delivered_at(unique: &str) -> Option<DateTime<Utc>> {
     let secs: i64 = unique.split('.').next()?.parse().ok()?;
     DateTime::from_timestamp(secs, 0)
-}
-
-/// What an import did.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Imported {
-    /// Messages read out of the source.
-    pub read: usize,
-    /// New here: kept locally, or queued for upload.
-    pub added: usize,
-    /// Already held (or already queued), by identity.
-    pub already: usize,
-    /// Bytes that were not a message.
-    pub unreadable: usize,
-    /// Read from Apple Mail's `.partial.emlx` files: imported without the attachments stored
-    /// beside them.
-    pub partial: usize,
-    /// Thunderbird messages of which only a part of the body was kept, and so left out.
-    pub cut_off: usize,
 }
 
 /// Import `source` into the local-only account, creating the account on first use.
