@@ -420,7 +420,7 @@ fn a_search_shown_is_the_lists_header_until_it_is_cleared() {
     let head = h.rect(".list-head").expect("the header");
     let shown = h.rect(face).expect("the search");
     assert!(
-        shown.size.width.0 > head.size.width.0 * 0.5,
+        shown.size.width.0 >= head.size.width.0 * 0.6 - 0.5,
         "{shown:?} in {head:?}"
     );
 
