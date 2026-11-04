@@ -47,9 +47,15 @@ impl Request {
     /// most `limit` rows. The box itself may already hold more: the debounce decides when that
     /// is searched for, not this.
     pub fn of(shell: &Shell, text: &str, limit: u32) -> Self {
+        // The place is listed as it is, bar the quick filter's toggles when the settled line is
+        // made of them alone: those narrow it, and are the one part of the line it keeps.
         let mut place = shell.clone();
-        place.search.clear();
-        if text.trim().is_empty() {
+        place.search = text.to_owned();
+        let narrowed = place.narrowing().is_some();
+        if !narrowed {
+            place.search.clear();
+        }
+        if text.trim().is_empty() || narrowed {
             return Self::Place(place.listing(limit));
         }
         let page = match place.listing(limit) {

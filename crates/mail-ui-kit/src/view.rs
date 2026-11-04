@@ -686,9 +686,9 @@ pub struct Shell {
     pub selected: usize,
     /// What the user typed in the search box.
     pub search: String,
-    /// The quick filter's row and toggles, which narrow whatever the list shows. Per visit:
-    /// [`Self::select`] drops it, and it is never written anywhere.
-    pub quick: crate::quick::Quick,
+    /// Whether the quick filter's row of toggles is drawn. The toggles themselves are in
+    /// [`Self::search`]; this is only whether their row is up, and is never written anywhere.
+    pub filter_row: crate::quick::Row,
     pub open: Option<ThreadId>,
     /// The one message of the open conversation the reader shows, when it was opened from a list
     /// of single messages ([`Self::threading`]). `None` shows the conversation whole. Belongs to
@@ -966,7 +966,7 @@ impl Default for Shell {
             places: default_places(),
             selected: 0,
             search: String::new(),
-            quick: crate::quick::Quick::default(),
+            filter_row: crate::quick::Row::default(),
             open: None,
             focus: None,
             single: Vec::new(),
@@ -1021,13 +1021,38 @@ impl Shell {
     }
 
     /// The query the list pane should run: [`Self::whole_query`] narrowed by the quick filter's
-    /// toggles.
+    /// toggles when the search line is made of them alone ([`Self::narrowing`]).
     pub fn query(&self, limit: u32) -> Query {
         let whole = self.whole_query(limit);
-        Query {
-            filter: self.quick.narrow(whole.filter),
-            ..whole
+        match self.narrowing() {
+            Some(toggles) => Query {
+                filter: Filter::And(vec![whole.filter, toggles]),
+                ..whole
+            },
+            None => whole,
         }
+    }
+
+    /// The toggles of the quick filter the search line is made of, when it is made of nothing
+    /// else and a place of conversations is shown for them to narrow. The place is then listed
+    /// as it is, held to these, and the line does not search ([`Self::replaces_place`]).
+    pub fn narrowing(&self) -> Option<Filter> {
+        let line = self.search.trim();
+        let narrows = matches!(
+            self.places.get(self.selected).map(|place| &place.source),
+            Some(Source::Mail(_) | Source::Saved(_))
+        ) && crate::quick::narrows(line);
+        if narrows {
+            crate::quick::filter(line)
+        } else {
+            None
+        }
+    }
+
+    /// Whether the search line, being typed, replaces the place: it has something in it, and is
+    /// not the quick filter's toggles narrowing the place.
+    pub fn replaces_place(&self) -> bool {
+        !self.search.trim().is_empty() && self.narrowing().is_none()
     }
 
     /// The query for everything the place (or the search) holds, the quick filter aside: what
@@ -1035,11 +1060,12 @@ impl Shell {
     ///
     /// A non-empty search box replaces the place rather than narrowing it, which is what every
     /// mail client does and what users expect: searching while in Archive should not hide
-    /// results that live in the Inbox.
+    /// results that live in the Inbox. The quick filter's toggles are the exception, being a
+    /// narrowing of the place and not a search ([`Self::narrowing`]).
     pub fn whole_query(&self, limit: u32) -> Query {
         let needle = self.search.trim();
         let mut sort = NEWEST_FIRST;
-        let filter = if needle.is_empty() {
+        let filter = if !self.replaces_place() {
             match self.places.get(self.selected).map(|place| &place.source) {
                 Some(Source::Mail(filter)) => {
                     sort = self.sort();
@@ -1089,7 +1115,7 @@ impl Shell {
     /// are its own list, and drafts, Waiting, History and Scheduled each keep the one order that
     /// makes them what they are.
     pub fn sortable(&self) -> bool {
-        self.search.trim().is_empty()
+        !self.replaces_place()
             && matches!(
                 self.places.get(self.selected).map(|place| &place.source),
                 Some(Source::Mail(_) | Source::Saved(_))
@@ -1140,7 +1166,7 @@ impl Shell {
     /// Not while a search is typed: a search replaces the place (see [`Self::query`]), so the
     /// rows are the search's and the view's grouping and row actions are not theirs.
     pub fn saved_view(&self) -> Option<&View> {
-        if !self.search.trim().is_empty() {
+        if self.replaces_place() {
             return None;
         }
         self.places.get(self.selected).and_then(saved_of)
@@ -1176,7 +1202,7 @@ impl Shell {
     /// says, since it replaces the place ([`Self::query`]).
     pub fn threading(&self) -> Threading {
         match self.places.get(self.selected) {
-            Some(place) if self.search.trim().is_empty() => {
+            Some(place) if !self.replaces_place() => {
                 mail_client::conversation::threading_of(place, &self.single)
             }
             _ => Threading::Threaded,
@@ -1186,7 +1212,7 @@ impl Shell {
     /// Whether the place shown offers Organise by Conversation: it lists mail by a filter, and
     /// no search has replaced it.
     pub fn organises(&self) -> bool {
-        self.search.trim().is_empty()
+        !self.replaces_place()
             && self
                 .places
                 .get(self.selected)
@@ -1199,7 +1225,7 @@ impl Shell {
     /// searching is global here, and a user who types into it is looking for a message, not
     /// filtering the drafts they can already see.
     pub fn listing(&self, limit: u32) -> Listing {
-        if !self.search.trim().is_empty() {
+        if self.replaces_place() {
             return Listing::Threads(self.query(limit));
         }
         // A place kept a message to a row lists its messages, the inbox too: the follow-ups
@@ -1253,10 +1279,11 @@ impl Shell {
         self.listed_scope().filter()
     }
 
-    /// The accounts listed, narrowed by the quick filter's toggles: what a search's candidates
-    /// and the Inbox's returned reminders are held to. `None` is every conversation.
+    /// The accounts listed, narrowed by the quick filter's toggles when the search line is made
+    /// of them ([`Self::narrowing`]): what a search's candidates and the Inbox's returned
+    /// reminders are held to. `None` is every conversation.
     pub fn list_scope(&self) -> Option<Filter> {
-        match (self.account_filter(), self.quick.filter()) {
+        match (self.account_filter(), self.narrowing()) {
             (Some(accounts), Some(quick)) => Some(Filter::And(vec![accounts, quick])),
             (accounts, quick) => accounts.or(quick),
         }
@@ -1270,11 +1297,11 @@ impl Shell {
 
     /// Select a place, and drop any open thread that no longer belongs to the new list.
     ///
-    /// The quick filter goes with the place, as Apple Mail's does: it narrowed the old list.
+    /// The search line stays, as it does for any search, and so do the quick filter's toggles in
+    /// it: they narrow the new place as they narrowed the old.
     pub fn select(&mut self, index: usize) {
         if index < self.places.len() {
             self.selected = index;
-            self.quick = crate::quick::Quick::default();
             self.open = None;
             self.focus = None;
             self.from_side = None;
@@ -2054,11 +2081,11 @@ mod listing_tests {
         assert!(matches!(shell.listing(50), Listing::Threads(_)));
     }
 
-    /// The quick filter narrows a place, a saved view or a search, is not offered where the
-    /// list holds no conversations, and goes with the place.
+    /// The quick filter's toggles in the search narrow a place or a saved view rather than
+    /// replace it, hold a search that has words, are not offered where the list holds no
+    /// conversations, and stay in the line when the place changes.
     #[test]
-    fn the_quick_filter_narrows_what_is_listed_until_the_place_changes() {
-        use crate::quick::{Quick, Toggle};
+    fn the_quick_filter_narrows_what_is_listed_and_stays_with_the_line() {
         let place = |shell: &Shell, name: &str| {
             shell
                 .places
@@ -2070,35 +2097,50 @@ mod listing_tests {
         let mut shell = Shell::default();
         let archive = place(&shell, "Archive");
         shell.select(archive);
-        shell.quick = Quick::default().toggled(Toggle::Unread);
+        shell.search = "is:unread".to_owned();
+        // The line does not search: Archive is still the place, held to unread.
+        assert!(!shell.replaces_place());
+        let whole = shell.whole_query(50).filter;
+        shell.search.clear();
+        assert_eq!(shell.whole_query(50).filter, whole);
+        shell.search = "is:unread".to_owned();
         assert_eq!(
             shell.query(50).filter,
-            Filter::And(vec![shell.whole_query(50).filter, unread.clone()])
+            Filter::And(vec![whole, unread.clone()])
         );
         assert!(shell.filterable());
 
-        // A search is narrowed too: the toggles hold whatever the list shows.
-        shell.search = "lunch".to_owned();
-        assert_eq!(
-            shell.query(50).filter,
-            Filter::And(vec![
-                Filter::Text(TextMatch::Contains("lunch".to_owned())),
-                unread
-            ])
-        );
-        shell.search.clear();
+        // Words make it a search of all mail, which the toggle holds as part of the line.
+        shell.search = "lunch is:unread".to_owned();
+        assert!(shell.replaces_place());
+        let asked = mail_logic::query::parse_with(&shell.search, &chrono::Local, &shell.known());
+        assert_eq!(shell.query(50).filter, shell.with_account(asked));
+        assert!(matches!(shell.listing(50), Listing::Threads(_)));
 
-        // Another place: the toggles and their row go.
+        // Another place: the line stays, and narrows the new place.
+        shell.search = "is:unread".to_owned();
         let sent = place(&shell, "Sent");
         shell.select(sent);
-        assert_eq!(shell.quick, Quick::default());
-        assert_eq!(shell.query(50), shell.whole_query(50));
+        assert_eq!(shell.search, "is:unread");
+        let sent_whole = shell.whole_query(50).filter;
+        assert_eq!(
+            shell.query(50).filter,
+            Filter::And(vec![sent_whole, unread.clone()])
+        );
+        // The Inbox keeps its own listing, its returned reminders held to the toggle too.
+        shell.select(0);
+        match shell.listing(50) {
+            Listing::Inbox { scope, .. } => assert_eq!(scope, Some(unread)),
+            other => panic!("the first place is not the Inbox: {other:?}"),
+        }
 
-        // Drafts lists drafts: nothing for the toggles to narrow.
+        // Drafts lists drafts: nothing for the toggles to narrow, so the line is a search.
+        shell.search.clear();
         let drafts = place(&shell, "Drafts");
         shell.select(drafts);
         assert!(!shell.filterable());
-        shell.search = "invoice".to_owned();
+        shell.search = "is:unread".to_owned();
+        assert!(shell.replaces_place());
         assert!(shell.filterable(), "a search in Drafts lists mail");
     }
 
@@ -2130,18 +2172,18 @@ pub enum Nothing {
     NoMatch(String),
     /// A folder with no mail in it, which is ordinary.
     EmptyFolder,
-    /// The quick filter's toggles left nothing: the way out is to clear them.
+    /// The quick filter's toggles in the search left nothing: the way out is to clear them.
     Filtered,
 }
 
 /// Why the list is empty.
-pub fn nothing_to_show(accounts: usize, search: &str, quick: &crate::quick::Quick) -> Nothing {
+pub fn nothing_to_show(accounts: usize, search: &str) -> Nothing {
     let needle = search.trim();
     if accounts == 0 {
         // Checked first: with no account there is nothing to search, and "nothing matches" would
         // send the user looking for a typo instead of for the setup step they have not done.
         Nothing::NoAccount
-    } else if quick.is_active() {
+    } else if crate::quick::is_active(needle) {
         // Before a search's words: what the toggles hide may be what was searched for.
         Nothing::Filtered
     } else if !needle.is_empty() {
@@ -2567,22 +2609,30 @@ mod nothing_tests {
                 "Empty",
             ),
         ];
-        let none = crate::quick::Quick::default();
         for (name, accounts, search, want, says) in cases {
-            let got = nothing_to_show(accounts, search, &none);
+            let got = nothing_to_show(accounts, search);
             assert_eq!(got, want, "{name}");
             assert_eq!(got.message(), says, "{name}");
         }
         // A toggle of the quick filter on: the list says the filter left nothing, with or
         // without a search, and no account still comes first.
-        let unread = none.toggled(crate::quick::Toggle::Unread);
         let filtered = [
-            ("filtered", 1, "", Nothing::Filtered),
-            ("filtered and searched", 1, "invoice", Nothing::Filtered),
-            ("filtered with no account", 0, "", Nothing::NoAccount),
+            ("filtered", 1, "is:unread", Nothing::Filtered),
+            (
+                "filtered and searched",
+                1,
+                "invoice is:unread",
+                Nothing::Filtered,
+            ),
+            (
+                "filtered with no account",
+                0,
+                "is:unread",
+                Nothing::NoAccount,
+            ),
         ];
         for (name, accounts, search, want) in filtered {
-            assert_eq!(nothing_to_show(accounts, search, &unread), want, "{name}");
+            assert_eq!(nothing_to_show(accounts, search), want, "{name}");
         }
         assert_eq!(
             Nothing::Filtered.message(),

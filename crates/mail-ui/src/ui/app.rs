@@ -511,7 +511,7 @@ pub(super) fn App() -> Element {
         // pane does not say "No account" for the moment the first read takes.
         let count = every.read().value().map_or(1, |accounts| accounts.len());
         let shell = shell.read();
-        nothing_to_show(count, &shell.search, &shell.quick)
+        nothing_to_show(count, &shell.search)
     });
 
     // The keyboard.

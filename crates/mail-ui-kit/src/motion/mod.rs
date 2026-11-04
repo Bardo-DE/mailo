@@ -881,7 +881,7 @@ pub fn belongs(
     thread: ThreadId,
     now: chrono::DateTime<chrono::Utc>,
 ) -> bool {
-    if !shell.search.trim().is_empty() {
+    if shell.replaces_place() {
         return true;
     }
     let Ok(after) = client.stored().thread(thread) else {

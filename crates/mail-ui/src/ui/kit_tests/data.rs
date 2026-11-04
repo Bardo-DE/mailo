@@ -172,18 +172,18 @@ mod badge_tests {
 mod quick_tests {
     use super::*;
     use mail_domain::{MatchCtx, ThreadId, ThreadSummary};
-    use mail_ui_kit::quick::{Quick, Toggle};
+    use mail_ui_kit::quick::{self, Toggle};
     use mail_ui_kit::view::{Listing, Shell, Source, default_places, scoped_unread_filter};
 
-    /// Every combination of the toggles, none included.
-    fn combinations() -> Vec<Quick> {
+    /// Every combination of the toggles, none included, as the search line holding them.
+    fn combinations() -> Vec<String> {
         (0..1u8 << Toggle::ALL.len())
             .map(|bits| {
                 Toggle::ALL
                     .into_iter()
                     .enumerate()
                     .filter(|(n, _)| bits & (1 << n) != 0)
-                    .fold(Quick::default(), |quick, (_, toggle)| quick.toggled(toggle))
+                    .fold(String::new(), |line, (_, toggle)| toggle.flip(&line))
             })
             .collect()
     }
@@ -215,10 +215,10 @@ mod quick_tests {
                 )
             };
             let badge_before = badge(&shell);
-            for quick in combinations() {
-                shell.quick = quick.clone();
+            for line in combinations() {
+                shell.search = line.clone();
                 let fits = |row: &&ThreadSummary| {
-                    quick.on().iter().all(|toggle| {
+                    quick::on(&line).iter().all(|toggle| {
                         toggle.filter().fit(&MatchCtx {
                             summary: row,
                             corpus: None,
@@ -232,7 +232,7 @@ mod quick_tests {
                 };
                 let want: Vec<ThreadId> = whole.iter().filter(fits).map(|row| row.id).collect();
                 let got = list_for(store, shell.listing(1000), now);
-                assert_eq!(ids(&got), want, "{:?} {:?}", place.source, quick.on());
+                assert_eq!(ids(&got), want, "{:?} {:?}", place.source, quick::on(&line));
                 if want.len() < whole.len() {
                     narrowed += 1;
                 }
@@ -243,7 +243,7 @@ mod quick_tests {
                         want[..depth as usize],
                         "{:?} {:?} at {depth}",
                         place.source,
-                        quick.on()
+                        quick::on(&line)
                     );
                 }
                 assert_eq!(badge(&shell), badge_before, "{:?}", place.source);
@@ -261,7 +261,7 @@ mod quick_tests {
     fn the_whole_bin_and_the_scopes_beside_the_list() {
         let mut shell = Shell::default();
         let unfiltered = shell.query(10);
-        shell.quick = Quick::default().toggled(Toggle::Attachments);
+        shell.search = Toggle::Attachments.flip("");
         assert_eq!(shell.whole_query(10), unfiltered);
         assert_ne!(shell.query(10), unfiltered);
         assert_eq!(shell.list_scope(), Some(Toggle::Attachments.filter()));
