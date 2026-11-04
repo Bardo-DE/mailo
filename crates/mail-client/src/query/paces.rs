@@ -3,7 +3,8 @@
 
 use crate::{ClientError, Query, Topics};
 use chrono::{DateTime, Utc};
-use mail_core::sync::fresh::Pace;
+use mail_core::sync::fresh::pace_of;
+use mail_logic::fetch::fresh::Pace;
 use mail_store::SqliteStore;
 use porter_core::AccountId;
 
@@ -30,7 +31,7 @@ impl Query for Paces {
         Ok(self
             .0
             .iter()
-            .map(|account| (account.clone(), Pace::of(store, account.clone())))
+            .map(|account| (account.clone(), pace_of(store, account.clone())))
             .collect())
     }
 }
