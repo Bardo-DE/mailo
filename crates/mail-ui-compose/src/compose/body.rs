@@ -63,7 +63,11 @@ pub fn Body(page: Signal<Page>, shell: Signal<Shell>, on_attach: EventHandler<()
     // Plain text carries no formatting, so there is none to offer.
     let bar = read.selection.is_some()
         && read.format == mail_ui_model::settings::MessageFormat::Rich
-        && (focus() == EditFocus::In || matches!(read.float, Float::Link(_) | Float::Colour));
+        && (focus() == EditFocus::In
+            || matches!(
+                read.float,
+                Float::Link(_) | Float::Colour | Float::FormatMenu
+            ));
     drop(read);
     let editable =
         rsx! { super::surface::Surface { page, shell, on_attach, class: "c-body", marks, focus } };
@@ -112,7 +116,7 @@ pub fn Body(page: Signal<Page>, shell: Signal<Shell>, on_attach: EventHandler<()
                         },
                     }
                 },
-                Float::Mention { active, .. } => rsx! {
+                Float::Mention { active, .. } if !mention_items(&page.read()).is_empty() => rsx! {
                     div {
                         class: "c-float",
                         "data-anchor": "below",
@@ -249,14 +253,17 @@ pub(super) fn key_taken(
                 true
             }
             Some(MenuKey::Enter) => {
-                if let Some(item) = items.get(active) {
-                    match float {
-                        Float::Slash { .. } => pick(page, on_attach, &item.key),
-                        Float::Emoji { .. } => super::emoji::pick_typed(page, &item.key),
-                        _ => pick_mention(&mut page.write(), &item.key),
+                let picked = items.get(active);
+                match (picked, &float) {
+                    (Some(item), Float::Slash { .. }) => pick(page, on_attach, &item.key),
+                    (Some(item), Float::Emoji { .. }) => {
+                        super::emoji::pick_typed(page, &item.key);
                     }
+                    (Some(item), _) => pick_mention(&mut page.write(), &item.key),
+                    // Nothing to pick: the menu goes, and Enter is the line's.
+                    (None, _) => page.write().float = Float::Closed,
                 }
-                true
+                picked.is_some()
             }
             Some(MenuKey::Escape) => {
                 page.write().float = Float::Closed;
@@ -267,6 +274,11 @@ pub(super) fn key_taken(
         if taken {
             return true;
         }
+    }
+    // Over a selection, Escape takes the selection and its bubble; the next one parks the draft.
+    if key == "Escape" && page.read().selection.is_some() {
+        page.write().selection = None;
+        return true;
     }
     if key == "Tab" && heard.is_none() {
         let nest = if shifted { Nest::Out } else { Nest::In };
@@ -282,7 +294,7 @@ pub(super) fn key_taken(
         Some(Heard::Own(Own::Search)) => {
             let has = page.read().selection.is_some();
             if has {
-                page.write().float = Float::Link(String::new());
+                open_link(page);
             }
             has
         }
@@ -482,6 +494,7 @@ fn Bubble(page: Signal<Page>, place: Option<String>) -> Element {
                         items: menu_items("", &turn, false),
                         value: now,
                         title: "Text".to_owned(),
+                        on_open_change: move |to: Shown| styling::menu_shown(page, to),
                         onpick: move |key: String| pick_turn(&mut page.write(), &key),
                     }
                     SegmentedControl::<Mark> {
@@ -504,13 +517,20 @@ fn Bubble(page: Signal<Page>, place: Option<String>) -> Element {
                         title_shortcut: mail_ui_kit::actions::tip_own(Own::Search),
                         icon: Icon::Link,
                         image: ImagePosition::Only,
-                        onclick: on_primary(move || page.write().float = Float::Link(String::new())),
+                        onclick: on_primary(move || open_link(page)),
                     }
                     styling::Controls { page }
                 } },
             }
         }
     }
+}
+
+/// The bubble's link field opens and takes the keyboard, so what is typed goes to it and not over
+/// the selection.
+fn open_link(mut page: Signal<Page>) {
+    page.write().float = Float::Link(String::new());
+    mail_ui_kit::host::Host::focus_next_frame(".link-in input");
 }
 
 /// The editor command a mark's segment runs.

@@ -152,6 +152,70 @@ pub fn tab(doc: &Doc, range: Range, nest: Nest) -> Option<Vec<Op>> {
     in_list.then(|| indent(doc, range, nest))
 }
 
+/// What a code block's Tab types.
+const CODE_TAB: &str = "    ";
+
+/// Tab at a caret in a code block: the edit, and where the caret goes. `None` outside one.
+pub fn code_tab(doc: &Doc, at: Pos) -> Option<(Op, Pos)> {
+    let in_code = matches!(
+        doc.nodes.get(at.node),
+        Some(Node::Para {
+            kind: ParaKind::Code,
+            ..
+        })
+    );
+    in_code.then(|| {
+        let op = Op::Insert {
+            at,
+            text: CODE_TAB.to_owned(),
+            marks: Marks::new(),
+        };
+        (op, Pos::new(at.node, at.offset + CODE_TAB.len()))
+    })
+}
+
+/// Turn the paragraphs `range` touches into `kind`: the edits, and the range they leave. Several
+/// lines turned into code are one block, a line each, where no object stands between them.
+pub fn turn(doc: &Doc, range: Range, kind: ParaKind) -> (Vec<Op>, Range) {
+    let range = range.ordered();
+    let (first, last) = (range.start.node, range.end.node);
+    let mut ops = vec![Op::SetKind { range, kind }];
+    let lengths: Option<Vec<usize>> = doc
+        .nodes
+        .get(first..=last)
+        .into_iter()
+        .flatten()
+        .map(|node| match node {
+            Node::Para { runs, .. } => Some(para_len(runs)),
+            Node::Object(_) => None,
+        })
+        .collect();
+    let Some(lengths) = lengths.filter(|_| kind == ParaKind::Code && last > first) else {
+        return (ops, range);
+    };
+    let Some((_, above)) = lengths.split_last() else {
+        return (ops, range);
+    };
+    // From the bottom up, so each line's place is still its own when it is joined.
+    for (node, length) in (first..last).zip(above).rev() {
+        ops.push(Op::Insert {
+            at: Pos::new(node, *length),
+            text: "\n".to_owned(),
+            marks: Marks::new(),
+        });
+        ops.push(Op::Merge { node: node + 1 });
+    }
+    let before: usize = above.iter().map(|length| length + 1).sum();
+    let end = Pos::new(first, before + range.end.offset);
+    (
+        ops,
+        Range {
+            start: range.start,
+            end,
+        },
+    )
+}
+
 /// The alignment of the paragraph `range` starts in.
 pub fn align_at(doc: &Doc, range: Range) -> Align {
     match doc.nodes.get(range.ordered().start.node) {

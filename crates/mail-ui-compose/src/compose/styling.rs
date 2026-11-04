@@ -13,8 +13,8 @@ use ds::root::common::Common;
 use super::float::commit;
 use super::page::{Float, Page};
 use mail_editor::{
-    Align, Marks, Nest, Op, Range, TextColor, TextSize, align_at, indent, marks_at_start, quote,
-    step_size, tab,
+    Align, Caret, Marks, Nest, Op, Range, TextColor, TextSize, align_at, code_tab, indent,
+    marks_at_start, quote, step_size, tab,
 };
 use mail_ui_kit::actions::{Own, hint_own};
 use mail_ui_kit::menu::{MenuItem, Right, menu_items};
@@ -88,8 +88,27 @@ pub fn tab_ops(page: &Page, nest: Nest) -> Option<Vec<Op>> {
     tab(&page.session.doc, target(page), nest).filter(|ops| !ops.is_empty())
 }
 
+/// Tab in a code block types an indent where the caret is; over a selection it changes nothing,
+/// and leaves the words alone. Shift-Tab is the way out of the block for the keyboard.
+fn code_tab_key(mut page: Signal<Page>) -> bool {
+    let (range, caret) = {
+        let read = page.peek();
+        (target(&read), read.session.caret)
+    };
+    let Some((op, to)) = code_tab(&page.peek().session.doc, range.ordered().start) else {
+        return false;
+    };
+    if range.is_collapsed() {
+        commit(&mut page.write(), vec![op], Caret { pos: to, ..caret });
+    }
+    true
+}
+
 /// Tab and Shift-Tab: take the key when [`tab_ops`] has edits, and do them.
 pub(super) fn tab_key(page: Signal<Page>, nest: Nest) -> bool {
+    if nest == Nest::In && code_tab_key(page) {
+        return true;
+    }
     let ops = tab_ops(&page.peek(), nest);
     match ops {
         Some(ops) => {
@@ -273,6 +292,7 @@ pub(super) fn Controls(page: Signal<Page>) -> Element {
                     aria_label: Some(copy::aria::TEXT_SIZE.to_owned()),
                     ..Common::default()
                 },
+                on_open_change: move |to: Shown| menu_shown(page, to),
                 onpick: move |key: String| picked(page, &key),
             }
         }
@@ -292,6 +312,7 @@ pub(super) fn Controls(page: Signal<Page>) -> Element {
                     aria_label: Some(copy::aria::PARAGRAPH.to_owned()),
                     ..Common::default()
                 },
+                on_open_change: move |to: Shown| menu_shown(page, to),
                 onpick: move |key: String| picked(page, &key),
             }
         }
@@ -331,6 +352,22 @@ pub(super) fn Swatches(page: Signal<Page>) -> Element {
                 },
             }
         }
+    }
+}
+
+/// One of the bar's menus opens or closes. The menu takes the keyboard from the body, so the bar,
+/// which is drawn while the body has it, stays while the menu is open; when it goes, the body has
+/// the keyboard back.
+pub(super) fn menu_shown(mut page: Signal<Page>, to: Shown) {
+    let open = page.peek().float == Float::FormatMenu;
+    match (to, open) {
+        (Shown::Visible, _) => page.write().float = Float::FormatMenu,
+        (Shown::Hidden, true) => {
+            page.write().float = Float::Closed;
+            mail_ui_kit::host::Host::focus_next_frame(".c-body");
+        }
+        // A pick already opened a float of its own: closing the menu leaves it.
+        (Shown::Hidden, false) => {}
     }
 }
 

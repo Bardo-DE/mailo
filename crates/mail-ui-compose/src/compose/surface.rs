@@ -15,9 +15,9 @@
 //! `use_selection_rects` have the window publish their boxes between layout and paint. The boxes
 //! are the surface's; the marks layers are placed from `.c-edit`'s corner (where the floats are
 //! placed too), which `.c-body`'s gutter puts left of the surface's, so each box is moved by the
-//! surface's place in that corner ([`Place`], read once the layout settles). The selection is in
-//! a layer before the surface, which Blitz paints under the positioned surface's text as CSS 2.1
-//! stacks them, and the caret and the IME's preedit in one after it. The caret is drawn at its
+//! surface's place in that corner ([`Place`], read once the layout settles). The selection, the
+//! caret and the IME's preedit are in a layer after the surface, over its text: the selection's
+//! fill is translucent, and under the text a code block's ground would hide it. The caret is drawn at its
 //! rect as given, `--caret-w` wide. The caret's rect in the window is also where the IME's
 //! candidate window goes and where the `/` and `@` menus float (`Marks::at`).
 //!
@@ -36,7 +36,9 @@ use ds::edit::handle::{EditHandle, use_edit_handle};
 use ds::edit::input::{Composition, EditInput};
 use ds::edit::pointer::{EditFocus, EditPointer};
 use ds::edit::selection::use_selection_rects;
+use ds::host::found::Found;
 use ds::host::position::{TextPosition, TextRange};
+use ds::host::reveal::reveal;
 use ds::root::common::Common;
 use ds::root::pass_through::ExtraClass;
 use ds::spell::marks::SpellReplace;
@@ -45,7 +47,7 @@ use super::adapt::{self, Asked, Reach, Step};
 use super::body::{key_taken, now_ms};
 use super::desk::Desk;
 use super::float::{self, suggest_mention};
-use super::page::Page;
+use super::page::{Page, PageKind};
 use super::render;
 use super::wire::{self, Heard};
 use mail_editor::{Caret, Doc, InputEvent, Pos, Range};
@@ -192,6 +194,21 @@ pub(super) fn Surface(
         drop(selection_boxes.read());
         spawn(settle(handle, corner, place));
     });
+    // What the view follows: the caret's own place, drawn or not.
+    let mut at_caret_mark = use_signal(|| None::<Rc<MountedData>>);
+    // A caret that moved brings the view to it. The first place is where the page opened, which
+    // a reply's opening has already scrolled to.
+    let mut last_caret = use_hook(|| CopyValue::new(None::<Rect>));
+    use_effect(move || {
+        let Some(now) = caret_box() else {
+            return;
+        };
+        let before = last_caret.replace(Some(now));
+        if before.is_some_and(|before| before != now) && *focus.peek() == EditFocus::In {
+            let view = scroller_of(&page.peek());
+            spawn(follow_caret(view, at_caret_mark));
+        }
+    });
     // The floats and the bubble follow the marks, a frame behind is soon enough for them.
     use_effect(move || {
         let measured = marks_of(place(), caret_box(), &selection_boxes.read());
@@ -234,13 +251,6 @@ pub(super) fn Surface(
                     });
                 }
             },
-            // Under the text: the selection, before the surface, neither with a z-index.
-            div { class: "c-marks", aria_hidden: "true",
-                onmounted: move |event| corner.set(Some(event.data())),
-                for (index, rect) in shown.selection.iter().enumerate() {
-                    div { key: "{index}", class: "c-sel", style: boxed(rect) }
-                }
-            }
             EditSurface {
                 common: Common {
                     aria_label: Some("Message".to_owned()),
@@ -271,8 +281,18 @@ pub(super) fn Surface(
                 on_replace: move |replace: SpellReplace| replaced(page, replace),
                 {render::body(page)}
             }
-            // Over the text: the caret, and what the IME is composing, at the caret.
+            // Over the text: the selection, the caret, and what the IME is composing, at the
+            // caret. Under it, a code block's or a picture's own ground would hide the selection.
             div { class: "c-marks", aria_hidden: "true",
+                onmounted: move |event| corner.set(Some(event.data())),
+                for (index, rect) in shown.selection.iter().enumerate() {
+                    div { key: "{index}", class: "c-sel", style: boxed(rect) }
+                }
+                div {
+                    class: "c-at",
+                    style: shown.caret.as_ref().map(boxed).unwrap_or_default(),
+                    onmounted: move |event| at_caret_mark.set(Some(event.data())),
+                }
                 if let Some(rect) = caret {
                     // At its rect as given: `--caret-w` wide, whole device pixels.
                     div { class: "c-caret", style: boxed(&rect) }
@@ -286,6 +306,27 @@ pub(super) fn Surface(
                 }
             }
         }
+    }
+}
+
+/// What scrolls the body: a message's own column, or the reader a reply is written under.
+fn scroller_of(page: &Page) -> &'static str {
+    if page.kind == PageKind::Reply {
+        ".reader-body"
+    } else {
+        ".cpage .c-scroll"
+    }
+}
+
+/// Scroll `view` the least that shows the caret, two frames on: the caret's box comes from the
+/// frame that lays the new text out, the mark is drawn in the next, and laid out in the one after.
+async fn follow_caret(view: &'static str, mark: Signal<Option<Rc<MountedData>>>) {
+    ds::base::time::clock::sleep(ds::base::time::FRAME_TICK * 2).await;
+    let Some(item) = mark.peek().clone() else {
+        return;
+    };
+    if let Found::Element(view) = use_document_host().geometry().find(view) {
+        reveal(&view, &item).await;
     }
 }
 

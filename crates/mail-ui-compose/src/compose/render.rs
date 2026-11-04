@@ -258,10 +258,12 @@ fn para_style(kind: ParaKind, layout: Layout, marker: Option<String>) -> Option<
     style_of(style)
 }
 
-/// A paragraph's text. An empty one holds a `<br>` so the caret has a line to stand on, and a
-/// trailing line break gets one so the empty last line shows.
+/// A paragraph's text. Blitz lays a line out after a trailing line break, so a line break that
+/// ends the text needs nothing after it to show its empty line, where a browser needs a `<br>`.
+/// An empty paragraph holds a non-breaking space, so it is one line high and the caret has a line
+/// to stand on: a `<br>` alone would be a line and the empty one after it, Blitz drops a plain
+/// space, and a heading's weight gives a zero-width space no height.
 fn text(runs: &[Run]) -> Element {
-    let ends_open = runs.last().is_none_or(|run| run.text.ends_with('\n'));
     rsx! {
         for (index, run) in runs.iter().enumerate() {
             if let Some(url) = &run.marks.link {
@@ -270,8 +272,8 @@ fn text(runs: &[Run]) -> Element {
                 span { key: "{index}", class: "{mark_class(run)}", style: run_style(run), "{run.text}" }
             }
         }
-        if ends_open {
-            br {}
+        if runs.is_empty() {
+            "\u{A0}"
         }
     }
 }

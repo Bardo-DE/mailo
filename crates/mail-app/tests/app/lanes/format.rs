@@ -10,6 +10,16 @@ fn mark_segment(n: usize) -> String {
     format!(".bubble .ds-segmented-segment:nth-child({n})")
 }
 
+/// Start a code block with the `/` menu.
+fn code_block(window: &mut Window) {
+    window.type_text("/code");
+    window.until("/ opens its menu", |h| {
+        h.count(".ds-menu .ds-menu-item") > 0
+    });
+    window.press(&[], Key::Enter, 1);
+    window.until("the menu goes", |h| h.count(".ds-menu") == 0);
+}
+
 /// Press `key` with `held` until `done` holds.
 fn press_until(window: &mut Window, held: &[Key], key: Key, done: impl Fn(&Window) -> bool) {
     for _ in 0..80 {
@@ -499,4 +509,308 @@ fn alignment_nesting_quote_levels_size_and_colour_go_out_in_the_html() {
             .any(|l| l.starts_with("  ") && l.trim() == "- two"),
         "the nested item is not indented in the text part:\n{text}"
     );
+}
+
+/// A selection in a code block shows over the block's own ground, where the drag made it.
+#[test]
+fn a_selection_in_a_code_block_shows_over_the_block() {
+    let mut window = composing();
+    window.type_text("/code");
+    window.until("/ opens its menu", |h| {
+        h.count(".ds-menu .ds-menu-item") > 0
+    });
+    window.press(&[], Key::Enter, 1);
+    window.until("the menu goes", |h| h.count(".ds-menu") == 0);
+    window.type_text("cargo test --all");
+    select_back(&mut window, 5);
+    window.until("the selection is drawn", |h| h.count(".c-sel") == 1);
+    let block = window
+        .harness
+        .rect(".c-body > pre")
+        .expect("the code block");
+    let sel = window.harness.rect(".c-sel").expect("the selection");
+    let shot = window.harness.render().expect("the window renders");
+    let scale = shot.width() as f32 / window.harness.window_size().width as f32;
+    // The selection's top row is the line's leading, clear of the letters.
+    let y = sel.origin.y.0 + 1.0;
+    let at = |x: f32| {
+        let pixel = shot.get_pixel((x * scale) as u32, (y * scale) as u32);
+        [pixel[0], pixel[1], pixel[2]]
+    };
+    let selected = at(sel.origin.x.0 + sel.size.width.0 / 2.0);
+    let ground = at(block.origin.x.0 + block.size.width.0 - 12.0);
+    assert_ne!(
+        selected, ground,
+        "the selection is hidden under the code block's ground"
+    );
+}
+
+/// An empty line is as high as a line with words on it, in a paragraph and after a line break.
+#[test]
+fn an_empty_line_is_one_line_high() {
+    let mut window = composing();
+    window.type_text("one\n\nthree\nfour");
+    window.press(&[Key::Shift], Key::Enter, 1);
+    let height = |window: &Window, n: usize| {
+        window
+            .harness
+            .rect(&format!(".c-body > :nth-child({n})"))
+            .map(|rect| rect.size.height.0)
+            .unwrap_or_default()
+    };
+    let line = height(&window, 1);
+    assert!(line > 0.0, "the first line is not drawn");
+    assert!(
+        (height(&window, 2) - line).abs() < 0.5,
+        "an empty paragraph is {} px high, a line {line} px",
+        height(&window, 2)
+    );
+    assert!(
+        (height(&window, 4) - 2.0 * line).abs() < 0.5,
+        "a line and the empty one a trailing break makes are {} px high, a line {line} px",
+        height(&window, 4)
+    );
+    window.press(&[], Key::Up, 3);
+    window.type_text("two");
+    assert_eq!(
+        outline(&window.harness),
+        ["p one", "p two", "p three", "p four"],
+        "the caret stands on the empty line"
+    );
+}
+
+/// An empty heading keeps its height and a caret to stand on.
+#[test]
+fn an_empty_heading_is_one_line_high() {
+    let mut window = composing();
+    window.type_text("# x");
+    let full = window.harness.rect(".c-body > h2").expect("the heading");
+    window.press(&[], Key::Backspace, 1);
+    window.until("the heading is empty", |h| outline(h) == ["h2"]);
+    let empty = window.harness.rect(".c-body > h2").expect("the heading");
+    assert!(
+        (empty.size.height.0 - full.size.height.0).abs() < 0.5,
+        "an empty heading is {} px high, a heading {} px",
+        empty.size.height.0,
+        full.size.height.0
+    );
+    let caret = window.harness.rect(".c-caret").expect("the caret");
+    assert!(caret.size.height.0 > 0.0, "the caret has no height");
+}
+
+/// The bubble's menus open with the bubble still there, and a pick from Turn into turns the line.
+#[test]
+fn the_bubble_s_menus_open_over_the_bubble_and_turn_into_turns_the_line() {
+    let mut window = composing();
+    window.type_text("hello world");
+    select_back(&mut window, 5);
+    window.until("the bubble shows", |h| h.count(".bubble") == 1);
+    for label in ["Text Size", "Paragraph"] {
+        window.click(&format!(".bubble [*|aria-label=\"{label}\"]"));
+        window.until(&format!("{label} opens its menu"), |h| {
+            h.count(".ds-menu .ds-menu-item") > 0
+        });
+        assert_eq!(
+            window.harness.count(".bubble"),
+            1,
+            "{label} took the bubble"
+        );
+        window.press(&[], Key::Escape, 1);
+        window.until("Escape closes the menu and leaves the bubble", |h| {
+            h.count(".ds-menu") == 0 && h.count(".bubble") == 1
+        });
+    }
+    window.click(".bubble .ds-popup .ds-button");
+    window.until("Turn into opens its menu", |h| {
+        h.count(".ds-menu .ds-menu-item") > 0
+    });
+    assert_eq!(
+        window.harness.count(".bubble"),
+        1,
+        "Turn into took the bubble"
+    );
+    window.menu_item("Quote");
+    window.until("the line is a quote", |h| {
+        outline(h) == ["blockquote hello world"]
+    });
+    window.until("the body has the keyboard back", |h| h.focus_of(".c-body"));
+}
+
+#[test]
+fn typing_past_the_bottom_keeps_the_caret_in_view() {
+    let mut window = composing();
+    for n in 0..45 {
+        window.type_text(&format!("line {n}\n"));
+    }
+    window.harness.advance(ms(300));
+    let bottom = window.harness.window_size().height as f32;
+    let caret = window.harness.rect(".c-caret").expect("the caret");
+    assert!(
+        caret.origin.y.0 + caret.size.height.0 <= bottom,
+        "the caret ends at {} px in a window {bottom} px high",
+        caret.origin.y.0 + caret.size.height.0
+    );
+    // Wheeled away, the view stays until the caret moves again.
+    let at = window.harness.centre(".c-body").expect("the body");
+    window
+        .harness
+        .wheel(at, ds::prelude::Px(0.0), ds::prelude::Px(240.0));
+    window.harness.advance(ms(300));
+    let wheeled = window.harness.rect(".c-caret").expect("the caret");
+    assert!(
+        wheeled.origin.y.0 > caret.origin.y.0,
+        "the wheel did not move the view"
+    );
+    window.type_text("x");
+    window.harness.advance(ms(300));
+    let typed = window.harness.rect(".c-caret").expect("the caret");
+    assert!(
+        typed.origin.y.0 + typed.size.height.0 <= bottom,
+        "typing did not bring the caret back"
+    );
+}
+
+#[test]
+fn the_link_field_takes_the_keyboard_and_typing_leaves_the_words_alone() {
+    let mut window = composing();
+    window.type_text("hello world");
+    select_back(&mut window, 5);
+    window.press(&[PRIMARY], Key::Char('k'), 1);
+    window.until("the field has the keyboard", |h| {
+        h.focus_of(".link-in input")
+    });
+    window.type_text("https://example.test\n");
+    window.until("the words are a link", |h| h.count(".c-body .m-a") == 1);
+    assert_eq!(outline(&window.harness), ["p hello world"]);
+}
+
+#[test]
+fn enter_on_an_empty_last_line_leaves_a_code_block() {
+    let mut window = composing();
+    code_block(&mut window);
+    window.type_text("x\n\ny");
+    assert_eq!(outline(&window.harness), ["pre x", "p y"]);
+}
+
+#[test]
+fn a_paste_into_a_code_block_stays_in_it_as_it_was_written() {
+    let mut window = composing();
+    code_block(&mut window);
+    window.type_text("x");
+    window.harness.paste_html("", "\nfn main() {\n\n}");
+    window.until("the paste lands", |h| {
+        h.text_of(".c-body").is_some_and(|text| text.contains('}'))
+    });
+    assert_eq!(outline(&window.harness), ["pre x\nfn main() {\n\n}"]);
+}
+
+#[test]
+fn a_plain_paste_keeps_the_blank_lines_past_a_paragraph_s_own() {
+    let mut window = composing();
+    window.harness.paste_html("", "one\n\ntwo\n\n\nfour");
+    window.until("the paste lands", |h| {
+        h.text_of(".c-body")
+            .is_some_and(|text| text.contains("four"))
+    });
+    assert_eq!(outline(&window.harness), ["p one", "p two", "p", "p four"]);
+}
+
+#[test]
+fn a_slash_that_matches_nothing_closes_the_menu_and_enter_breaks_the_line() {
+    let mut window = composing();
+    window.type_text("/usr/local/bin");
+    window.until("the menu goes", |h| h.count(".ds-menu") == 0);
+    window.type_text("\nnext");
+    assert_eq!(outline(&window.harness), ["p /usr/local/bin", "p next"]);
+}
+
+#[test]
+fn escape_over_a_selection_closes_the_bubble_and_leaves_the_composer() {
+    let mut window = composing();
+    window.type_text("hello world");
+    select_back(&mut window, 5);
+    window.until("the bubble shows", |h| h.count(".bubble") == 1);
+    window.press(&[], Key::Escape, 1);
+    window.until("the bubble goes", |h| h.count(".bubble") == 0);
+    assert_eq!(
+        window.harness.count(".cpage .c-body"),
+        1,
+        "the composer closed"
+    );
+}
+
+#[test]
+fn enter_at_the_start_of_a_heading_pushes_it_down_a_line() {
+    let mut window = composing();
+    window.type_text("# Title");
+    window.press(&[], Key::Home, 1);
+    window.press(&[], Key::Enter, 1);
+    assert_eq!(outline(&window.harness), ["p", "h2 Title"]);
+}
+
+#[test]
+fn several_lines_turned_into_code_are_one_block() {
+    let mut window = composing();
+    window.type_text("one\ntwo");
+    window.press(&[PRIMARY], Key::Char('a'), 1);
+    window.click(".bubble .ds-popup .ds-button");
+    window.menu_item("Code");
+    window.until("the lines are code", |h| h.count(".c-body > pre") > 0);
+    assert_eq!(outline(&window.harness), ["pre one\ntwo"]);
+}
+
+#[test]
+fn tab_in_a_code_block_stays_in_the_block() {
+    let mut window = composing();
+    code_block(&mut window);
+    window.type_text("a");
+    window.press(&[], Key::Tab, 1);
+    window.type_text("b");
+    assert!(window.harness.focus_of(".c-body"), "Tab left the body");
+    let text = window.harness.text_of(".c-body > pre").unwrap_or_default();
+    assert!(text.ends_with('b'), "the b was lost: {text:?}");
+}
+
+/// Pasted code keeps its blank lines, and Shift-Enter makes one where Enter would leave.
+#[test]
+fn a_blank_line_in_a_code_block_comes_from_shift_enter() {
+    let mut window = composing();
+    code_block(&mut window);
+    window.type_text("x");
+    window.press(&[Key::Shift], Key::Enter, 2);
+    window.type_text("y");
+    assert_eq!(outline(&window.harness), ["pre x\n\ny"]);
+}
+
+/// In a code block `/`, `@` and `:` are what they are; Tab with words selected keeps the words.
+#[test]
+fn a_code_block_opens_no_menu_and_tab_leaves_a_selection_alone() {
+    let mut window = composing();
+    code_block(&mut window);
+    window.type_text("/usr @home :smile");
+    assert_eq!(window.harness.count(".ds-menu"), 0, "a menu opened in code");
+    select_back(&mut window, 6);
+    window.press(&[], Key::Tab, 1);
+    assert_eq!(outline(&window.harness), ["pre /usr @home :smile"]);
+    assert!(window.harness.focus_of(".c-body"), "Tab left the body");
+}
+
+/// Turn into keeps the selection, as a size or an alignment does, so a second pick can follow.
+#[test]
+fn turn_into_keeps_the_selection() {
+    let mut window = composing();
+    window.type_text("one\ntwo");
+    window.press(&[PRIMARY], Key::Char('a'), 1);
+    window.click(".bubble .ds-popup .ds-button");
+    window.menu_item("Code");
+    window.until("the bubble is back over the block", |h| {
+        h.count(".bubble") == 1 && outline(h) == ["pre one\ntwo"]
+    });
+    window.click(".bubble .ds-popup .ds-button");
+    window.menu_item("Quote");
+    window.until("the block is a quote", |h| {
+        outline(h) == ["blockquote one\ntwo"]
+    });
+    window.press(&[PRIMARY], Key::Char('z'), 2);
+    assert_eq!(outline(&window.harness), ["p one", "p two"], "undo");
 }

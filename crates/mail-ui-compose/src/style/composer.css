@@ -75,11 +75,14 @@
 /* the signature: a marker with no rule, and its lines in plain ink, since they are sent */
 .c-body .o-sig { margin: 1.2em 0 .2em; height: 0; }
 /* On Blitz the page draws its own caret and selection (compose/surface.rs): boxes placed from
-   the surface's rects, the selection's layer before the surface (under its text: `.c-body` is
-   positioned, and neither sets a z-index) and the caret's after it, `--caret-w` wide */
+   the surface's rects, in a layer after the surface, over its text (the selection's fill is
+   translucent, and a code block's ground would hide it from under the text); the caret
+   `--caret-w` wide */
 .c-marks { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
 .c-sel { position: absolute; background: var(--accent-soft); border-radius: var(--r-micro); }
 .c-caret { position: absolute; width: var(--caret-w); background: var(--accent-text); }
+/* where the caret is, shown or not: what the view scrolls to */
+.c-at { position: absolute; }
 .c-preedit {
   position: absolute; white-space: pre; font-size: var(--fs-reading); color: var(--ink); background: var(--surface);
   text-decoration: underline;
