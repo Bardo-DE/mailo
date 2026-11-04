@@ -139,9 +139,13 @@ pub mod message {
     };
 }
 pub mod notify {
-    pub use mail_core::notify::{
-        Interest, Notification, Notifier, Places, Setting, Sound, Whom, load,
-    };
+    pub use mail_logic::notify::{Interest, Notification, Notifier, Places, Setting, Sound, Whom};
+
+    /// What `notify.json` in `dir` said, or on when there is none or it cannot be read. Never
+    /// written.
+    pub fn load(dir: &std::path::Path) -> Setting {
+        mail_core::notify::load(dir)
+    }
     #[cfg(feature = "desktop")]
     pub mod desktop {
         /// What the app hands the macOS notification centre's banners through, and the click it
