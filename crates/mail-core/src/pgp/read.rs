@@ -6,41 +6,16 @@
 //! the same message again neither decrypts again nor asks for a passphrase again. It is never
 //! written to the store, the blob directory or the index.
 
+pub use mail_logic::protection::pgp::Protected;
+
 use super::keys::unlocking;
 use super::{Ask, PgpError, epoch};
-use crate::error::CoreError;
 use chrono::{DateTime, Utc};
 use mail_crypto::openpgp::{self, Cert, Keys, KnownCert};
 use mail_domain::*;
-use mail_mime::Parsed;
 use mail_secrets::SigningStore;
 use mail_store::{SqliteStore, Store};
 use std::sync::Mutex;
-
-/// A message opened for reading.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Protected {
-    pub encryption: Encryption,
-    pub verification: Verification,
-    /// The key that made a good signature, as the store holds it: its addresses and trust.
-    pub signer: Option<PgpKey>,
-    /// The message as the reader shows it — decrypted, protected headers applied, signature
-    /// part taken off — parsed the way every message is. `None` when it could not be opened
-    /// ([`Encryption::CannotDecrypt`], [`Encryption::Locked`], [`Encryption::Unreadable`]):
-    /// the reader shows what it already has.
-    pub shown: Option<Parsed>,
-    /// The bytes `shown` was parsed from. In memory only; not to be stored.
-    pub raw: Option<Vec<u8>>,
-}
-
-impl Protected {
-    /// Attachment `index` of the opened message, numbered as the reader lists its attachments
-    /// ([`crate::attach::opened_attachment`]). Refused for a message that could not be opened.
-    pub fn attachment(&self, index: usize) -> Result<crate::attach::OpenedAttachment, CoreError> {
-        let shown = self.shown.as_ref().ok_or(CoreError::NotOpened)?;
-        crate::attach::opened_attachment(shown, index)
-    }
-}
 
 /// How many opened messages to keep in memory.
 const CACHE_SIZE: usize = 32;

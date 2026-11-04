@@ -243,9 +243,9 @@ pub mod mail {
 }
 pub mod message {
     pub use mail_core::message::{
-        Bodies, FIRST_PAGE, Frames, INLINE_BYTES, Invited, Key, Looks, Offer, Opening, Protection,
-        Receipt, Scheme, Sealed, Sent, Tried, ahead,
+        Bodies, FIRST_PAGE, Frames, INLINE_BYTES, Invited, Key, Looks, Offer, Receipt, Sent, ahead,
     };
+    pub use mail_logic::protection::{Opening, Protection, Scheme, Sealed, Tried};
 }
 pub mod notify {
     pub use mail_logic::notify::{Interest, Notification, Notifier, Places, Setting, Sound, Whom};
@@ -298,7 +298,9 @@ pub mod offline {
     }
 }
 pub mod pgp {
-    pub use mail_core::pgp::{Ask, PgpError, Protected, WithSecret, no_passphrase};
+    pub use mail_core::pgp::PgpError;
+    pub use mail_logic::protection::pgp::Protected;
+    pub use mail_logic::protection::{Ask, WithSecret, no_passphrase};
     pub mod keys {
         pub use mail_core::pgp::keys::export_public;
     }
@@ -364,7 +366,8 @@ pub mod server_search {
     }
 }
 pub mod smime {
-    pub use mail_core::smime::{Protected, SmimeError};
+    pub use mail_core::smime::SmimeError;
+    pub use mail_logic::protection::smime::Protected;
     pub mod certs {
         pub use mail_core::smime::certs::export;
     }

@@ -37,6 +37,7 @@ pub mod own;
 pub mod password;
 pub mod picture;
 pub mod profile;
+pub mod protection;
 pub mod provider;
 pub mod query;
 pub mod receipt;

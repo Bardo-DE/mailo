@@ -4,7 +4,7 @@
 //! Public keys go to the store, secret halves to the OS keyring through `mail_runtime::pgp`.
 //! Nothing here writes a secret key anywhere else.
 
-use super::{PgpError, epoch_changed};
+use super::{PgpError, WithSecret, epoch_changed};
 use crate::error::Logged;
 use chrono::{DateTime, Utc};
 use mail_crypto::openpgp::{self, Cert, Protection, ReadKey, SecretCert};
@@ -169,15 +169,6 @@ pub fn export_secret(
     let account = account_of(store, key);
     let secret = mail_runtime::pgp::secret_key(secrets, account, key.fingerprint)?;
     Ok(secret.armored()?)
-}
-
-/// Whether deleting a key with a secret half was confirmed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WithSecret {
-    /// Delete only a key the keyring holds no secret for.
-    Refuse,
-    /// `--with-secret`: the secret half goes too.
-    Confirmed,
 }
 
 /// Forget a key: its row, and — when confirmed — its secret half in the keyring.
