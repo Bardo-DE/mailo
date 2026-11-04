@@ -1,6 +1,6 @@
 //! A thread's way out of its mailing list, as the reader offers it.
 
-use crate::unsubscribe::Found;
+use super::Found;
 use mail_domain::Address;
 
 /// A thread's way out of its list, with the name the front-end calls the list by.
@@ -41,7 +41,7 @@ pub fn offer_of(found: Found, sender: Address, from: Address) -> Option<Offer> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::support_tests::account;
+    use mail_domain::testing::account;
 
     use mail_mime::{ListHeaders, ListId};
 

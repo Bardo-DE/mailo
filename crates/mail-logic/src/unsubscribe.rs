@@ -2,6 +2,10 @@
 //! did. Reading the list headers from the stored message and taking the way out are
 //! `mail_core::unsubscribe`'s.
 
+mod offer;
+
+pub use offer::{Offer, offer_of};
+
 use mail_domain::{Address, DraftId, MessageId};
 use mail_mime::ListHeaders;
 use porter_core::AccountId;
