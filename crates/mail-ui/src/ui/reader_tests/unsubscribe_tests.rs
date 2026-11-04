@@ -10,8 +10,8 @@ use crate::ui::fixtures::{
 use dioxus::prelude::*;
 use dioxus_core::VirtualDom;
 use ds::prelude::*;
+use mail_client::message::{Looks, Read};
 use mail_client::testing::core::message::offer_of;
-use mail_client::testing::core::message::{Looks, Read};
 use mail_client::testing::core::unsubscribe::{Found, Outcome};
 use mail_client::testing::{SqliteStore, Store};
 use mail_domain::*;

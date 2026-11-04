@@ -417,7 +417,7 @@ pub mod rules {
     }
 }
 pub mod schedule {
-    pub use mail_engine::schedule::{Daemon, Lost, Schedule, Timing, probe};
+    pub use mail_logic::schedule::{Daemon, Lost, Schedule, Timing};
 }
 pub mod search {
     // `run` reads what it is handed: a caller has only the client's (`Client::source`).

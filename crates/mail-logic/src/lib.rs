@@ -49,6 +49,7 @@ pub mod recent;
 pub mod remedy;
 pub mod rules;
 pub mod saved_search;
+pub mod schedule;
 pub mod scope;
 pub mod search;
 pub mod server_search;

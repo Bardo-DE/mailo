@@ -26,6 +26,7 @@ pub use live::{
     Action, Daemon, Dirty, Heard, Hold, ListenCall, Lost, Push, Reconnect, Rerun, Stop, decide,
     event_for, reconnect,
 };
+pub use mail_logic::schedule::{BEAT, FIRST, Timing};
 pub use start::{Changes, initial, last_synced, link_for, probe, reconcile};
 pub use tasks::Local;
 
@@ -48,14 +49,6 @@ fn tell(tx: &UnboundedSender<Note>, note: Note) {
     // Deliberately: see above.
     let _ = tx.send(note);
 }
-
-/// How soon a freshly opened window starts fetching, so that opening it is not also a network
-/// round trip competing with the first paint.
-pub const BEAT: Duration = Duration::from_secs(2);
-
-/// How soon after being wanted a live watch connects, so that opening a window is not also a
-/// second connection racing the first pass.
-pub const FIRST: Duration = Duration::from_secs(4);
 
 /// The interval an account is polled at when nothing says otherwise.
 const FALLBACK: Duration = Duration::from_secs(300);
@@ -105,27 +98,6 @@ pub struct PassCall {
     pub cancel: watch::Receiver<bool>,
     /// Where the pass says where it has got to. Dropped by the host when it has said everything.
     pub progress: UnboundedSender<Event>,
-}
-
-/// When the scheduler waits, as the host sets it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Timing {
-    /// How soon the accounts already known first poll.
-    pub beat: Duration,
-    /// How soon after being wanted a live watch connects.
-    pub first: Duration,
-    /// The floor under the wait between one lost connection and the next attempt.
-    pub retry: Duration,
-}
-
-impl Default for Timing {
-    fn default() -> Self {
-        Timing {
-            beat: BEAT,
-            first: FIRST,
-            retry: fetch::RETRY_NOW,
-        }
-    }
 }
 
 /// What the scheduler is lent: the ways to fetch, to listen, and to say what changed.

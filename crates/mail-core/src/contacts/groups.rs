@@ -319,7 +319,7 @@ pub fn rename(store: &dyn Store, id: &GroupId, name: &str) -> Result<Group, Grou
 /// Add `typed`, one address or several, to the group `id`, each as a `mailto:` member. An
 /// address already in it is not added twice.
 pub fn add(store: &dyn Store, id: &GroupId, typed: &str) -> Result<Group, GroupError> {
-    let addresses = crate::compose::addresses::parse_addresses(typed).map_err(CoreError::from)?;
+    let addresses = crate::compose::addresses::parse_addresses(typed)?;
     let mut group = load(store, id)?;
     for address in addresses {
         let Some(address) = mail_store::contact::normalise(&address.email) else {

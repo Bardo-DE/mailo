@@ -122,7 +122,7 @@ deps = ["mailo-domain", "mailo-mime", "mailo-reader"]
 deps = ["mailo-domain", "mailo-mime"]
 
 [crates.mailo-logic]
-deps = ["mailo-archive", "mailo-domain"]
+deps = ["mailo-archive", "mailo-domain", "mailo-editor", "mailo-mime", "mailo-pim", "mailo-proto", "mailo-reader"]
 
 # Between the pure crates and the core: the store, the wire, the secrets, the drivers, the engines.
 
@@ -136,10 +136,10 @@ deps = ["mailo-crypto", "mailo-domain", "mailo-mime", "mailo-proto"]
 deps = ["mail-net", "mailo-domain"]
 
 [crates.mail-runtime]
-deps = ["mail-net", "mail-secrets", "mail-store", "mailo-archive", "mailo-crypto", "mailo-domain", "mailo-mime", "mailo-pim", "mailo-proto"]
+deps = ["mail-net", "mail-secrets", "mail-store", "mailo-archive", "mailo-crypto", "mailo-domain", "mailo-logic", "mailo-mime", "mailo-pim", "mailo-proto"]
 
 [crates.mail-engine]
-deps = ["mail-net", "mail-runtime", "mail-secrets", "mail-store", "mailo-archive", "mailo-domain", "mailo-mime", "mailo-proto"]
+deps = ["mail-net", "mail-runtime", "mail-secrets", "mail-store", "mailo-archive", "mailo-domain", "mailo-logic", "mailo-mime", "mailo-proto"]
 
 # The core, the agent and the one client the front-ends share.
 
@@ -150,7 +150,7 @@ deps = ["mail-engine", "mail-net", "mail-runtime", "mail-secrets", "mail-store",
 deps = ["mail-core", "mail-secrets", "mail-store", "mailo-domain", "mailo-logic"]
 
 [crates.mail-client]
-deps = ["mail-agent", "mail-core", "mail-runtime", "mail-secrets", "mail-store", "mailo-domain", "mailo-editor", "mailo-logic", "mailo-mime", "mailo-pim", "mailo-proto", "mailo-reader"]
+deps = ["mail-agent", "mail-core", "mail-net", "mail-runtime", "mail-secrets", "mail-store", "mailo-crypto", "mailo-domain", "mailo-editor", "mailo-logic", "mailo-mime", "mailo-pim", "mailo-proto", "mailo-reader"]
 
 # The app layer: OS integration, the shared toolkit-free pieces, the front-ends' process.
 
