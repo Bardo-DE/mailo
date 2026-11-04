@@ -21,6 +21,7 @@ pub mod conversation;
 pub mod discover;
 pub mod erase;
 pub mod follow_up;
+pub mod invite;
 pub mod junk;
 pub mod mailbox_filter;
 pub mod offline;

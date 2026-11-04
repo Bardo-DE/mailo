@@ -82,10 +82,46 @@ pub mod import {
     pub use mail_core::import::{Destination, Imported, Source};
 }
 pub mod invite {
-    pub use mail_core::invite::{
-        Answered, Followed, InviteState, add, calendars, follow_answer, follow_cancellation, pick,
-        repeats_words, say_when,
-    };
+    use crate::CallError;
+    use porter_calendar::{CalendarRef, CalendarStore, Event, Stored};
+
+    pub use mail_domain::invite::Answered;
+    pub use mail_logic::invite::{Followed, pick, repeats_words, say_when};
+
+    /// Put `event` into `calendar`: a new event, or the one with its `UID` replaced.
+    pub async fn add<S: CalendarStore>(
+        store: &S,
+        calendar: &str,
+        event: &Event,
+    ) -> Result<Stored, CallError> {
+        Ok(mail_core::invite::add(store, calendar, event).await?)
+    }
+
+    /// Bring the calendar in step with an answer to the invitation `event` is: accepting or
+    /// saying maybe puts it in, declining takes it out if it is there.
+    pub async fn follow_answer<S: CalendarStore>(
+        store: &S,
+        calendar: &str,
+        event: &Event,
+        attendance: mail_domain::Attendance,
+    ) -> Result<Followed, CallError> {
+        Ok(mail_core::invite::follow_answer(store, calendar, event, attendance).await?)
+    }
+
+    /// Take the event a cancellation names out of `calendar`. `true` when it was there.
+    pub async fn follow_cancellation<S: CalendarStore>(
+        store: &S,
+        calendar: &str,
+        uid: &str,
+    ) -> Result<bool, CallError> {
+        Ok(mail_core::invite::follow_cancellation(store, calendar, uid).await?)
+    }
+
+    /// A calendar store's calendars, or none when it cannot say: a store that cannot be reached
+    /// offers nothing to choose.
+    pub async fn calendars<S: CalendarStore>(store: &S) -> Vec<CalendarRef> {
+        mail_core::invite::calendars(store).await
+    }
 }
 pub mod ipc {
     pub use mail_agent::ipc::agent;

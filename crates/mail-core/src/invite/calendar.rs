@@ -11,7 +11,7 @@
 //! person for access the first time it is used, and reading mail is no reason to ask. Each call
 //! is the answer to something the person asked for.
 
-use super::{addresses, product, raw_of};
+use super::{Followed, addresses, product, raw_of};
 use crate::error::{CoreError, Logged};
 use chrono::{Datelike, LocalResult, TimeZone};
 use mail_domain::{Attendance, MessageId};
@@ -103,26 +103,6 @@ fn placed<Z: TimeZone>(when: &When, zone: &Z) -> Result<porter_calendar::When, C
     })
 }
 
-/// Which of `calendars` an event goes into: the one named `wanted` while it is there and takes
-/// events, else the first that does. `None` when none does.
-pub fn pick<'a>(calendars: &'a [CalendarRef], wanted: &str) -> Option<&'a CalendarRef> {
-    calendars
-        .iter()
-        .find(|calendar| calendar.writable && calendar.id == wanted)
-        .or_else(|| calendars.iter().find(|calendar| calendar.writable))
-}
-
-/// What an answer did to the calendar.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Followed {
-    /// The event is in the calendar, as the store now holds it.
-    Kept(Stored),
-    /// A declined event that was in the calendar is gone from it.
-    Removed,
-    /// A declined event that was never in the calendar: nothing to do.
-    Absent,
-}
-
 /// Put `event` into `calendar`: a new event, or the one with its `UID` replaced.
 pub async fn add<S: CalendarStore>(
     store: &S,
@@ -186,41 +166,3 @@ pub async fn calendars<S: CalendarStore>(store: &S) -> Vec<CalendarRef> {
         .or_log_default("the calendar store's calendars could not be listed")
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn calendar(id: &str, writable: bool) -> CalendarRef {
-        CalendarRef {
-            id: id.to_owned(),
-            name: id.to_owned(),
-            color: None,
-            writable,
-        }
-    }
-
-    #[test]
-    fn the_chosen_calendar_is_used_while_it_takes_events_else_the_first_that_does() {
-        let calendars = [
-            calendar("holidays", false),
-            calendar("work", true),
-            calendar("home", true),
-        ];
-        // (wanted, the calendar picked)
-        let cases = [
-            ("home", Some("home")),
-            ("", Some("work")),
-            ("gone", Some("work")),
-            ("holidays", Some("work")),
-        ];
-        for (wanted, picked) in cases {
-            assert_eq!(
-                pick(&calendars, wanted).map(|c| c.id.as_str()),
-                picked,
-                "{wanted:?}"
-            );
-        }
-        assert!(pick(&[calendar("holidays", false)], "").is_none());
-        assert!(pick(&[], "").is_none());
-    }
-}

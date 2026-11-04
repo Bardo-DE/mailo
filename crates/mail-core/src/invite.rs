@@ -22,23 +22,14 @@ fn product() -> String {
     format!("-//mailo//mailo {}//EN", env!("CARGO_PKG_VERSION"))
 }
 
+pub use mail_domain::invite::Answered;
+
 mod calendar;
 mod propose;
-mod when;
 
-pub use calendar::{
-    Followed, add, calendars, event_in, event_of, follow_answer, follow_cancellation, pick,
-};
+pub use calendar::{add, calendars, event_in, event_of, follow_answer, follow_cancellation};
 pub use propose::{Proposed, propose};
-pub use when::{REPEATS_OTHERWISE, WhenSaid, repeats_words, say_when};
-
-/// An answer that is queued: what was answered, and who it goes to.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Answered {
-    pub attendance: Attendance,
-    /// The envelope recipients of the queued reply: the organiser.
-    pub to: Vec<String>,
-}
+pub use mail_logic::invite::{Followed, REPEATS_OTHERWISE, WhenSaid, pick, repeats_words, say_when};
 
 /// The invitation `raw` carries, as the reader shows it to someone whose addresses are `me`.
 ///
