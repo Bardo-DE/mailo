@@ -205,7 +205,8 @@ pub mod transfer {
     pub use mail_core::transfer::{IoCause, Refusal, Seen, expand_here, look, suggested};
 }
 pub mod unsubscribe {
-    pub use mail_core::unsubscribe::{Found, Outcome, client};
+    pub use mail_core::unsubscribe::client;
+    pub use mail_logic::unsubscribe::{Found, Outcome};
 }
 pub mod conversation {
     pub use mail_logic::conversation::{
