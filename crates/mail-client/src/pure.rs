@@ -190,8 +190,33 @@ pub mod notify {
     }
 }
 pub mod offline {
-    pub use mail_core::offline::{FILE_NAME, change, damage, load, said, save};
-    pub use mail_logic::offline::{Every, Keep, Kept, Remove, Window};
+    use crate::CallError;
+    use std::path::Path;
+
+    pub use mail_logic::offline::{Every, FILE_NAME, Keep, Kept, Remove, Window};
+
+    /// The stored setting, or every account off when there is none or it cannot be read. Ask
+    /// about a file that cannot be read ([`damage`]) before anything runs over it.
+    pub fn load(dir: &Path) -> Kept {
+        mail_core::offline::load(dir)
+    }
+
+    /// Why `offline.json` in `dir` cannot be read: `None` when it is missing or reads.
+    pub fn damage(dir: &Path) -> Option<String> {
+        mail_core::offline::damage(dir)
+    }
+
+    /// Set what `account` keeps, leaving every other account as it was. A file that cannot be
+    /// read is left as it is, and nothing is set.
+    pub fn save(dir: &Path, account: porter_core::AccountId, keep: Keep) -> Result<(), CallError> {
+        Ok(mail_core::offline::save(dir, account, keep)?)
+    }
+
+    /// Write the setting in `dir` as `edit` leaves it, every other account as it was; a file that
+    /// cannot be read is left as it is.
+    pub fn change(dir: &Path, edit: impl FnOnce(Kept) -> Kept) -> Result<(), CallError> {
+        Ok(mail_core::offline::change(dir, edit)?)
+    }
 }
 pub mod pgp {
     pub use mail_core::pgp::{Ask, PgpError, Protected, WithSecret, no_passphrase};

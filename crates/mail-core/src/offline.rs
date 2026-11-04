@@ -23,10 +23,7 @@ use mail_store::{Offline, Store};
 use porter_core::AccountId;
 use std::path::Path;
 
-pub use mail_logic::offline::{Every, Keep, Kept, Remove, Window};
-
-/// The file the setting is kept in, in the config directory.
-pub const FILE_NAME: &str = "offline.json";
+pub use mail_logic::offline::{Every, FILE_NAME, Keep, Kept, Remove, Window};
 
 /// The stored setting, or every account off when there is none or it cannot be read. The window
 /// and the command line ask about a file that cannot be read ([`damage`]) before anything runs
