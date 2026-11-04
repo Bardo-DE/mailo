@@ -48,7 +48,6 @@ pub fn render(
 /// How much rendered html to keep, in bytes. A long newsletter is a few hundred kilobytes.
 const BUDGET: usize = 32 * 1024 * 1024;
 
-
 struct Entry {
     /// Shared, so a hit hands out the rendering rather than a copy of its html and images.
     body: Arc<FrameBody>,

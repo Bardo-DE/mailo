@@ -91,7 +91,10 @@ pub enum Seen {
     /// Nothing typed yet.
     Blank,
     /// Mail that can be imported: which kind, and how many messages.
-    Mail { source: Source, count: usize },
+    Mail {
+        source: Source,
+        count: usize,
+    },
     Refused(Refusal),
 }
 

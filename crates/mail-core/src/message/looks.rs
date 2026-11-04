@@ -15,13 +15,13 @@
 //! process global: two of them share nothing. [`Looks::reads`] counts how often each lookup
 //! really read, so a test can say that a path did not.
 
-pub use mail_logic::looks::{Bodies, Invited, Read, Receipt};
-use mail_logic::unsubscribe::{Offer, offer_of};
 use super::seal::{self, Kept};
 use crate::error::Logged;
 use crate::invite::InviteState;
 use mail_domain::*;
+pub use mail_logic::looks::{Bodies, Invited, Read, Receipt};
 use mail_logic::recent::Recent;
+use mail_logic::unsubscribe::{Offer, offer_of};
 use mail_mime::AuthResults;
 use mail_store::{SqliteStore, Store};
 use std::sync::atomic::{AtomicUsize, Ordering};

@@ -119,4 +119,3 @@ fn delivery_reports_are_offered_for_every_account_but_graph() {
     assert!(super::can_ask_delivery_report(&store, &jmap));
     assert!(super::can_ask_delivery_report(&store, &smtp));
 }
-

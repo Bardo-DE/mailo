@@ -13,13 +13,13 @@
 mod body;
 mod download;
 mod folder;
-mod link;
 pub mod fresh;
+mod link;
 
 pub use body::{Body, BodyEffect, BodyEvent};
 pub use download::{Download, DownloadEffect, DownloadEvent};
 pub use folder::{AGAIN, FolderEffect, FolderEvent, FolderFetch};
 pub use link::{
-    BACKOFF_CEILING, Count, Effect, Event, First, IDLE_REARM, Link, Live, PUSH_SILENCE, Pause, RETRY_NOW, Step,
-    Trigger, Trouble, backoff, step,
+    BACKOFF_CEILING, Count, Effect, Event, First, IDLE_REARM, Link, Live, PUSH_SILENCE, Pause,
+    RETRY_NOW, Step, Trigger, Trouble, backoff, step,
 };

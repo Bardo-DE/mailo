@@ -29,6 +29,9 @@ pub mod runtime {
 }
 
 /// A source of mail at `path` in the format `archive`, as a window is handed one after looking.
-pub fn source(archive: &'static dyn core::formats::Archive, path: std::path::PathBuf) -> crate::files::Source {
+pub fn source(
+    archive: &'static dyn core::formats::Archive,
+    path: std::path::PathBuf,
+) -> crate::files::Source {
     crate::files::Source(core::import::Source::new(archive, path))
 }

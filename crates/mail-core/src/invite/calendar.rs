@@ -165,4 +165,3 @@ pub async fn calendars<S: CalendarStore>(store: &S) -> Vec<CalendarRef> {
         .await
         .or_log_default("the calendar store's calendars could not be listed")
 }
-

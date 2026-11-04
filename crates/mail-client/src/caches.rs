@@ -7,15 +7,15 @@ use crate::Client;
 use chrono::{DateTime, Utc};
 use mail_core::SigningStore;
 use mail_core::message as core;
+use mail_domain::{BlobId, Message, MessageId, ThreadId};
 use mail_logic::frames::{Key, Sent, Unsealed};
 use mail_logic::looks::{Bodies, Invited, Read, Receipt};
+use mail_logic::password::Password;
 use mail_logic::protection::Opening;
 use mail_logic::unsubscribe::Offer;
+use mail_mime::AuthResults;
 use mail_mime::Parsed;
 use mail_reader::Prefer;
-use mail_domain::{BlobId, Message, MessageId, ThreadId};
-use mail_logic::password::Password;
-use mail_mime::AuthResults;
 use mail_reader::{FrameBody, SanitizePolicy};
 use std::sync::Arc;
 

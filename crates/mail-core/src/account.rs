@@ -22,10 +22,10 @@ pub mod direct;
 mod remove;
 mod switch;
 
-pub use mail_logic::account::{ClientRecord, GraphSetup, MicrosoftRoute, Outcome, Setup};
-pub use mail_logic::add_account as draft;
 pub use advice::{no_client_id, no_credential};
 pub use direct::{Direct, Mode, SignInError, sign_in_with};
+pub use mail_logic::account::{ClientRecord, GraphSetup, MicrosoftRoute, Outcome, Setup};
+pub use mail_logic::add_account as draft;
 pub use remove::{RemoveError, Removed, remove};
 pub use switch::{graph_offer, switch_to_graph};
 

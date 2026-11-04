@@ -1,8 +1,8 @@
 //! Whether a message was written as rich text or as plain text, for a reply that answers in kind.
 
-pub use mail_logic::compose::Written;
 use crate::error::Logged;
 use mail_domain::MessageId;
+pub use mail_logic::compose::Written;
 use mail_store::{SqliteStore, Store};
 
 /// What `message` was written as, read from its stored bytes. `None` when that cannot be said

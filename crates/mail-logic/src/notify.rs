@@ -474,7 +474,6 @@ mod tests {
                 "{case}"
             );
         }
-
     }
 
     #[test]

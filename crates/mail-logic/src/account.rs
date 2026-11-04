@@ -4,9 +4,9 @@
 
 use chrono::{DateTime, Utc};
 use mail_domain::presets;
-use std::time::Duration;
 use mail_domain::{HttpAuth, SaslMech};
 use porter_provider::Issuer;
+use std::time::Duration;
 
 /// Servers the user named, for an address the preset table does not cover.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -32,8 +32,6 @@ pub enum Setup {
     /// puts it here after asking, so `mail_core::account::add` can store it like any other.
     Discovered(Box<presets::Preset>),
 }
-
-
 
 /// Where the account's credential stands once it is added.
 #[derive(Debug, Clone, PartialEq, Eq)]

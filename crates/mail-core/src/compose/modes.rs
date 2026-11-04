@@ -7,7 +7,6 @@
 //! reply quoting less, and Edit as New is a blank draft filled in. Only a redirect is new, and it
 //! is no draft at all: the original goes again as it is, so there is nothing to edit.
 
-pub use mail_logic::compose::{Answer, Quote, Redirected};
 use super::enclosed::sent_bytes_of;
 use super::{answering, carried, identity_addressed, identity_of, quoted, quoting, save, signed};
 use crate::error::{CoreError, Logged};
@@ -15,6 +14,7 @@ use crate::signature::{self, Placement};
 use chrono::{DateTime, Local, Utc};
 use mail_domain::*;
 use mail_editor::plain_to_flowed;
+pub use mail_logic::compose::{Answer, Quote, Redirected};
 use mail_store::{SqliteStore, Store};
 
 /// What an answer says: who it goes to, what it quotes of the original, and the `body` written

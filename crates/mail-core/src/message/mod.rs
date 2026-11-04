@@ -10,6 +10,6 @@ mod looks;
 mod seal;
 
 pub use frames::{FIRST_PAGE, Frames, INLINE_BYTES, Key, Sent, Unsealed, ahead, render};
-pub use mail_logic::unsubscribe::{Offer, offer_of};
 pub use looks::{Bodies, Invited, Looks, Read, Receipt};
+pub use mail_logic::unsubscribe::{Offer, offer_of};
 pub use seal::{Opening, Protection, Scheme, Sealed, Tried};

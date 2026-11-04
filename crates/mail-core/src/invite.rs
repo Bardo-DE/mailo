@@ -28,8 +28,10 @@ mod calendar;
 mod propose;
 
 pub use calendar::{add, calendars, event_in, event_of, follow_answer, follow_cancellation};
+pub use mail_logic::invite::{
+    Followed, REPEATS_OTHERWISE, WhenSaid, pick, repeats_words, say_when,
+};
 pub use propose::{Proposed, propose};
-pub use mail_logic::invite::{Followed, REPEATS_OTHERWISE, WhenSaid, pick, repeats_words, say_when};
 
 /// The invitation `raw` carries, as the reader shows it to someone whose addresses are `me`.
 ///

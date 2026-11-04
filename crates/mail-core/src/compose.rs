@@ -37,10 +37,10 @@ mod modes;
 mod pictures;
 mod submit;
 mod weight;
-pub use mail_logic::compose::doc::{doc_from_text, doc_of};
-pub use mail_logic::compose::{ATTACHMENT_BUDGET, Leaves, Myself, media_type_of, shows_inline};
 pub use enclosed::{Carry, ENCLOSED, draft_forward_attached, eml_name, rebuilt};
 pub use format::{Written, written_as};
+pub use mail_logic::compose::doc::{doc_from_text, doc_of};
+pub use mail_logic::compose::{ATTACHMENT_BUDGET, Leaves, Myself, media_type_of, shows_inline};
 pub use modes::{
     Answer, Quote, Redirected, Saying, draft_again, draft_answer, draft_answer_in, list_post,
     redirect, withdraw_redirect,

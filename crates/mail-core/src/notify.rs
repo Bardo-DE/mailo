@@ -17,8 +17,9 @@
 pub mod floor;
 
 pub use mail_logic::notify::{
-    ARCHIVE_ACTION, Act, DEFAULT_ACTION, Heard, Interest, Notification, Notifier, ONE_BY_ONE, Opens,
-    Places, Quiet, REPLY_ACTION, Setting, Sound, Verdict, Whom, act_for, batch, heard, verdict,
+    ARCHIVE_ACTION, Act, DEFAULT_ACTION, Heard, Interest, Notification, Notifier, ONE_BY_ONE,
+    Opens, Places, Quiet, REPLY_ACTION, Setting, Sound, Verdict, Whom, act_for, batch, heard,
+    verdict,
 };
 
 use crate::error::CoreError;

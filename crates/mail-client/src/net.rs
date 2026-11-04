@@ -315,9 +315,9 @@ impl Net<'_> {
     }
 
     /// Set an account's kept vacation reply where its JMAP or Graph server keeps one.
-    pub fn put_away(&self, account: &Configured) -> mail_core::rules::server::PushDone {
+    pub fn put_away(&self, account: &Configured) -> crate::saved::PushDone {
         let mail = self.mail();
-        Self::wait(&mail, mail.rules().put_away(account))
+        Self::wait(&mail, mail.rules().put_away(account)).into()
     }
 
     /// How much of an account's storage its server says is used.

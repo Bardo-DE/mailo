@@ -113,7 +113,7 @@ pub fn of_link(link: &Link, pace: Pace, now: DateTime<Utc>) -> Freshness {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fetch::link::{First, Live, Pause, PUSH_SILENCE, Step};
+    use crate::fetch::link::{First, Live, PUSH_SILENCE, Pause, Step};
     use chrono::TimeZone;
 
     fn t(minutes: i64) -> DateTime<Utc> {

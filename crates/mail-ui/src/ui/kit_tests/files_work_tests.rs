@@ -16,9 +16,7 @@ use mail_client::export::Target;
 use mail_client::formats::writers;
 use mail_client::import::Source;
 use mail_client::testing::core::formats::Archive;
-use mail_client::testing::core::import::{
-    AppleMail, Eml, Emlx, Maildir, Mbox, Thunderbird,
-};
+use mail_client::testing::core::import::{AppleMail, Eml, Emlx, Maildir, Mbox, Thunderbird};
 use mail_ui_kit::files::work::{
     self, Counted, Dest, Looked, export_now, import_now, look, prefill, suggested,
 };

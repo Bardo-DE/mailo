@@ -21,10 +21,17 @@ fn warming_a_conversation_makes_opening_it_a_lookup() {
         "the fixture has bodies"
     );
     let frames = Frames::plain();
-    crate::ui::fixtures::client(&client).framing(&frames).warm_now(&[thread], policy, || true);
+    crate::ui::fixtures::client(&client)
+        .framing(&frames)
+        .warm_now(&[thread], policy, || true);
     for message in messages.iter().filter(|m| m.body.raw().is_some()) {
         let had = frames.peek(message, policy).expect("warmed");
-        assert_eq!(*had, crate::ui::fixtures::client(&client).framing(&frames).uncached(message, policy));
+        assert_eq!(
+            *had,
+            crate::ui::fixtures::client(&client)
+                .framing(&frames)
+                .uncached(message, policy)
+        );
     }
 }
 
@@ -41,6 +48,8 @@ fn warming_that_is_no_longer_wanted_stops() {
         ..SanitizePolicy::FRAME
     };
     let frames = Frames::plain();
-    crate::ui::fixtures::client(&client).framing(&frames).warm_now(&[thread], policy, || false);
+    crate::ui::fixtures::client(&client)
+        .framing(&frames)
+        .warm_now(&[thread], policy, || false);
     assert_eq!(frames.peek(&message, policy), None);
 }

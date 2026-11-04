@@ -38,8 +38,8 @@ pub fn filter_of(
     accounts: &[(String, AccountId)],
     vips: &crate::vip::Vips,
 ) -> Result<Filter, mail_proto::search::Unsaid> {
-    let extracted =
-        crate::search::extract(input).map_err(|why| mail_proto::search::Unsaid(vec![why.to_string()]))?;
+    let extracted = crate::search::extract(input)
+        .map_err(|why| mail_proto::search::Unsaid(vec![why.to_string()]))?;
     if let Some(pattern) = &extracted.regex {
         return Err(mail_proto::search::Unsaid(vec![format!(
             "re:/{}/ (a pattern is matched on this computer, not by a server)",
@@ -142,8 +142,7 @@ mod tests {
         let work = mail_domain::id::account_id_from_uuid(uuid::Uuid::from_u128(1));
         let accounts = [("work@example.test".to_owned(), work.clone())];
         let some = Vips::new(["Dana@example.test", "bob@example.test"]);
-        let said =
-            |input: &str, vips: &Vips| filter_of(input, &[], &accounts, vips).unwrap();
+        let said = |input: &str, vips: &Vips| filter_of(input, &[], &accounts, vips).unwrap();
         assert_eq!(
             said("account:work", &some),
             Filter::Account(work),

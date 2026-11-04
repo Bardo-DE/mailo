@@ -93,12 +93,12 @@ pub mod bimi {
 }
 pub mod compose {
     pub use crate::protect::SendError;
+    pub use mail_logic::compose::addresses;
     pub use mail_logic::compose::doc::doc_of;
     pub use mail_logic::compose::weight::{Fit, Said, SendLimit, Weight, fit};
     pub use mail_logic::compose::{
         ATTACHMENT_BUDGET, Answer, Leaves, Myself, Quote, Redirected, Written, shows_inline,
     };
-    pub use mail_logic::compose::addresses;
 }
 pub mod config {
     use crate::CallError;
@@ -257,8 +257,8 @@ pub mod message {
     pub use crate::caches::{Frames, Looks};
     pub use mail_logic::frames::{FIRST_PAGE, INLINE_BYTES, Key, Sent, ahead};
     pub use mail_logic::looks::{Bodies, Invited, Read, Receipt};
-    pub use mail_logic::unsubscribe::Offer;
     pub use mail_logic::protection::{Opening, Protection, Scheme, Sealed, Tried};
+    pub use mail_logic::unsubscribe::Offer;
 }
 pub mod notify {
     pub use mail_logic::notify::{Interest, Notification, Notifier, Places, Setting, Sound, Whom};
@@ -396,20 +396,22 @@ pub mod remote_image {
     pub use mail_net::remote_image::{Image, ImageFetcher, Route};
 }
 pub mod rules {
-    pub use mail_core::rules::ListedRule;
+    pub use mail_logic::rules::ListedRule;
     pub mod manage {
-        pub use mail_core::rules::manage::{Draft, SaveError, Sending, Step};
+        pub use crate::saved::SaveError;
         pub use mail_domain::rule::DEFAULT_REPLY_DAYS;
         pub use mail_logic::rules::condition::{ConditionError, read_condition};
+        pub use mail_logic::rules::manage::{Draft, Sending, Step};
     }
     pub mod server {
-        pub use mail_core::rules::server::{
-            AwayServer, PushDone, away_server, instant, off_reaches_server, vacation_for,
+        pub use crate::saved::PushDone;
+        pub use mail_logic::rules::server::{
+            AwayServer, away_server, instant, off_reaches_server, vacation_for,
         };
     }
 
     pub mod block {
-        pub use mail_core::rules::block::Blocked;
+        pub use mail_logic::rules::block::Blocked;
     }
 }
 pub mod schedule {

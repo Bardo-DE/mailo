@@ -16,9 +16,9 @@
 
 use crate::config::read_json;
 
-pub use mail_logic::server_search::{Automatic, filter_of, needs_server};
 use crate::error::CoreError;
 use mail_domain::LabelId;
+pub use mail_logic::server_search::{Automatic, filter_of, needs_server};
 use mail_runtime::Searched;
 use porter_core::AccountId;
 use std::path::Path;
@@ -74,5 +74,4 @@ mod tests {
         std::fs::write(dir.path().join(FILE_NAME), r#"{"automatic":"on"}"#).unwrap();
         assert_eq!(load(dir.path()), Automatic::On);
     }
-
 }

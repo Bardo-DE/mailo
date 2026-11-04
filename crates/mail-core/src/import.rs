@@ -21,11 +21,11 @@ use crate::formats::{self, Archive, Writer};
 use chrono::{DateTime, TimeDelta, Utc};
 use mail_archive::{self as archive, Placement, Sniffed, emlx, maildir, mbox, thunderbird};
 use mail_domain::{ChangeId, MailboxRef, Patch, ProtoOp, RemoteIntent};
+pub use mail_logic::transfer::{Destination, Imported};
 use mail_runtime::assemble::{self, Keep};
 use mail_store::{SqliteStore, Store};
 use porter_core::AccountId;
 use std::io::{BufReader, Read};
-pub use mail_logic::transfer::{Destination, Imported};
 
 use std::path::{Path, PathBuf};
 

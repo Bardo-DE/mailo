@@ -11,18 +11,10 @@ use crate::error::CoreError;
 use crate::notify::own_addresses;
 use chrono::Utc;
 use mail_domain::{AfterMatch, Rule, RuleAction, RuleId, RuleState, ThreadId};
+pub use mail_logic::rules::block::Blocked;
 use mail_logic::rules::block::{blocks, condition, newest_outside};
 use mail_store::{SqliteStore, Store};
 use porter_core::AccountId;
-
-/// What blocking did.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Blocked {
-    /// A rule was made.
-    Made(Rule),
-    /// The address was already blocked by this rule; nothing was written.
-    Already(Rule),
-}
 
 /// The address to block for a conversation: the sender of its newest message that is not one of
 /// the user's own addresses (an account's, or an identity's), since a conversation's last word is

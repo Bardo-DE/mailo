@@ -494,7 +494,8 @@ mod contacts_people {
 
         /// `mail_core::contacts::people::save`.
         pub fn save(&self, id: &CardId, details: &Details) -> Result<PersonCard, PersonError> {
-            mail_core::contacts::people::save(self.0.store(), id, details).map_err(PersonError::from)
+            mail_core::contacts::people::save(self.0.store(), id, details)
+                .map_err(PersonError::from)
         }
     }
 }
@@ -503,8 +504,8 @@ pub use contacts_people::ContactsPeople;
 mod export {
     use crate::CallError;
     use crate::Client;
-    use chrono::{DateTime, Utc};
     use crate::files::Target;
+    use chrono::{DateTime, Utc};
     use mail_domain::*;
     use mail_logic::transfer::{Exported, RawHead};
     use std::path::{Path, PathBuf};
@@ -541,11 +542,7 @@ mod export {
         }
 
         /// `mail_core::export::raw_head`.
-        pub fn raw_head(
-            &self,
-            id: MessageId,
-            limit: usize,
-        ) -> Result<Option<RawHead>, CallError> {
+        pub fn raw_head(&self, id: MessageId, limit: usize) -> Result<Option<RawHead>, CallError> {
             mail_core::export::raw_head(self.0.store(), id, limit).map_err(crate::CallError::from)
         }
 
@@ -812,8 +809,8 @@ mod pgp_keys {
     use crate::Client;
     use chrono::{DateTime, Utc};
     use mail_core::pgp::keys::*;
-    use mail_logic::protection::WithSecret;
     use mail_domain::*;
+    use mail_logic::protection::WithSecret;
     use mail_secrets::SigningStore;
 
     /// What the client calls in `mail_core::pgp::keys`.
@@ -873,12 +870,14 @@ mod pgp_keys {
 
         /// `mail_core::pgp::keys::restore`.
         pub fn restore(&self, key: &PgpKey) -> Result<(), crate::protect::PgpError> {
-            mail_core::pgp::keys::restore(self.0.store(), key).map_err(crate::protect::PgpError::from)
+            mail_core::pgp::keys::restore(self.0.store(), key)
+                .map_err(crate::protect::PgpError::from)
         }
 
         /// `mail_core::pgp::keys::verify`.
         pub fn verify(&self, fingerprint: Fingerprint) -> Result<(), crate::protect::PgpError> {
-            mail_core::pgp::keys::verify(self.0.store(), fingerprint).map_err(crate::protect::PgpError::from)
+            mail_core::pgp::keys::verify(self.0.store(), fingerprint)
+                .map_err(crate::protect::PgpError::from)
         }
     }
 }
@@ -1141,8 +1140,9 @@ mod rules_manage {
             account: AccountId,
             draft: &Draft,
             zone: &Tz,
-        ) -> Result<Rule, SaveError> {
+        ) -> Result<Rule, crate::saved::SaveError> {
             mail_core::rules::manage::save(self.0.store(), account, draft, zone)
+                .map_err(crate::saved::SaveError::from)
         }
 
         /// `mail_core::rules::manage::switch`.
@@ -1157,9 +1157,9 @@ pub use rules_manage::RulesManage;
 mod smime_certs {
     use crate::Client;
     use chrono::{DateTime, Utc};
-    use mail_logic::protection::WithSecret;
     use mail_core::smime::certs::*;
     use mail_domain::*;
+    use mail_logic::protection::WithSecret;
     use mail_secrets::SigningStore;
 
     /// What the client calls in `mail_core::smime::certs`.
@@ -1199,7 +1199,8 @@ mod smime_certs {
 
         /// `mail_core::smime::certs::restore`.
         pub fn restore(&self, cert: &SmimeCert) -> Result<(), crate::protect::SmimeError> {
-            mail_core::smime::certs::restore(self.0.store(), cert).map_err(crate::protect::SmimeError::from)
+            mail_core::smime::certs::restore(self.0.store(), cert)
+                .map_err(crate::protect::SmimeError::from)
         }
 
         /// `mail_core::smime::certs::trust`.
@@ -1363,8 +1364,8 @@ pub use template::Templates;
 mod transfer {
     use crate::CallError;
     use crate::Client;
-    use chrono::{DateTime, Utc};
     use crate::files::Source;
+    use chrono::{DateTime, Utc};
     use mail_logic::transfer::{Destination, Imported, Upload};
     use porter_core::AccountId;
 
@@ -1389,8 +1390,15 @@ mod transfer {
             progress: &mut dyn FnMut(&Imported),
         ) -> Result<(Imported, Option<AccountId>), CallError> {
             let accounts = self.0.net().roster()?;
-            mail_core::transfer::import_into(self.0.store(), &accounts, &source.0, into, now, progress)
-                .map_err(crate::CallError::from)
+            mail_core::transfer::import_into(
+                self.0.store(),
+                &accounts,
+                &source.0,
+                into,
+                now,
+                progress,
+            )
+            .map_err(crate::CallError::from)
         }
 
         /// `mail_core::transfer::selection_size`.

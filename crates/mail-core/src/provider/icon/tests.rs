@@ -315,11 +315,7 @@ fn a_cached_icon_is_drawn_at_each_side_asked_for_and_an_old_size_is_fetched_agai
     )
     .unwrap_or_else(|err| panic!("{err}"));
     assert!(cached(dir.path(), Provider::Yahoo).is_none());
-    assert!(
-        read(dir.path(), &[20])
-            .uri(Provider::Yahoo, 20)
-            .is_none()
-    );
+    assert!(read(dir.path(), &[20]).uri(Provider::Yahoo, 20).is_none());
 }
 
 fn side_of(uri: &str) -> u32 {

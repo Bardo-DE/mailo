@@ -19,9 +19,9 @@ use mail_domain::{
     Body, Filter, LabelId, MailboxRole, MatchCtx, Message, MessageId, Mute, PageReq, Pin, Property,
     Query, Snooze, Sort, SortDir, SystemFlag, ThreadSummary,
 };
+pub use mail_logic::transfer::{Exported, RawHead};
 use mail_store::{SqliteStore, Store};
 use std::io::Write;
-pub use mail_logic::transfer::{Exported, RawHead};
 
 use std::path::{Path, PathBuf};
 

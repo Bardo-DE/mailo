@@ -5,13 +5,13 @@
 //! press of a control performs, which message a reply answers and how mute turns on a selection are about the
 //! conversation and not about how it is shown, so they live here where a table can test them.
 
+use crate::mailbox_filter::{for_role, pending_snooze};
 use crate::vip::Vips;
 use chrono::{DateTime, Utc};
 use mail_domain::{
     Filter, FollowUp, LabelId, MailboxRef, MailboxRole, MailboxSet, Membership, Message, Mute, Op,
     OpKind, Pin, ReadState, Snooze, Star, ThreadSummary, Threading, View,
 };
-use crate::mailbox_filter::{for_role, pending_snooze};
 
 /// What Mute does to a conversation, given what it is now: mute it, or unmute it if it is muted.
 ///
