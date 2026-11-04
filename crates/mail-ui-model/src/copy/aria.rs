@@ -203,3 +203,9 @@ pub fn photo_of(name: &str) -> String {
 }
 /// The invitation card's Cancel while a new time is being written.
 pub const CANCEL_PROPOSAL: &str = "Cancel proposal";
+/// The search header's button that asks the server of the account in view to search the line.
+pub const SEARCH_ON_SERVER: &str = "Search on Server";
+/// The same button once that server has answered for this line.
+pub const SEARCH_ON_SERVER_AGAIN: &str = "Search on Server Again";
+/// The menu under that button while several accounts have a server to ask.
+pub const SERVER_SEARCH_ACCOUNTS: &str = "Accounts to search on the server";

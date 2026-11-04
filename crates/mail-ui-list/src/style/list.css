@@ -39,6 +39,17 @@
   font-size: var(--fs-meta); color: var(--ink-faint);
 }
 .search-scope.bad { flex: 0 1 auto; min-width: 0; max-width: 60%; overflow: hidden; color: var(--danger); }
+/* The search header's server part, after where the search looks: what the server said of the
+   line, quiet or in the danger ink when it failed, clipped before the button gives way; then the
+   button that asks. */
+.search-server { display: flex; align-items: center; gap: var(--s-4); flex: 0 1 auto; min-width: 0; }
+.search-server-said {
+  display: inline-flex; align-items: center; min-width: 0; overflow: hidden;
+  white-space: nowrap; text-overflow: ellipsis;
+  font-size: var(--fs-meta); color: var(--ink-faint);
+}
+.search-server-said.bad { color: var(--danger); }
+.search-server .pending { min-width: 0; }
 /* The search panel: quire's search card hangs from a line across the window a little way down from
    its top, centred under it, as Spotlight sits on the screen. The card and its rows are quire's
    (`.ds-search-card`); this is only the line. */
@@ -57,12 +68,6 @@
 /* A VIP's mark, beside their name in a row and in the reader: small, and in the quiet ink. */
 .vip-mark { display: inline-flex; align-items: center; flex: none; color: var(--ink-faint); }
 .no-reply { display: inline-flex; align-items: center; gap: var(--s-2); white-space: nowrap; }
-/* The end of a search's list: per account with a server, "Search … on the server", or what its
-   server answered. */
-.server-search { display: flex; flex-direction: column; gap: var(--s-8); padding: var(--s-10) var(--s-8); }
-.server-search-one { display: flex; flex-direction: column; align-items: center; gap: var(--s-4); }
-.server-search-one .status { text-align: center; }
-.server-search-one .pending { justify-content: center; }
 /* Why the list is empty, laid over the empty list rather than after it, where it would be past
    the pane's end. */
 .list-empty { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: flex; flex-direction: column; }
