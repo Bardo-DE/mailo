@@ -164,6 +164,7 @@ fn truncate_keeping_extension(name: &str) -> String {
         .and_then(|e| e.to_str())
         .filter(|e| e.len() < 32)
         .map(|e| format!(".{e}"))
+        // A name with no extension, or an unreadable one, keeps none.
         .unwrap_or_default();
     let room = MAX_NAME.saturating_sub(extension.len());
     let mut stem: String = String::new();

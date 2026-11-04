@@ -442,6 +442,7 @@ fn live_of(after: &Link) -> Live {
 /// `now` plus `wait`, saturating at the end of time rather than panicking on a huge wait.
 fn later(now: DateTime<Utc>, wait: Duration) -> DateTime<Utc> {
     TimeDelta::from_std(wait)
+        // A wait too long to be a time delta is the end of time, as the overflow below is.
         .ok()
         .and_then(|delta| now.checked_add_signed(delta))
         .unwrap_or(DateTime::<Utc>::MAX_UTC)

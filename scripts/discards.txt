@@ -13,7 +13,7 @@ mail-secrets let_underscore 0
 mail-secrets ok 2
 mail-secrets unwrap_or_default 2
 mail-runtime let_underscore 0
-mail-runtime ok 15
+mail-runtime ok 14
 mail-runtime unwrap_or_default 9
 mail-engine let_underscore 2
 mail-engine ok 0
@@ -23,7 +23,7 @@ mail-agent ok 4
 mail-agent unwrap_or_default 0
 mail-core let_underscore 0
 mail-core ok 20
-mail-core unwrap_or_default 11
+mail-core unwrap_or_default 8
 mail-proto let_underscore 0
 mail-proto ok 11
 mail-proto unwrap_or_default 8
