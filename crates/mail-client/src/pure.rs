@@ -9,8 +9,9 @@
 
 pub mod account {
     pub use mail_core::account::{
-        Credentials, Mode, Outcome, RemoveError, Setup, SignInError, authorize, oauth_client,
+        Credentials, Mode, RemoveError, SignInError, authorize, oauth_client,
     };
+    pub use mail_logic::account::{Outcome, Setup};
     pub mod direct {
         pub use mail_core::account::direct::{WAIT, signs_in_directly};
         pub use mail_secrets::authorize::Profiles;
@@ -175,8 +176,9 @@ pub mod contacts {
     }
 }
 pub mod discover {
-    pub use mail_core::discover::{Looked, settle, typed, typed_domain};
-    pub use mail_logic::discover::{Failed, Found, Gap, Source, claimed_by, known};
+    pub use mail_logic::discover::{
+        Failed, Found, Gap, Looked, Source, claimed_by, known, settle, typed, typed_domain,
+    };
     pub mod providers {
         pub use mail_logic::discover::providers::set;
     }
