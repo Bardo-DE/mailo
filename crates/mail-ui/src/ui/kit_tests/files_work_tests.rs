@@ -12,10 +12,12 @@ use mail_domain::id::new_account_id;
 use mail_domain::*;
 use porter_core::AccountId;
 
-use mail_client::testing::core::export::Target;
-use mail_client::testing::core::formats::{Archive, writers};
+use mail_client::export::Target;
+use mail_client::formats::writers;
+use mail_client::import::Source;
+use mail_client::testing::core::formats::Archive;
 use mail_client::testing::core::import::{
-    AppleMail, Eml, Emlx, Maildir, Mbox, Source, Thunderbird,
+    AppleMail, Eml, Emlx, Maildir, Mbox, Thunderbird,
 };
 use mail_ui_kit::files::work::{
     self, Counted, Dest, Looked, export_now, import_now, look, prefill, suggested,
@@ -125,7 +127,7 @@ fn a_maildir_is_counted_then_imported_into_local_folders() {
     let (store, dir) = fresh_store();
     let root = a_maildir(dir.path());
     let (source, count, said) = looked_mail(&root);
-    assert_eq!(source, Source::new(&Maildir, root.clone()));
+    assert_eq!(source, mail_client::testing::source(&Maildir, root.clone()));
     assert_eq!((count, said.as_str()), (3, "Maildir, 3 messages"));
     assert!(mail_client::testing::core::sync::local_accounts(&store).is_empty());
 
@@ -157,7 +159,7 @@ fn an_mbox_is_counted_then_imported_into_local_folders_once() {
     let (store, dir) = fresh_store();
     let path = an_mbox(dir.path());
     let (source, count, said) = looked_mail(&path);
-    assert_eq!(source, Source::new(&Mbox, path.clone()));
+    assert_eq!(source, mail_client::testing::source(&Mbox, path.clone()));
     assert_eq!((count, said.as_str()), (2, "mbox, 2 messages"));
 
     let done = import_now(
@@ -466,15 +468,15 @@ fn imported_mail_goes_to_local_folders_or_an_imap_accounts_folder() {
 #[test]
 fn only_a_thunderbird_profile_is_said_to_bring_only_what_was_kept_offline() {
     let dir = PathBuf::from("profile");
-    let thunderbird = work::described(&Source::new(&Thunderbird, dir.clone()), 3);
+    let thunderbird = work::described(&mail_client::testing::source(&Thunderbird, dir.clone()), 3);
     let offline = mail_ui_model::copy::status::source_note(Thunderbird.slug()).unwrap();
     assert!(thunderbird.contains(offline), "{thunderbird}");
     for other in [
-        Source::new(&AppleMail, dir.clone()),
-        Source::new(&Emlx, dir.clone()),
-        Source::new(&Mbox, dir.clone()),
-        Source::new(&Maildir, dir.clone()),
-        Source::new(&Eml, dir),
+        mail_client::testing::source(&AppleMail, dir.clone()),
+        mail_client::testing::source(&Emlx, dir.clone()),
+        mail_client::testing::source(&Mbox, dir.clone()),
+        mail_client::testing::source(&Maildir, dir.clone()),
+        mail_client::testing::source(&Eml, dir),
     ] {
         let said = work::described(&other, 3);
         assert!(!said.contains(offline), "{said}");

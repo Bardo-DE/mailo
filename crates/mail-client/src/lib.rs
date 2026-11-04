@@ -17,6 +17,7 @@ mod clock;
 mod error;
 mod external;
 mod fault;
+mod files;
 pub mod fetch;
 mod keys;
 mod live;

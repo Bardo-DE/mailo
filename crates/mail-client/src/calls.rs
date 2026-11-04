@@ -504,9 +504,9 @@ mod export {
     use crate::CallError;
     use crate::Client;
     use chrono::{DateTime, Utc};
-    use mail_core::export::Target;
-    use mail_core::export::*;
+    use crate::files::Target;
     use mail_domain::*;
+    use mail_logic::transfer::{Exported, RawHead};
     use std::path::{Path, PathBuf};
 
     /// What the client calls in `mail_core::export`.
@@ -533,7 +533,7 @@ mod export {
                 self.0.store(),
                 &self.0.net().environment(),
                 messages,
-                target,
+                &target.core(),
                 now,
                 progress,
             )
@@ -545,7 +545,7 @@ mod export {
             &self,
             id: MessageId,
             limit: usize,
-        ) -> Result<Option<mail_core::export::RawHead>, CallError> {
+        ) -> Result<Option<RawHead>, CallError> {
             mail_core::export::raw_head(self.0.store(), id, limit).map_err(crate::CallError::from)
         }
 
@@ -1364,8 +1364,8 @@ mod transfer {
     use crate::CallError;
     use crate::Client;
     use chrono::{DateTime, Utc};
-    use mail_core::import::{Destination, Imported, Source};
-    use mail_core::transfer::*;
+    use crate::files::Source;
+    use mail_logic::transfer::{Destination, Imported, Upload};
     use porter_core::AccountId;
 
     /// What the client calls in `mail_core::transfer`.
@@ -1389,7 +1389,7 @@ mod transfer {
             progress: &mut dyn FnMut(&Imported),
         ) -> Result<(Imported, Option<AccountId>), CallError> {
             let accounts = self.0.net().roster()?;
-            mail_core::transfer::import_into(self.0.store(), &accounts, source, into, now, progress)
+            mail_core::transfer::import_into(self.0.store(), &accounts, &source.0, into, now, progress)
                 .map_err(crate::CallError::from)
         }
 

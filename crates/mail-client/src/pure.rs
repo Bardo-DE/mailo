@@ -189,16 +189,18 @@ pub mod discover {
     }
 }
 pub mod export {
-    pub use mail_core::export::{Exported, RawHead, Target, usual};
+    pub use crate::files::{Target, usual};
+    pub use mail_logic::transfer::{Exported, RawHead};
 }
 pub mod folder {
     pub use mail_domain::folder::Refusal;
 }
 pub mod formats {
-    pub use mail_core::formats::{Writer, writer_named, writers};
+    pub use crate::files::{Writer, writers};
 }
 pub mod import {
-    pub use mail_core::import::{Destination, Imported, Source};
+    pub use crate::files::Source;
+    pub use mail_logic::transfer::{Destination, Imported};
 }
 pub mod invite {
     use crate::CallError;
@@ -429,7 +431,8 @@ pub mod sync {
     }
 }
 pub mod transfer {
-    pub use mail_core::transfer::{IoCause, Refusal, Seen, expand_here, look, suggested};
+    pub use crate::files::{Seen, expand_here, look, suggested};
+    pub use mail_logic::transfer::{IoCause, Refusal};
 }
 pub mod unsubscribe {
     pub use mail_logic::unsubscribe::{Found, Outcome};
