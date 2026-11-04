@@ -9,9 +9,12 @@
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 2
 
-meta=$(cargo metadata --format-version 1 --no-deps --locked 2>&1) || {
+# Only stdout is JSON: a warning cargo prints on stderr must not end up in it.
+err=$(mktemp)
+trap 'rm -f "$err"' EXIT
+meta=$(cargo metadata --format-version 1 --no-deps --locked 2>"$err") || {
   echo "cargo metadata failed:"
-  echo "$meta" | tail -20
+  tail -20 "$err"
   exit 1
 }
 # Python 3.11+ (tomllib). CI has no uv, only python3.
