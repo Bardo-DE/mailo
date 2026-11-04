@@ -45,6 +45,8 @@ porter-provider.workspace = true
 # The calendar store's values an invitation's event is handed back in (`Invite`).
 porter-calendar.workspace = true
 chrono.workspace = true
+# The bounds on what `config::read_json` and `write_json` take.
+serde.workspace = true
 log.workspace = true
 thiserror.workspace = true
 parking_lot = "0.12"

@@ -5261,6 +5261,7 @@ dependencies = [
  "porter-core",
  "porter-provider",
  "reqwest",
+ "serde",
  "tempfile",
  "thiserror 2.0.21",
  "tokio",

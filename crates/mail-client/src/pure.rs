@@ -77,9 +77,63 @@ pub mod compose {
     }
 }
 pub mod config {
-    pub use mail_core::config::{
-        cache_dir, config_dir, home_dir, json_damage, read_json, state_dir, write_json, write_text,
-    };
+    use crate::CallError;
+    use std::path::{Path, PathBuf};
+
+    /// Read `file_name` from `dir`. A missing file, or one that is not this type's JSON, is
+    /// `T::default`: a damaged preference must not stop the window opening.
+    pub fn read_json<T>(dir: &Path, file_name: &str) -> T
+    where
+        T: serde::de::DeserializeOwned + Default,
+    {
+        mail_core::config::read_json(dir, file_name)
+    }
+
+    /// Why `dir/file_name` cannot be read as a `T`: `None` when it is missing or reads. A file
+    /// that is there and cannot be used is the person's, so a caller asks before putting the
+    /// defaults in its place, and never writes over it.
+    pub fn json_damage<T: serde::de::DeserializeOwned>(
+        dir: &Path,
+        file_name: &str,
+    ) -> Option<String> {
+        mail_core::config::json_damage::<T>(dir, file_name)
+    }
+
+    /// Write `value` as JSON to `dir/file_name`, creating `dir` if needed, by a temporary file
+    /// and a rename, so a crash mid-write cannot leave a half-written file.
+    pub fn write_json(
+        dir: &Path,
+        file_name: &str,
+        value: &impl serde::Serialize,
+    ) -> Result<(), CallError> {
+        Ok(mail_core::config::write_json(dir, file_name, value)?)
+    }
+
+    /// Write `body` to `dir/file_name` by a temporary file and a rename, creating `dir` if
+    /// needed.
+    pub fn write_text(dir: &Path, file_name: &str, body: &str) -> Result<(), CallError> {
+        Ok(mail_core::config::write_text(dir, file_name, body)?)
+    }
+
+    /// The user's home directory.
+    pub fn home_dir() -> Option<PathBuf> {
+        mail_core::config::home_dir()
+    }
+
+    /// mailo's config directory, in the system's per-user place; `None` when there is none.
+    pub fn config_dir() -> Option<PathBuf> {
+        mail_core::config::config_dir()
+    }
+
+    /// mailo's state directory: what was opened and expires, rather than a preference.
+    pub fn state_dir() -> Option<PathBuf> {
+        mail_core::config::state_dir()
+    }
+
+    /// mailo's cache directory: what can be fetched again.
+    pub fn cache_dir() -> Option<PathBuf> {
+        mail_core::config::cache_dir()
+    }
 }
 pub mod contacts {
     pub use mail_core::contacts::Imported;
