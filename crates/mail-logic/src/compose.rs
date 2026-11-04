@@ -2,6 +2,7 @@
 //! a reply answers and quotes, how a stored draft opens as a document, what a file is called by its
 //! name. Keeping a draft, queueing a send and reading the account it leaves from are `mail-core`'s.
 
+pub mod addresses;
 pub mod doc;
 pub mod weight;
 

@@ -17,7 +17,19 @@ use mail_secrets::CredentialError;
 use mail_store::{SqliteStore, Store};
 use porter_core::AccountId;
 
-pub mod addresses;
+/// The recipient box's two directions: [`mail_logic::compose::addresses`], with the error a
+/// caller of the core shows.
+pub mod addresses {
+    use crate::error::CoreError;
+    use mail_domain::Address;
+
+    pub use mail_logic::compose::addresses::join_addresses;
+
+    /// Parse a recipient box into addresses. See [`Address::parse_list`] for what it accepts.
+    pub fn parse_addresses(input: &str) -> Result<Vec<Address>, CoreError> {
+        Ok(mail_logic::compose::addresses::parse_addresses(input)?)
+    }
+}
 mod enclosed;
 mod format;
 pub mod freeze;

@@ -98,9 +98,7 @@ pub mod compose {
     pub use mail_logic::compose::{
         ATTACHMENT_BUDGET, Answer, Leaves, Myself, Quote, Redirected, Written, shows_inline,
     };
-    pub mod addresses {
-        pub use mail_core::compose::addresses::{join_addresses, parse_addresses};
-    }
+    pub use mail_logic::compose::addresses;
 }
 pub mod config {
     use crate::CallError;
