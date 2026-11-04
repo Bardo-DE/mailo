@@ -23,10 +23,38 @@ pub mod account {
     }
 }
 pub mod attach {
-    pub use mail_core::attach::{
-        downloads_dir, opened_attachment, runs_when_opened, safe_name, save_opened, write_new,
-    };
+    use crate::CallError;
+    use std::path::{Path, PathBuf};
+
     pub use mail_domain::human_size;
+    pub use mail_logic::attach::{OpenedAttachment, runs_when_opened, safe_name};
+
+    /// Where the window puts a file it has been asked to save: the folder the desktop names for
+    /// downloads, `~/Downloads` when it names none, and the working directory as a last resort.
+    pub fn downloads_dir() -> PathBuf {
+        mail_core::attach::downloads_dir()
+    }
+
+    /// Attachment `index` of an opened message, numbered as the reader lists an opened message's
+    /// attachments.
+    pub fn opened_attachment(
+        shown: &mail_mime::Parsed,
+        index: usize,
+    ) -> Result<OpenedAttachment, CallError> {
+        Ok(mail_core::attach::opened_attachment(shown, index)?)
+    }
+
+    /// Save an opened message's attachment into `dir` under its name made safe, never over a file
+    /// already there.
+    pub fn save_opened(attachment: &OpenedAttachment, dir: &Path) -> Result<PathBuf, CallError> {
+        Ok(mail_core::attach::save_opened(attachment, dir)?)
+    }
+
+    /// Write `bytes` into `dir` under `name` made safe, never over a file already there,
+    /// returning the path written. How every file the window saves reaches the disk.
+    pub fn write_new(dir: &Path, name: &str, bytes: &[u8]) -> Result<PathBuf, CallError> {
+        Ok(mail_core::attach::write_new(dir, name, bytes)?)
+    }
 }
 pub mod auth {
     pub use mail_logic::auth::{Standing, sentence, standing};
