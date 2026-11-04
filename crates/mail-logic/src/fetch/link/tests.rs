@@ -349,7 +349,7 @@ fn tick_polls_a_current_link_once_the_interval_has_passed() {
 #[test]
 fn tick_polls_a_pushed_link_only_once_push_has_gone_silent() {
     assert!(
-        PUSH_SILENCE > crate::IDLE_REARM,
+        PUSH_SILENCE > super::IDLE_REARM,
         "a watch's own look comes first"
     );
     assert!(PUSH_SILENCE > EVERY);

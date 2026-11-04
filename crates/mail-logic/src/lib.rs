@@ -20,6 +20,7 @@ pub mod compose;
 pub mod conversation;
 pub mod discover;
 pub mod erase;
+pub mod fetch;
 pub mod follow_up;
 pub mod invite;
 pub mod junk;

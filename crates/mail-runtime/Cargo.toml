@@ -13,6 +13,7 @@ porter-provider.workspace = true
 # CardDAV's request bodies and `207 Multi-Status` replies, as text.
 dav-proto.workspace = true
 mail-domain.workspace = true
+mail-logic.workspace = true
 mail-proto.workspace = true
 mail-net.workspace = true
 mail-secrets.workspace = true

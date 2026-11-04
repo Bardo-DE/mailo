@@ -5458,6 +5458,7 @@ dependencies = [
  "mailo-archive",
  "mailo-crypto",
  "mailo-domain",
+ "mailo-logic",
  "mailo-mime",
  "mailo-pim",
  "mailo-proto",

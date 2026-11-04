@@ -17,7 +17,7 @@
 
 use crate::client::Shared;
 use chrono::{DateTime, Utc};
-pub use mail_runtime::fetch::{Event, FolderFetch, Link, Trigger};
+pub use mail_logic::fetch::{Event, FolderFetch, Link, Trigger};
 use mail_core::fetch::{FolderEffect, FolderEvent};
 use mail_core::schedule::{
     self, Change, Daemon, End, Heard, Hold, Host, ListenCall, Local, Lost, Note, PassCall,
@@ -601,7 +601,7 @@ async fn outbox(shared: Arc<Shared>) {
 mod tests;
 
 // The words of `mail-core`'s fetch a caller reads: what a pass did, and what a fetch is doing.
-pub use mail_runtime::fetch::{
+pub use mail_logic::fetch::{
     Body, BodyEffect, BodyEvent, Count, Download, DownloadEffect, DownloadEvent, First, Live,
     Pause, RETRY_NOW, Step, Trouble,
 };

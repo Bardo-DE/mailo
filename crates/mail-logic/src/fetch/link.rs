@@ -20,13 +20,21 @@ pub const BACKOFF_CEILING: Duration = Duration::from_secs(30 * 60);
 /// packet, and a loop with no wait is a loop that hammers.
 pub const RETRY_NOW: Duration = Duration::from_secs(5);
 
+/// The longest one IMAP `IDLE` is held before it is ended and issued again.
+///
+/// RFC 2177 has a server drop an idle client after thirty minutes, and asks the client to
+/// re-issue IDLE within twenty-nine. Twenty-five leaves room for a slow `DONE` and matches the
+/// JMAP event stream's hold. It is also the longest a connection a NAT forgot can go unnoticed
+/// while it is parked: the exchange that ends it fails, or the pass after it does.
+pub const IDLE_REARM: Duration = Duration::from_secs(25 * 60);
+
 /// The longest a pushed account goes without a pass before the link starts one itself.
 ///
-/// A watch ends each IMAP `IDLE` at [`crate::IDLE_REARM`] (a JMAP stream at its hold) and a pass
+/// A watch ends each IMAP `IDLE` at [`IDLE_REARM`] (a JMAP stream at its hold) and a pass
 /// follows, so a pushed account that has not passed in this long has a watch that went quiet
 /// without saying so. Push saves polling; it must not also be the only way the account is looked
 /// at, or a watch that hangs takes the account with it.
-pub const PUSH_SILENCE: Duration = Duration::from_secs(crate::IDLE_REARM.as_secs() + 5 * 60);
+pub const PUSH_SILENCE: Duration = Duration::from_secs(IDLE_REARM.as_secs() + 5 * 60);
 
 /// Where an account's mail fetching stands.
 #[derive(Debug, Clone, PartialEq, Eq)]
