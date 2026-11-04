@@ -29,7 +29,7 @@ pub mod attach {
     pub use mail_domain::human_size;
 }
 pub mod auth {
-    pub use mail_core::auth::{Standing, sentence, standing};
+    pub use mail_logic::auth::{Standing, sentence, standing};
 }
 pub mod bimi {
     pub use mail_core::bimi::{Setting, anchors, brand_logo, domain_of, load};
