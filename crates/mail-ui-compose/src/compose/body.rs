@@ -95,7 +95,9 @@ pub fn Body(page: Signal<Page>, shell: Signal<Shell>, on_attach: EventHandler<()
                 // quire's menus, their cursor the editor's: the caret keeps the keyboard, and
                 // the page's keys move `active` and pick with it. A pick is followed by quire's
                 // close, which must not undo a float the pick opened (Save as template…).
-                Float::Slash { active, .. } => rsx! {
+                // A `/` or `@` that finds nothing draws no menu, and stays open: a Backspace may
+                // find something again.
+                Float::Slash { active, .. } if !page_slash_items(&page.read()).is_empty() => rsx! {
                     div {
                         class: "c-float",
                         "data-anchor": "below",
@@ -244,6 +246,8 @@ pub(super) fn key_taken(
             _ => mention_items(&page.read()),
         };
         let taken = match menu_key(key) {
+            // A menu with no rows is not drawn: the keys are the line's.
+            Some(MenuKey::Down | MenuKey::Up) if items.is_empty() => false,
             Some(MenuKey::Down) => {
                 set_active(page, (active + 1) % items.len().max(1));
                 true
@@ -267,7 +271,7 @@ pub(super) fn key_taken(
             }
             Some(MenuKey::Escape) => {
                 page.write().float = Float::Closed;
-                true
+                !items.is_empty()
             }
             _ => false,
         };
@@ -276,7 +280,8 @@ pub(super) fn key_taken(
         }
     }
     // Over a selection, Escape takes the selection and its bubble; the next one parks the draft.
-    if key == "Escape" && page.read().selection.is_some() {
+    let quiet = page.read().float == Float::Closed;
+    if key == "Escape" && quiet && page.read().selection.is_some() {
         page.write().selection = None;
         return true;
     }
@@ -472,6 +477,9 @@ fn Bubble(page: Signal<Page>, place: Option<String>) -> Element {
                                 event.prevent_default();
                                 link(page);
                             } else if key == "Escape" {
+                                // The field's: it does not go on to park the draft.
+                                event.prevent_default();
+                                event.stop_propagation();
                                 page.write().float = Float::Closed;
                                 mail_ui_kit::host::Host::focus_next_frame(".c-body");
                             }

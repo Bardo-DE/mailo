@@ -196,19 +196,10 @@ pub(super) fn Surface(
     });
     // What the view follows: the caret's own place, drawn or not.
     let mut at_caret_mark = use_signal(|| None::<Rc<MountedData>>);
-    // A caret that moved brings the view to it. The first place is where the page opened, which
-    // a reply's opening has already scrolled to.
-    let mut last_caret = use_hook(|| CopyValue::new(None::<Rect>));
-    use_effect(move || {
-        let Some(now) = caret_box() else {
-            return;
-        };
-        let before = last_caret.replace(Some(now));
-        if before.is_some_and(|before| before != now) && *focus.peek() == EditFocus::In {
-            let view = scroller_of(&page.peek());
-            spawn(follow_caret(view, at_caret_mark));
-        }
-    });
+    let follow = Follow {
+        mark: at_caret_mark,
+        asked: use_hook(|| CopyValue::new(0)),
+    };
     // The floats and the bubble follow the marks, a frame behind is soon enough for them.
     use_effect(move || {
         let measured = marks_of(place(), caret_box(), &selection_boxes.read());
@@ -268,6 +259,7 @@ pub(super) fn Surface(
                         shell,
                         keys: window_keys,
                         on_attach,
+                        follow,
                     };
                     heard(typing, handle, preedit, &taken, input);
                 },
@@ -318,15 +310,32 @@ fn scroller_of(page: &Page) -> &'static str {
     }
 }
 
-/// Scroll `view` the least that shows the caret, two frames on: the caret's box comes from the
-/// frame that lays the new text out, the mark is drawn in the next, and laid out in the one after.
-async fn follow_caret(view: &'static str, mark: Signal<Option<Rc<MountedData>>>) {
-    ds::base::time::clock::sleep(ds::base::time::FRAME_TICK * 2).await;
-    let Some(item) = mark.peek().clone() else {
-        return;
-    };
-    if let Found::Element(view) = use_document_host().geometry().find(view) {
-        reveal(&view, &item).await;
+/// The view coming to the caret, after what a person does at the keyboard: not after what only
+/// moves the caret's box, as a resize or Select All does, so a view wheeled away stays there.
+#[derive(Clone, Copy)]
+struct Follow {
+    mark: Signal<Option<Rc<MountedData>>>,
+    /// Which asking is the latest: key repeat scrolls once, for the last key.
+    asked: CopyValue<u64>,
+}
+
+impl Follow {
+    /// Scroll to the caret, two frames on: the caret's box comes from the frame that lays the new
+    /// text out, the mark is drawn in the next, and laid out in the one after.
+    fn ask(self, page: Signal<Page>) {
+        let Self { mark, mut asked } = self;
+        let turn = asked() + 1;
+        asked.set(turn);
+        let view = scroller_of(&page.peek());
+        spawn(async move {
+            ds::base::time::clock::sleep(ds::base::time::FRAME_TICK * 2).await;
+            let Some(item) = mark.peek().clone().filter(|_| asked() == turn) else {
+                return;
+            };
+            if let Found::Element(view) = use_document_host().geometry().find(view) {
+                reveal(&view, &item).await;
+            }
+        });
     }
 }
 
@@ -413,6 +422,7 @@ struct Typing {
     shell: Signal<Shell>,
     keys: Keys,
     on_attach: EventHandler<()>,
+    follow: Follow,
 }
 
 /// One input from the surface.
@@ -428,6 +438,7 @@ fn heard(
         shell,
         keys,
         on_attach,
+        follow,
     } = typing;
     // What a key asks of the window, in a text field: the actions the editor answers, and
     // select all, which the keymap names and the editor core has no key for.
@@ -437,6 +448,7 @@ fn heard(
         let shifted = key.modifiers.contains(Modifiers::SHIFT);
         if key_taken(page, shell, on_attach, &key.key.to_string(), shifted, said) {
             taken.set(true);
+            follow.ask(page);
             return;
         }
     }
@@ -454,8 +466,14 @@ fn heard(
         adapt::asked(&input, keys.platform())
     };
     match asked {
-        Asked::Edit(event) => edit(page, event),
-        Asked::Move(step, reach) => move_caret(page, handle, step, reach),
+        Asked::Edit(event) => {
+            edit(page, event);
+            follow.ask(page);
+        }
+        Asked::Move(step, reach) => {
+            move_caret(page, handle, step, reach);
+            follow.ask(page);
+        }
         Asked::SelectAll => {
             let (start, end) = {
                 let read = page.peek();

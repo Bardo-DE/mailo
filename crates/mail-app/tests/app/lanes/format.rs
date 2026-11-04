@@ -724,6 +724,29 @@ fn a_slash_that_matches_nothing_closes_the_menu_and_enter_breaks_the_line() {
     assert_eq!(outline(&window.harness), ["p /usr/local/bin", "p next"]);
 }
 
+/// A slip past what the menu matches comes back with a Backspace.
+#[test]
+fn a_backspace_brings_a_slash_menu_back() {
+    let mut window = composing();
+    window.type_text("/codx");
+    window.until("the menu goes", |h| h.count(".ds-menu") == 0);
+    window.press(&[], Key::Backspace, 1);
+    window.until("the menu is back", |h| {
+        h.count(".ds-menu .ds-menu-item") > 0
+    });
+}
+
+/// An `@` that finds nobody draws no menu, and leaves the arrows to the line.
+#[test]
+fn an_at_sign_that_finds_nobody_leaves_the_arrows_alone() {
+    let mut window = composing();
+    window.type_text("first\nsee @zzzz");
+    window.until("no menu is drawn", |h| h.count(".ds-menu") == 0);
+    window.press(&[], Key::Up, 1);
+    window.type_text("!");
+    assert_eq!(outline(&window.harness)[0], "p first!");
+}
+
 #[test]
 fn escape_over_a_selection_closes_the_bubble_and_leaves_the_composer() {
     let mut window = composing();
@@ -813,4 +836,101 @@ fn turn_into_keeps_the_selection() {
     });
     window.press(&[PRIMARY], Key::Char('z'), 2);
     assert_eq!(outline(&window.harness), ["p one", "p two"], "undo");
+}
+
+/// Escape in the link field closes the field and gives the bar back, and the draft stays open.
+#[test]
+fn escape_in_the_link_field_leaves_the_composer() {
+    let mut window = composing();
+    window.type_text("hello world");
+    select_back(&mut window, 5);
+    window.press(&[PRIMARY], Key::Char('k'), 1);
+    window.until("the field has the keyboard", |h| {
+        h.focus_of(".link-in input")
+    });
+    window.press(&[], Key::Escape, 1);
+    window.until("the bar is back", |h| {
+        h.count(".link-in") == 0 && h.count(".bubble") == 1
+    });
+    assert_eq!(
+        window.harness.count(".cpage .c-body"),
+        1,
+        "the composer closed"
+    );
+}
+
+/// Escape on the colour row gives the bar back with the selection as it was.
+#[test]
+fn escape_on_the_colour_row_keeps_the_selection() {
+    let mut window = composing();
+    window.type_text("hello world");
+    select_back(&mut window, 5);
+    window.click(".bubble [*|aria-label=\"Text Colour\"]");
+    window.until("the swatches show", |h| h.count(".c-swatches") == 1);
+    window.press(&[], Key::Escape, 1);
+    window.until("the bar is back", |h| {
+        h.count(".c-swatches") == 0 && h.count(".bubble") == 1
+    });
+    assert_eq!(window.harness.count(".c-sel"), 1, "the selection went");
+}
+
+/// Select All leaves the view where it is, so the bubble over the first line can be seen.
+#[test]
+fn select_all_does_not_move_the_view() {
+    let mut window = composing();
+    for n in 0..45 {
+        window.type_text(&format!("line {n}\n"));
+    }
+    window.press(&[], Key::Up, 45);
+    window.harness.advance(ms(300));
+    let before = window.harness.rect(".c-body").expect("the body");
+    window.press(&[PRIMARY], Key::Char('a'), 1);
+    window.harness.advance(ms(300));
+    let after = window.harness.rect(".c-body").expect("the body");
+    assert_eq!(before.origin.y, after.origin.y, "Select All scrolled");
+}
+
+/// Lines either side of a divider each join; the divider stays between them.
+#[test]
+fn lines_turned_into_code_join_up_to_an_object() {
+    let mut window = composing();
+    window.type_text("a\nb\n/divider");
+    window.until("/ opens its menu", |h| {
+        h.count(".ds-menu .ds-menu-item") > 0
+    });
+    window.press(&[], Key::Enter, 1);
+    window.until("the menu goes", |h| h.count(".ds-menu") == 0);
+    window.type_text("c\nd");
+    window.press(&[PRIMARY], Key::Char('a'), 1);
+    window.click(".bubble .ds-popup .ds-button");
+    window.menu_item("Code");
+    window.until("the lines are code", |h| h.count(".c-body > pre") == 2);
+    let body = outline(&window.harness);
+    assert_eq!(
+        (body[0].as_str(), body[2].as_str()),
+        ("pre a\nb", "pre c\nd")
+    );
+    window.press(&[PRIMARY], Key::Char('z'), 1);
+    assert_eq!(outline(&window.harness)[0], "p a", "undo");
+}
+
+/// Enter in a block of one blank line turns it back; no empty block is left above.
+#[test]
+fn enter_in_a_blank_code_block_leaves_no_block_behind() {
+    let mut window = composing();
+    code_block(&mut window);
+    window.press(&[Key::Shift], Key::Enter, 1);
+    window.press(&[], Key::Enter, 1);
+    assert_eq!(outline(&window.harness), ["p"]);
+}
+
+/// A clipboard with only HTML goes into code as its words.
+#[test]
+fn a_paste_into_code_of_html_alone_is_its_words() {
+    let mut window = composing();
+    code_block(&mut window);
+    window.type_text("keep");
+    window.harness.paste_html("<p><b>bold</b></p>", "");
+    window.until("the paste lands", |h| outline(h) == ["pre keepbold"]);
+    assert_eq!(window.harness.count(".c-body .m-b"), 0, "the bold came too");
 }

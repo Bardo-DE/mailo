@@ -7,7 +7,7 @@ use crate::ui::fixtures::{Seen, acct_account, chord, drain_seen, seeded, type_in
 use dioxus::html::input_data::keyboard_types::Modifiers;
 use mail_ui_compose::compose::page::Float;
 use mail_ui_compose::compose::templates::{
-    EMOJI_KEY, every, page_slash_items, save_named, template_rows,
+    EMOJI_KEY, START_KEY, every, page_slash_items, save_named, template_rows,
 };
 use mail_ui_model::copy;
 
@@ -85,10 +85,11 @@ fn the_slash_menus_own_rows_narrow_fuzzily_like_the_rest() {
 
     let mut page = page_of("");
     type_text(&mut page, "/zzzq");
-    assert_eq!(
-        page.float,
-        Float::Closed,
-        "a typed word that matches nothing still offered a menu"
+    assert!(
+        page_slash_items(&page)
+            .iter()
+            .all(|item| item.key != EMOJI_KEY && item.key != START_KEY),
+        "a typed word that matches nothing still offered a row"
     );
 }
 

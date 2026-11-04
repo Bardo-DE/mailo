@@ -262,6 +262,21 @@ fn enter_code(text: String, len: usize, caret: Caret) -> Motion {
         return insert_newline(caret);
     }
     let end = Pos::new(node, offset - 1);
+    // The block held that one line: with it gone the block is empty, and turns back.
+    if offset == 1 {
+        return Motion {
+            ops: vec![
+                Op::Delete {
+                    range: Range {
+                        start: end,
+                        end: caret.pos,
+                    },
+                },
+                set_kind(node, ParaKind::Paragraph),
+            ],
+            caret: Caret::at(node, 0),
+        };
+    }
     Motion {
         ops: vec![
             Op::Delete {

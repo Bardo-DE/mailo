@@ -85,10 +85,7 @@ fn open(page: &mut Page, slash: bool) {
 }
 
 fn follow(page: &mut Page) {
-    // A `/` that matches nothing is a path or a date, not a command: the line is the person's.
-    let unmatched = matches!(page.float, Float::Slash { .. })
-        && super::templates::page_slash_items(page).is_empty();
-    if query(page).is_none() || unmatched {
+    if query(page).is_none() {
         page.float = Float::Closed;
     } else if let Float::Slash { active, .. } | Float::Mention { active, .. } = &mut page.float {
         *active = 0;

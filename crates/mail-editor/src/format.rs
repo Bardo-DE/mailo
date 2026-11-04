@@ -174,39 +174,42 @@ pub fn code_tab(doc: &Doc, at: Pos) -> Option<(Op, Pos)> {
     })
 }
 
-/// Turn the paragraphs `range` touches into `kind`: the edits, and the range they leave. Several
-/// lines turned into code are one block, a line each, where no object stands between them.
+/// Turn the paragraphs `range` touches into `kind`: the edits, and the range they leave. Lines
+/// turned into code join into one block, a line each, up to any object that stands between them.
 pub fn turn(doc: &Doc, range: Range, kind: ParaKind) -> (Vec<Op>, Range) {
     let range = range.ordered();
     let (first, last) = (range.start.node, range.end.node);
     let mut ops = vec![Op::SetKind { range, kind }];
-    let lengths: Option<Vec<usize>> = doc
-        .nodes
-        .get(first..=last)
-        .into_iter()
-        .flatten()
-        .map(|node| match node {
-            Node::Para { runs, .. } => Some(para_len(runs)),
-            Node::Object(_) => None,
-        })
-        .collect();
-    let Some(lengths) = lengths.filter(|_| kind == ParaKind::Code && last > first) else {
+    if kind != ParaKind::Code {
         return (ops, range);
-    };
-    let Some((_, above)) = lengths.split_last() else {
-        return (ops, range);
-    };
-    // From the bottom up, so each line's place is still its own when it is joined.
-    for (node, length) in (first..last).zip(above).rev() {
-        ops.push(Op::Insert {
-            at: Pos::new(node, *length),
-            text: "\n".to_owned(),
-            marks: Marks::new(),
-        });
-        ops.push(Op::Merge { node: node + 1 });
     }
-    let before: usize = above.iter().map(|length| length + 1).sum();
-    let end = Pos::new(first, before + range.end.offset);
+    let length = |node: usize| match doc.nodes.get(node) {
+        Some(Node::Para { runs, .. }) => Some(para_len(runs)),
+        _ => None,
+    };
+    let mut joins = 0;
+    // From the bottom up, so each line's place is still its own when it is joined.
+    for node in (first + 1..=last).rev() {
+        if let (Some(above), Some(_)) = (length(node - 1), length(node)) {
+            ops.push(Op::Insert {
+                at: Pos::new(node - 1, above),
+                text: "\n".to_owned(),
+                marks: Marks::new(),
+            });
+            ops.push(Op::Merge { node });
+            joins += 1;
+        }
+    }
+    // The range's end moves up by the lines joined, and along by those its own line joined to.
+    let mut offset = range.end.offset;
+    let mut at = last;
+    while at > first
+        && let (Some(above), Some(_)) = (length(at - 1), length(at))
+    {
+        offset += above + 1;
+        at -= 1;
+    }
+    let end = Pos::new(last - joins, offset);
     (
         ops,
         Range {
