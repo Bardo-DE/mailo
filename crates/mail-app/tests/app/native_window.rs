@@ -395,8 +395,8 @@ fn command_p_prints_the_conversation_in_a_window_of_its_own() {
     settle_until(&mut window, |_| dialogs.load(Ordering::SeqCst) == 1);
 }
 
-/// ⌘F in a conversation's window of its own brings up the find bar over it, as it does in the
-/// main window, and Escape takes it away again.
+/// ⌘F in a conversation's window of its own brings up the search card over it, finding in the
+/// conversation, as it does in the main window; Escape on the empty field takes it away again.
 #[test]
 fn command_f_finds_in_a_window_of_its_own() {
     let dir = tempfile::tempdir().unwrap();
@@ -404,16 +404,18 @@ fn command_f_finds_in_a_window_of_its_own() {
     let lunch = thread(&store, INBOX[2].1).id;
     let mut window = message_window(&store, lunch);
     assert_eq!(
-        window.count(".find-bar"),
+        window.count(".ds-search-card"),
         0,
-        "the bar was open at the start"
+        "the card was up at the start"
     );
 
     window.chord(&[PRIMARY], Key::Char('f'));
-    settle_until(&mut window, |h| h.count(".find-bar") == 1);
+    settle_until(&mut window, |h| h.count(".ds-search-card") == 1);
+    assert_eq!(window.count(".find-bar"), 0, "a find bar is drawn");
+    settle_until(&mut window, |h| h.is_focused(".ds-search-card input"));
 
     window.key(Key::Escape);
-    settle_until(&mut window, |h| h.count(".find-bar") == 0);
+    settle_until(&mut window, |h| h.count(".ds-search-card") == 0);
 }
 
 /// ⇧⌘H in a conversation's window of its own shows the headers in a sheet over it, read off the

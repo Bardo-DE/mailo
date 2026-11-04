@@ -374,6 +374,10 @@ pub enum BarListing {
     /// The templates, after "New from template", narrowed by the text held here: while it
     /// lists them the field narrows the templates and leaves the list's search alone.
     Templates(String),
+    /// Find in the open message (⌘F): the field's text is [`Shell::find`]'s, and the list's search
+    /// is left alone, as it is for the templates. It lists no rows; the count of matches is
+    /// said beside the field and the reader marks them.
+    Message,
 }
 
 /// Which of the two mail-file sheets is open, and what its field holds.
@@ -602,6 +606,14 @@ pub enum Further {
     Copy,
 }
 
+impl Further {
+    /// Whether this is a picker of folders or labels, which the search card does not share the
+    /// window with.
+    pub fn is_picker(self) -> bool {
+        matches!(self, Further::Label | Further::Move | Further::Copy)
+    }
+}
+
 /// Where a further menu was asked for, which is where it is drawn.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Opened {
@@ -803,22 +815,38 @@ pub struct Shell {
     /// The message whose files the reader's ⋯ › Save Attachments… asked to save into a folder:
     /// its strip (`reading::attachments`) takes the ask and clears it. Belongs to the open thread.
     pub save: Option<MessageId>,
-    /// ⌘F's bar over the open conversation. `None` is closed. Belongs to the open thread, as
-    /// Peek does.
+    /// ⌘F's find in the open conversation, marked in the reader. `None` marks nothing. Belongs
+    /// to the open thread, as Peek does.
     pub find: Option<Finding>,
 }
 
-/// ⌘F, while its bar is open: what is typed and the match it is on, and how many matches the
-/// reader counted for what is typed, which Enter and ⌘G step through.
+/// A find in the open message, while the reader marks it: what is typed and the match it is on,
+/// and how many matches the reader counted for what is typed, which Enter and ⌘G step through.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Finding {
     pub find: mail_client::search::Find,
     pub total: usize,
     /// Whether [`Self::total`] was counted for what is typed now, and not before the last key.
     pub counted: bool,
+    /// Whether the text is the words of the search the conversation was opened from, put in the
+    /// field as it opened, and not yet typed over. Such a find marks each word on its own; text
+    /// that was typed is one phrase.
+    pub seeded: bool,
 }
 
 impl Finding {
+    /// A find that opens on the words of the search, each marked on its own.
+    pub fn seeded(words: &[String]) -> Self {
+        Self {
+            find: mail_client::search::Find {
+                query: words.join(" "),
+                current: 0,
+            },
+            seeded: true,
+            ..Self::default()
+        }
+    }
+
     /// The match it is on, below [`Self::total`]; `None` when there is none.
     pub fn at(&self) -> Option<usize> {
         self.find.at(self.total)
@@ -846,6 +874,7 @@ impl Finding {
             self.find = mail_client::search::Find { query, current: 0 };
             self.total = 0;
             self.counted = false;
+            self.seeded = false;
         }
     }
 }
@@ -1409,6 +1438,120 @@ impl Shell {
         } else {
             Some(menu)
         };
+        // A folder or label picker and the search card are never up together.
+        if self.further.is_some_and(|open| open.further.is_picker()) {
+            self.bar = Bar::Closed;
+        }
+    }
+
+    /// The words of the search, as text to mark in the open conversation: nothing while no
+    /// conversation is open.
+    pub fn search_words(&self) -> Vec<String> {
+        if self.open.is_none() {
+            return Vec::new();
+        }
+        mail_client::search::text_words(&self.search, &chrono::Utc, &mail_logic::query::unnamed)
+    }
+
+    /// What the reader marks in the open conversation: the text of a find that was typed, as one
+    /// phrase; the words of the search, each on its own, while the find holds them or there is
+    /// no find; nothing for a find typed empty.
+    pub fn marking(&self) -> Vec<String> {
+        match &self.find {
+            Some(finding) if !finding.seeded => {
+                if finding.find.query.trim().is_empty() {
+                    Vec::new()
+                } else {
+                    vec![finding.find.query.clone()]
+                }
+            }
+            _ => self.search_words(),
+        }
+    }
+
+    /// ⌘F: the search card, over the open conversation, in its message mode. The card's search
+    /// is not touched, so Backspace on its empty field returns to it. Not while no conversation
+    /// is open or a message is being written: `false`, and nothing changed. A find already
+    /// there is kept; otherwise it opens on the words of the search the conversation was opened
+    /// from, if there are any.
+    pub fn find_in_message(&mut self) -> bool {
+        if self.open.is_none() || self.composing.is_some() {
+            return false;
+        }
+        if self.find.is_none() {
+            let words = self.search_words();
+            self.find = Some(if words.is_empty() {
+                Finding::default()
+            } else {
+                Finding::seeded(&words)
+            });
+        }
+        let before = match &self.bar {
+            Bar::Open(open) => open.before.clone(),
+            Bar::Closed => self.search.clone(),
+        };
+        self.bar = Bar::Open(BarOpen {
+            listing: BarListing::Message,
+            ..BarOpen::over(before)
+        });
+        self.further = None;
+        true
+    }
+
+    /// The search card, over the search there is, for ⌘K or a press on the list's search. A
+    /// folder or label picker is put away. A card already up in the message's find becomes the ordinary search.
+    pub fn open_bar(&mut self) {
+        if self.bar == Bar::Closed {
+            self.bar = Bar::Open(BarOpen::over(self.search.clone()));
+        }
+        self.message_to_search();
+        if self.further.is_some_and(|open| open.further.is_picker()) {
+            self.further = None;
+        }
+    }
+
+    /// The card, listing the message's find, lists the ordinary search instead: the list's
+    /// search is what it was before the card came up, and a find typed empty is over. A find
+    /// with words keeps its marks. Whether the list's search changed.
+    pub fn message_to_search(&mut self) -> bool {
+        let Bar::Open(open) = &mut self.bar else {
+            return false;
+        };
+        if open.listing != BarListing::Message {
+            return false;
+        }
+        open.listing = BarListing::Search;
+        open.active = 0;
+        open.moved = false;
+        let before = open.before.clone();
+        if self
+            .find
+            .as_ref()
+            .is_some_and(|finding| finding.find.query.trim().is_empty())
+        {
+            self.find = None;
+        }
+        let changed = self.search != before;
+        self.search = before;
+        changed
+    }
+
+    /// Enter or ⌘G, Shift+Enter or ⇧⌘G: the next or previous match of the find there is.
+    pub fn step_find(&mut self, step: mail_client::search::Step) {
+        if let Some(finding) = self.find.as_mut() {
+            finding.step(step);
+        }
+    }
+
+    /// Whether a find's marks are showing in the reader with the card away and no message being
+    /// written, so Escape clears them before it closes anything behind.
+    pub fn marks_showing(&self) -> bool {
+        self.find.is_some() && self.bar == Bar::Closed && self.composing.is_none()
+    }
+
+    /// The marks go: the find is over. Whether there was one.
+    pub fn clear_find(&mut self) -> bool {
+        self.find.take().is_some()
     }
 
     /// Drop the composer's widgets without writing them anywhere.
@@ -2664,5 +2807,172 @@ mod finding_tests {
         shell.find = found();
         shell.select(1);
         assert_eq!(shell.find, None, "select");
+    }
+}
+
+#[cfg(test)]
+mod card_find_tests {
+    use super::{Bar, BarListing, BarOpen, Finding, Further, FurtherMenu, Opened, Shell};
+    use mail_domain::ThreadId;
+
+    fn reading() -> Shell {
+        let mut shell = Shell::default();
+        shell.open(ThreadId::generate());
+        shell
+    }
+
+    fn listing(shell: &Shell) -> Option<BarListing> {
+        match &shell.bar {
+            Bar::Open(open) => Some(open.listing.clone()),
+            Bar::Closed => None,
+        }
+    }
+
+    #[test]
+    fn command_f_brings_up_the_card_over_the_open_message_and_leaves_the_search_alone() {
+        let mut shell = reading();
+        shell.search = "from:dana".to_owned();
+        assert!(shell.find_in_message());
+        assert_eq!(listing(&shell), Some(BarListing::Message));
+        assert_eq!(shell.search, "from:dana");
+        assert_eq!(
+            shell.find,
+            Some(Finding::default()),
+            "a search of operators gives no words"
+        );
+        let Bar::Open(BarOpen { before, .. }) = &shell.bar else {
+            panic!("the card is not up");
+        };
+        assert_eq!(before, "from:dana");
+    }
+
+    #[test]
+    fn command_f_needs_a_message_open() {
+        let mut shell = Shell::default();
+        assert!(!shell.find_in_message(), "nothing open");
+        assert_eq!(shell.bar, Bar::Closed);
+        assert_eq!(shell.find, None);
+    }
+
+    #[test]
+    fn a_conversation_opened_from_a_search_opens_the_find_on_its_words() {
+        let mut shell = reading();
+        shell.search = "from:dana invoice march".to_owned();
+        assert_eq!(
+            shell.marking(),
+            ["invoice", "march"],
+            "marked before any find"
+        );
+        assert!(shell.find_in_message());
+        let finding = shell.find.clone().expect("a find");
+        assert_eq!(finding.find.query, "invoice march");
+        assert!(finding.seeded);
+        assert_eq!(
+            shell.marking(),
+            ["invoice", "march"],
+            "each word on its own"
+        );
+        // Typed over, the text is one phrase and the words are no longer marked.
+        shell
+            .find
+            .as_mut()
+            .expect("a find")
+            .retype("invoice m".to_owned());
+        assert_eq!(shell.marking(), ["invoice m"]);
+        // Typed empty marks nothing, and clearing the search clears the words.
+        shell.find.as_mut().expect("a find").retype(String::new());
+        assert!(shell.marking().is_empty());
+        shell.find = None;
+        shell.search = String::new();
+        assert!(shell.marking().is_empty());
+    }
+
+    #[test]
+    fn no_conversation_marks_no_words() {
+        let shell = Shell {
+            search: "invoice".to_owned(),
+            ..Shell::default()
+        };
+        assert!(shell.marking().is_empty());
+    }
+
+    #[test]
+    fn backspace_on_the_empty_field_is_the_ordinary_search_with_the_lists_search_back() {
+        let mut shell = reading();
+        shell.search = "from:dana".to_owned();
+        assert!(shell.find_in_message());
+        // Something put the search elsewhere while the card was up.
+        shell.search = "something else".to_owned();
+        assert!(shell.message_to_search());
+        assert_eq!(listing(&shell), Some(BarListing::Search));
+        assert_eq!(shell.search, "from:dana");
+        assert_eq!(shell.find, None, "a find typed empty is over");
+        assert!(!shell.message_to_search(), "already the search");
+    }
+
+    #[test]
+    fn a_find_with_words_keeps_its_marks_when_the_card_is_the_search_again() {
+        let mut shell = reading();
+        assert!(shell.find_in_message());
+        shell
+            .find
+            .as_mut()
+            .expect("a find")
+            .retype("report".to_owned());
+        shell.open_bar();
+        assert_eq!(listing(&shell), Some(BarListing::Search));
+        assert_eq!(shell.marking(), ["report"]);
+    }
+
+    #[test]
+    fn escape_clears_marks_only_with_the_card_away() {
+        let mut shell = reading();
+        assert!(shell.find_in_message());
+        shell
+            .find
+            .as_mut()
+            .expect("a find")
+            .retype("report".to_owned());
+        assert!(!shell.marks_showing(), "the card is up");
+        shell.bar = Bar::Closed;
+        assert!(shell.marks_showing());
+        assert!(shell.clear_find());
+        assert!(!shell.marks_showing());
+        assert!(!shell.clear_find());
+    }
+
+    #[test]
+    fn a_picker_and_the_card_are_never_up_together() {
+        let thread = ThreadId::generate();
+        let menu = |further| FurtherMenu {
+            thread,
+            further,
+            opened: Opened::Reader,
+        };
+        for further in [Further::Move, Further::Copy, Further::Label] {
+            // The card closes an open picker.
+            let mut shell = reading();
+            shell.toggle_further(menu(further));
+            assert!(shell.further.is_some(), "{further:?} opens");
+            shell.open_bar();
+            assert_eq!(shell.further, None, "{further:?} survived the card");
+            assert!(shell.bar != Bar::Closed);
+            // And ⌘F's does too.
+            let mut shell = reading();
+            shell.toggle_further(menu(further));
+            assert!(shell.find_in_message());
+            assert_eq!(shell.further, None, "{further:?} survived ⌘F");
+            // A picker closes the card.
+            let mut shell = reading();
+            shell.open_bar();
+            shell.toggle_further(menu(further));
+            assert_eq!(shell.bar, Bar::Closed, "{further:?} left the card up");
+            assert_eq!(shell.further, Some(menu(further)));
+        }
+        // Menus that are not pickers share the window with the card as they did.
+        let mut shell = reading();
+        shell.open_bar();
+        shell.toggle_further(menu(Further::Snooze));
+        assert!(shell.bar != Bar::Closed);
     }
 }

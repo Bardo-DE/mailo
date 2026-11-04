@@ -30,7 +30,7 @@ pub fn Sandbox(
     #[props(default)]
     fit: bool,
     /// The message the frame shows, which a reply asks for its selection (`super::selection`) and
-    /// ⌘F looks through (`super::find`); a frame drawn with no reader around it is not.
+    /// a find looks through (`super::found`); a frame drawn with no reader around it is not.
     #[props(default)]
     message: Option<MessageId>,
     /// The words a right click on the frame was on, for the reader's Copy menu, which takes
@@ -89,8 +89,8 @@ pub fn Sandbox(
         }
     }));
     let html = super::fit::zoomed(&html, zoom(), relaxed());
-    let found = use_hook(try_consume_context::<super::find::Frames>);
-    // A new document in the frame (a zoom to fit is one) holds none of what ⌘F marked.
+    let found = use_hook(try_consume_context::<super::found::Frames>);
+    // A new document in the frame (a zoom to fit is one) holds none of what a find marked.
     {
         let found = found.clone();
         use_effect(use_reactive!(|html| {

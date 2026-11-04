@@ -607,10 +607,10 @@ pub(super) fn App() -> Element {
             }
             return;
         }
-        // Escape closes ⌘F's bar before it closes anything behind it (its field closes it
-        // itself, and keeps the key).
-        if key == "Escape" && shell.read().find.is_some() && shell.read().composing.is_none() {
-            mail_ui_reader::reading::find::close(shell);
+        // Escape clears the marks of a find before it closes anything behind them (the card's
+        // field leaves itself, and keeps the key).
+        if key == "Escape" && shell.peek().marks_showing() {
+            shell.write().clear_find();
             return;
         }
         let typing_now = in_a_field() || shell.read().composing.is_some();
@@ -657,13 +657,13 @@ pub(super) fn App() -> Element {
             }
             Some(Intent::Find) => {
                 // With no conversation open there is nothing to find in: it is the search.
-                if !mail_ui_reader::reading::find::open(shell) {
+                if !mail_ui_kit::summon::summon_message(shell) {
                     super::command::summon(shell);
                 }
                 return;
             }
             Some(Intent::FindStep(step)) => {
-                mail_ui_reader::reading::find::step(shell, step);
+                shell.write().step_find(step);
                 return;
             }
             Some(Intent::Settings) => {

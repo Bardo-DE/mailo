@@ -4,6 +4,8 @@
 
 /// ⌘F's field over the open conversation, while nothing is typed.
 pub const FIND: &str = "Find";
+/// The chip that says the card finds in the open message and not in the mail.
+pub const IN_THIS_MESSAGE: &str = "In This Message";
 /// A folder's name, being written: the field's label and a rename's placeholder.
 pub const FOLDER_NAME: &str = "Folder name";
 /// A new folder's row and its field's placeholder.

@@ -44,6 +44,8 @@ pub(super) fn panel_rows(
         hours,
     } = world;
     match listing {
+        // The find lists no rows: the reader marks what it finds.
+        BarListing::Message => Vec::new(),
         BarListing::Templates(typed) => super::templates::rows(client, typed)
             .into_iter()
             .map(|row| MenuItem {
