@@ -5881,6 +5881,7 @@ dependencies = [
  "mailo-editor",
  "mailo-mime",
  "mailo-pim",
+ "mailo-proto",
  "mailo-reader",
  "nucleo-matcher",
  "porter-calendar",

@@ -221,7 +221,13 @@ pub mod search {
     };
 }
 pub mod server_search {
-    pub use mail_core::server_search::{Automatic, load, needs_server};
+    pub use mail_logic::server_search::{Automatic, needs_server};
+
+    /// What `server-search.json` in `dir` said, or off when there is none or it cannot be read.
+    /// Never written.
+    pub fn load(dir: &std::path::Path) -> Automatic {
+        mail_core::server_search::load(dir)
+    }
 }
 pub mod smime {
     pub use mail_core::smime::{Protected, SmimeError};
