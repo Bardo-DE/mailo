@@ -162,7 +162,7 @@ pub mod config {
     }
 }
 pub mod contacts {
-    pub use mail_core::contacts::Imported;
+    pub use mail_logic::contacts::Imported;
     pub use mail_store::{CardId, Contact, Group, GroupHome, GroupId, Origin, PersonCard};
     pub mod groups {
         pub use mail_core::contacts::groups::{GroupError, Labelled, Offer, person_of};
@@ -241,7 +241,7 @@ pub mod ipc {
     }
 }
 pub mod mail {
-    pub use mail_core::mail::{Clock, SystemClock};
+    pub use mail_logic::clock::Clock;
 }
 pub mod message {
     pub use mail_core::message::{
