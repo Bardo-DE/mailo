@@ -1,14 +1,13 @@
 //! The list's quick filter: Unread, Starred and Has Attachments, toggled from a row under the
 //! list's header, as Thunderbird's Quick Filter bar and Apple Mail's filter button offer them.
 //!
-//! Each toggle is a search term the window already reads (`is:unread`, `is:starred`,
-//! `has:attachment`), parsed by the same [`mail_core::query`] a typed search is, and the toggles
-//! on are joined with `And` onto whatever the list shows: a place, a saved view, or a search. The
-//! store pages a filtered list as it pages any other query, and the sidebar's counts never see
-//! it.
-//!
-//! Per window and per visit, as Apple Mail's is: going to another place drops it
-//! ([`crate::view::Shell::select`]), and it is written nowhere.
+//! The toggles are not state of their own: each is a search operator the window already reads
+//! (`is:unread`, `is:starred`, `has:attachment`), and turning one on writes it into the search
+//! line ([`Toggle::flip`]), where the header shows it as the chip it is. A line made of nothing
+//! but toggles does not search: it narrows the place the list is in, so Unread in the Inbox is
+//! the unread mail of the Inbox ([`narrows`], and [`crate::view::Shell::narrowing`]). Any other
+//! word or operator in the line makes it a search of all mail, which the toggles then hold as
+//! they hold any search.
 
 use mail_domain::Filter;
 use mail_ui_model::copy;
@@ -47,6 +46,55 @@ impl Toggle {
             Toggle::Attachments => copy::controls::FILTER_ATTACHMENTS,
         }
     }
+
+    /// Whether the search `line` holds the toggle's term.
+    pub fn is_on(self, line: &str) -> bool {
+        mail_logic::search::has_term(line, self.term())
+    }
+
+    /// `line` with the toggle's term added at its end, or taken out of wherever it stands.
+    pub fn flip(self, line: &str) -> String {
+        mail_logic::search::toggle_term(line, self.term())
+    }
+}
+
+/// Every toggle's term.
+fn terms() -> [&'static str; 3] {
+    Toggle::ALL.map(Toggle::term)
+}
+
+/// The toggles the search `line` holds, in the row's order.
+pub fn on(line: &str) -> Vec<Toggle> {
+    Toggle::ALL
+        .into_iter()
+        .filter(|toggle| toggle.is_on(line))
+        .collect()
+}
+
+/// Whether the search `line` holds any toggle: the list is narrowed.
+pub fn is_active(line: &str) -> bool {
+    Toggle::ALL.into_iter().any(|toggle| toggle.is_on(line))
+}
+
+/// `line` with every toggle's term taken out and the rest of it as typed.
+pub fn cleared(line: &str) -> String {
+    mail_logic::search::without_terms(line, &terms())
+}
+
+/// Whether the search `line` is made of toggles alone, and so narrows the place rather than
+/// searching all mail.
+pub fn narrows(line: &str) -> bool {
+    mail_logic::search::only_terms(line, &terms())
+}
+
+/// The toggles `line` holds as one narrowing of their own. `None` while none is on.
+pub fn filter(line: &str) -> Option<Filter> {
+    let mut held: Vec<Filter> = on(line).into_iter().map(Toggle::filter).collect();
+    match held.len() {
+        0 => None,
+        1 => held.pop(),
+        _ => Some(Filter::And(held)),
+    }
 }
 
 /// Whether the row of toggles is drawn under the list's header.
@@ -55,86 +103,6 @@ pub enum Row {
     #[default]
     Hidden,
     Shown,
-}
-
-/// The quick filter: its row, and the toggles on.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct Quick {
-    pub row: Row,
-    /// The toggles on, in [`Toggle::ALL`]'s order.
-    on: Vec<Toggle>,
-}
-
-impl Quick {
-    /// Whether `toggle` is on.
-    pub fn is_on(&self, toggle: Toggle) -> bool {
-        self.on.contains(&toggle)
-    }
-
-    /// Whether any toggle is on: the list is narrowed.
-    pub fn is_active(&self) -> bool {
-        !self.on.is_empty()
-    }
-
-    /// The toggles on, in the row's order.
-    pub fn on(&self) -> &[Toggle] {
-        &self.on
-    }
-
-    /// `toggle` switched. A toggle turned on shows the row, so what narrows the list is always
-    /// on screen.
-    pub fn toggled(&self, toggle: Toggle) -> Self {
-        let flip = |one: &Toggle| (*one == toggle) != self.is_on(*one);
-        let on: Vec<Toggle> = Toggle::ALL.into_iter().filter(flip).collect();
-        let row = if on.contains(&toggle) {
-            Row::Shown
-        } else {
-            self.row
-        };
-        Self { row, on }
-    }
-
-    /// Every toggle off, the row left as it is.
-    pub fn cleared(&self) -> Self {
-        Self {
-            row: self.row,
-            on: Vec::new(),
-        }
-    }
-
-    /// The header's Filter button: the row shown, or hidden with every toggle off, so a hidden
-    /// row never narrows the list.
-    pub fn flipped(&self) -> Self {
-        match self.row {
-            Row::Hidden => Self {
-                row: Row::Shown,
-                on: self.on.clone(),
-            },
-            Row::Shown => Self::default(),
-        }
-    }
-
-    /// `filter`, narrowed by the toggles on.
-    pub fn narrow(&self, filter: Filter) -> Filter {
-        if self.on.is_empty() {
-            return filter;
-        }
-        let mut clauses = vec![filter];
-        clauses.extend(self.on.iter().map(|toggle| toggle.filter()));
-        Filter::And(clauses)
-    }
-
-    /// The toggles on as a narrowing of their own, for a list built from a scope (the search's
-    /// candidates). `None` while none is on.
-    pub fn filter(&self) -> Option<Filter> {
-        match self.on.as_slice() {
-            [] => None,
-            [one] => Some(one.filter()),
-            several => Some(Filter::And(
-                several.iter().map(|toggle| toggle.filter()).collect(),
-            )),
-        }
-    }
 }
 
 #[cfg(test)]
@@ -160,32 +128,33 @@ mod tests {
         }
     }
 
-    /// The toggles on are joined with `And` onto the place's filter, in the row's order however
-    /// they were turned on; none on leaves the place as it is.
+    /// The toggles a line holds are joined with `And` in the row's order however they were
+    /// turned on; none leaves nothing to narrow by.
     #[test]
-    fn the_toggles_on_narrow_the_place() {
-        let place = || Filter::Account(mail_domain::testing::account());
-        let on = |toggles: &[Toggle]| {
+    fn the_toggles_in_a_line_are_one_narrowing() {
+        let line = |toggles: &[Toggle]| {
             toggles
                 .iter()
-                .fold(Quick::default(), |quick, toggle| quick.toggled(*toggle))
+                .fold(String::new(), |line, toggle| toggle.flip(&line))
         };
         let unread = || Filter::Read(ReadState::Unread);
         let starred = || Filter::Starred(Star::Starred);
-        // A case's name, the toggles pressed in turn, and the clauses they add.
-        type Case = (&'static str, &'static [Toggle], Option<Vec<Filter>>);
-        let cases: [Case; 5] = [
+        let cases: [(&str, &[Toggle], Option<Filter>); 5] = [
             ("none", &[], None),
-            ("unread", &[Toggle::Unread], Some(vec![unread()])),
+            ("unread", &[Toggle::Unread], Some(unread())),
             (
                 "attachments then unread",
                 &[Toggle::Attachments, Toggle::Unread],
-                Some(vec![unread(), Filter::HasAttachment]),
+                Some(Filter::And(vec![unread(), Filter::HasAttachment])),
             ),
             (
                 "all three",
                 &[Toggle::Starred, Toggle::Attachments, Toggle::Unread],
-                Some(vec![unread(), starred(), Filter::HasAttachment]),
+                Some(Filter::And(vec![
+                    unread(),
+                    starred(),
+                    Filter::HasAttachment,
+                ])),
             ),
             (
                 "unread twice is off",
@@ -194,46 +163,26 @@ mod tests {
             ),
         ];
         for (name, toggles, want) in cases {
-            let quick = on(toggles);
-            let place = place();
-            let narrowed = quick.narrow(place.clone());
-            match &want {
-                None => {
-                    assert_eq!(narrowed, place, "{name}");
-                    assert_eq!(quick.filter(), None, "{name}");
-                    assert!(!quick.is_active(), "{name}");
-                }
-                Some(clauses) => {
-                    let mut all = vec![place];
-                    all.extend(clauses.iter().cloned());
-                    assert_eq!(narrowed, Filter::And(all), "{name}");
-                    let alone = match clauses.as_slice() {
-                        [one] => one.clone(),
-                        _ => Filter::And(clauses.clone()),
-                    };
-                    assert_eq!(quick.filter(), Some(alone), "{name}");
-                }
-            }
+            let line = line(toggles);
+            assert_eq!(filter(&line), want, "{name}: {line:?}");
+            assert_eq!(is_active(&line), want.is_some(), "{name}");
         }
     }
 
-    /// A toggle turned on shows the row; Clear leaves the row; the Filter button hides the row
-    /// only with every toggle off.
+    /// Clearing takes the toggles out and leaves the words and the other operators; only a line
+    /// of toggles narrows a place.
     #[test]
-    fn the_row_shows_whatever_narrows_the_list() {
-        let shown = Quick::default().flipped();
-        assert_eq!(shown.row, Row::Shown);
-        assert!(!shown.is_active());
-
-        let unread = Quick::default().toggled(Toggle::Unread);
-        assert_eq!(unread.row, Row::Shown, "a toggle on with the row hidden");
-        assert_eq!(unread.on(), [Toggle::Unread]);
-
-        let cleared = unread.cleared();
-        assert_eq!(cleared.row, Row::Shown, "Clear hid the row");
-        assert!(!cleared.is_active());
-
-        let hidden = unread.flipped();
-        assert_eq!(hidden, Quick::default(), "hiding the row kept a toggle on");
+    fn clearing_leaves_the_rest_and_only_toggles_narrow() {
+        assert_eq!(
+            cleared("is:unread lunch from:ada has:attachment"),
+            "lunch from:ada"
+        );
+        assert_eq!(
+            on("x is:starred y is:unread"),
+            [Toggle::Unread, Toggle::Starred]
+        );
+        assert!(narrows("is:unread has:attachment"));
+        assert!(!narrows("is:unread lunch"));
+        assert!(!narrows(""));
     }
 }

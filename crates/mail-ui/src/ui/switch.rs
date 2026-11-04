@@ -34,7 +34,6 @@ pub(super) fn restore(shell: &mut Shell, recall: &Recall) {
     shell.picked = mail_ui_model::selection::Picked::none();
     shell.show_remote_images = false;
     shell.search.clear();
-    shell.quick = mail_ui_kit::quick::Quick::default();
     shell.page_menu = PageMenu::Closed;
     shell.further = None;
 }

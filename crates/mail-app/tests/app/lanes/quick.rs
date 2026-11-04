@@ -1,15 +1,17 @@
-//! Lane 16: the quick filter. The toolbar's Filter button shows the row of toggles; Unread
-//! (⌥⌘U) and Has Attachments narrow the Inbox together; Clear Filter brings every row back; a
-//! filter that leaves nothing says so and clears from the empty list; and going to another place
-//! and back finds the filter gone.
+//! Lane 16: the quick filter. The toolbar's Filter button shows the row of toggles; each toggle
+//! is an operator written into the search and shown as a chip in the header; Unread (⌥⌘U) and
+//! Has Attachments narrow the Inbox together; Clear Filter takes the operators out and leaves
+//! the rest of the line; a filter that leaves nothing says so and clears from the empty list;
+//! and the line stays across places.
 
 use mail_core::{SqliteStore, Store};
 use mail_domain::{Change, ChangeId, Patch, ReadState};
 use mail_ui_model::copy;
 
-use super::drive::{Key, PRIMARY};
+use super::drive::{Drive, Key, PRIMARY};
 use super::look::conversation;
-use super::window::{INBOX, Window, account, deliver, hours_ago};
+use super::window::{INBOX, Window, account, deliver, hours_ago, ms};
+use ds_harness::Harness;
 
 /// The newest conversation, unread, carrying a file.
 const CONTRACT: &str = "The signed contract";
@@ -24,6 +26,16 @@ fn filter_button() -> String {
 /// The `n`th toggle of the row (1-based): Unread, Starred, Has Attachments.
 fn toggle(n: usize) -> String {
     format!(".quick-filter > :nth-child({n}) .ds-chip-press")
+}
+
+/// The operators the header's search shows as chips, in order; empty while no search is.
+fn chips(h: &Harness) -> Vec<String> {
+    (1..=h.count(".list-head .search-face .ds-chip"))
+        .filter_map(|n| {
+            h.text_of(&format!(".list-head .search-face .ds-chip:nth-child({n})"))
+                .map(|text| text.trim().to_owned())
+        })
+        .collect()
 }
 
 /// A message from Bob called `subject`, carrying a PDF, `hours` old.
@@ -93,7 +105,7 @@ fn until_rows(window: &mut Window, what: &str, want: &[&str]) {
 }
 
 #[test]
-fn the_quick_filter_narrows_the_list_clears_and_goes_with_the_place() {
+fn the_quick_filter_narrows_the_list_through_the_search_and_clears() {
     let mut window = Window::open(seeded);
     let every = [
         CONTRACT, INBOX[0].1, INBOX[1].1, INBOX[2].1, INBOX[3].1, RECEIPTS,
@@ -127,9 +139,38 @@ fn the_quick_filter_narrows_the_list_clears_and_goes_with_the_place() {
         "the Filter button does not say the list is narrowed"
     );
 
+    // The toggle is an operator of the search, and the header shows it as a chip.
+    window.until("the header shows is:unread", |h| chips(h) == ["is:unread"]);
+    assert_eq!(
+        window
+            .harness
+            .count(".list-head .search-face .search-words"),
+        0
+    );
+    assert_eq!(
+        window
+            .harness
+            .text_of(".list-head .search-face .search-scope")
+            .as_deref()
+            .map(str::trim),
+        Some("Inbox"),
+        "the list left the Inbox for all mail"
+    );
+
+    // Toggled off, the header and the list are the Inbox's again.
+    window.click(&toggle(1));
+    until_rows(&mut window, "Unread off restores every row", &every);
+    window.until("the chip goes", |h| chips(h).is_empty());
+    assert_eq!(window.harness.count(".list-head .search-face"), 0);
+    window.click(&toggle(1));
+    until_rows(&mut window, "Unread on again", &unread);
+
     // Has Attachments as well: both hold.
     window.click(&toggle(3));
     until_rows(&mut window, "Unread and Has Attachments", &[CONTRACT]);
+    window.until("both chips", |h| {
+        chips(h) == ["is:unread", "has:attachment"]
+    });
 
     // Clear Filter: every row back, the row still up with nothing pressed.
     window.click(".quick-filter > .ds-button");
@@ -139,6 +180,9 @@ fn the_quick_filter_narrows_the_list_clears_and_goes_with_the_place() {
         window.harness.attr(&toggle(1), "aria-pressed").as_deref(),
         Some("false")
     );
+    window.until("Clear Filter takes the chips out of the header", |h| {
+        chips(h).is_empty()
+    });
 
     // Starred leaves nothing: the list says so, and clears from there.
     window.click(&toggle(2));
@@ -153,16 +197,20 @@ fn the_quick_filter_narrows_the_list_clears_and_goes_with_the_place() {
     window.press(&[PRIMARY, Key::Alt], Key::Char('u'), 1);
     until_rows(&mut window, "⌥⌘U keeps the unread", &unread);
 
-    // Another place and back: the filter went with the Inbox.
+    // Another place and back: the filter is in the search line, which stays, so it narrows
+    // Sent as it narrowed the Inbox.
     window.click("[*|data-place=\"Sent\"]");
-    window.until("Sent drops the row", |h| h.count(".quick-filter") == 0);
+    window.until("Sent keeps the chip", |h| chips(h) == ["is:unread"]);
+    assert_eq!(window.harness.count(".quick-filter .ds-chip"), 3);
     window.click("[*|data-place=\"Inbox\"]");
-    until_rows(&mut window, "the Inbox is whole again", &every);
-    assert_eq!(
-        window.harness.count(".quick-filter"),
-        0,
-        "the row came back"
-    );
+    until_rows(&mut window, "the Inbox is still narrowed", &unread);
+
+    // The Filter button hides the row and takes the toggles out of the search.
+    window.click(&filter_button());
+    until_rows(&mut window, "hiding the row restores every row", &every);
+    window.until("the row and the chip go", |h| {
+        h.count(".quick-filter") == 0 && chips(h).is_empty()
+    });
     assert_eq!(
         window
             .harness
@@ -170,4 +218,31 @@ fn the_quick_filter_narrows_the_list_clears_and_goes_with_the_place() {
             .as_deref(),
         Some("false")
     );
+}
+
+/// A search with words keeps them when the toggles come and go: Unread is added after them,
+/// all mail is searched, and Clear Filter takes the operator out and leaves the words.
+#[test]
+fn clear_filter_leaves_the_rest_of_the_search() {
+    let mut window = Window::open(seeded);
+    window.press(&[PRIMARY], Key::Char('k'), 1);
+    window.until("⌘K puts the keyboard in the panel", |h| {
+        h.is_focused(".ds-search-card input")
+    });
+    window.type_text("from:bob");
+    window.harness.advance(ms(800));
+    window.press(&[], Key::Enter, 1);
+    window.until("Bob's two are listed", |h| {
+        h.count(".ds-search-card") == 0 && h.count(".list .ds-thread") == 2
+    });
+    window.click(&filter_button());
+    window.until("the row shows", |h| h.count(".quick-filter .ds-chip") == 3);
+    window.click(&toggle(1));
+    window.until("the header holds both operators", |h| {
+        chips(h) == ["from:bob", "is:unread"]
+    });
+    until_rows(&mut window, "only the unread one of Bob's", &[CONTRACT]);
+    window.click(".quick-filter > .ds-button");
+    window.until("Clear Filter leaves from:bob", |h| chips(h) == ["from:bob"]);
+    until_rows(&mut window, "both of Bob's again", &[CONTRACT, RECEIPTS]);
 }

@@ -38,7 +38,7 @@ impl Bin {
 /// The bin the window is showing: the Trash or Spam place, with no search over it. `None`
 /// anywhere else, including a search run from Trash, whose results are not Trash's.
 pub fn bin_shown(shell: &Shell) -> Option<Bin> {
-    if !shell.search.trim().is_empty() {
+    if shell.replaces_place() {
         return None;
     }
     let Source::Mail(filter) = &shell.places.get(shell.selected)?.source else {

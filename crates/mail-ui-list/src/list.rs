@@ -277,6 +277,13 @@ pub fn ThreadList(
         Head::Picking
     } else {
         match crate::bar::affordance(&shell.read().search, &shell.read().bar) {
+            // Toggles alone do not search: the line says it is the place that is narrowed.
+            crate::bar::Affordance::Searching(_) if shell.read().narrowing().is_some() => {
+                Head::Searching(Said {
+                    text: place.clone(),
+                    bad: false,
+                })
+            }
             crate::bar::Affordance::Searching(_) => {
                 let listed = shell.read().listed_scope();
                 let looked: Vec<String> = accounts
