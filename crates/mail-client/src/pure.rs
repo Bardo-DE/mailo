@@ -73,7 +73,7 @@ pub mod export {
     pub use mail_core::export::{Exported, RawHead, Target, usual};
 }
 pub mod folder {
-    pub use mail_core::folder::Refusal;
+    pub use mail_domain::folder::Refusal;
 }
 pub mod formats {
     pub use mail_core::formats::{Writer, writer_named, writers};
