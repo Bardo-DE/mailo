@@ -29,6 +29,7 @@ pub mod erase;
 pub mod fetch;
 pub mod follow_up;
 pub mod frames;
+pub mod html_document;
 pub mod invite;
 pub mod junk;
 pub mod looks;

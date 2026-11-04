@@ -338,7 +338,20 @@ pub mod attachment_image {
     }
 }
 pub mod html_document {
-    pub use mail_core::html_document::{LABELS, Pictures, Printed, write_file_into};
+    pub use mail_logic::html_document::{LABELS, Pictures, Printed};
+
+    /// Write `bytes` into `dir` as a file named from `subject` and ending `.{extension}`, never
+    /// over a file already there, returning the path written.
+    pub fn write_file_into(
+        dir: &std::path::Path,
+        subject: &str,
+        extension: &str,
+        bytes: &[u8],
+    ) -> Result<std::path::PathBuf, crate::CallError> {
+        Ok(mail_core::html_document::write_file_into(
+            dir, subject, extension, bytes,
+        )?)
+    }
 }
 pub mod profile {
     pub use mail_logic::profile::{Profile, ProfileId};

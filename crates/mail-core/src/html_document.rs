@@ -6,45 +6,18 @@
 //! adds its named faces ([`document_with`]) and, for a conversation whose remote images the
 //! reader consented to, those images ([`Pictures`]).
 
+pub use mail_logic::html_document::{LABELS, Pictures, Printed};
+
 use crate::error::CoreError;
 use crate::error::Logged;
 use chrono::{DateTime, TimeZone, Utc};
 use mail_domain::{Message, MessageId, ThreadId};
 use mail_logic::when::Clock;
 use mail_mime::Parsed;
-use mail_reader::{Labels, Options, Pages, Remote, Sheet};
+use mail_reader::{Options, Pages, Remote, Sheet};
 use mail_store::{SqliteStore, Store};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-
-/// What a printout says in front of a reader: the header rows, the counts, the notes where a
-/// body or an image is missing. `mail-mime` writes the document and none of these words.
-pub const LABELS: Labels<'static> = Labels {
-    from: "From",
-    to: "To",
-    cc: "Cc",
-    date: "Date",
-    subject: "Subject",
-    printed: "Printed {when}",
-    no_subject: mail_domain::NO_SUBJECT,
-    thread_count: "({n} messages)",
-    image: "[image",
-    image_alt: ": {alt}",
-    image_host: ", from {host}",
-    no_body: "The body of this message has not been downloaded, so only its headers are printed.",
-    cut_off: "This message is longer than can be shown; the rest of it is not printed.",
-    attachments: "Attachments ({n})",
-    unnamed: "(unnamed)",
-};
-
-/// A printable document, and the subject it is named after.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Printed {
-    /// The first message's subject: what a file of it is called.
-    pub subject: String,
-    /// The whole HTML document.
-    pub html: String,
-}
 
 /// The messages `id` names, oldest first.
 ///
@@ -113,25 +86,6 @@ where
     Tz::Offset: std::fmt::Display,
 {
     of_messages_with(store, messages, zone, now, &options(pages, clock), None)
-}
-
-/// Where a printout's consented remote images come from.
-///
-/// A remote image is a read receipt, so this is only ever built from the reader's consent: which
-/// messages it covers, and how to fetch what they show. [`mail_reader::remote_images`] lists what
-/// the consented messages' printout would draw, and only that list is handed to `fetch`.
-pub struct Pictures<'a> {
-    /// Whether the reader's consent to remote images covers this message.
-    pub consented: &'a dyn Fn(MessageId) -> bool,
-    /// The images of `urls` that could be fetched, each as a `data:` URI of a raster image.
-    /// Blocking.
-    pub fetch: &'a dyn Fn(&[String]) -> BTreeMap<String, String>,
-}
-
-impl std::fmt::Debug for Pictures<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Pictures").finish_non_exhaustive()
-    }
 }
 
 /// [`of_messages`], made as `options` say, with the consented messages' remote images drawn
