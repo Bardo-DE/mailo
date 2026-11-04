@@ -64,13 +64,13 @@ dioxus = { version = "0.7" }
 # display). quire re-exports only `StandardAction`; mailo names `Action`, `AppAction`, `Context` and
 # `Chord` as well. The rev quire pins (`docs/workspace-deps.toml`), so one chordkit is built.
 chordkit = { git = "https://github.com/PoHsuanLai/chordkit.git", rev = "99eec9ddd03ee345b669fcc7954ed44590724290" }
-ds = { git = "https://github.com/PoHsuanLai/quire.git", rev = "5664ee9a54fa4452ac3f377fb78708c6186c13fd" }  # 5664ee9a (master, scroll-together merged; forks blitz 841386a7, blitz-kit 5b5380d0)
+ds = { git = "https://github.com/PoHsuanLai/quire.git", rev = "9e2e165b4f72aeee674d19da57bff82e62459489" }  # 9e2e165b (master, picklist-escape merged; forks blitz 841386a7, blitz-kit 5b5380d0)
 # Settings I/O: `appearance.toml` (imported once from `appearance.json`), the settings portal.
-ds-settings = { git = "https://github.com/PoHsuanLai/quire.git", rev = "5664ee9a54fa4452ac3f377fb78708c6186c13fd", features = ["dioxus"] }  # 5664ee9a (master, scroll-together merged; forks blitz 841386a7, blitz-kit 5b5380d0)
+ds-settings = { git = "https://github.com/PoHsuanLai/quire.git", rev = "9e2e165b4f72aeee674d19da57bff82e62459489", features = ["dioxus"] }  # 9e2e165b (master, picklist-escape merged; forks blitz 841386a7, blitz-kit 5b5380d0)
 # `mailo.toml`, and the `appearance.toml` written once on the first run after the move.
 toml = "1"
 # The window: quire's Blitz host (the window, its fonts, focus, clipboard, PDF output).
-ds-blitz = { git = "https://github.com/PoHsuanLai/quire.git", rev = "5664ee9a54fa4452ac3f377fb78708c6186c13fd", features = ["pdf", "print", "spell"] }  # 5664ee9a (master, scroll-together merged; forks blitz 841386a7, blitz-kit 5b5380d0)
+ds-blitz = { git = "https://github.com/PoHsuanLai/quire.git", rev = "9e2e165b4f72aeee674d19da57bff82e62459489", features = ["pdf", "print", "spell"] }  # 9e2e165b (master, picklist-escape merged; forks blitz 841386a7, blitz-kit 5b5380d0)
 blitz-dom = { workspace = true }
 dioxus-native-dom = { workspace = true }
 # A contact photo as a `data:` address (`book.rs`).

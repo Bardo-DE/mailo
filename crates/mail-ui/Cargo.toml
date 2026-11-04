@@ -80,22 +80,22 @@ dioxus = { version = "0.7" }
 # display). quire re-exports only `StandardAction`; mailo names `Action`, `AppAction`, `Context` and
 # `Chord` as well. The rev quire pins (`docs/workspace-deps.toml`), so one chordkit is built.
 chordkit = { git = "https://github.com/PoHsuanLai/chordkit.git", rev = "99eec9ddd03ee345b669fcc7954ed44590724290" }
-ds = { git = "https://github.com/PoHsuanLai/quire.git", rev = "5664ee9a54fa4452ac3f377fb78708c6186c13fd" }  # 5664ee9a (master, scroll-together merged; forks blitz 841386a7, blitz-kit 5b5380d0)
+ds = { git = "https://github.com/PoHsuanLai/quire.git", rev = "9e2e165b4f72aeee674d19da57bff82e62459489" }  # 9e2e165b (master, picklist-escape merged; forks blitz 841386a7, blitz-kit 5b5380d0)
 # Settings I/O: `appearance.toml` (imported once from `appearance.json`), the settings portal.
-ds-settings = { git = "https://github.com/PoHsuanLai/quire.git", rev = "5664ee9a54fa4452ac3f377fb78708c6186c13fd", features = ["dioxus"] }  # 5664ee9a (master, scroll-together merged; forks blitz 841386a7, blitz-kit 5b5380d0)
+ds-settings = { git = "https://github.com/PoHsuanLai/quire.git", rev = "9e2e165b4f72aeee674d19da57bff82e62459489", features = ["dioxus"] }  # 9e2e165b (master, picklist-escape merged; forks blitz 841386a7, blitz-kit 5b5380d0)
 # The account sheets' views: `ds_shell::accounts`, the parts `sill` draws the same sheet with.
 # Only the accounts module is used; the shell's own surfaces (bar, dock, lock) are not drawn here.
-ds-shell = { git = "https://github.com/PoHsuanLai/quire.git", rev = "5664ee9a54fa4452ac3f377fb78708c6186c13fd" }  # 5664ee9a (master, scroll-together merged; forks blitz 841386a7, blitz-kit 5b5380d0)
+ds-shell = { git = "https://github.com/PoHsuanLai/quire.git", rev = "9e2e165b4f72aeee674d19da57bff82e62459489" }  # 9e2e165b (master, picklist-escape merged; forks blitz 841386a7, blitz-kit 5b5380d0)
 # `mailo.toml`, and the `appearance.toml` written once on the first run after the move.
 toml = "1"
 # The test driver (`Harness`, `Driver`, `Query`, `snapshot`; `pdf` is `Harness::pdf` for the print
 # tests), named by `testing` and by the window's own tests.
-ds-harness = { optional = true, git = "https://github.com/PoHsuanLai/quire.git", rev = "5664ee9a54fa4452ac3f377fb78708c6186c13fd", features = ["pdf"] }  # 5664ee9a (master, scroll-together merged; forks blitz 841386a7, blitz-kit 5b5380d0)
+ds-harness = { optional = true, git = "https://github.com/PoHsuanLai/quire.git", rev = "9e2e165b4f72aeee674d19da57bff82e62459489", features = ["pdf"] }  # 9e2e165b (master, picklist-escape merged; forks blitz 841386a7, blitz-kit 5b5380d0)
 # The window: quire's Blitz host (the window, its fonts, focus, clipboard, PDF output), and
 # `print`: the system's print dialog for a PDF (the desktop portal on Linux, else the PDF opened
 # in the viewer); `spell`: the composer's spelling, against the system's Hunspell dictionaries
 # (none is bundled); `pdf` also rasterises a PDF attachment's first page (`PdfFileThumb`).
-ds-blitz = { git = "https://github.com/PoHsuanLai/quire.git", rev = "5664ee9a54fa4452ac3f377fb78708c6186c13fd", features = ["pdf", "print", "spell"] }  # 5664ee9a (master, scroll-together merged; forks blitz 841386a7, blitz-kit 5b5380d0)
+ds-blitz = { git = "https://github.com/PoHsuanLai/quire.git", rev = "9e2e165b4f72aeee674d19da57bff82e62459489", features = ["pdf", "print", "spell"] }  # 9e2e165b (master, picklist-escape merged; forks blitz 841386a7, blitz-kit 5b5380d0)
 blitz-dom = { workspace = true }
 dioxus-native-dom = { workspace = true }
 base64 = "0.22"
@@ -166,7 +166,7 @@ tokio = { version = "1", features = ["test-util"] }
 dioxus-ssr = "0.7"
 uuid = { workspace = true }
 # The linter (`lint::assert_clean`, the markup lint): quire's own crate, at the same tag.
-ds-lint = { git = "https://github.com/PoHsuanLai/quire.git", rev = "5664ee9a54fa4452ac3f377fb78708c6186c13fd" }  # 5664ee9a (master, scroll-together merged; forks blitz 841386a7, blitz-kit 5b5380d0)
+ds-lint = { git = "https://github.com/PoHsuanLai/quire.git", rev = "9e2e165b4f72aeee674d19da57bff82e62459489" }  # 9e2e165b (master, picklist-escape merged; forks blitz 841386a7, blitz-kit 5b5380d0)
 # The throwaway certificate authority the S/MIME tests build their fixtures with.
 mail-crypto = { workspace = true, features = ["testing"] }
 # The Maildir naming the import and export tests read a file with.
