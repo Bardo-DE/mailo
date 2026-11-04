@@ -206,7 +206,7 @@ pub mod unsubscribe {
     pub use mail_core::unsubscribe::{Found, Outcome, client};
 }
 pub mod conversation {
-    pub use mail_core::conversation::{
+    pub use mail_logic::conversation::{
         Place, Say, Source, allowed_actions, default_places, find_place, folder_filter, folder_of,
         is_label_place, is_vips, kept_single, label_choices, mute_for_all, mute_op, offers, op_for,
         organises, own_places, place_key, places_with, reply_target, saved_of, saved_place, says,
