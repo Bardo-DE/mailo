@@ -322,9 +322,20 @@ pub mod pgp {
     }
 }
 pub mod attachment_image {
-    pub use mail_core::attachment_image::{
-        Kind, LARGE, PDF_PAGE, Page, Picture, SMALL, Unavailable, pdf_page, picture, sniff,
+    pub use mail_logic::attachment_image::{
+        Fit, Kind, LARGE, PDF_PAGE, Page, Picture, Refusal, SMALL, Unavailable, sniff,
     };
+
+    /// `bytes`, an image of `kind`, fitted into `fit` and written as a PNG.
+    pub fn picture(bytes: &[u8], kind: Kind, fit: Fit) -> Result<Picture, Refusal> {
+        mail_core::attachment_image::picture(bytes, kind, fit)
+    }
+
+    /// Page `number` (from 0) of the PDF `bytes`, fitted into `fit` on white. A number past the
+    /// end is the last page.
+    pub fn pdf_page(bytes: Vec<u8>, number: u32, fit: Fit) -> Result<Page, Refusal> {
+        mail_core::attachment_image::pdf_page(bytes, number, fit)
+    }
 }
 pub mod html_document {
     pub use mail_core::html_document::{LABELS, Pictures, Printed, write_file_into};

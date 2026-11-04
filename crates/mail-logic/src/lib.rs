@@ -17,6 +17,7 @@ pub mod act;
 pub mod add_account;
 pub mod arrival;
 pub mod attach;
+pub mod attachment_image;
 pub mod auth;
 pub mod bimi;
 pub mod clock;
