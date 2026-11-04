@@ -226,7 +226,7 @@ pub use mail_runtime::Logged;
 pub use mail_runtime::graph::push::RelayRefused;
 pub use mail_store::Syncing;
 pub mod erase {
-    pub use mail_core::erase::{Delete, Keep, Policy};
+    pub use mail_logic::erase::{Delete, Keep, Policy};
 }
 pub mod signature {
     pub use mail_logic::signature::{Placement, nodes_of, purpose_of, recognise, swap};

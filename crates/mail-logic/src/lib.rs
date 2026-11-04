@@ -18,6 +18,7 @@ pub mod auth;
 pub mod compose;
 pub mod conversation;
 pub mod discover;
+pub mod erase;
 pub mod follow_up;
 pub mod junk;
 pub mod mailbox_filter;
