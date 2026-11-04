@@ -75,7 +75,7 @@ crates/mail-ui-compose/src/compose/wire.rs 1
 crates/mail-ui-compose/src/emoji/mod.rs 9
 crates/mail-ui-list/src/bar.rs 1
 crates/mail-ui-list/src/row.rs 2
-crates/mail-ui-list/src/server_search.rs 10
+crates/mail-ui-list/src/server_search.rs 1
 crates/mail-ui-list/src/view_groups.rs 17
 crates/mail-ui-list/src/views.rs 14
 crates/mail-ui-settings/src/keyboard.rs 5

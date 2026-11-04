@@ -7,7 +7,7 @@
 use crate::page::ListMore;
 use crate::row::listed::Listed;
 use crate::row::{AccountMark, ListRow};
-use crate::server_search::{Asked, ServerSearch, found_threads};
+use crate::server_search::{Asked, found_threads};
 use crate::view_groups::group_list;
 use dioxus::prelude::*;
 use ds::components::app::thread_height::{ThreadLines, thread_card_gap, thread_card_height};
@@ -250,9 +250,11 @@ pub fn ThreadList(
         .filter(|row| shell.read().scope.shows(row.id.clone()))
         .count()
         > 1;
-    // Where a search's list ends, each account in view with a server offers to search it.
+    // While a search is shown, each account in view with a server offers to search it from the
+    // header. The offer stands as long as there is a line; the server is asked by itself only
+    // once the local pages have run out.
     let line = marking.read().line.clone();
-    let servers: Vec<(AccountId, String)> = if line.is_empty() || more() {
+    let servers: Vec<(AccountId, String)> = if line.is_empty() {
         Vec::new()
     } else {
         accounts
@@ -262,6 +264,8 @@ pub fn ThreadList(
             .map(|row| (row.id.clone(), row.shown()))
             .collect()
     };
+    let automatic: Vec<(AccountId, String)> = if more() { Vec::new() } else { servers.clone() };
+    crate::server_search::use_server_search(&line, &automatic, asked);
     let server_rows = found();
     let state = use_hook(mail_ui_kit::motion::motion);
     let shown = rows_of(threads(), &messages.read());
@@ -533,7 +537,7 @@ pub fn ThreadList(
             // quick filter's button, the search and a ⋯ for the rest (`page::ListMore`). How fresh the mail is, and any
             // warning, is the sidebar's sync mark's to say. While anything listed is picked, the
             // bar is the selection's: its count and its actions, and nothing else. While a search
-            // narrows the list it is the search's: the search across it, Save as View and the ×.
+            // narrows the list it is the search's: the search across it, the server search, Filter, Save as View and the ×.
             Toolbar::<()> {
                 onpick: move |_| {},
                 center: rsx! {
@@ -554,7 +558,7 @@ pub fn ThreadList(
                         match head {
                             Head::Picking => rsx! { PickBar { shell, threads } },
                             Head::Searching(Said { text, bad }) => rsx! {
-                                crate::bar::SearchHead { shell, pages, scope: text, bad }
+                                crate::bar::SearchHead { shell, pages, scope: text, bad, line: line.clone(), servers: servers.clone(), asked }
                             },
                             Head::Idle => rsx! { PlaceTools { shell, place: place.clone(), pages, syncs: !quiet, side_hidden } },
                         }
@@ -608,9 +612,6 @@ pub fn ThreadList(
                         }
                     }
                 }
-            }
-            if !servers.is_empty() {
-                ServerSearch { input: line.clone(), accounts: servers, asked }
             }
             Toast { shell }
             Ghost {}

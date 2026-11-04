@@ -4,7 +4,7 @@
 //! up over an open conversation, where ⌘F finds in the conversation instead (`find`). A search
 //! kept with Save as View is a place in the sidebar, grouped as it was saved, and is deleted
 //! from its editor. A search that finds nothing here offers the server, which is asked only
-//! when that is pressed, or at once when Settings says so. A search the panel leaves behind is
+//! when that is pressed in the search's header, or at once when Settings says so. A search the panel leaves behind is
 //! the list's header until it is cleared, by its × or Esc.
 
 use mail_core::{Arrival, Searched, ServerHits, SqliteStore, Store, absorb};
@@ -14,7 +14,7 @@ use mail_domain::{
 };
 use mail_ui::ui::native::ServerSearcher;
 use mail_ui_model::copy;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, mpsc};
 
 use super::drive::{Drive, Key, PRIMARY};
 use super::look::conversation;
@@ -26,18 +26,36 @@ const FIELD: &str = ".ds-search-card input";
 /// The server's hit: found by a word in its body, which a header fetch does not bring, so the
 /// store cannot match it.
 const HIT: &str = "Numbers for March 2019";
-/// Search … on the server.
-const OFFER: &str = ".server-search-one button";
+/// Search on Server, in the search shown in the list's header.
+const OFFER: &str = ".list-head .search-server button";
+/// What the header says of the server being asked.
+const SAID: &str = ".list-head .search-server .search-server-said";
+
+/// Held until a unit is sent, so a test sees the server being asked before it answers.
+type Gate = Arc<Mutex<mpsc::Receiver<()>>>;
 
 /// The account as an IMAP account, which a server can be searched on.
 fn on_imap(store: &SqliteStore) {
-    let plan = AccountPlan {
-        address: ME.to_owned(),
-        incoming: Incoming::Imap {
+    with_incoming(
+        store,
+        Incoming::Imap {
             host: "imap.example.test".to_owned(),
             port: 993,
             tls: Tls::Implicit,
         },
+    );
+}
+
+/// The account as a local one, which has no server to search.
+fn on_local(store: &SqliteStore) {
+    with_incoming(store, Incoming::Local);
+}
+
+/// The account planned with `incoming`.
+fn with_incoming(store: &SqliteStore, incoming: Incoming) {
+    let plan = AccountPlan {
+        address: ME.to_owned(),
+        incoming,
         outgoing: Outgoing::Smtp {
             host: "smtp.example.test".to_owned(),
             port: 465,
@@ -53,9 +71,13 @@ fn on_imap(store: &SqliteStore) {
 }
 
 /// A server that holds [`HIT`] in its All Mail: asked, it is kept here as headers and marked
-/// found, as `mail_runtime`'s search keeps what it finds. Records each line it was asked.
-fn server(asked: Arc<Mutex<Vec<String>>>) -> ServerSearcher {
+/// found, as `mail_runtime`'s search keeps what it finds. Records each line it was asked, and
+/// answers once `gate`, if there is one, lets it.
+fn server(asked: Arc<Mutex<Vec<String>>>, gate: Option<Gate>) -> ServerSearcher {
     ServerSearcher(Arc::new(move |client, account, input, now| {
+        if let Some(gate) = &gate {
+            let _ = gate.lock().unwrap_or_else(|e| e.into_inner()).recv();
+        }
         let store = client.store_for_test();
         asked
             .lock()
@@ -119,6 +141,15 @@ fn open(
     asked: &Arc<Mutex<Vec<String>>>,
     settings: impl FnOnce(&mut mail_ui_model::settings::MailSettings),
 ) -> Window {
+    open_gated(asked, None, settings)
+}
+
+/// [`open`], the server answering only when `gate` lets it.
+fn open_gated(
+    asked: &Arc<Mutex<Vec<String>>>,
+    gate: Option<Gate>,
+    settings: impl FnOnce(&mut mail_ui_model::settings::MailSettings),
+) -> Window {
     let asked = Arc::clone(asked);
     Window::open_with(chrono::Utc::now(), on_imap, move |dir, contexts| {
         mail_ui_model::settings::change(
@@ -126,7 +157,7 @@ fn open(
             settings,
         )
         .expect("the settings are written");
-        contexts.with(server(asked))
+        contexts.with(server(asked, gate))
     })
 }
 
@@ -267,17 +298,19 @@ fn the_search_panel_filters_the_list_saves_a_view_and_offers_the_server() {
     });
     assert_eq!(window.store.views().expect("the views"), Vec::<View>::new());
 
-    // A search that finds nothing here offers the server, asked only once that is pressed.
+    // A search that finds nothing here offers the server from the header, asked only once that
+    // is pressed; the footer of the list is gone.
     window.click(&place("Inbox"));
     search(&mut window, "spreadsheet");
-    window.until("the whole word has settled, with the offer", |h| {
-        h.count(OFFER) == 1
-            && h.attr(".server-search", "data-line").as_deref() == Some("spreadsheet")
-    });
-    assert!(rows(&window).is_empty(), "something here matched");
-    assert!(asked.lock().unwrap_or_else(|e| e.into_inner()).is_empty());
     window.harness.advance(ms(400));
     put_away(&mut window);
+    window.until("the whole word has settled, with the offer", |h| {
+        h.count(OFFER) == 1
+            && h.attr(".search-server", "data-line").as_deref() == Some("spreadsheet")
+    });
+    assert_eq!(window.harness.count(".server-search"), 0, "a footer");
+    assert!(rows(&window).is_empty(), "something here matched");
+    assert!(asked.lock().unwrap_or_else(|e| e.into_inner()).is_empty());
     window.click(OFFER);
     window.until("the server's hit is the one row", |h| {
         h.count(".list .ds-thread") == 1 && super::look::row_of(h, HIT).is_some()
@@ -318,6 +351,7 @@ fn turned_on_in_settings_the_server_is_asked_once_as_the_search_is_shown() {
             .any(|line| line == "spreadsheet")
     });
     window.harness.advance(ms(1500));
+    assert_eq!(window.harness.count(".server-search"), 0, "a footer");
     let asked = asked.lock().unwrap_or_else(|e| e.into_inner()).clone();
     let mut once = asked.clone();
     once.dedup();
@@ -382,11 +416,11 @@ fn a_search_shown_is_the_lists_header_until_it_is_cleared() {
     assert_eq!(h.count(&named(copy::aria::NEW_MESSAGE)), 0, "New Message");
     assert_eq!(h.count(&named(copy::aria::MORE)), 0, "the ⋯");
     assert_eq!(h.count(".list-head .list-title"), 0, "the place's title");
-    // The search takes the header's width but for Save as View and the ×.
+    // The search takes the header's width but for the server, Filter, Save as View and the ×.
     let head = h.rect(".list-head").expect("the header");
     let shown = h.rect(face).expect("the search");
     assert!(
-        shown.size.width.0 > head.size.width.0 * 0.6,
+        shown.size.width.0 >= head.size.width.0 * 0.6 - 0.5,
         "{shown:?} in {head:?}"
     );
 
@@ -419,4 +453,96 @@ fn a_search_shown_is_the_lists_header_until_it_is_cleared() {
             && h.count(&named(copy::aria::NEW_MESSAGE)) == 1
             && h.count(".list .ds-thread") == all
     });
+}
+
+/// The header offers the server while a search is shown and an account in view has one to ask,
+/// and not otherwise: not over a plain account, not once the search is cleared.
+#[test]
+fn the_header_offers_the_server_only_while_a_searchable_account_is_searched() {
+    let asked = Arc::new(Mutex::new(Vec::new()));
+    let mut window = open(&asked, |_| {});
+    let any = ".list-head .search-server";
+    assert_eq!(window.harness.count(any), 0, "offered with no search");
+    search(&mut window, "lunch");
+    window.harness.advance(ms(400));
+    put_away(&mut window);
+    window.until("the offer is in the header", |h| h.count(OFFER) == 1);
+    assert_eq!(
+        window.harness.attr(OFFER, "aria-label").as_deref(),
+        Some(copy::aria::SEARCH_ON_SERVER)
+    );
+    window.click(&format!("[*|aria-label=\"{}\"]", copy::aria::CLEAR_SEARCH));
+    window.until("the offer goes with the search", |h| h.count(any) == 0);
+
+    let mut plain = Window::open(on_local);
+    search(&mut plain, "lunch");
+    plain.harness.advance(ms(400));
+    put_away(&mut plain);
+    plain.until("the search is the header", |h| {
+        h.count(".list-head .search-face") == 1
+    });
+    assert_eq!(plain.harness.count(any), 0, "offered with no server to ask");
+}
+
+/// Pressed, the header says the server is being asked, then what it found; the offer comes back
+/// as "again".
+#[test]
+fn the_header_says_the_server_is_asked_and_then_what_it_found() {
+    let asked = Arc::new(Mutex::new(Vec::new()));
+    let (release, gate) = mpsc::channel();
+    let mut window = open_gated(&asked, Some(Arc::new(Mutex::new(gate))), |_| {});
+    search(&mut window, "spreadsheet");
+    window.harness.advance(ms(400));
+    put_away(&mut window);
+    window.until("the offer is in the header", |h| h.count(OFFER) == 1);
+    window.click(OFFER);
+    window.until("the header says it is asking", |h| {
+        h.text_of(SAID)
+            .is_some_and(|said| said.contains("Searching") && said.contains("on the server"))
+    });
+    assert_eq!(window.harness.count(&format!("{SAID} .pending")), 1);
+    release.send(()).expect("the server waits");
+    window.until("the header says what it found", |h| {
+        h.text_of(SAID)
+            .is_some_and(|said| said.contains("1 conversation found"))
+    });
+    window.until("the offer is to search again", |h| {
+        h.attr(OFFER, "aria-label").as_deref() == Some(copy::aria::SEARCH_ON_SERVER_AGAIN)
+    });
+    assert_eq!(window.harness.count(".server-search"), 0, "a footer");
+    assert_eq!(
+        *asked.lock().unwrap_or_else(|e| e.into_inner()),
+        ["spreadsheet"]
+    );
+}
+
+/// The chips the header draws are the parser's own reading of a line with quotes and operators.
+#[test]
+fn the_headers_chips_are_the_parsers_tokens() {
+    let mut window = Window::open(|_| {});
+    let line = "from:ada subject:\"lunch plans\" \"on friday\" is:unread";
+    search(&mut window, line);
+    window.harness.advance(ms(800));
+    put_away(&mut window);
+    window.until("the search is the header", |h| {
+        h.count(".list-head .search-face .ds-chip") == 3
+    });
+    let parsed = mail_client::search::parse(line, &chrono::Utc, &mail_logic::query::unnamed);
+    let drawn: Vec<String> = (1..=3)
+        .filter_map(|n| {
+            window
+                .harness
+                .text_of(&format!(".list-head .search-face .ds-chip:nth-child({n})"))
+        })
+        .map(|text| text.trim().to_owned())
+        .collect();
+    assert_eq!(drawn, parsed.operator_tokens);
+    assert_eq!(
+        window
+            .harness
+            .text_of(".list-head .search-face .search-words")
+            .as_deref()
+            .map(str::trim),
+        Some("\"on friday\"")
+    );
 }

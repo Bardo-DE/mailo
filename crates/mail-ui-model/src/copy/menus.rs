@@ -350,3 +350,8 @@ pub fn sort_dirs(property: mail_domain::Property) -> [&'static str; 2] {
         Property::Starred => ["Starred Last", "Starred First"],
     }
 }
+
+/// A row of the Search on Server menu: one account whose server can be asked.
+pub fn search_account_on_server(address: &str) -> String {
+    format!("Search {address}")
+}

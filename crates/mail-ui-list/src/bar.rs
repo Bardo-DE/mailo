@@ -4,6 +4,7 @@
 //! gone. A press on either brings up the panel ([`super::spotlight`]), as ⌘K does; nothing is
 //! typed here.
 
+use crate::server_search::Asked;
 use chrono::Utc;
 use dioxus::prelude::*;
 use ds::components::controls::button_model::{Bezel, ImagePosition};
@@ -16,6 +17,7 @@ use mail_ui_kit::press::on_primary;
 use mail_ui_kit::summon::summon;
 use mail_ui_kit::view::{Bar, Shell};
 use mail_ui_model::copy;
+use porter_core::AccountId;
 
 /// What the toolbar's search is called, to a screen reader and to a test.
 pub const BOX_LABEL: &str = "Search";
@@ -50,98 +52,21 @@ pub struct Terms {
 }
 
 /// `query` split as the header shows it. The operators are the ones the panel draws as chips
-/// under its field (`items::chips` once a search is typed). Each is cut out of the line at the
-/// place the parser read it from, token by token, so a word that merely contains an operator's
-/// text (`xfrom:ada` before `from:ada`) stays a word; what is left keeps its order, its spaces
-/// closed up.
+/// under its field (`items::chips` once a search is typed). Each is the parser's own reading of
+/// the line (`search::Parsed`), so a word that merely contains an operator's text (`xfrom:ada`
+/// before `from:ada`) stays a word; what is left keeps its order, its spaces closed up.
 pub fn terms(query: &str) -> Terms {
-    let chips = search::parse(query, &Utc, &mail_logic::query::unnamed).operator_tokens;
-    let spans = token_spans(query);
-    let mut taken = vec![false; spans.len()];
-    let mut at = 0;
-    for chip in &chips {
-        // An either-or chip is its terms joined by ` OR `, over the joiners as typed.
-        let parts: Vec<&str> = chip.split(" OR ").collect();
-        while at < spans.len() {
-            match chip_run(query, &spans, at, &parts) {
-                Some(last) => {
-                    taken[at..=last].fill(true);
-                    at = last + 1;
-                    break;
-                }
-                None => at += 1,
-            }
-        }
-    }
-    let words = spans
+    let parsed = search::parse(query, &Utc, &mail_logic::query::unnamed);
+    let words = parsed
+        .rest_spans
         .iter()
-        .zip(&taken)
-        .filter(|(_, taken)| !**taken)
-        .map(|((from, to), _)| &query[*from..*to])
+        .map(|span| &query[span.clone()])
         .collect::<Vec<_>>()
         .join(" ");
-    Terms { chips, words }
-}
-
-/// The index of the last token of the operator that starts at token `at` and reads as `parts`
-/// (one term, or several joined by `OR` or `|`), if one does.
-fn chip_run(query: &str, spans: &[(usize, usize)], at: usize, parts: &[&str]) -> Option<usize> {
-    let text = |index: usize| spans.get(index).map(|(from, to)| &query[*from..*to]);
-    let mut last = at;
-    for (n, part) in parts.iter().enumerate() {
-        if n > 0 {
-            if !matches!(text(last + 1), Some("OR" | "|")) {
-                return None;
-            }
-            last += 1;
-        }
-        let next = if n == 0 { at } else { last + 1 };
-        if text(next) != Some(*part) {
-            return None;
-        }
-        last = next;
+    Terms {
+        chips: parsed.operator_tokens,
+        words,
     }
-    Some(last)
-}
-
-/// Move `to` past the next closing quote (or the end), taking its characters from `chars`.
-fn close_quote(chars: &mut std::iter::Peekable<std::str::CharIndices<'_>>, to: &mut usize) {
-    for (at, quote) in chars.by_ref() {
-        *to = at + quote.len_utf8();
-        if quote == '"' {
-            break;
-        }
-    }
-}
-
-/// Where each whitespace-separated token of `query` lies, as byte ranges. A quoted run, also as
-/// a field's value (`subject:"lunch plans"`), is one token: the parser's own split.
-fn token_spans(query: &str) -> Vec<(usize, usize)> {
-    let mut out = Vec::new();
-    let mut chars = query.char_indices().peekable();
-    while let Some((from, c)) = chars.next() {
-        if c.is_whitespace() {
-            continue;
-        }
-        let mut to = from + c.len_utf8();
-        if c == '"' {
-            close_quote(&mut chars, &mut to);
-        } else {
-            while let Some(&(at, next)) = chars.peek() {
-                if next.is_whitespace() {
-                    break;
-                }
-                chars.next();
-                to = at + next.len_utf8();
-                if next == '"' && query[from..to].ends_with(":\"") {
-                    close_quote(&mut chars, &mut to);
-                    break;
-                }
-            }
-        }
-        out.push((from, to));
-    }
-    out
 }
 
 /// The toolbar's magnifier: a press brings up the panel.
@@ -166,7 +91,7 @@ pub fn SearchBox(shell: Signal<Shell>) -> Element {
 
 /// The list's header while a search narrows the list: the search, as the panel's field shows it
 /// but at the toolbar's size, across the header, with where it looks at its end (`scope`, in the
-/// danger ink when the search cannot be run); then Save as View and the × that clears it. A
+/// danger ink when the search cannot be run); then the server search (an icon, or what the server said), Filter, Save as View and the × that clears it. A
 /// press on the search brings the panel back over it.
 #[component]
 pub fn SearchHead(
@@ -176,6 +101,10 @@ pub fn SearchHead(
     scope: String,
     /// Whether `scope` says the search cannot be run.
     bad: bool,
+    /// The settled line, and the accounts in view whose server can be asked for it.
+    line: String,
+    servers: Vec<(AccountId, String)>,
+    asked: Signal<Vec<Asked>>,
 ) -> Element {
     let Terms { chips, words } = terms(&shell.read().search);
     rsx! {
@@ -206,6 +135,8 @@ pub fn SearchHead(
             }
             span { class: if bad { "search-scope bad" } else { "search-scope" }, "{scope}" }
         }
+        // Where the server can be asked, its button; and what it said.
+        crate::server_search::ServerStrip { input: line, accounts: servers, asked }
         // A search is filtered as a place is, and the row it shows is the same.
         crate::list::quick::FilterButton { shell, pages }
         Button {
@@ -240,7 +171,7 @@ pub fn clear(mut shell: Signal<Shell>, mut pages: Signal<u32>) {
 
 #[cfg(test)]
 mod tests {
-    use super::{Affordance, SearchHead, Terms, affordance, terms};
+    use super::{Affordance, Asked, SearchHead, Terms, affordance, terms};
     use dioxus::prelude::*;
     use mail_ui_kit::view::{Bar, BarOpen, Shell};
 
@@ -251,7 +182,8 @@ mod tests {
             ..Shell::default()
         });
         let pages = use_signal(|| 1_u32);
-        rsx! { SearchHead { shell, pages, scope: "Inbox".to_owned(), bad: false } }
+        let asked = use_signal(Vec::<Asked>::new);
+        rsx! { SearchHead { shell, pages, scope: "Inbox".to_owned(), bad: false, line: "lunch".to_owned(), servers: Vec::new(), asked } }
     }
 
     /// A search shown is the list's header, and the Filter button stays in it.
@@ -308,6 +240,11 @@ mod tests {
                 "lunch",
             ),
             ("a from:ada | from:bob b", &["from:ada OR from:bob"], "a b"),
+            (
+                "-from:ada \"lunch on friday\" subject:\"a b\" to:bob",
+                &["-from:ada", "subject:\"a b\"", "to:bob"],
+                "\"lunch on friday\"",
+            ),
         ];
         for (query, chips, words) in cases {
             let want = Terms {

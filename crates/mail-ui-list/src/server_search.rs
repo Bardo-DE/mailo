@@ -1,24 +1,30 @@
-//! "Search … on the server", at the end of a search's list.
+//! "Search on Server", in the search shown in the list's header.
 //!
-//! A search lists what the client holds. Where the list ends, each account in view that has a
-//! server to search offers to search it (`mail_client::server_search`); pressed, the account's server
-//! is asked off the drawing thread, what it finds is kept as headers, and the conversations it
-//! named follow the list under "From the server", each with the chip that says so. What the
-//! server could not be asked is said instead of searched for.
+//! A search lists what the client holds. Wherever a search narrows the list, the header offers
+//! each account in view that has a server to search it (`mail_client::server_search`); pressed,
+//! the account's server is asked off the drawing thread, what it finds is kept as headers, and
+//! the conversations it named follow the list under "From the server", each with the chip that
+//! says so. The header says that it is asking and then how it went. What the server could not be
+//! asked is said instead of searched for.
 //!
-//! It runs by itself only when "Search the server automatically" is on, from the effect that
-//! sees a search settle (an effect's task is polled, a render's is not), and only once per
-//! line and account. What searches is a root context, [`ServerSearcher`], so a test can answer
-//! for a server.
+//! It runs by itself only when "Search the server automatically" is on, from the effect of
+//! [`use_server_search`] that sees a search settle (an effect's task is polled, a render's is
+//! not), and only once per line and account. What searches is a root context, [`ServerSearcher`],
+//! so a test can answer for a server.
 
 use chrono::{DateTime, Utc};
 use dioxus::prelude::*;
+use ds::components::controls::button_model::{Bezel, ImagePosition};
+use ds::host::measure::MountedRef;
 use ds::prelude::*;
+use ds::root::common::Common;
 use ds::style::tokens::control_size::ControlSize;
 use mail_client::Client;
 use mail_domain::ThreadId;
 use mail_proto::search::Searched;
+use mail_ui_kit::menu::anchor_at;
 use mail_ui_kit::press::on_primary;
+use mail_ui_model::copy;
 use porter_core::AccountId;
 use std::sync::Arc;
 
@@ -106,37 +112,26 @@ pub fn found_threads(asked: &[Asked], input: &str, listed: &[ThreadId]) -> Vec<T
     out
 }
 
-/// What the line under an account's search says once it has an answer.
+/// What the header says of an account's search once it has an answer.
 pub fn said(address: &str, answer: &Answer) -> Option<String> {
     Some(match answer {
-        Answer::Running => format!("Searching {address} on the server…"),
+        Answer::Running => copy::status::server_searching(address),
         Answer::Found { threads, .. } if threads.is_empty() => {
-            format!("Nothing found on {address}'s server.")
+            copy::status::server_found_nothing(address)
         }
         Answer::Found {
             threads,
             fetched,
             more,
-        } => {
-            let found = match threads.len() {
-                1 => "1 conversation".to_owned(),
-                n => format!("{n} conversations"),
-            };
-            let more = if *more > 0 {
-                format!("; {more} more there")
-            } else {
-                String::new()
-            };
-            format!("{found} found on {address}'s server, {fetched} new here{more}.")
-        }
-        Answer::Unsaid(what) => format!("Not searched on {address}'s server: {what}."),
+        } => copy::status::server_found(address, threads.len(), *fetched, *more),
+        Answer::Unsaid(what) => copy::status::server_not_searched(address, what),
         Answer::Failed(why) => why.clone(),
     })
 }
 
 /// Ask `account`'s server for `input`, off the drawing thread, and put its answer in `asked`.
 ///
-/// From a click, or from [`ServerSearch`]'s effect: never from a render.
+/// From a press, or from [`use_server_search`]'s effect: never from a render.
 pub fn start(mut asked: Signal<Vec<Asked>>, input: String, account: AccountId) {
     if matches!(
         answer_for(&asked.peek(), &input, account.clone()),
@@ -197,22 +192,17 @@ pub fn start(mut asked: Signal<Vec<Asked>>, input: String, account: AccountId) {
     });
 }
 
-/// The end of a search's list: per account in view with a server, its button or its answer.
-#[component]
-pub fn ServerSearch(
-    /// The settled search line.
-    input: String,
-    /// The accounts in view that have a server, with their addresses.
-    accounts: Vec<(AccountId, String)>,
-    asked: Signal<Vec<Asked>>,
-) -> Element {
-    // Automatically, where the user turned it on: once per line and account.
+/// Automatically, where the user turned it on, or where the line names a category only the
+/// server can say: ask each of `accounts` for `input`, once per line and account. Called by the
+/// list whether or not the header shows the search, so a line settled under the panel is asked
+/// as it is when shown.
+pub fn use_server_search(input: &str, accounts: &[(AccountId, String)], asked: Signal<Vec<Asked>>) {
     let settings = mail_ui_kit::prefs::use_settings();
     let automatic = use_memo(move || {
         mail_client::server_search::Automatic::from(settings.read().search.server_automatically)
     });
     use_effect(use_reactive(
-        (&input, &accounts),
+        (&input.to_owned(), &accounts.to_vec()),
         move |(wanted, everyone)| {
             // A category is only the server's to say, so a line that names one is asked at once.
             if automatic() != mail_client::server_search::Automatic::On
@@ -227,39 +217,131 @@ pub fn ServerSearch(
             }
         },
     ));
+}
+
+/// The search header's server part: what each account's server said of the line (or that it is
+/// being asked), then the button that asks, or a menu of the accounts when there are several.
+#[component]
+pub fn ServerStrip(
+    /// The settled search line.
+    input: String,
+    /// The accounts in view that have a server, with their addresses.
+    accounts: Vec<(AccountId, String)>,
+    asked: Signal<Vec<Asked>>,
+) -> Element {
+    let mut open = use_signal(|| false);
+    let mut at = use_signal(|| None::<MountedRef>);
+    if accounts.is_empty() {
+        return rsx! {};
+    }
+    let answers: Vec<(String, Answer)> = accounts
+        .iter()
+        .filter_map(|(account, address)| {
+            answer_for(&asked.read(), &input, account.clone())
+                .map(|answer| (address.clone(), answer.clone()))
+        })
+        .collect();
+    let running = |account: &AccountId| {
+        matches!(
+            answer_for(&asked.read(), &input, account.clone()),
+            Some(Answer::Running)
+        )
+    };
+    // Offered for those accounts not being asked now; "again" once any has answered.
+    let free: Vec<(AccountId, String)> = accounts
+        .iter()
+        .filter(|(account, _)| !running(account))
+        .cloned()
+        .collect();
+    let again = !answers.is_empty();
+    let label = if again {
+        copy::aria::SEARCH_ON_SERVER_AGAIN
+    } else {
+        copy::aria::SEARCH_ON_SERVER
+    };
+    let several = accounts.len() > 1;
+    let items: Vec<MenuItem<usize>> = if open() {
+        free.iter()
+            .enumerate()
+            .map(|(n, (_, address))| {
+                MenuItem::new(n, copy::menus::search_account_on_server(address))
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let single = free.first().cloned();
+    let pick = free.clone();
     rsx! {
-        // The line the buttons search for, which the list settles a beat after the typing: a
+        // The line the button searches for, which the list settles a beat after the typing: a
         // press is for this line, and its answer shows while the line is still this one.
-        div { class: "server-search", "data-line": "{input}",
-            for (account, address) in accounts {
+        div { class: "search-server", "data-line": "{input}",
+            for (address , answer) in answers {
                 {
-                    let answer = answer_for(&asked.read(), &input, account.clone()).cloned();
-                    let line = input.clone();
-                    let bad = matches!(answer, Some(Answer::Failed(_)));
-                    let ask = !matches!(answer, Some(Answer::Running));
-                    rsx! {
-                        div { key: "{account}", class: "server-search-one",
-                            if let Some(said) = answer.as_ref().and_then(|a| said(&address, a)) {
-                                if matches!(answer, Some(Answer::Running)) {
-                                    mail_ui_kit::pending::Pending { label: said }
-                                } else {
-                                    p { class: if bad { "status bad" } else { "status" }, "{said}" }
-                                }
+                    let said = said(&address, &answer).unwrap_or_default();
+                    if matches!(answer, Answer::Running) {
+                        rsx! {
+                            span { class: "search-server-said", title: "{said}",
+                                mail_ui_kit::pending::Pending { label: said.clone() }
                             }
-                            if ask {
-                                Button {
-                                    size: ControlSize::Small,
-                                    label: if answer.is_some() {
-                                        format!("Search {address} on the server again")
-                                    } else {
-                                        format!("Search {address} on the server")
-                                    },
-                                    icon: Icon::Search,
-                                    onclick: on_primary(move || start(asked, line.clone(), account.clone())),
-                                }
+                        }
+                    } else {
+                        let bad = matches!(answer, Answer::Failed(_));
+                        rsx! {
+                            span {
+                                class: if bad { "search-server-said bad" } else { "search-server-said" },
+                                role: "status",
+                                title: "{said}",
+                                "{said}"
                             }
                         }
                     }
+                }
+            }
+            if !free.is_empty() {
+                Button {
+                    bezel: Bezel::Toolbar,
+                    size: ControlSize::Large,
+                    image: ImagePosition::Only,
+                    label,
+                    icon: Some(IconSource::Glyph(Icon::Globe)),
+                    title: Some(label.to_owned()),
+                    shown: if open() { Shown::Visible } else { Shown::Hidden },
+                    common: Common {
+                        aria_label: Some(label.to_owned()),
+                        mounted: Some(EventHandler::new(move |event: MountedEvent| {
+                            at.set(Some(MountedRef(event.data())));
+                        })),
+                        ..Common::default()
+                    },
+                    onclick: {
+                        let line = input.clone();
+                        on_primary(move || match (&single, several) {
+                            (Some((account, _)), false) => start(asked, line.clone(), account.clone()),
+                            _ => open.set(!open()),
+                        })
+                    },
+                }
+            }
+            if open() {
+                Menu::<usize> {
+                    placement: MenuPlacement::Popup,
+                    anchor: anchor_at(at()),
+                    items,
+                    common: Common {
+                        aria_label: Some(copy::aria::SERVER_SEARCH_ACCOUNTS.to_owned()),
+                        ..Common::default()
+                    },
+                    onpick: {
+                        let line = input.clone();
+                        move |n: usize| {
+                            open.set(false);
+                            if let Some((account, _)) = pick.get(n) {
+                                start(asked, line.clone(), account.clone());
+                            }
+                        }
+                    },
+                    onclose: move |()| open.set(false),
                 }
             }
         }

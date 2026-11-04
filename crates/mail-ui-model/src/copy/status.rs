@@ -458,3 +458,31 @@ pub const NOT_READ: &str = "The mail on this computer could not be read. Try aga
 
 /// The title of the reader when the conversation could not be read.
 pub const CONVERSATION_CANNOT_LOAD: &str = "Couldn\u{2019}t load this conversation";
+
+// What the search header says of an account's server being asked for the line shown.
+/// The server is being asked.
+pub fn server_searching(address: &str) -> String {
+    format!("Searching {address} on the server…")
+}
+/// The server named nothing.
+pub fn server_found_nothing(address: &str) -> String {
+    format!("Nothing found on {address}'s server.")
+}
+/// The server named `found` conversations, `fetched` of whose messages are new here, and
+/// matched `more` that were not brought.
+pub fn server_found(address: &str, found: usize, fetched: usize, more: u64) -> String {
+    let found = match found {
+        1 => "1 conversation".to_owned(),
+        n => format!("{n} conversations"),
+    };
+    let more = if more > 0 {
+        format!("; {more} more there")
+    } else {
+        String::new()
+    };
+    format!("{found} found on {address}'s server, {fetched} new here{more}.")
+}
+/// The server was not asked, because it cannot be asked the line faithfully; `what` says why.
+pub fn server_not_searched(address: &str, what: &str) -> String {
+    format!("Not searched on {address}'s server: {what}.")
+}
