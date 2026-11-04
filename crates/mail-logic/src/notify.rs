@@ -1,5 +1,5 @@
 //! New mail, said out loud: which of the messages a pass stored deserve a word, how many words a
-//! burst gets, and what a banner's buttons do. Where the words go is the seam [`Notifier`]; reading
+//! burst gets, and what the actions on a banner do. Where the words go is the seam [`Notifier`]; reading
 //! the store after a pass and raising the notifications are `mail_core::notify`'s.
 
 use crate::own::Own;
@@ -198,7 +198,7 @@ pub struct Notification {
     pub reply: bool,
 }
 
-/// What a button on a banner, or a click on the banner, does.
+/// What an action on a banner, or a click on the banner, does.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Act {
     /// Show what the notification was about.
@@ -211,7 +211,7 @@ pub enum Act {
 
 /// The action key of a banner's click, which every server invokes for the banner itself.
 pub const DEFAULT_ACTION: &str = "default";
-/// The action keys of its two buttons.
+/// The action keys of its two actions.
 pub const ARCHIVE_ACTION: &str = "archive";
 pub const REPLY_ACTION: &str = "reply";
 

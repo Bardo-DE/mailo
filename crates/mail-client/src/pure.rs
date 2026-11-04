@@ -1,11 +1,13 @@
-//! What a caller may name of `mail-core`: its words for mail (a document being edited, an undo, a
-//! time as a person reads it) and what it does with no store and no server (parsing a search, the
-//! files under the config directory). Everything that reads or writes the store, or asks a
-//! server, is a call on [`Client`](crate::Client) instead, so a caller handed only a client has no
-//! way to name a store.
+//! What a caller may name of the layers below the client: the words for mail (a document being
+//! edited, an undo, a time as a person reads it), what is decided with no store and no server
+//! (parsing a search, the files under the config directory), and the client's own wrappers and
+//! types for what does touch one. Everything that reads or writes the store, or asks a server, is
+//! a call on [`Client`](crate::Client) instead, so a caller handed only a client has no way to
+//! name a store.
 //!
 //! Each module stands for the `mail-core` module of the same name, and holds only what a caller
-//! uses of it.
+//! uses of it. None of it is `mail-core`'s own: an item is defined below the I/O, in `mail-logic`
+//! or `mail-domain`, or by the client.
 
 pub mod account {
     pub use mail_logic::account::{Mode, Outcome, RemoveError, Setup, SignInError};
