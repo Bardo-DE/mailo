@@ -236,5 +236,5 @@ pub mod vip {
     pub use mail_store::Vip;
 }
 pub mod identity {
-    pub use mail_core::identity::Typed;
+    pub use mail_domain::account::Typed;
 }
