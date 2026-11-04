@@ -92,7 +92,7 @@ pub mod bimi {
     }
 }
 pub mod compose {
-    pub use mail_core::compose::SendError;
+    pub use crate::protect::SendError;
     pub use mail_logic::compose::doc::doc_of;
     pub use mail_logic::compose::weight::{Fit, Said, SendLimit, Weight, fit};
     pub use mail_logic::compose::{
@@ -298,11 +298,14 @@ pub mod offline {
     }
 }
 pub mod pgp {
-    pub use mail_core::pgp::PgpError;
+    pub use crate::protect::PgpError;
     pub use mail_logic::protection::pgp::Protected;
     pub use mail_logic::protection::{Ask, WithSecret, no_passphrase};
     pub mod keys {
-        pub use mail_core::pgp::keys::export_public;
+        /// The public key, armored.
+        pub fn export_public(key: &mail_domain::PgpKey) -> Result<String, crate::CallError> {
+            Ok(mail_core::pgp::keys::export_public(key)?)
+        }
     }
 }
 pub mod attachment_image {
@@ -366,10 +369,13 @@ pub mod server_search {
     }
 }
 pub mod smime {
-    pub use mail_core::smime::SmimeError;
+    pub use crate::protect::SmimeError;
     pub use mail_logic::protection::smime::Protected;
     pub mod certs {
-        pub use mail_core::smime::certs::export;
+        /// The certificate, PEM.
+        pub fn export(cert: &mail_domain::SmimeCert) -> Result<String, crate::CallError> {
+            Ok(mail_core::smime::certs::export(cert)?)
+        }
     }
 }
 pub mod sync {

@@ -204,8 +204,9 @@ mod compose {
             draft: DraftId,
             leaves: Leaves,
             now: DateTime<Utc>,
-        ) -> Result<(Draft, mail_mime::Posting), SendError> {
+        ) -> Result<(Draft, mail_mime::Posting), crate::protect::SendError> {
             mail_core::compose::queue_with(self.0.store(), secrets, ask, draft, leaves, now)
+                .map_err(crate::protect::SendError::from)
         }
 
         /// `mail_core::compose::save`.
@@ -294,7 +295,7 @@ mod compose {
             leaves: Leaves,
             pictures: mail_logic::picture::PictureSize,
             now: DateTime<Utc>,
-        ) -> Result<(Draft, mail_mime::Posting), SendError> {
+        ) -> Result<(Draft, mail_mime::Posting), crate::protect::SendError> {
             mail_core::compose::queue_sized(
                 self.0.store(),
                 secrets,
@@ -304,6 +305,7 @@ mod compose {
                 pictures,
                 now,
             )
+            .map_err(crate::protect::SendError::from)
         }
 
         /// `mail_core::compose::queue_reminding`.
@@ -314,7 +316,7 @@ mod compose {
             (draft, pictures): (DraftId, mail_logic::picture::PictureSize),
             (leaves, remind): (Leaves, Option<DateTime<Utc>>),
             now: DateTime<Utc>,
-        ) -> Result<(Draft, mail_mime::Posting), SendError> {
+        ) -> Result<(Draft, mail_mime::Posting), crate::protect::SendError> {
             mail_core::compose::queue_reminding(
                 self.0.store(),
                 secrets,
@@ -323,6 +325,7 @@ mod compose {
                 (leaves, remind),
                 now,
             )
+            .map_err(crate::protect::SendError::from)
         }
 
         /// `mail_core::compose::withdraw_redirect`.
@@ -762,7 +765,6 @@ pub use invite::Invite;
 mod pgp {
     use crate::Client;
     use chrono::{DateTime, Utc};
-    use mail_core::pgp::PgpError;
     use mail_core::protect::Seal;
     use mail_domain::*;
 
@@ -784,13 +786,14 @@ mod pgp {
             draft: &Draft,
             identity: &Identity,
             now: DateTime<Utc>,
-        ) -> Result<(), PgpError> {
+        ) -> Result<(), crate::protect::PgpError> {
             mail_core::pgp::OpenPgp::check(self.0.store(), draft, identity, now)
+                .map_err(crate::protect::PgpError::from)
         }
 
         /// `mail_core::pgp::own_key`.
-        pub fn own_key(&self, address: &str) -> Result<Option<PgpKey>, PgpError> {
-            mail_core::pgp::own_key(self.0.store(), address)
+        pub fn own_key(&self, address: &str) -> Result<Option<PgpKey>, crate::protect::PgpError> {
+            mail_core::pgp::own_key(self.0.store(), address).map_err(crate::protect::PgpError::from)
         }
     }
 }
@@ -800,7 +803,7 @@ mod pgp_keys {
     use crate::Client;
     use chrono::{DateTime, Utc};
     use mail_core::pgp::keys::*;
-    use mail_core::pgp::{PgpError, WithSecret};
+    use mail_logic::protection::WithSecret;
     use mail_domain::*;
     use mail_secrets::SigningStore;
 
@@ -822,8 +825,9 @@ mod pgp_keys {
             secrets: &dyn SigningStore,
             key: &PgpKey,
             with_secret: WithSecret,
-        ) -> Result<(), PgpError> {
+        ) -> Result<(), crate::protect::PgpError> {
             mail_core::pgp::keys::delete(self.0.store(), secrets, key, with_secret)
+                .map_err(crate::protect::PgpError::from)
         }
 
         /// `mail_core::pgp::keys::export_secret`.
@@ -831,8 +835,9 @@ mod pgp_keys {
             &self,
             secrets: &dyn SigningStore,
             key: &PgpKey,
-        ) -> Result<String, PgpError> {
+        ) -> Result<String, crate::protect::PgpError> {
             mail_core::pgp::keys::export_secret(self.0.store(), secrets, key)
+                .map_err(crate::protect::PgpError::from)
         }
 
         /// `mail_core::pgp::keys::generate`.
@@ -841,8 +846,9 @@ mod pgp_keys {
             secrets: &dyn SigningStore,
             address: &str,
             now: DateTime<Utc>,
-        ) -> Result<PgpKey, PgpError> {
+        ) -> Result<PgpKey, crate::protect::PgpError> {
             mail_core::pgp::keys::generate(self.0.store(), secrets, address, now)
+                .map_err(crate::protect::PgpError::from)
         }
 
         /// `mail_core::pgp::keys::import`.
@@ -851,18 +857,19 @@ mod pgp_keys {
             secrets: &dyn SigningStore,
             bytes: &[u8],
             now: DateTime<Utc>,
-        ) -> Result<Vec<Imported>, PgpError> {
+        ) -> Result<Vec<Imported>, crate::protect::PgpError> {
             mail_core::pgp::keys::import(self.0.store(), secrets, bytes, now)
+                .map_err(crate::protect::PgpError::from)
         }
 
         /// `mail_core::pgp::keys::restore`.
-        pub fn restore(&self, key: &PgpKey) -> Result<(), PgpError> {
-            mail_core::pgp::keys::restore(self.0.store(), key)
+        pub fn restore(&self, key: &PgpKey) -> Result<(), crate::protect::PgpError> {
+            mail_core::pgp::keys::restore(self.0.store(), key).map_err(crate::protect::PgpError::from)
         }
 
         /// `mail_core::pgp::keys::verify`.
-        pub fn verify(&self, fingerprint: Fingerprint) -> Result<(), PgpError> {
-            mail_core::pgp::keys::verify(self.0.store(), fingerprint)
+        pub fn verify(&self, fingerprint: Fingerprint) -> Result<(), crate::protect::PgpError> {
+            mail_core::pgp::keys::verify(self.0.store(), fingerprint).map_err(crate::protect::PgpError::from)
         }
     }
 }
@@ -1141,8 +1148,7 @@ pub use rules_manage::RulesManage;
 mod smime_certs {
     use crate::Client;
     use chrono::{DateTime, Utc};
-    use mail_core::pgp::WithSecret;
-    use mail_core::smime::SmimeError;
+    use mail_logic::protection::WithSecret;
     use mail_core::smime::certs::*;
     use mail_domain::*;
     use mail_secrets::SigningStore;
@@ -1165,8 +1171,9 @@ mod smime_certs {
             secrets: &dyn SigningStore,
             cert: &SmimeCert,
             with_secret: WithSecret,
-        ) -> Result<(), SmimeError> {
+        ) -> Result<(), crate::protect::SmimeError> {
             mail_core::smime::certs::delete(self.0.store(), secrets, cert, with_secret)
+                .map_err(crate::protect::SmimeError::from)
         }
 
         /// `mail_core::smime::certs::import`.
@@ -1176,13 +1183,14 @@ mod smime_certs {
             bytes: &[u8],
             password: &dyn Fn() -> Option<String>,
             now: DateTime<Utc>,
-        ) -> Result<Vec<Imported>, SmimeError> {
+        ) -> Result<Vec<Imported>, crate::protect::SmimeError> {
             mail_core::smime::certs::import(self.0.store(), secrets, bytes, password, now)
+                .map_err(crate::protect::SmimeError::from)
         }
 
         /// `mail_core::smime::certs::restore`.
-        pub fn restore(&self, cert: &SmimeCert) -> Result<(), SmimeError> {
-            mail_core::smime::certs::restore(self.0.store(), cert)
+        pub fn restore(&self, cert: &SmimeCert) -> Result<(), crate::protect::SmimeError> {
+            mail_core::smime::certs::restore(self.0.store(), cert).map_err(crate::protect::SmimeError::from)
         }
 
         /// `mail_core::smime::certs::trust`.
@@ -1190,8 +1198,9 @@ mod smime_certs {
             &self,
             fingerprint: CertFingerprint,
             trust: KeyTrust,
-        ) -> Result<(), SmimeError> {
+        ) -> Result<(), crate::protect::SmimeError> {
             mail_core::smime::certs::trust(self.0.store(), fingerprint, trust)
+                .map_err(crate::protect::SmimeError::from)
         }
     }
 }
@@ -1201,7 +1210,6 @@ mod smime {
     use crate::Client;
     use chrono::{DateTime, Utc};
     use mail_core::protect::Seal;
-    use mail_core::smime::SmimeError;
     use mail_domain::*;
 
     /// What the client calls in `mail_core::smime`.
@@ -1222,8 +1230,9 @@ mod smime {
             draft: &Draft,
             identity: &Identity,
             now: DateTime<Utc>,
-        ) -> Result<(), SmimeError> {
+        ) -> Result<(), crate::protect::SmimeError> {
             mail_core::smime::Smime::check(self.0.store(), draft, identity, now)
+                .map_err(crate::protect::SmimeError::from)
         }
 
         /// `mail_core::smime::own_cert`.
@@ -1231,8 +1240,9 @@ mod smime {
             &self,
             address: &str,
             now: DateTime<Utc>,
-        ) -> Result<Option<SmimeCert>, SmimeError> {
+        ) -> Result<Option<SmimeCert>, crate::protect::SmimeError> {
             mail_core::smime::own_cert(self.0.store(), address, now)
+                .map_err(crate::protect::SmimeError::from)
         }
     }
 }

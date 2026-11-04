@@ -21,6 +21,7 @@ pub mod fetch;
 mod keys;
 mod live;
 mod net;
+mod protect;
 mod pure;
 pub mod query;
 mod stored;
