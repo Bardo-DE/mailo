@@ -1,6 +1,8 @@
 //! The address book beyond what the window asks of the store with `Store::contacts_matching`:
 //! importing and exporting `.vcf` files, and syncing a CardDAV address book.
 
+pub use mail_logic::contacts::Imported;
+
 use crate::environment::Environment;
 use crate::error::CoreError;
 use chrono::{DateTime, Utc};
@@ -73,21 +75,6 @@ pub fn remove(store: &dyn Store, address: &str) -> Result<(), CoreError> {
     } else {
         Err(CoreError::NoContact(address.to_owned()))
     }
-}
-
-/// What reading a `.vcf` file did.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct Imported {
-    /// Cards in the file.
-    pub cards: usize,
-    /// Addresses added to the book.
-    pub addresses: usize,
-    /// Cards of kind group, each now a group of this book.
-    pub groups: usize,
-    /// Cards of people, each now a card of this book.
-    pub people: usize,
-    /// Cards that are not groups and carried no email address: kept, but nothing to write to.
-    pub empty: usize,
 }
 
 /// Every address on every card in `bytes`, added by hand under the card's name, every

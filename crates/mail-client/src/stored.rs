@@ -116,9 +116,9 @@ impl Stored<'_> {
         mail_core::act::caps_here(self.0.store(), account, now)
     }
 
-    /// How fresh the account is judged to be ([`mail_core::sync::fresh::Pace::of`]).
-    pub fn pace(&self, account: AccountId) -> mail_core::sync::fresh::Pace {
-        mail_core::sync::fresh::Pace::of(self.0.store(), account)
+    /// How fresh the account is judged to be ([`mail_core::sync::fresh::pace_of`]).
+    pub fn pace(&self, account: AccountId) -> mail_logic::fetch::fresh::Pace {
+        mail_core::sync::fresh::pace_of(self.0.store(), account)
     }
 
     pub fn folders(&self, account: AccountId) -> Result<Vec<Folder>, CallError> {

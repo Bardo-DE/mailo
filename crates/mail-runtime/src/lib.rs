@@ -12,7 +12,6 @@ pub mod carddav;
 pub mod drive;
 pub mod epoch;
 pub mod error;
-pub mod fetch;
 pub mod graph;
 pub mod jmap;
 pub mod pass;
@@ -31,6 +30,8 @@ pub use assemble::{Absorbed, Arrival, Destination, absorb, absorb_counted, absor
 pub use drive::{Cancel, drive, drive_within};
 pub use error::{Logged, RuntimeError};
 pub use jmap::{JmapEngine, Midway};
-pub use pass::{IDLE_REARM, SyncReport, Woke};
+pub use mail_logic::fetch;
+pub use mail_logic::fetch::IDLE_REARM;
+pub use pass::{SyncReport, Woke};
 pub use reparse::reparse_queued;
 pub use search::{SERVER_HITS, Searched, ServerHits, Unsaid};

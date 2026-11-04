@@ -11,30 +11,55 @@
 //! A module that needs the time takes it as a value the caller hands in; none reads a clock, the
 //! environment or the store itself.
 
+pub mod account;
 pub mod accounts;
 pub mod act;
+pub mod add_account;
 pub mod arrival;
+pub mod attach;
+pub mod attachment_image;
+pub mod auth;
+pub mod bimi;
+pub mod clock;
+pub mod compose;
+pub mod contacts;
+pub mod conversation;
 pub mod discover;
+pub mod erase;
+pub mod fetch;
 pub mod follow_up;
+pub mod frames;
+pub mod html_document;
+pub mod invite;
 pub mod junk;
+pub mod looks;
 pub mod mailbox_filter;
+pub mod notify;
 pub mod offline;
 pub mod otp;
 pub mod own;
 pub mod password;
 pub mod picture;
 pub mod profile;
+pub mod protection;
 pub mod provider;
 pub mod query;
+pub mod receipt;
 pub mod recent;
 pub mod remedy;
 pub mod rules;
 pub mod saved_search;
+pub mod schedule;
 pub mod scope;
 pub mod search;
+pub mod server_search;
+pub mod signature;
 pub mod snooze;
+pub mod transfer;
 pub mod trust;
 pub mod undo;
+pub mod unsubscribe;
+pub mod vip;
 pub mod when;
 
 /// The README's examples, compiled and run as doctests.

@@ -10,7 +10,7 @@
 
 use std::ops::Range;
 
-use mail_domain::{Signature, SignatureId};
+use mail_domain::{Draft, Signature, SignatureId, SignatureUse};
 use mail_reader::{RemoteImages, SanitizePolicy, from_html, sanitize};
 
 use mail_editor::{
@@ -25,6 +25,15 @@ pub enum Placement {
     BelowQuote,
     /// Under what was written and above the quoted original.
     AboveQuote,
+}
+
+/// Which default a draft starts with: a reply's or a forward's, or a new message's.
+pub fn purpose_of(draft: &Draft) -> SignatureUse {
+    if draft.in_reply_to.is_some() || draft.forward_of.is_some() {
+        SignatureUse::Replies
+    } else {
+        SignatureUse::NewMail
+    }
 }
 
 /// The editor's nodes for `signature`: its HTML when it was written in the composer, read the

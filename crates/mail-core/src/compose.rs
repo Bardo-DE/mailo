@@ -17,8 +17,19 @@ use mail_secrets::CredentialError;
 use mail_store::{SqliteStore, Store};
 use porter_core::AccountId;
 
-pub mod addresses;
-mod doc;
+/// The recipient box's two directions: [`mail_logic::compose::addresses`], with the error a
+/// caller of the core shows.
+pub mod addresses {
+    use crate::error::CoreError;
+    use mail_domain::Address;
+
+    pub use mail_logic::compose::addresses::join_addresses;
+
+    /// Parse a recipient box into addresses. See [`Address::parse_list`] for what it accepts.
+    pub fn parse_addresses(input: &str) -> Result<Vec<Address>, CoreError> {
+        Ok(mail_logic::compose::addresses::parse_addresses(input)?)
+    }
+}
 mod enclosed;
 mod format;
 pub mod freeze;
@@ -26,9 +37,10 @@ mod modes;
 mod pictures;
 mod submit;
 mod weight;
-pub use doc::{doc_from_text, doc_of};
 pub use enclosed::{Carry, ENCLOSED, draft_forward_attached, eml_name, rebuilt};
 pub use format::{Written, written_as};
+pub use mail_logic::compose::doc::{doc_from_text, doc_of};
+pub use mail_logic::compose::{ATTACHMENT_BUDGET, Leaves, Myself, media_type_of, shows_inline};
 pub use modes::{
     Answer, Quote, Redirected, Saying, draft_again, draft_answer, draft_answer_in, list_post,
     redirect, withdraw_redirect,
@@ -501,13 +513,6 @@ pub fn move_draft_to_identity(
     Ok(draft)
 }
 
-/// Where [`copy_myself`] puts the sender's own address.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Myself {
-    Cc,
-    Bcc,
-}
-
 /// Put the address `draft` leaves from on its Cc or Bcc, so a copy of the message comes back to
 /// the person who sent it, and save it. Nothing changes when the address is already on it.
 pub fn copy_myself(store: &SqliteStore, draft: DraftId, to: Myself) -> Result<Draft, CoreError> {
@@ -528,48 +533,6 @@ pub fn copy_myself(store: &SqliteStore, draft: DraftId, to: Myself) -> Result<Dr
     }
     save(store, &draft)?;
     Ok(draft)
-}
-
-/// The most a single message may carry, before base64 expands it.
-///
-/// Encoding inflates by four bytes for every three, so this is about 27 MiB on the wire, which
-/// is over the 25 MB Gmail and most of the rest refuse at. The check is here rather than at send
-/// because the answer has to arrive while the file is being attached: a refusal at Send is one
-/// that comes after the message is written, and there is nothing useful to do with it then.
-pub const ATTACHMENT_BUDGET: u64 = 20 * 1024 * 1024;
-
-/// What to call the content of a file, from its name.
-///
-/// A small table and `application/octet-stream` for everything else, rather than a dependency
-/// that sniffs content. The receiving client re-sniffs anyway, the honest fallback is never
-/// wrong — it says "bytes", which they are — and `mail_mime::build` replaces anything that is
-/// not a well-formed media type regardless, so a wrong guess here cannot forge a header.
-fn media_type_of(name: &str) -> &'static str {
-    let extension = name.rsplit_once('.').map(|(_, ext)| ext).unwrap_or("");
-    match extension.to_ascii_lowercase().as_str() {
-        "txt" | "log" | "md" => "text/plain",
-        "csv" => "text/csv",
-        "html" | "htm" => "text/html",
-        "pdf" => "application/pdf",
-        "png" => "image/png",
-        "jpg" | "jpeg" => "image/jpeg",
-        "gif" => "image/gif",
-        "webp" => "image/webp",
-        "svg" => "image/svg+xml",
-        "zip" => "application/zip",
-        "gz" | "tgz" => "application/gzip",
-        "json" => "application/json",
-        "doc" => "application/msword",
-        "docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "xls" => "application/vnd.ms-excel",
-        "xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "ppt" => "application/vnd.ms-powerpoint",
-        "pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        // A saved message. As `message/rfc822` it is shown by the recipient's client as the
-        // message it is, and `mail_mime::build` sends it under an encoding RFC 2046 allows.
-        "eml" => ENCLOSED,
-        _ => "application/octet-stream",
-    }
 }
 
 /// Attach `bytes` to a draft under `name`.
@@ -614,12 +577,6 @@ pub fn attach_bytes(
     draft.updated = now;
     save(store, &draft)?;
     Ok(draft)
-}
-
-/// Whether a file named `name` is a picture the body can show (`attach_inline` takes it): by
-/// its name, as everything here that types a file does.
-pub fn shows_inline(name: &str) -> bool {
-    mail_mime::embeddable(media_type_of(name)).is_some()
 }
 
 /// Put the image `bytes`, named `name`, on a draft to be shown in its body, and say the
@@ -1267,15 +1224,6 @@ fn on_its_way(state: &SendState) -> bool {
         state,
         SendState::Queued | SendState::Scheduled { .. } | SendState::Sending
     )
-}
-
-/// When a queued message may leave the outbox.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Leaves {
-    /// As soon as a pass drains the outbox.
-    Now,
-    /// Not before this instant. The draft shows [`SendState::Scheduled`] until it goes.
-    At(DateTime<Utc>),
 }
 
 /// Queue a draft for delivery, returning it and what was queued.

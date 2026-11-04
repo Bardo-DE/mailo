@@ -13,16 +13,8 @@
 //! fetched anything is still the window's to fetch, because the watch reads its accounts when it
 //! starts and does not know one made since.
 
+pub use mail_logic::schedule::Schedule;
 use mail_runtime::fetch::{Event, Link, Trigger};
-
-/// Who decides when mail is fetched.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Schedule {
-    /// This process: timers, polls and pushes are its own.
-    Window,
-    /// A `mailo watch`: the window fetches only when a person asks.
-    Watch,
-}
 
 /// What the scheduler does with an event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -315,9 +315,9 @@ impl Net<'_> {
     }
 
     /// Set an account's kept vacation reply where its JMAP or Graph server keeps one.
-    pub fn put_away(&self, account: &Configured) -> mail_core::rules::server::PushDone {
+    pub fn put_away(&self, account: &Configured) -> crate::saved::PushDone {
         let mail = self.mail();
-        Self::wait(&mail, mail.rules().put_away(account))
+        Self::wait(&mail, mail.rules().put_away(account)).into()
     }
 
     /// How much of an account's storage its server says is used.
@@ -331,12 +331,13 @@ impl Net<'_> {
         &self,
         address: &str,
         now: DateTime<Utc>,
-    ) -> Result<Option<PgpKey>, mail_core::pgp::PgpError> {
+    ) -> Result<Option<PgpKey>, crate::protect::PgpError> {
         let mail = self.mail();
         Self::wait(
             &mail,
             mail_core::pgp::lookup_address(self.0.store(), address, now),
         )
+        .map_err(crate::protect::PgpError::from)
     }
 
     /// Search one account's server for `input`.

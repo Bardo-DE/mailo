@@ -7,7 +7,7 @@ use crate::ui::fixtures::{
 use dioxus::html::input_data::keyboard_types::Modifiers;
 use dioxus::prelude::*;
 use dioxus_core::VirtualDom;
-use mail_client::testing::core::message::{Looks, Read};
+use mail_client::message::{Looks, Read};
 use mail_client::testing::{SqliteStore, Store};
 use mail_domain::*;
 use mail_ui_kit::files::SaveDir;

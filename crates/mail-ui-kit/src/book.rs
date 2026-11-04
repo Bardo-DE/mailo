@@ -74,7 +74,7 @@ fn person_error(error: PersonError) -> String {
         PersonError::BadAddress(typed) => mail_ui_model::copy::errors::not_an_address(&typed),
         PersonError::Gone => mail_ui_model::copy::errors::CONTACT_GONE.to_owned(),
         PersonError::InBook { name } => mail_ui_model::copy::errors::in_address_book(&name),
-        PersonError::Core(why) => why.to_string(),
+        PersonError::Other(why) => why.to_string(),
     }
 }
 
@@ -84,7 +84,7 @@ fn group_error(error: GroupError) -> String {
         GroupError::NoName => mail_ui_model::copy::errors::GROUP_NEEDS_A_NAME.to_owned(),
         GroupError::Gone => mail_ui_model::copy::errors::GROUP_GONE.to_owned(),
         GroupError::InBook { name } => mail_ui_model::copy::errors::in_address_book(&name),
-        GroupError::Core(why) => why.to_string(),
+        GroupError::Other(why) => why.to_string(),
     }
 }
 

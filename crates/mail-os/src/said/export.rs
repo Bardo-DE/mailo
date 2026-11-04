@@ -1,10 +1,11 @@
 //! What an export did, in words: the command line prints it, the window shows it.
 
-use mail_client::export::{Exported, Target};
+use mail_client::export::Exported;
+use std::path::Path;
 
 /// What an export says when it is done.
-pub fn said(done: &Exported, target: &Target) -> String {
-    let place = target.path.display();
+pub fn said(done: &Exported, to: &Path) -> String {
+    let place = to.display();
     let mut out = format!("{} message(s) written to {place}\n", done.written);
     let skipped = done.absent + done.partial;
     if skipped > 0 {

@@ -5,27 +5,15 @@
 //! the outbox, so a folder made on a train is there immediately and on the server after the
 //! next sync — or put back, if the server refuses it for good.
 
+pub use mail_domain::folder::Refusal;
+
 use crate::error::{CoreError, Logged};
 use chrono::{DateTime, Utc};
 use mail_domain::folder::{FolderContents, FolderCtx, plan};
-use mail_domain::{Applied, Folder, FolderError, FolderWork, Incoming, MailboxRef};
+use mail_domain::{Applied, Folder, FolderWork, Incoming, MailboxRef};
 use mail_logic::accounts::Accounts;
 use mail_store::{SqliteStore, Store};
 use porter_core::AccountId;
-
-/// Why a folder change did not happen.
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-pub enum Refusal {
-    /// The change itself cannot be made: the name, the folder, the protocol.
-    #[error(transparent)]
-    Folder(#[from] FolderError),
-    /// No configured account has this id.
-    #[error("no such account")]
-    NoAccount,
-    /// The store could not be read or written; nothing was changed.
-    #[error("{0}")]
-    Store(String),
-}
 
 /// Make a folder change: here at once, on the server when the outbox next drains.
 ///

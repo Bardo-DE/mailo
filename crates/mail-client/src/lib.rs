@@ -10,6 +10,7 @@
 //! `docs/mail-client.md` says where this is going.
 
 pub mod act;
+mod book;
 mod caches;
 pub mod calls;
 mod client;
@@ -18,11 +19,14 @@ mod error;
 mod external;
 mod fault;
 pub mod fetch;
+mod files;
 mod keys;
 mod live;
 mod net;
+mod protect;
 mod pure;
 pub mod query;
+mod saved;
 mod stored;
 #[cfg(feature = "testing")]
 pub mod testing;

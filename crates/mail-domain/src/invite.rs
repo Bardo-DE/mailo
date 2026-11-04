@@ -19,6 +19,14 @@ pub enum Attendance {
     Declined,
 }
 
+/// An answer that is queued: what was answered, and who it goes to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Answered {
+    pub attendance: Attendance,
+    /// The envelope recipients of the queued reply: the organiser.
+    pub to: Vec<String>,
+}
+
 /// What the user answered one invitation message, and when.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InviteAnswer {

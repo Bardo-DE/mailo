@@ -624,10 +624,10 @@ mod reading {
             "{said}"
         );
         // The attachment, from the decrypted message: the stored one is ciphertext.
-        let map = opened.attachment(0).unwrap();
+        let map = mail_core::attach::opened_attachment(opened.shown.as_ref().unwrap(), 0).unwrap();
         assert_eq!(map.name, "map.bin");
         assert_eq!(map.bytes, vec![0, 1, 2, 3, 4, 5, 6, 7]);
-        assert!(opened.attachment(1).is_err());
+        assert!(mail_core::attach::opened_attachment(opened.shown.as_ref().unwrap(), 1).is_err());
         let saved = mail_core::attach::save_opened(&map, dir.path()).unwrap();
         assert_eq!(std::fs::read(saved).unwrap(), map.bytes);
         // Nothing decrypted reached the index: the subject, outside, is found; the body is not.

@@ -79,8 +79,7 @@ pub(super) fn ExportSheet(shell: Signal<Shell>) -> Element {
     let counting = counted().is_none();
     let busy = phase.read().running();
     let can_run = count.is_some() && !busy && !target_path.trim().is_empty();
-    let formats: Vec<Choice<&'static dyn Writer>> =
-        writers().map(|one| Choice::new(one, one.label())).collect();
+    let formats: Vec<Choice<Writer>> = writers().map(|one| Choice::new(one, one.label())).collect();
     let what = mail_ui_model::copy::status::export_makes(format().slug());
     let start = {
         let target_path = target_path.clone();
@@ -132,11 +131,11 @@ pub(super) fn ExportSheet(shell: Signal<Shell>) -> Element {
                         label: "As",
                         help: Some(what.into()),
                         layout: RowLayout::Form,
-                        SegmentedControl::<&'static dyn Writer> {
+                        SegmentedControl::<Writer> {
                             label: "Format".to_owned(),
                             choices: formats,
                             tracking: Tracking::SelectOne(format()),
-                            onchange: move |one: &'static dyn Writer| format.set(one),
+                            onchange: move |one: Writer| format.set(one),
                         }
                     }
                     FieldRow {

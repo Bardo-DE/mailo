@@ -21,7 +21,7 @@ pub fn run(store: &SqliteStore, query: &str, target: &Target) -> Result<String, 
             eprintln!("  {} written", done.written);
         },
     )?;
-    Ok(said(&done, target))
+    Ok(said(&done, &target.path))
 }
 
 #[cfg(test)]
@@ -38,7 +38,7 @@ mod tests {
                     written: 4,
                     ..Exported::default()
                 },
-                &target
+                &target.path
             ),
             "4 message(s) written to out.mbox\n"
         );
@@ -48,7 +48,7 @@ mod tests {
                 absent: 1,
                 partial: 2,
             },
-            &target,
+            &target.path,
         );
         assert_eq!(
             skipped,

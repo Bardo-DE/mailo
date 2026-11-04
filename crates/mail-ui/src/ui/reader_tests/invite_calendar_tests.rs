@@ -9,7 +9,7 @@ use super::invite_tests::{
 use crate::ui::fixtures::client as client_over;
 use crate::ui::fixtures::{Seen, click, dispatching, rebuild_into, seeded, settle_for};
 use dioxus::dioxus_core::VirtualDom;
-use mail_client::testing::core::message::Looks;
+use mail_client::message::Looks;
 use mail_client::testing::{SqliteStore, Store};
 use mail_domain::*;
 use mail_ui_model::copy::controls;

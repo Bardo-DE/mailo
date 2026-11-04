@@ -26,7 +26,6 @@ pub mod bimi;
 pub mod compose;
 pub mod config;
 pub mod contacts;
-pub mod conversation;
 pub mod discover;
 pub mod environment;
 pub mod erase;
@@ -74,6 +73,7 @@ pub use mail::{
     SyncOps, SystemClock,
 };
 pub use mail_engine::schedule;
+pub use mail_logic::conversation;
 pub use mail_net::{Transport, remote_image};
 /// An account's storage as its server counts it ([`SyncOps::quota`]).
 pub use mail_proto::Storage;

@@ -6,6 +6,7 @@
 //! runtime the front-end owns.
 
 pub use crate::notify::Announce;
+pub use mail_logic::accounts::Configured;
 pub mod due;
 pub mod fresh;
 pub mod graph_push;
@@ -40,28 +41,6 @@ pub use search::search_server_with;
 use std::sync::Arc;
 use tokio::sync::watch;
 
-/// An account as a pass runs it: its plan, what its server supports and how the person syncs it.
-/// Only an account something has connected for is one ([`Configured::of`]).
-#[derive(Debug)]
-pub struct Configured {
-    pub id: AccountId,
-    pub address: String,
-    pub plan: AccountPlan,
-    pub caps: AccountCaps,
-    /// Whether a pass fetches the attachments a sync leaves on the server too. The window's
-    /// setting, not the store's ([`crate::offline`]).
-    pub keep: crate::offline::Keep,
-    /// How often a timed pass checks it, from the same setting.
-    pub every: crate::offline::Every,
-    /// How far back a pass downloads its bodies, from the same setting.
-    pub window: crate::offline::Window,
-    /// When a POP3 pass removes the server's copies, from the same setting.
-    pub remove: crate::offline::Remove,
-    /// How the junk filter judges what a pass brings ([`crate::junk`]): the window's setting,
-    /// as `keep` is.
-    pub junk: mail_logic::junk::Policy,
-}
-
 /// What the server was last observed to support, for one account.
 ///
 /// `None` when nothing has connected yet, which the caller must treat as "assume nothing" rather
@@ -72,25 +51,6 @@ pub fn caps_of(store: &SqliteStore, account: AccountId) -> Option<AccountCaps> {
         .account_caps(account)
         .or_log("the account's capabilities could not be read")
         .flatten()
-}
-
-impl Configured {
-    /// `account` as a pass runs it; `None` while nothing has connected for it, which is an
-    /// ordinary state and no reason to log.
-    pub fn of(account: &mail_logic::accounts::Account) -> Option<Configured> {
-        let prefs = account.prefs;
-        Some(Configured {
-            id: account.id.clone(),
-            address: account.address.clone(),
-            plan: account.plan.clone(),
-            caps: account.caps.clone()?,
-            keep: prefs.keep,
-            every: prefs.every,
-            window: prefs.window,
-            remove: prefs.remove,
-            junk: prefs.junk,
-        })
-    }
 }
 
 /// The accounts a pass can be run for, in the order they were added: those something has

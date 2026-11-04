@@ -12,6 +12,7 @@ rust-version.workspace = true
 [dependencies]
 porter-core.workspace = true
 mail-domain.workspace = true
+mail-logic.workspace = true
 mail-proto.workspace = true
 mail-net.workspace = true
 mail-secrets.workspace = true

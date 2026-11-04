@@ -22,80 +22,10 @@ use mail_secrets::{AccountSecrets, ClientRegistry};
 use mail_store::SqliteStore;
 use porter_provider::Issuer;
 
+pub use mail_logic::account::{Mode, SignInError, WAIT, name_of, signs_in_directly};
+
 use super::{Added, Credentials, Receive, Requested, Setup, add_receiving, oauth_client};
 use crate::environment::Environment;
-
-/// How long the browser has to come back before the sign-in gives up. Long enough to find a
-/// password or a phone for a second factor; short enough that a tab closed without a word does
-/// not leave a sign-in waiting all day.
-pub const WAIT: Duration = Duration::from_secs(10 * 60);
-
-/// Whose sign-in it is.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Mode {
-    /// A new account: whichever the person signs in as.
-    Add,
-    /// An account already here whose sign-in has to be made again. The person must sign in as
-    /// this address; its servers and how it reads and sends stay as they are.
-    Again { address: String },
-}
-
-/// Why a direct sign-in ended without an account. Each says itself in plain words
-/// (`Display`); what to offer next is the front end's.
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-pub enum SignInError {
-    /// This installation has no OAuth client for the issuer, so its page cannot be opened.
-    #[error("Mail has no sign-in set up for {}.", named(.0))]
-    NoClient(Issuer),
-    /// The issuer hosts no mail Mail reads, or the account does not sign in with it.
-    #[error("Mail can't sign in to this account with {}.", named(.0))]
-    NotMail(Issuer),
-    /// The person closed or denied the sign-in on the issuer's page.
-    #[error("Sign-in cancelled")]
-    Declined,
-    /// The sign-in was cancelled here, before the browser came back.
-    #[error("Sign-in cancelled")]
-    Cancelled,
-    /// No browser came back in time.
-    #[error("The sign-in took too long. Try again when you're ready.")]
-    TimedOut,
-    /// The person signed in again as someone other than the account that asked.
-    #[error("You signed in as {signed}, not {asked}.")]
-    OtherAccount { asked: String, signed: String },
-    /// No browser would open the page.
-    #[error("Couldn't open your browser: {0}")]
-    Browser(String),
-    /// The issuer could not be reached, or answered with something that was not a sign-in.
-    #[error("Couldn't finish signing in: {0}")]
-    Network(String),
-    /// The account or its sign-in could not be kept.
-    #[error("Couldn't save the account: {0}")]
-    Store(String),
-}
-
-/// An issuer as the person knows it.
-pub fn name_of(issuer: Issuer) -> &'static str {
-    match issuer {
-        Issuer::Google => "Google",
-        Issuer::Microsoft => "Microsoft",
-        Issuer::Fastmail => "Fastmail",
-        Issuer::Dropbox => "Dropbox",
-        Issuer::Box => "Box",
-        _ => "this provider",
-    }
-}
-
-/// [`name_of`], for the words of an error, which hold the issuer by reference.
-fn named(issuer: &Issuer) -> &'static str {
-    name_of(*issuer)
-}
-
-/// Whether accounts of `issuer` are mail Mail can add from a sign-in alone: the issuer names its
-/// servers (`presets::preset_for_issuer`), so nothing is left to ask once the browser is done.
-pub fn signs_in_directly(issuer: Issuer) -> bool {
-    // Whether there is a preset at all: the time it would be stamped with does not matter.
-    presets::preset_for_issuer(issuer, "", DateTime::<Utc>::default()).is_some()
-}
 
 /// What [`sign_in_with`] reaches the world with.
 pub struct Direct<'a> {
