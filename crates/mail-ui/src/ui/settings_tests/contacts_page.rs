@@ -8,8 +8,8 @@ use mail_ui_kit::view::PageId;
 use mail_ui_model::copy;
 use mail_ui_settings::contacts::page::key_of;
 
-#[test]
-fn a_contact_is_made_edited_and_deleted_from_its_page() {
+#[tokio::test]
+async fn a_contact_is_made_edited_and_deleted_from_its_page() {
     let built = work();
     let (mut dom, seen) = opened_on(&built, PageId::CONTACTS);
     let seen = click(
@@ -78,8 +78,8 @@ fn a_contact_is_made_edited_and_deleted_from_its_page() {
     assert_eq!(built.store.card(&card.id).unwrap(), None, "the card stayed");
 }
 
-#[test]
-fn a_group_is_made_and_given_members_from_its_page() {
+#[tokio::test]
+async fn a_group_is_made_and_given_members_from_its_page() {
     let built = work();
     let (mut dom, seen) = opened_on(&built, PageId::CONTACTS);
     let before = built.store.groups().unwrap().len();
@@ -104,5 +104,65 @@ fn a_group_is_made_and_given_members_from_its_page() {
     assert_eq!(
         group.members,
         ["mailto:ada@example.test", "mailto:bob@example.test"]
+    );
+}
+
+/// A card called `name` at `email`, made before the window opens.
+fn card_named(built: &crate::ui::fixtures::Work, name: &str, email: &str) {
+    let details = mail_client::contacts::people::Details {
+        name: name.to_owned(),
+        emails: vec![email.to_owned()],
+        ..Default::default()
+    };
+    mail_ui_kit::book::keep_card(&crate::ui::fixtures::client(&built.store), None, &details)
+        .unwrap_or_else(|why| panic!("a card: {why}"));
+}
+
+/// The search field filters once the box is still, not on each key of a burst; Escape empties
+/// it at once and lists everyone again.
+#[tokio::test]
+async fn the_contacts_search_waits_for_a_pause_and_escape_empties_it() {
+    use crate::ui::fixtures::{chord, settle_until};
+    use dioxus::html::input_data::keyboard_types::Modifiers;
+    use std::time::Duration;
+
+    let built = work();
+    card_named(&built, "Grace Hopper", "grace@example.test");
+    card_named(&built, "Alan Turing", "alan@example.test");
+    let (mut dom, mut seen) = opened_on(&built, PageId::CONTACTS);
+    let page = dioxus_ssr::render(&dom);
+    assert!(
+        page.contains("Grace Hopper") && page.contains("Alan Turing"),
+        "{page}"
+    );
+
+    let field = seen.one("id", "contacts-pane-find");
+    for typed in ["a", "al", "ala"] {
+        type_into(&mut dom, field, typed);
+    }
+    let burst = dioxus_ssr::render(&dom);
+    assert!(
+        burst.contains("value=\"ala\"") && burst.contains("Grace Hopper"),
+        "the list was filtered before the box was still:\n{burst}"
+    );
+
+    settle_until(
+        &mut dom,
+        &mut seen,
+        Duration::from_millis(80),
+        Duration::from_secs(10),
+        |dom| !dioxus_ssr::render(dom).contains("Grace Hopper"),
+    )
+    .await;
+    assert!(dioxus_ssr::render(&dom).contains("Alan Turing"));
+
+    chord(&mut dom, "Escape", Modifiers::empty(), field);
+    drain_seen(&mut dom);
+    let cleared = dioxus_ssr::render(&dom);
+    assert!(
+        !cleared.contains("value=\"ala\"")
+            && cleared.contains("Grace Hopper")
+            && cleared.contains("Alan Turing"),
+        "Escape left the filter:\n{cleared}"
     );
 }

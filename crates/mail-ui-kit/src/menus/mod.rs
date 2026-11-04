@@ -320,6 +320,8 @@ pub fn LabelMenu(
     placed: Option<Rect>,
 ) -> Element {
     let mut done = move || shell.write().further = None;
+    // The labels are in memory, so the list narrows on every keystroke. Escape closes the list
+    // whatever the field holds, as in Move to (quire's `PickList` owns the field's keys).
     let mut typed = use_signal(String::new);
     let (create, base): (Vec<MenuItem>, Vec<MenuItem>) =
         label_items(&shell.read().labels, &summary, &typed())
@@ -329,15 +331,15 @@ pub fn LabelMenu(
     items.extend(create);
     let account = summary.account;
     let empty = if shell.read().labels.is_empty() {
-        "No labels"
+        copy::empty::NO_LABELS
     } else {
-        "No label matches."
+        copy::empty::NO_LABEL_MATCHES
     };
     rsx! {
         PickList::<String> {
             anchor: anchor_for(anchor, placed),
-            label: "Labels",
-            placeholder: "Filter labels…",
+            label: copy::headers::LABELS,
+            placeholder: copy::menus::FIND_A_LABEL,
             query: typed(),
             groups: palette_groups(&items, AvatarSize::Size22, None),
             empty,

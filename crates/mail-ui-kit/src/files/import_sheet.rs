@@ -174,14 +174,16 @@ pub(super) fn ImportSheet(shell: Signal<Shell>) -> Element {
                                 ..Common::default()
                             },
                         }
+                        // The folders are in memory, so the list narrows on every keystroke.
+                        // Escape closes it whatever the field holds, as in Move to.
                         if menu_open() {
                             PickList::<String> {
                                 anchor: anchor_at(into_button()),
-                                label: "Import into",
-                                placeholder: "Find a folder",
+                                label: copy::menus::IMPORT_INTO,
+                                placeholder: copy::menus::FIND_A_FOLDER,
                                 query: find(),
                                 groups: palette_groups(&narrowed(&items, &find()), AvatarSize::Size22, None),
-                                empty: "No folder matches.",
+                                empty: copy::empty::NO_FOLDER_MATCHES,
                                 oninput: move |text: String| find.set(text),
                                 onpick: move |key: String| {
                                     let client = crate::live::client();

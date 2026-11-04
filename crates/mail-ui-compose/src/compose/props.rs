@@ -483,7 +483,7 @@ fn Recipients(page: Signal<Page>, list: List, refused: Option<u32>) -> Element {
         (None, None) => Validity::Valid,
     };
     let placeholder = if people.is_empty() {
-        "Add a person"
+        copy::fields::ADD_A_PERSON
     } else {
         ""
     };

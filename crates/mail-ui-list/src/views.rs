@@ -183,7 +183,7 @@ pub fn ViewSheet(shell: Signal<Shell>, pages: Signal<u32>) -> Element {
                         TextField {
                             label: copy::fields::NAME.to_owned(),
                             value: draft.name.clone(),
-                            placeholder: "Receipts".to_owned(),
+                            placeholder: copy::fields::SAVED_VIEW_NAME_EXAMPLE.to_owned(),
                             validity: name_refused,
                             oninput: move |value: String| edit(shell, |draft| draft.name = value),
                         }
@@ -192,7 +192,7 @@ pub fn ViewSheet(shell: Signal<Shell>, pages: Signal<u32>) -> Element {
                         TextField {
                             label: "Lists".to_owned(),
                             value: draft.query.clone(),
-                            placeholder: "from:shop.example has:attachment".to_owned(),
+                            placeholder: copy::fields::SAVED_VIEW_QUERY_EXAMPLE.to_owned(),
                             validity: query_refused,
                             oninput: move |value: String| edit(shell, |draft| draft.query = value),
                         }

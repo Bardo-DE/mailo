@@ -13,6 +13,7 @@ mod people_groups;
 mod receipt;
 pub(in crate::ui) mod render;
 mod rows;
+mod search_fields;
 mod smime;
 mod templates;
 mod wire;

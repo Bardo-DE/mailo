@@ -16,16 +16,18 @@ use ds::root::pass_through::ExtraClass;
 use chrono::{DateTime, Utc};
 use dioxus::prelude::*;
 use mail_client::Client;
-use mail_domain::{Draft, Template, TemplateId};
+use mail_domain::{Draft, TemplateId};
 
 use super::desk::{self, Desk};
 use super::float::{commit, query, slash_items};
 use super::life;
 use super::page::{Float, Page, PageKind, Phase, address};
 use mail_editor::{Caret, Node, Op, Range, runs_text};
-use mail_ui_kit::menu::{MenuItem, MenuKey, Right, anchor_at, menu_key, palette_groups};
+use mail_ui_kit::escape::{Escape, escape};
+use mail_ui_kit::menu::{MenuItem, MenuKey, anchor_at, menu_key, narrowed, palette_groups};
 use mail_ui_kit::motion::{Follow, tell};
 use mail_ui_kit::view::Shell;
+use mail_ui_model::copy;
 
 /// The ⋯ item that keeps the message as a template.
 pub const SAVE_KEY: &str = "template:save";
@@ -34,24 +36,29 @@ pub const EMOJI_KEY: &str = "emoji:pick";
 /// The `/` row that starts the message from one, offered while the body is empty.
 pub const START_KEY: &str = "template:start";
 
-/// How much of a template's first line its row shows.
-const FIRST_LINE: usize = 60;
-
 /// The `/` menu on this page: the editor's rows, then what can be done with the whole message.
 pub fn page_slash_items(page: &Page) -> Vec<MenuItem> {
     let typed = query(page).unwrap_or_default();
     let wanted = typed.trim().to_lowercase();
     let mut items = slash_items(&typed);
+    // Narrowed as every picker's rows are (`narrowed`: fuzzy, best match first, the matched
+    // letters marked); a row also answers to the words it is known by.
     let mut offer = |key: &str, icon: Icon, name: &str, help: &str, words: &[&str]| {
-        let hit = wanted.is_empty()
-            || name.to_lowercase().starts_with(&wanted)
-            || words.iter().any(|word| word.starts_with(&wanted));
-        if hit {
-            items.push(MenuItem {
-                help: Some(help.to_owned()),
-                group: wanted.is_empty().then(|| "This message".to_owned()),
-                ..MenuItem::icon(key, icon, name)
-            });
+        let row = MenuItem {
+            help: Some(help.to_owned()),
+            group: wanted
+                .is_empty()
+                .then(|| copy::menus::THIS_MESSAGE.to_owned()),
+            ..MenuItem::icon(key, icon, name)
+        };
+        let known_by = words.iter().any(|word| word.starts_with(&wanted));
+        if let Some(hit) = narrowed(std::slice::from_ref(&row), &typed)
+            .into_iter()
+            .next()
+        {
+            items.push(hit);
+        } else if known_by {
+            items.push(row);
         }
     };
     // The picker the foot's emoji button used to open: one step from the caret, as `:` is.
@@ -110,61 +117,8 @@ pub fn pick(page: &mut Page, key: &str) -> bool {
     true
 }
 
-/// The rows of a list of templates, `(account address, template)`, narrowed to `typed`: the
-/// name, the address it leaves from and its first line, and a × to delete it.
-pub fn template_rows(all: &[(String, Template)], typed: &str) -> Vec<MenuItem> {
-    let typed = typed.trim();
-    all.iter()
-        .filter_map(|(from, template)| {
-            let marks = if typed.is_empty() {
-                Vec::new()
-            } else {
-                mail_client::search::match_list(typed, &[template.name.as_str()])
-                    .into_iter()
-                    .next()?
-                    .indices
-            };
-            Some(MenuItem {
-                help: Some(format!("{from} · {}", first_line(template))),
-                right: Right::Remove(format!("Delete template “{}”", template.name)),
-                marks,
-                ..MenuItem::icon(
-                    template.id.to_string(),
-                    Icon::FilePen,
-                    template.name.clone(),
-                )
-            })
-        })
-        .collect()
-}
-
-/// The first line a template says, else its subject: what a row recognises it by.
-fn first_line(template: &Template) -> String {
-    let line = template
-        .text
-        .lines()
-        .map(str::trim)
-        .find(|line| !line.is_empty())
-        .unwrap_or(template.subject.as_str());
-    let line = if line.is_empty() { "(empty)" } else { line };
-    if line.chars().count() > FIRST_LINE {
-        format!("{}…", line.chars().take(FIRST_LINE).collect::<String>())
-    } else {
-        line.to_owned()
-    }
-}
-
-/// The template a row's key names.
-pub fn named(all: &[(String, Template)], key: &str) -> Option<TemplateId> {
-    all.iter()
-        .map(|(_, template)| template.id)
-        .find(|id| id.to_string() == key)
-}
-
-/// Every template, or none when the client cannot say.
-pub fn every(client: &Client) -> Vec<(String, Template)> {
-    client.template().all().unwrap_or_default()
-}
+// The list of templates is the kit's, one list for ⌘K and for this one.
+pub use mail_ui_kit::template_list::{every, named, template_rows};
 
 /// Delete the template `key` names, returning what the toast says.
 pub fn forget(client: &Client, key: &str) -> Result<String, String> {
@@ -330,7 +284,8 @@ pub(crate) fn TemplateFloat(
 }
 
 /// The templates to start from: quire's palette over the window, narrowed as the person types,
-/// each row's x deleting it and picking nothing.
+/// each row's x deleting it and picking nothing. The few templates a person keeps are in memory,
+/// so the list narrows on every keystroke with no pause.
 #[component]
 fn TemplateList(page: Signal<Page>, shell: Signal<Shell>, active: usize) -> Element {
     let mut query = use_signal(String::new);
@@ -339,17 +294,22 @@ fn TemplateList(page: Signal<Page>, shell: Signal<Shell>, active: usize) -> Elem
     let remove = EventHandler::new(move |key: String| forget_here(page, &key));
     rsx! {
         CommandPalette::<String> {
-            label: "Start from a template".to_owned(),
-            placeholder: "Find a template".to_owned(),
+            label: copy::menus::START_FROM_A_TEMPLATE.to_owned(),
+            placeholder: copy::menus::FIND_A_TEMPLATE.to_owned(),
             query: query(),
             tokens: Vec::new(),
             groups: palette_groups(&rows, AvatarSize::Size22, Some(remove)),
-            empty: "No templates".to_owned(),
+            empty: copy::empty::NO_TEMPLATES.to_owned(),
             selected: Some(active.min(rows.len().saturating_sub(1))),
             on_select: move |to: usize| page.write().float = Float::Templates { active: to },
             oninput: move |text: String| query.set(text),
             onpick: move |key: String| start_here(page, shell, &key),
-            onclose: move |_: PaletteClose| {
+            onclose: move |why: PaletteClose| {
+                // Escape empties the field first, and closes the list once it is empty.
+                if why == PaletteClose::Escape && escape(&query.peek()) == Escape::Clear {
+                    query.set(String::new());
+                    return;
+                }
                 if matches!(page.peek().float, Float::Templates { .. }) {
                     page.write().float = Float::Closed;
                 }
