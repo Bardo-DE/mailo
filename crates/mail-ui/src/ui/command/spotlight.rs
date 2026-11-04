@@ -16,6 +16,7 @@
 
 use super::items::{chips, complete_syntax};
 use super::keys::{BarKey, Plain, Step, Typed, bar_key, step};
+use super::message;
 use super::panel::{Drawn, Fetch, World, panel_rows};
 use super::sections::{completion, lights};
 use super::suggest::suggestions;
@@ -24,10 +25,8 @@ use ds::base::geometry::placement::{Align, Side};
 use ds::host::measure::MountedRef;
 use ds::prelude::*;
 use ds::style::tokens::control_size::ControlSize;
-use mail_ui_kit::actions::{self, Heard, Own};
 use mail_ui_kit::menu::anchor_at;
 use mail_ui_kit::space::Spaces;
-use mail_ui_kit::summon::FIELD;
 use mail_ui_kit::view::{Bar, BarListing, BarOpen, Shell};
 use mail_ui_model::copy;
 
@@ -95,7 +94,12 @@ pub(in crate::ui) fn Spotlight(
     let text = field_text(&shell.read());
     let chips = match &open.listing {
         BarListing::Templates(_) => Vec::new(),
+        BarListing::Message => message::chips(&shell.read()),
         BarListing::Search => chips(&text),
+    };
+    let (label, placeholder) = match &open.listing {
+        BarListing::Message => (copy::aria::FIND_IN_MESSAGE, copy::fields::FIND),
+        BarListing::Search | BarListing::Templates(_) => (LABEL, copy::fields::SEARCH_EVERYTHING),
     };
     // The highlighted row, by its key: quire's cursor names a row by what picking it hands back.
     // Typed text lights a row only once it names it, or once a key or the pointer chose one.
@@ -110,8 +114,8 @@ pub(in crate::ui) fn Spotlight(
         {line}
         Fetch { shell, drawn }
         SearchField::<String> {
-            label: LABEL.to_owned(),
-            placeholder: copy::fields::SEARCH_EVERYTHING.to_owned(),
+            label: label.to_owned(),
+            placeholder: placeholder.to_owned(),
             size: ControlSize::ExtraLarge,
             value: text,
             tokens: chips,
@@ -140,7 +144,12 @@ pub(in crate::ui) fn Spotlight(
             oninput: move |value: String| set_text(shell, pages, value),
             onpick: move |key: String| run_row(ctx, &key),
             // Return with no row lit: the search is what was asked for, and the list shows it.
-            onsubmit: move |_: String| leave(shell),
+            onsubmit: move |_: String| {
+                // Return finds the next match in the message (`message::on_key`); the card stays.
+                if !message::is_on(&shell.peek()) {
+                    leave(shell);
+                }
+            },
             onkey: move |event: KeyboardEvent| on_key(ctx, keys, &keyed_on, event),
             onfocus: move |()| in_a_field.set(true),
             onblur: move |()| in_a_field.set(false),
@@ -151,13 +160,10 @@ pub(in crate::ui) fn Spotlight(
 /// A key in the panel's field: what [`step`] decides, done.
 fn on_key(ctx: Ctx, keys: Keys, rows: &[mail_ui_kit::menu::MenuItem], event: KeyboardEvent) {
     let shell = ctx.shell;
-    // ⌘K again: the panel's field is in quire's overlay, outside the window's own keys, so it
-    // answers the chord itself, selecting what is typed so the next key replaces it.
-    let heard = actions::heard(keys, &event, true);
-    if heard == Some(Heard::Own(Own::Search)) {
-        event.prevent_default();
-        event.stop_propagation();
-        mail_ui_kit::host::Host::focus_all(FIELD);
+    // ⌘K again, ⌘F, ⌘G: the panel's field is in quire's overlay, outside the window's own keys,
+    // so it answers the chords itself. ⌘K selects what is typed so the next key replaces it;
+    // ⌘F is the find in the message; ⌘G and Return step through its matches.
+    if message::on_key(shell, ctx.pages, keys, &event) {
         return;
     }
     let plain = if event.modifiers().is_empty() {
@@ -234,8 +240,8 @@ pub(super) struct Ctx {
     pub desk: Option<mail_ui_compose::compose::Desk>,
 }
 
-/// Run the row keyed `key`: a template while the panel lists them, else what the search's row
-/// does.
+/// Run the row keyed `key`: a template while the panel lists them, nothing while it finds in the
+/// message, else what the search's row does.
 fn run_row(ctx: Ctx, key: &str) {
     let listing = match &ctx.shell.peek().bar {
         Bar::Open(open) => open.listing.clone(),
@@ -243,6 +249,7 @@ fn run_row(ctx: Ctx, key: &str) {
     };
     match listing {
         BarListing::Templates(_) => super::templates::run(ctx.shell, key),
+        BarListing::Message => {}
         BarListing::Search => {
             let choice = super::sections::choice_of(&ctx.drawn.peek().results, key);
             super::act(ctx, choice);
@@ -250,13 +257,18 @@ fn run_row(ctx: Ctx, key: &str) {
     }
 }
 
-/// What the field shows: the templates' filter while the panel lists them, else the search.
+/// What the field shows: the templates' filter while the panel lists them, the find while it
+/// finds in the message, else the search.
 fn field_text(shell: &Shell) -> String {
     match &shell.bar {
         Bar::Open(BarOpen {
             listing: BarListing::Templates(typed),
             ..
         }) => typed.clone(),
+        Bar::Open(BarOpen {
+            listing: BarListing::Message,
+            ..
+        }) => message::text(shell),
         Bar::Open(_) | Bar::Closed => shell.search.clone(),
     }
 }
@@ -270,6 +282,10 @@ fn set_text(mut shell: Signal<Shell>, mut pages: Signal<u32>, text: String) {
             open.moved = false;
             if let BarListing::Templates(typed) = &mut open.listing {
                 *typed = text;
+                return;
+            }
+            if open.listing == BarListing::Message {
+                message::retype(&mut write, text);
                 return;
             }
         }
@@ -305,10 +321,18 @@ fn back(shell: Signal<Shell>) {
 }
 
 /// The panel goes, whatever it listed, the search staying what was typed, and the keyboard goes
-/// back to the window.
+/// back to the window. A find typed empty is over, and one with words stays marked.
 fn leave(mut shell: Signal<Shell>) {
     if shell.peek().bar != Bar::Closed {
-        shell.write().bar = Bar::Closed;
+        let mut write = shell.write();
+        write.bar = Bar::Closed;
+        if write
+            .find
+            .as_ref()
+            .is_some_and(|finding| finding.find.query.trim().is_empty())
+        {
+            write.find = None;
+        }
     }
     mail_ui_kit::host::Host::focus_app();
 }

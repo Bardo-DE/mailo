@@ -11,6 +11,7 @@
 mod commands;
 mod items;
 mod keys;
+mod message;
 mod panel;
 pub(in crate::ui) mod people;
 mod recent;

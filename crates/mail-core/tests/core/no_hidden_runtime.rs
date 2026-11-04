@@ -1,6 +1,6 @@
 //! The libraries start no runtime and read no environment.
 //!
-//! `scripts/check-boundary.sh` holds the same line for the gate; this is the copy a plain
+//! `scripts/check-source.sh` holds the same line for the gate; this is the copy a plain
 //! `cargo test -p mail-core` runs. The application owns the one tokio runtime (`mail-edge`
 //! crate); `mail-core`, `mail-runtime` and `mail-store` give back futures, and `mail-core` is
 //! handed the environment ([`mail_core::Environment`]) instead of reading it.

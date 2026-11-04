@@ -5,9 +5,9 @@ pub mod blocks;
 mod code;
 mod column;
 pub mod fetch;
-pub mod find;
 mod fit;
 mod fold;
+mod found;
 pub mod header;
 mod images;
 mod list_post;
@@ -229,8 +229,8 @@ pub fn Reader(
     let looks = use_looks();
     // The person's own addresses, as the client keeps the accounts read: no store is asked.
     let accounts = mail_ui_kit::data::use_account_rows();
-    // ⌘F's frames, which every message's frame below joins (`find`).
-    let found = find::use_find(shell);
+    // The frames a find marks, which every message's frame below joins (`found`).
+    let found = found::use_found(shell);
     // The client may have moved under this conversation, here or in another window.
     let _ = mail_ui_kit::live::moved_for(
         mail_client::Topics::SUMMARIES
@@ -613,9 +613,6 @@ pub fn Reader(
     rsx! {
         div { class: "reader-head",
             div { class: "head-row",
-                if shell.read().find.is_some() {
-                    find::FindBar { shell }
-                }
                 span { class: "spacer" }
                 div { class: "bar-tools",
                     if tools {

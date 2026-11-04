@@ -126,7 +126,8 @@ The checks CI runs:
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo nextest run --workspace          # or cargo test --workspace; no network needed
-./scripts/check-boundary.sh            # the sans-I/O boundary
+./scripts/check-boundary.sh            # the dependency boundary (scripts/boundary.toml)
+./scripts/check-source.sh              # what the sources may say, apart from dependencies
 ./scripts/check-copy.sh                # the window's words live in crates/mail-ui-model/src/copy
 cargo deny check licenses
 ```
@@ -179,7 +180,7 @@ window (`docs/desktop-member.md`).
 
 The workspace is nine crates under `crates/`. The sans-I/O crates never open a socket, read a
 clock or spawn a task, and `scripts/check-boundary.sh` fails CI if one of them reaches tokio,
-rusqlite, dioxus, reqwest or keyring.
+rusqlite, dioxus, reqwest or keyring (the table of allowed dependencies is `scripts/boundary.toml`).
 
 Published libraries (each package is named `mailo-*`; its folder keeps the `crates/mail-*` name):
 
