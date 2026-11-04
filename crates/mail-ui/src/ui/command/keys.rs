@@ -1,6 +1,8 @@
 //! The search bar's keys, as decisions: what Up, Down, Return, Tab and Escape do in the field,
 //! given what the panel lists and what the field holds. Pure; the bar does what it says.
 
+use mail_ui_kit::escape::{Escape, escape_with};
+
 /// A key the field takes for itself rather than typing it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::ui) enum BarKey {
@@ -40,6 +42,14 @@ pub(in crate::ui) enum Typed {
     Some,
 }
 
+/// What Escape does in the field: the rule every search field shares (`mail_ui_kit::escape`).
+fn escape_of(typed: Typed) -> Escape {
+    match typed {
+        Typed::Some => escape_with(true),
+        Typed::Empty => escape_with(false),
+    }
+}
+
 /// What a key does.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::ui) enum Step {
@@ -69,8 +79,10 @@ pub(in crate::ui) fn step(key: BarKey, active: usize, count: usize, typed: Typed
         (BarKey::Down, Some(at), Some(last)) => Step::Move((at + 1).min(last)),
         (BarKey::Return, Some(at), _) => Step::Run(at),
         (BarKey::Tab, Some(at), _) => Step::Complete(at),
-        (BarKey::Escape, _, _) if typed == Typed::Some => Step::Clear,
-        (BarKey::Escape, _, _) => Step::Leave,
+        (BarKey::Escape, _, _) => match escape_of(typed) {
+            Escape::Clear => Step::Clear,
+            Escape::Leave => Step::Leave,
+        },
         (BarKey::Up | BarKey::Down | BarKey::Return | BarKey::Tab, _, _) => Step::Pass,
     }
 }

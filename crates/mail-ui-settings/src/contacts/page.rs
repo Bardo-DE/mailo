@@ -32,6 +32,8 @@ use mail_client::contacts::{CardId, GroupHome, GroupId, PersonCard};
 use mail_pim::Postal;
 
 use mail_ui_kit::book;
+use mail_ui_kit::debounce::use_debounced_text;
+use mail_ui_kit::escape::clear_on_escape;
 use mail_ui_kit::motion::{Follow, tell};
 use mail_ui_kit::pick::{Ask, choose, file_name};
 use mail_ui_kit::press::on_primary;
@@ -142,10 +144,15 @@ pub fn Contacts(shell: Signal<Shell>) -> Element {
 #[component]
 fn ContactList(shell: Signal<Shell>, edits: Signal<u64>) -> Element {
     let mut filter = use_signal(String::new);
-    // Read, so a write elsewhere on the pane lists again.
-    let _ = edits();
+    // The store is asked once the box has been still, not once per keystroke; a write
+    // elsewhere on the pane (`edits`) lists again.
+    let quiet = use_debounced_text(filter);
+    let found = use_memo(move || {
+        let _ = edits();
+        book::cards(&client(), &quiet.settled.read().text)
+    });
+    let cards = found.read().clone();
     let client = client();
-    let cards = book::cards(&client, &filter());
     let people: Vec<ListItem<String>> = cards
         .iter()
         .map(|card| {
@@ -238,11 +245,15 @@ fn ContactList(shell: Signal<Shell>, edits: Signal<u64>) -> Element {
         Form {
             FormSection {
                 TextField {
-                    label: copy::fields::FIND_CONTACTS,
+                    label: copy::fields::SEARCH_CONTACTS,
                     value: filter(),
-                    placeholder: copy::fields::FIND_CONTACTS,
+                    placeholder: copy::fields::SEARCH_CONTACTS,
                     kind: FieldKind::Search,
                     oninput: move |typed: String| filter.set(typed),
+                    // Escape empties the field; empty, it has nothing to close, so the key goes on.
+                    onkey: move |event: KeyboardEvent| {
+                        clear_on_escape(&event, &filter.cloned(), || filter.set(String::new()));
+                    },
                     common: Common { id: Some("contacts-pane-find".to_owned()), ..Common::default() },
                 }
             }

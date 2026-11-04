@@ -136,11 +136,25 @@ impl Debounced {
 /// render body and not a task per keystroke: a future spawned from a component body is never
 /// polled, and this is the shape of timer the window is known to run.
 pub fn use_debounced(shell: Signal<Shell>, pick: fn(&Shell) -> String) -> Debounced {
+    use_debounced_with(move || pick(&shell.read()), move || pick(&shell.peek()))
+}
+
+/// Debounce a box of the component's own, held in a signal rather than in the shell
+/// (Settings › Contacts' search field).
+pub fn use_debounced_text(text: Signal<String>) -> Debounced {
+    use_debounced_with(move || text.read().clone(), move || text.peek().clone())
+}
+
+/// The debounce over a box `read` reads (subscribing to it) and `peek` reads without.
+fn use_debounced_with(
+    read: impl Fn() -> String + Copy + 'static,
+    peek: impl Fn() -> String + Copy + 'static,
+) -> Debounced {
     let origin = use_hook(tokio::time::Instant::now);
-    let mut machine = use_hook(|| CopyValue::new(Debounce::new(QUIET, &pick(&shell.peek()))));
+    let mut machine = use_hook(|| CopyValue::new(Debounce::new(QUIET, &peek())));
     let mut settled = use_signal(|| machine.peek().settled());
     use_effect(move || {
-        let text = pick(&shell.read());
+        let text = read();
         let done = machine.write().saw(&text, origin.elapsed());
         if let Some(done) = done {
             settled.set(done);

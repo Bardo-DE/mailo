@@ -7,19 +7,14 @@ use dioxus::prelude::*;
 use mail_client::Client;
 use mail_domain::Draft;
 
-use mail_ui_compose::compose::{every_template, template_rows};
 use mail_ui_kit::menu::MenuItem;
 use mail_ui_kit::motion::{Follow, tell};
+use mail_ui_kit::template_list::{every, named, template_rows};
 use mail_ui_kit::view::Shell;
 
 /// Start a draft from the template `key` names, addressed as the template is.
 pub(in crate::ui) fn start(client: &Client, key: &str) -> Result<Draft, String> {
-    let all = every_template(client);
-    let id = all
-        .iter()
-        .map(|(_, template)| template.id)
-        .find(|id| id.to_string() == key)
-        .ok_or_else(|| "that template is gone".to_owned())?;
+    let id = named(&every(client), key).ok_or_else(|| "that template is gone".to_owned())?;
     client
         .template()
         .start(id, &[], Utc::now())
@@ -27,8 +22,8 @@ pub(in crate::ui) fn start(client: &Client, key: &str) -> Result<Draft, String> 
 }
 
 /// The panel's rows while it lists the templates, narrowed by `typed`.
-pub(super) fn rows(client: &Client, typed: &str) -> Vec<MenuItem> {
-    template_rows(&every_template(client), typed)
+pub(in crate::ui) fn rows(client: &Client, typed: &str) -> Vec<MenuItem> {
+    template_rows(&every(client), typed)
 }
 
 /// Start a draft from the template `key` names and open it as a composer page.

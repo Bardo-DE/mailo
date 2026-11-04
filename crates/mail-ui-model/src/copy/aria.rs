@@ -162,6 +162,11 @@ pub fn new_signature_for(address: &str) -> String {
     format!("New Signature for {address}")
 }
 
+/// A template's row in a list of them: its ×, naming the one it deletes.
+pub fn delete_template(name: &str) -> String {
+    format!("Delete template “{name}”")
+}
+
 /// A signature's page: Delete Signature, naming the one it deletes.
 pub fn delete_signature(name: &str) -> String {
     format!("Delete Signature {name}")
