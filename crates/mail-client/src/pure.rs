@@ -230,7 +230,7 @@ pub mod signature {
     pub use mail_core::signature::{Placement, nodes_of, purpose_of, recognise, swap};
 }
 pub mod vip {
-    pub use mail_core::vip::{Mark, Vips, toggled};
+    pub use mail_logic::vip::{Mark, Vips, toggled};
     pub use mail_store::Vip;
 }
 pub mod identity {

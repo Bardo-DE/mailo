@@ -35,6 +35,7 @@ pub mod search;
 pub mod snooze;
 pub mod trust;
 pub mod undo;
+pub mod vip;
 pub mod when;
 
 /// The README's examples, compiled and run as doctests.
