@@ -33,6 +33,7 @@ pub mod rules;
 pub mod saved_search;
 pub mod scope;
 pub mod search;
+pub mod signature;
 pub mod snooze;
 pub mod trust;
 pub mod undo;

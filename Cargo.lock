@@ -5877,6 +5877,8 @@ dependencies = [
  "chrono",
  "mailo-archive",
  "mailo-domain",
+ "mailo-editor",
+ "mailo-reader",
  "nucleo-matcher",
  "porter-core",
  "porter-discover",

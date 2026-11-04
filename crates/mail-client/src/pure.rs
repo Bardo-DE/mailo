@@ -227,7 +227,7 @@ pub mod erase {
     pub use mail_core::erase::{Delete, Keep, Policy};
 }
 pub mod signature {
-    pub use mail_core::signature::{Placement, nodes_of, purpose_of, recognise, swap};
+    pub use mail_logic::signature::{Placement, nodes_of, purpose_of, recognise, swap};
 }
 pub mod vip {
     pub use mail_logic::vip::{Mark, Vips, toggled};
