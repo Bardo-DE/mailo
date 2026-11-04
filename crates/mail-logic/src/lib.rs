@@ -16,6 +16,7 @@ pub mod act;
 pub mod add_account;
 pub mod arrival;
 pub mod auth;
+pub mod bimi;
 pub mod compose;
 pub mod conversation;
 pub mod discover;

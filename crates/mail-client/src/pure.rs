@@ -32,8 +32,38 @@ pub mod auth {
     pub use mail_logic::auth::{Standing, sentence, standing};
 }
 pub mod bimi {
-    pub use mail_core::bimi::{Setting, anchors, brand_logo, domain_of, load};
+    use mail_crypto::smime::Cert;
+    use mail_mime::AuthResults;
+    use mail_runtime::bimi::Txt;
+    use std::path::Path;
+
+    pub use mail_logic::bimi::{Setting, domain_of};
     pub use mail_runtime::bimi::{Cached, Lookup, Shared, cached, shared};
+
+    /// What `bimi.json` in `dir` said, or off when there is none or it cannot be read. Never
+    /// written.
+    pub fn load(dir: &Path) -> Setting {
+        mail_core::bimi::load(dir)
+    }
+
+    /// The mark verifying authorities' roots: the shipped ones and those in `dir`'s
+    /// `bimi-roots.pem`. A file that does not read adds none.
+    pub fn anchors(dir: &Path) -> Vec<Cert> {
+        mail_core::bimi::anchors(dir)
+    }
+
+    /// The logo of the sender at `from`, as a PNG, when the setting is on, the believed `results`
+    /// say DMARC passed for `from`'s domain, and a certified one is found (in the cache under
+    /// `cache_dir`, or asked of `lookup`). Nothing is looked up unless the first two hold.
+    pub async fn brand_logo<D: Txt + Sync>(
+        setting: Setting,
+        results: Option<&AuthResults>,
+        from: &str,
+        lookup: &Lookup<'_, D>,
+        cache_dir: &Path,
+    ) -> Option<Vec<u8>> {
+        mail_core::bimi::brand_logo(setting, results, from, lookup, cache_dir).await
+    }
 }
 pub mod compose {
     pub use mail_core::compose::SendError;
