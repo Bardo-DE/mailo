@@ -54,12 +54,12 @@ pub fn outline(harness: &Harness) -> Vec<String> {
     out
 }
 
-/// `selector`'s text, its trailing line breaks dropped.
+/// `selector`'s text, its trailing line breaks and an empty paragraph's space dropped.
 fn text(harness: &Harness, selector: &str) -> String {
     harness
         .text_of(selector)
         .unwrap_or_default()
-        .trim_end_matches('\n')
+        .trim_end_matches(['\n', '\u{A0}'])
         .to_owned()
 }
 

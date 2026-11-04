@@ -12,7 +12,8 @@ use crate::text::{delete_text, grapheme_len, runs_text};
 
 /// Paragraphs from plain clipboard text.
 ///
-/// A blank line starts a paragraph. A single newline stays inside the paragraph.
+/// A blank line starts a paragraph, and each one more is an empty paragraph. A single newline
+/// stays inside the paragraph.
 pub fn nodes_from_plain(text: &str) -> Vec<Node> {
     if text.is_empty() {
         return Vec::new();
@@ -262,6 +263,7 @@ fn split_paragraphs(text: &str) -> Vec<String> {
             out.push(text[start..index].to_owned());
             index += 2;
             while index < bytes.len() && bytes[index] == b'\n' {
+                out.push(String::new());
                 index += 1;
             }
             start = index;

@@ -3,15 +3,16 @@
 use mail_reader::{RemoteImages, SanitizePolicy, Styles, from_html, sanitize};
 
 use crate::convert::{nodes_from_blocks, nodes_from_plain};
-use crate::doc::{Doc, Node, ParaKind, Pos, Range};
+use crate::doc::{Doc, Marks, Node, ParaKind, Pos, Range};
 use crate::error::OpError;
 use crate::input::{Edit, InputEvent, Record, at, without_selection};
 use crate::keys::Caret;
 use crate::op::Op;
-use crate::text::{grapheme_len, node_len};
+use crate::text::{grapheme_len, node_len, runs_text};
 
 /// Clipboard HTML goes through `sanitize`, then `from_html`, then nodes. Plain text is
 /// paragraphs. One plain paragraph is typed into the line; anything more is inserted as nodes.
+/// Into a code block it all goes as the plain text it is, whatever else the clipboard holds.
 ///
 /// The sanitizer keeps the clipboard's inline styles, since a word processor writes bold and
 /// italic as a span's `font-weight` and `font-style`; `from_html` reads those two and no more.
@@ -29,6 +30,33 @@ pub(crate) fn paste(doc: &Doc, selection: Range, event: &InputEvent) -> Result<E
     };
     let (mut ops, after) = without_selection(doc, selection)?;
     let start = selection.start;
+    if matches!(
+        after.nodes.get(start.node),
+        Some(Node::Para {
+            kind: ParaKind::Code,
+            ..
+        })
+    ) {
+        let text = plain_of(event, &nodes);
+        if text.is_empty() {
+            return Ok(Edit {
+                ops: Vec::new(),
+                caret: at(selection.end),
+                record: Record::Skip,
+            });
+        }
+        let caret = Caret::at(start.node, start.offset + grapheme_len(&text));
+        ops.push(Op::Insert {
+            at: start,
+            text,
+            marks: Marks::new(),
+        });
+        return Ok(Edit {
+            record: Record::Structural,
+            ops,
+            caret,
+        });
+    }
     let caret = match nodes.as_slice() {
         [] => at(start),
         [
@@ -66,6 +94,21 @@ pub(crate) fn paste(doc: &Doc, selection: Range, event: &InputEvent) -> Result<E
         ops,
         caret,
     })
+}
+
+/// The clipboard as plain text: its own, or, when it held only HTML, the words of `nodes`.
+fn plain_of(event: &InputEvent, nodes: &[Node]) -> String {
+    match event.data.as_deref() {
+        Some(text) if !text.is_empty() => text.replace("\r\n", "\n"),
+        _ => nodes
+            .iter()
+            .filter_map(|node| match node {
+                Node::Para { runs, .. } => Some(runs_text(runs)),
+                Node::Object(_) => None,
+            })
+            .collect::<Vec<_>>()
+            .join("\n"),
+    }
 }
 
 /// Where the first of the nodes [`Op::InsertNodes`] puts at `start` lands.

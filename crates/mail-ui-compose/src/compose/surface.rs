@@ -15,9 +15,9 @@
 //! `use_selection_rects` have the window publish their boxes between layout and paint. The boxes
 //! are the surface's; the marks layers are placed from `.c-edit`'s corner (where the floats are
 //! placed too), which `.c-body`'s gutter puts left of the surface's, so each box is moved by the
-//! surface's place in that corner ([`Place`], read once the layout settles). The selection is in
-//! a layer before the surface, which Blitz paints under the positioned surface's text as CSS 2.1
-//! stacks them, and the caret and the IME's preedit in one after it. The caret is drawn at its
+//! surface's place in that corner ([`Place`], read once the layout settles). The selection, the
+//! caret and the IME's preedit are in a layer after the surface, over its text: the selection's
+//! fill is translucent, and under the text a code block's ground would hide it. The caret is drawn at its
 //! rect as given, `--caret-w` wide. The caret's rect in the window is also where the IME's
 //! candidate window goes and where the `/` and `@` menus float (`Marks::at`).
 //!
@@ -36,7 +36,9 @@ use ds::edit::handle::{EditHandle, use_edit_handle};
 use ds::edit::input::{Composition, EditInput};
 use ds::edit::pointer::{EditFocus, EditPointer};
 use ds::edit::selection::use_selection_rects;
+use ds::host::found::Found;
 use ds::host::position::{TextPosition, TextRange};
+use ds::host::reveal::reveal;
 use ds::root::common::Common;
 use ds::root::pass_through::ExtraClass;
 use ds::spell::marks::SpellReplace;
@@ -45,7 +47,7 @@ use super::adapt::{self, Asked, Reach, Step};
 use super::body::{key_taken, now_ms};
 use super::desk::Desk;
 use super::float::{self, suggest_mention};
-use super::page::Page;
+use super::page::{Page, PageKind};
 use super::render;
 use super::wire::{self, Heard};
 use mail_editor::{Caret, Doc, InputEvent, Pos, Range};
@@ -192,6 +194,12 @@ pub(super) fn Surface(
         drop(selection_boxes.read());
         spawn(settle(handle, corner, place));
     });
+    // What the view follows: the caret's own place, drawn or not.
+    let mut at_caret_mark = use_signal(|| None::<Rc<MountedData>>);
+    let follow = Follow {
+        mark: at_caret_mark,
+        asked: use_hook(|| CopyValue::new(0)),
+    };
     // The floats and the bubble follow the marks, a frame behind is soon enough for them.
     use_effect(move || {
         let measured = marks_of(place(), caret_box(), &selection_boxes.read());
@@ -234,13 +242,6 @@ pub(super) fn Surface(
                     });
                 }
             },
-            // Under the text: the selection, before the surface, neither with a z-index.
-            div { class: "c-marks", aria_hidden: "true",
-                onmounted: move |event| corner.set(Some(event.data())),
-                for (index, rect) in shown.selection.iter().enumerate() {
-                    div { key: "{index}", class: "c-sel", style: boxed(rect) }
-                }
-            }
             EditSurface {
                 common: Common {
                     aria_label: Some("Message".to_owned()),
@@ -258,6 +259,7 @@ pub(super) fn Surface(
                         shell,
                         keys: window_keys,
                         on_attach,
+                        follow,
                     };
                     heard(typing, handle, preedit, &taken, input);
                 },
@@ -271,8 +273,18 @@ pub(super) fn Surface(
                 on_replace: move |replace: SpellReplace| replaced(page, replace),
                 {render::body(page)}
             }
-            // Over the text: the caret, and what the IME is composing, at the caret.
+            // Over the text: the selection, the caret, and what the IME is composing, at the
+            // caret. Under it, a code block's or a picture's own ground would hide the selection.
             div { class: "c-marks", aria_hidden: "true",
+                onmounted: move |event| corner.set(Some(event.data())),
+                for (index, rect) in shown.selection.iter().enumerate() {
+                    div { key: "{index}", class: "c-sel", style: boxed(rect) }
+                }
+                div {
+                    class: "c-at",
+                    style: shown.caret.as_ref().map(boxed).unwrap_or_default(),
+                    onmounted: move |event| at_caret_mark.set(Some(event.data())),
+                }
                 if let Some(rect) = caret {
                     // At its rect as given: `--caret-w` wide, whole device pixels.
                     div { class: "c-caret", style: boxed(&rect) }
@@ -286,6 +298,44 @@ pub(super) fn Surface(
                 }
             }
         }
+    }
+}
+
+/// What scrolls the body: a message's own column, or the reader a reply is written under.
+fn scroller_of(page: &Page) -> &'static str {
+    if page.kind == PageKind::Reply {
+        ".reader-body"
+    } else {
+        ".cpage .c-scroll"
+    }
+}
+
+/// The view coming to the caret, after what a person does at the keyboard: not after what only
+/// moves the caret's box, as a resize or Select All does, so a view wheeled away stays there.
+#[derive(Clone, Copy)]
+struct Follow {
+    mark: Signal<Option<Rc<MountedData>>>,
+    /// Which asking is the latest: key repeat scrolls once, for the last key.
+    asked: CopyValue<u64>,
+}
+
+impl Follow {
+    /// Scroll to the caret, two frames on: the caret's box comes from the frame that lays the new
+    /// text out, the mark is drawn in the next, and laid out in the one after.
+    fn ask(self, page: Signal<Page>) {
+        let Self { mark, mut asked } = self;
+        let turn = asked() + 1;
+        asked.set(turn);
+        let view = scroller_of(&page.peek());
+        spawn(async move {
+            ds::base::time::clock::sleep(ds::base::time::FRAME_TICK * 2).await;
+            let Some(item) = mark.peek().clone().filter(|_| asked() == turn) else {
+                return;
+            };
+            if let Found::Element(view) = use_document_host().geometry().find(view) {
+                reveal(&view, &item).await;
+            }
+        });
     }
 }
 
@@ -372,6 +422,7 @@ struct Typing {
     shell: Signal<Shell>,
     keys: Keys,
     on_attach: EventHandler<()>,
+    follow: Follow,
 }
 
 /// One input from the surface.
@@ -387,6 +438,7 @@ fn heard(
         shell,
         keys,
         on_attach,
+        follow,
     } = typing;
     // What a key asks of the window, in a text field: the actions the editor answers, and
     // select all, which the keymap names and the editor core has no key for.
@@ -396,6 +448,7 @@ fn heard(
         let shifted = key.modifiers.contains(Modifiers::SHIFT);
         if key_taken(page, shell, on_attach, &key.key.to_string(), shifted, said) {
             taken.set(true);
+            follow.ask(page);
             return;
         }
     }
@@ -413,8 +466,14 @@ fn heard(
         adapt::asked(&input, keys.platform())
     };
     match asked {
-        Asked::Edit(event) => edit(page, event),
-        Asked::Move(step, reach) => move_caret(page, handle, step, reach),
+        Asked::Edit(event) => {
+            edit(page, event);
+            follow.ask(page);
+        }
+        Asked::Move(step, reach) => {
+            move_caret(page, handle, step, reach);
+            follow.ask(page);
+        }
         Asked::SelectAll => {
             let (start, end) = {
                 let read = page.peek();

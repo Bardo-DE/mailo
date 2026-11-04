@@ -13,7 +13,7 @@ pub use super::items::{
 use super::page::{Float, Page};
 use mail_editor::{
     Action, Caret, ImageRef, InputEvent, Node, Object, Op, ParaKind, Pos, Range, Table, apply_all,
-    catalog, joins_cc, node_len, runs_text, settled, turn_into,
+    catalog, joins_cc, node_len, runs_text, settled, turn, turn_into,
 };
 use mail_ui_kit::lines::List;
 
@@ -22,7 +22,8 @@ const LONGEST_QUERY: usize = 24;
 
 /// Open, follow or close the `/`, `@` and `:` menus after an edit.
 pub(crate) fn after_input(page: &mut Page, event: &InputEvent) {
-    let typed = event.input_type == "insertText";
+    // What is typed in a code block is code: a path, an address or a `:` opens nothing.
+    let typed = event.input_type == "insertText" && !in_code(page);
     match page.float {
         Float::Slash { .. } | Float::Mention { .. } => follow(page),
         Float::Emoji { .. } => follow_emoji(page),
@@ -47,6 +48,17 @@ pub fn after_move(page: &mut Page) {
     if page.selection.is_none() && matches!(page.float, Float::Link(_)) {
         page.float = Float::Closed;
     }
+}
+
+/// Whether the caret is in a code block.
+fn in_code(page: &Page) -> bool {
+    matches!(
+        page.session.doc.nodes.get(page.session.caret.pos.node),
+        Some(Node::Para {
+            kind: ParaKind::Code,
+            ..
+        })
+    )
 }
 
 fn open(page: &mut Page, slash: bool) {
@@ -380,12 +392,23 @@ pub(crate) fn pick_turn(page: &mut Page, key: &str) {
         return;
     };
     let caret = page.session.caret;
-    let range = page.selection.unwrap_or(Range {
+    let selected = page.selection;
+    let range = selected.unwrap_or(Range {
         start: caret.pos,
         end: caret.pos,
     });
     page.float = Float::Closed;
-    commit(page, vec![Op::SetKind { range, kind }], caret);
+    let (ops, turned) = turn(&page.session.doc, range, kind);
+    let joined = turned.ordered().end.node < range.ordered().end.node;
+    let caret = if joined {
+        Caret::at(turned.end.node, turned.end.offset)
+    } else {
+        caret
+    };
+    // The selection stays, as it does through a size or an alignment.
+    if commit(page, ops, caret) && selected.is_some() {
+        page.selection = Some(if joined { turned } else { range });
+    }
 }
 
 /// The ⋮⋮ menu's choice for the object at `index`.

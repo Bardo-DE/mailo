@@ -152,6 +152,73 @@ pub fn tab(doc: &Doc, range: Range, nest: Nest) -> Option<Vec<Op>> {
     in_list.then(|| indent(doc, range, nest))
 }
 
+/// What a code block's Tab types.
+const CODE_TAB: &str = "    ";
+
+/// Tab at a caret in a code block: the edit, and where the caret goes. `None` outside one.
+pub fn code_tab(doc: &Doc, at: Pos) -> Option<(Op, Pos)> {
+    let in_code = matches!(
+        doc.nodes.get(at.node),
+        Some(Node::Para {
+            kind: ParaKind::Code,
+            ..
+        })
+    );
+    in_code.then(|| {
+        let op = Op::Insert {
+            at,
+            text: CODE_TAB.to_owned(),
+            marks: Marks::new(),
+        };
+        (op, Pos::new(at.node, at.offset + CODE_TAB.len()))
+    })
+}
+
+/// Turn the paragraphs `range` touches into `kind`: the edits, and the range they leave. Lines
+/// turned into code join into one block, a line each, up to any object that stands between them.
+pub fn turn(doc: &Doc, range: Range, kind: ParaKind) -> (Vec<Op>, Range) {
+    let range = range.ordered();
+    let (first, last) = (range.start.node, range.end.node);
+    let mut ops = vec![Op::SetKind { range, kind }];
+    if kind != ParaKind::Code {
+        return (ops, range);
+    }
+    let length = |node: usize| match doc.nodes.get(node) {
+        Some(Node::Para { runs, .. }) => Some(para_len(runs)),
+        _ => None,
+    };
+    let mut joins = 0;
+    // From the bottom up, so each line's place is still its own when it is joined.
+    for node in (first + 1..=last).rev() {
+        if let (Some(above), Some(_)) = (length(node - 1), length(node)) {
+            ops.push(Op::Insert {
+                at: Pos::new(node - 1, above),
+                text: "\n".to_owned(),
+                marks: Marks::new(),
+            });
+            ops.push(Op::Merge { node });
+            joins += 1;
+        }
+    }
+    // The range's end moves up by the lines joined, and along by those its own line joined to.
+    let mut offset = range.end.offset;
+    let mut at = last;
+    while at > first
+        && let (Some(above), Some(_)) = (length(at - 1), length(at))
+    {
+        offset += above + 1;
+        at -= 1;
+    }
+    let end = Pos::new(last - joins, offset);
+    (
+        ops,
+        Range {
+            start: range.start,
+            end,
+        },
+    )
+}
+
 /// The alignment of the paragraph `range` starts in.
 pub fn align_at(doc: &Doc, range: Range) -> Align {
     match doc.nodes.get(range.ordered().start.node) {

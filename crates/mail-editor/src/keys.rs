@@ -1,7 +1,8 @@
 //! Enter and Backspace at the edges of a paragraph, where the browser would do the wrong thing.
 //!
-//! Enter ends a heading. An empty list, to-do, or quote leaves that kind, a level at a time when
-//! it is nested. Backspace at the start of a nested item, a quote below the first level or an
+//! Enter ends a heading, and at its start pushes it down a line. An empty list, to-do, or quote
+//! leaves that kind, a level at a time when it is nested; Enter on a code block's empty last line
+//! leaves the block. Backspace at the start of a nested item, a quote below the first level or an
 //! indented paragraph takes it out a level; at the start of a styled paragraph it turns it back
 //! into a paragraph before it will merge, and just after an object it arms the object so a second
 //! press deletes it.
@@ -76,7 +77,7 @@ pub fn enter(doc: &Doc, caret: Caret) -> Result<Motion, OpError> {
             let len = para_len(runs);
             let empty = runs_text(runs).trim().is_empty();
             if *kind == ParaKind::Code {
-                return Ok(insert_newline(caret));
+                return Ok(enter_code(runs_text(runs), len, caret));
             }
             // An empty nested item, or quote, comes out one level before it leaves.
             if empty && leaves_when_empty(*kind) && layout.depth > 0 {
@@ -95,6 +96,13 @@ pub fn enter(doc: &Doc, caret: Caret) -> Result<Motion, OpError> {
                 return Ok(Motion {
                     ops: vec![set_kind(caret.pos.node, ParaKind::Paragraph)],
                     caret: Caret::at(caret.pos.node, 0),
+                });
+            }
+            // At a heading's start there is nothing to end: a line opens above it.
+            if matches!(kind, ParaKind::Heading(_)) && caret.pos.offset == 0 {
+                return Ok(Motion {
+                    ops: vec![insert_paragraph_at(caret.pos.node)],
+                    caret: Caret::at(caret.pos.node + 1, 0),
                 });
             }
             let mut ops = vec![Op::Split { at: caret.pos }];
@@ -237,6 +245,51 @@ fn delete_armed(doc: &Doc, index: usize) -> Result<Motion, OpError> {
         ops: vec![op],
         caret,
     })
+}
+
+/// Enter in a code block of `text`, `len` long: a new line, but on an empty last line the line
+/// goes and a paragraph follows the block, so a block that ends the message has a way out. An
+/// empty block turns back into a paragraph, as an empty list does. Shift-Enter stays in the block.
+fn enter_code(text: String, len: usize, caret: Caret) -> Motion {
+    let Pos { node, offset } = caret.pos;
+    if text.is_empty() {
+        return Motion {
+            ops: vec![set_kind(node, ParaKind::Paragraph)],
+            caret: Caret::at(node, 0),
+        };
+    }
+    if offset < len || !text.ends_with('\n') {
+        return insert_newline(caret);
+    }
+    let end = Pos::new(node, offset - 1);
+    // The block held that one line: with it gone the block is empty, and turns back.
+    if offset == 1 {
+        return Motion {
+            ops: vec![
+                Op::Delete {
+                    range: Range {
+                        start: end,
+                        end: caret.pos,
+                    },
+                },
+                set_kind(node, ParaKind::Paragraph),
+            ],
+            caret: Caret::at(node, 0),
+        };
+    }
+    Motion {
+        ops: vec![
+            Op::Delete {
+                range: Range {
+                    start: end,
+                    end: caret.pos,
+                },
+            },
+            Op::Split { at: end },
+            set_kind(node + 1, ParaKind::Paragraph),
+        ],
+        caret: Caret::at(node + 1, 0),
+    }
 }
 
 fn insert_newline(caret: Caret) -> Motion {

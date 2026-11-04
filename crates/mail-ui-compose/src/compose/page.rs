@@ -135,6 +135,8 @@ pub enum Float {
     Link(String),
     /// The bubble's row of text colours.
     Colour,
+    /// One of the bubble's menus: Turn into, Text Size or Paragraph.
+    FormatMenu,
     /// The ⋮⋮ menu of the object at this node.
     Object(usize),
     /// Send from.
