@@ -530,8 +530,15 @@ async fn vacation_reply_lists_the_accounts_and_a_row_pushes_its_reply() {
     );
     let back = pushed.one("id", "vacation-pane-back-detail");
     let _ = click(&mut dom, back);
-    // The page slides away before it is gone.
-    let _ = crate::ui::fixtures::later(&mut dom).await;
+    // The page slides away before it is gone, waited out until it is.
+    crate::ui::fixtures::settle_until(
+        &mut dom,
+        &mut Seen::default(),
+        std::time::Duration::from_millis(50),
+        std::time::Duration::from_secs(10),
+        |dom| !dioxus_ssr::render(dom).contains("role=\"switch\""),
+    )
+    .await;
     assert!(
         !dioxus_ssr::render(&dom).contains("role=\"switch\""),
         "back did not go back"
@@ -591,8 +598,17 @@ async fn each_per_account_page_opens_on_its_accounts_and_a_row_pushes_the_accoun
         );
 
         let _ = click(&mut dom, pushed.one("id", &back));
-        // The page slides away before it is gone.
-        let _ = crate::ui::fixtures::later(&mut dom).await;
+        // The page slides away before it is gone: waited out until it is, however slow the
+        // machine, and not for a fixed second a loaded runner may not finish the slide in.
+        let gone = format!("id=\"{back}\"");
+        crate::ui::fixtures::settle_until(
+            &mut dom,
+            &mut Seen::default(),
+            std::time::Duration::from_millis(50),
+            std::time::Duration::from_secs(10),
+            |dom| !dioxus_ssr::render(dom).contains(&gone),
+        )
+        .await;
         let list = dioxus_ssr::render(&dom);
         assert!(
             !list.contains(&format!("id=\"{back}\"")),
