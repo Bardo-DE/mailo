@@ -66,7 +66,7 @@ pub(crate) const SIDES: [u32; 4] = [
 /// The cached icons under `dir`, each drawn at every size a window shows it at: what a window's
 /// `Loaded` context holds.
 pub fn read(dir: &std::path::Path) -> Loaded {
-    Loaded::read(dir, &SIDES)
+    mail_client::provider::icon::read(dir, &SIDES)
 }
 
 /// The icon the chip should draw, subscribed to the startup load and to a refresh.
@@ -84,7 +84,7 @@ pub(crate) fn current() -> Loaded {
 ///
 /// Called by each window's root right after it provides the icon signal. The fetch runs off the
 /// draw (`refresh` is async); nothing waits for it, and a provider whose fetch fails keeps its
-/// letter. Under a test binary [`mail_client::provider::icon::missing`] is empty, so no socket opens.
+/// letter. Under a test binary the client's `missing_provider_icons` is empty, so no socket opens.
 pub fn use_fetch_missing(mut icons: Signal<Loaded>) {
     use_hook(move || {
         let Some(root) = mail_client::config::cache_dir() else {

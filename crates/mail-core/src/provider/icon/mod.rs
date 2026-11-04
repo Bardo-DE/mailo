@@ -8,7 +8,7 @@
 //! on Linux), 96 px square, and do not expire; one of another size was written before marks were
 //! drawn at the screen's scale and counts as not cached, so it is fetched again. The bytes shown in
 //! the window are `data:image/png;base64,` URIs read once at startup, one per size a window draws
-//! the mark at ([`Loaded::read`]), never a `file:` URL.
+//! the mark at ([`read`]), never a `file:` URL.
 
 mod cache;
 mod decode;
@@ -17,7 +17,7 @@ mod refresh;
 #[cfg(test)]
 mod tests;
 
-pub use cache::{Loaded, file_stem};
+pub use cache::{Loaded, file_stem, read};
 pub use refresh::{fetch_if_missing, missing, providers_of, refresh};
 
 use mail_domain::{Retry, Retryable};

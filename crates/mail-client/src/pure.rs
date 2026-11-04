@@ -333,7 +333,34 @@ pub mod profile {
 pub mod provider {
     pub use mail_logic::provider::{Provider, provider, service_name};
     pub mod icon {
-        pub use mail_core::provider::icon::{Loaded, missing, refresh};
+        use crate::{CallError, Fault};
+        use mail_logic::provider::Provider;
+        use std::path::Path;
+
+        pub use mail_logic::provider::Loaded;
+
+        /// Every cached icon under `dir`, drawn at each of `sides` (in device pixels). A file
+        /// that is not a cached PNG is skipped.
+        pub fn read(dir: &Path, sides: &[u32]) -> Loaded {
+            mail_core::provider::icon::read(dir, sides)
+        }
+
+        /// Fetch `providers`' icons into `dir`, once each. One failure does not stop the others.
+        pub async fn refresh(
+            dir: &Path,
+            providers: &[Provider],
+        ) -> Vec<(Provider, Result<usize, CallError>)> {
+            mail_core::provider::icon::refresh(dir, providers)
+                .await
+                .into_iter()
+                .map(|(provider, done)| {
+                    (
+                        provider,
+                        done.map_err(|why| CallError::new(Fault::Other, why.to_string())),
+                    )
+                })
+                .collect()
+        }
     }
 }
 pub mod receipt {

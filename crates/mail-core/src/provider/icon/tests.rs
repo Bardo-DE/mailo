@@ -1,4 +1,4 @@
-use super::cache::{Loaded, cached, file_stem, store};
+use super::cache::{cached, file_stem, read, store};
 use super::decode::decode;
 use super::fetch::{client, fetch, url};
 use super::refresh::{missing, providers_of};
@@ -265,7 +265,7 @@ fn a_cached_icon_round_trips_and_a_failed_write_leaves_no_partial_file() {
     std::fs::write(dir.path().join(".fastmail.png.part"), &png)
         .unwrap_or_else(|err| panic!("{err}"));
     assert!(cached(dir.path(), Provider::Fastmail).is_none());
-    let loaded = Loaded::read(dir.path(), &[20, 96]);
+    let loaded = read(dir.path(), &[20, 96]);
     assert!(loaded.uri(Provider::Yahoo, 20).is_some());
     assert!(loaded.uri(Provider::Fastmail, 20).is_none());
     assert!(
@@ -300,7 +300,7 @@ fn a_cached_icon_is_drawn_at_each_side_asked_for_and_an_old_size_is_fetched_agai
     let dir = tempfile::tempdir().unwrap_or_else(|err| panic!("{err}"));
     let png = decode(&solid_png(48, 48, [9, 8, 7, 255])).unwrap_or_else(|err| panic!("{err}"));
     store(dir.path(), Provider::Google, &png).unwrap_or_else(|err| panic!("{err}"));
-    let loaded = Loaded::read(dir.path(), &[16, 20, 56, 96]);
+    let loaded = read(dir.path(), &[16, 20, 56, 96]);
     for (asked, drawn) in [(16, 16), (20, 20), (21, 56), (56, 56), (96, 96), (200, 96)] {
         let uri = loaded
             .uri(Provider::Google, asked)
@@ -316,7 +316,7 @@ fn a_cached_icon_is_drawn_at_each_side_asked_for_and_an_old_size_is_fetched_agai
     .unwrap_or_else(|err| panic!("{err}"));
     assert!(cached(dir.path(), Provider::Yahoo).is_none());
     assert!(
-        Loaded::read(dir.path(), &[20])
+        read(dir.path(), &[20])
             .uri(Provider::Yahoo, 20)
             .is_none()
     );
