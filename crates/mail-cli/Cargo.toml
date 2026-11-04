@@ -42,6 +42,8 @@ tempfile = "3"
 # Already a dependency of every id type. Named here because `mailo unsubscribe` takes an id that
 # may be a message or a thread, and only the store can say which.
 uuid = { workspace = true }
+# The channel the watch is told of changed accounts by (`following.rs`).
+tokio = { version = "1", features = ["sync"] }
 
 # A passphrase asked on the Windows console with echo off (`pgp.rs`, `ask_tty`), where there is
 # no `/dev/tty` and no `stty` to do it with. Apache-2.0.

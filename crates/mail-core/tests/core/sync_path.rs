@@ -628,6 +628,44 @@ mod renewing_an_expired_sign_in {
         assert!(!out.contains("mailo "), "core names no command: {out}");
         assert!(out.contains("ada@example.test"), "{out}");
     }
+
+    /// An OAuth account that was never signed in asks the keyring once for a pass.
+    #[test]
+    fn an_account_not_signed_in_is_asked_of_the_keyring_once_per_pass() {
+        use mail_secrets::CredentialError;
+        use std::future::Future;
+        use std::pin::Pin;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        type Answer<'a, T> = Pin<Box<dyn Future<Output = Result<T, CredentialError>> + Send + 'a>>;
+        struct Reads(MemorySecrets, AtomicUsize);
+        impl AccountSecrets for Reads {
+            fn get<'a>(&'a self, key: &'a SecretKey) -> Answer<'a, Credential> {
+                self.1.fetch_add(1, Ordering::SeqCst);
+                self.0.get(key)
+            }
+            fn put<'a>(&'a self, key: &'a SecretKey, value: &'a Credential) -> Answer<'a, ()> {
+                self.0.put(key, value)
+            }
+            fn forget<'a>(&'a self, key: &'a SecretKey) -> Answer<'a, ()> {
+                self.0.forget(key)
+            }
+            fn forget_account<'a>(&'a self, account: &'a AccountId) -> Answer<'a, ()> {
+                self.0.forget_account(account)
+            }
+        }
+        let secrets = Arc::new(Reads(MemorySecrets::default(), AtomicUsize::new(0)));
+        let out = crate::blocking::run_with(
+            oauth_account(),
+            secrets.clone(),
+            &ClientRegistry::default(),
+            now(),
+            sync::report::Hooks::default(),
+        )
+        .map(|ends| words(&ends))
+        .unwrap();
+        assert!(out.contains("not signed in yet"), "{out}");
+        assert_eq!(secrets.1.load(Ordering::SeqCst), 1);
+    }
 }
 
 /// How often the background loop runs.

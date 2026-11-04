@@ -19,6 +19,7 @@ pub mod discover;
 pub mod exec;
 pub mod export;
 mod folder;
+pub mod following;
 mod icons;
 pub mod import;
 pub mod invite;

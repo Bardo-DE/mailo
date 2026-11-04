@@ -88,8 +88,7 @@ impl std::fmt::Debug for Live<'_> {
 }
 
 impl SyncOps<'_> {
-    /// Keep syncing until every account has stopped for a reason worth stopping for: `mailo
-    /// watch`.
+    /// Keep syncing until every account has stopped for a reason worth stopping for.
     ///
     /// IDLE is a connection held open for as long as the server allows, so it needs a process
     /// whose job is to stay open; the window is not that when it is closed, so this is.
@@ -128,17 +127,18 @@ impl SyncOps<'_> {
         .await
     }
 
-    /// [`watch`](Self::watch), for a watch that is not a command: the one mailo.app runs in its
-    /// own process while it is open (`mail_app::background`).
+    /// [`watch`](Self::watch), for a watch that follows the accounts: `mailo watch`, and the one
+    /// mailo.app runs in its own process while it is open (`mail_app::background`).
     ///
     /// `accounts` moves when the accounts may have changed: each time, they are read again, so an
     /// account added in a window of the same process is fetched on the watch's schedule from then
-    /// on, and one removed stops being. `mailo watch` reads them once and leaves a new one to the
-    /// next watch. `end` is when the run returns: [`End::WhenStuck`] for a command, which has
-    /// nothing left to do once every account is refused; [`End::Never`] for the app's, which a
-    /// sign-in in its window may bring back to life. `wanted` is what that window is about to read
-    /// and fetching itself (`mail_client::Client::wanted`): each pass fetches bodies around it,
-    /// as the window's own passes do. `mailo watch` has no window and passes the default.
+    /// on, and one removed stops being; one whose pass finished elsewhere since is told it was
+    /// signed in ([`follow`]). `end` is when the run returns: [`End::WhenStuck`] for a run that
+    /// has nothing left to do once every account is refused; [`End::Never`] for a watch that
+    /// runs for the session (`mailo watch`, the app's), which a sign-in may bring back to life.
+    /// `wanted` is what that window is about to read and fetching itself
+    /// (`mail_client::Client::wanted`): each pass fetches bodies around it, as the window's own
+    /// passes do. `mailo watch` has no window and passes the default.
     #[allow(clippy::too_many_arguments)]
     pub async fn watch_until(
         &self,
@@ -222,13 +222,42 @@ pub async fn answer(asked: Option<Asked>, mail: &Mail, tx: UnboundedSender<Note>
     std::future::pending::<()>().await;
 }
 
+/// When each account with a server last finished a pass, as the store has it, whichever process
+/// ran the pass. Accounts that cannot be read are none, and logged.
+pub fn finished(mail: &Mail) -> BTreeMap<AccountId, Option<DateTime<Utc>>> {
+    intervals(mail)
+        .into_iter()
+        .map(|(account, _)| {
+            let at = mail
+                .store()
+                .passes(account.clone())
+                .or_log_default("an account's last pass could not be read")
+                .finished;
+            (account, at)
+        })
+        .collect()
+}
+
 /// Tell the scheduler the accounts as they are now each time `accounts` moves. Never returns, as
 /// [`answer`] does not.
+///
+/// An account whose pass finished in another process since the last look (a window that signed
+/// it in) is told [`Event::SignedIn`]: a link here that stopped for want of a sign-in starts
+/// again, and any other link takes no notice.
 pub async fn follow(accounts: Option<Asked>, mail: &Mail, tx: UnboundedSender<Note>) {
     if let Some(mut accounts) = accounts {
+        let mut seen = finished(mail);
         while accounts.changed().await.is_ok() {
             // The send fails only once the scheduler has stopped, and then nobody is left to tell.
             let _ = tx.send(Note::Accounts(intervals(mail)));
+            let now = finished(mail);
+            for (account, at) in &now {
+                if at.is_some() && seen.get(account) != Some(at) {
+                    // As above: a scheduler that has stopped has no link left to start.
+                    let _ = tx.send(Note::Event(account.clone(), Event::SignedIn));
+                }
+            }
+            seen = now;
         }
     }
     std::future::pending::<()>().await;
@@ -484,6 +513,46 @@ mod tests {
             }
             other => panic!("not a manual pass: {other:?}"),
         }
+    }
+
+    /// A watch that idles on an account nobody has signed in hears of it once a window signs it
+    /// in: the pass that window finished is in the store, and the watch's link is told so.
+    #[tokio::test]
+    async fn a_pass_finished_elsewhere_is_a_sign_in_here() {
+        let store = std::sync::Arc::new(store());
+        let mail = Mail::new(store.clone(), tokio::runtime::Handle::current());
+        let (moves, accounts) = tokio::sync::watch::channel(0u64);
+        let (tx, mut notes) = tokio::sync::mpsc::unbounded_channel();
+        let following = follow(Some(accounts), &mail, tx);
+        tokio::pin!(following);
+        macro_rules! next {
+            () => {
+                tokio::select! {
+                    () = &mut following => panic!("the follow ended"),
+                    note = notes.recv() => note,
+                }
+            };
+        }
+
+        // A look with no pass finished anywhere tells the accounts and nothing else.
+        moves.send_modify(|n| *n += 1);
+        assert!(matches!(next!(), Some(Note::Accounts(_))));
+        assert!(notes.try_recv().is_err(), "a sign-in nobody made");
+
+        store
+            .pass_finished(account(), crate::support_tests::now())
+            .unwrap();
+        moves.send_modify(|n| *n += 1);
+        assert!(matches!(next!(), Some(Note::Accounts(_))));
+        match next!() {
+            Some(Note::Event(signed, Event::SignedIn)) => assert_eq!(signed, account()),
+            other => panic!("not a sign-in: {other:?}"),
+        }
+
+        // The same pass, looked at again, is not news.
+        moves.send_modify(|n| *n += 1);
+        assert!(matches!(next!(), Some(Note::Accounts(_))));
+        assert!(notes.try_recv().is_err(), "the same pass told twice");
     }
 
     /// The window's `Wanted` is the watch's: what the window asks first, and claims, is seen by
