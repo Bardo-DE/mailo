@@ -112,15 +112,22 @@ pub(in crate::ui) fn MessageShell(thread: ThreadId) -> Element {
         .as_ref()
         .and_then(|summary| left(opened.get()?, summary.mailboxes));
 
+    // The search card, which ⌘F brings up over this conversation to find in it. There is no list
+    // here, so the card is only ever the find.
+    let pages = use_signal(|| 1_u32);
+    let in_a_field = use_signal(|| false);
+    let side_hidden = use_signal(|| true);
+
     let on_key = move |event: Event<KeyboardData>| {
         let key = event.key().to_string();
         if shell.read().preview.is_some() {
             mail_ui_reader::reading::peek_key(shell, keys, &event);
             return;
         }
-        // Escape closes ⌘F's bar first, as in the first window.
-        if key == "Escape" && shell.read().find.is_some() && shell.read().composing.is_none() {
-            mail_ui_reader::reading::find::close(shell);
+        // Escape clears the marks of a find first, as in the first window.
+        if key == "Escape" && shell.peek().marks_showing() {
+            let mut shell = shell;
+            shell.write().clear_find();
             return;
         }
         if shell.read().raw.is_some() {
@@ -148,11 +155,12 @@ pub(in crate::ui) fn MessageShell(thread: ThreadId) -> Element {
                 return;
             }
             Some(Intent::Find) => {
-                let _ = mail_ui_reader::reading::find::open(shell);
+                let _ = mail_ui_kit::summon::summon_message(shell);
                 return;
             }
             Some(Intent::FindStep(step)) => {
-                mail_ui_reader::reading::find::step(shell, step);
+                let mut shell = shell;
+                shell.write().step_find(step);
                 return;
             }
             _ => {}
@@ -218,6 +226,7 @@ pub(in crate::ui) fn MessageShell(thread: ThreadId) -> Element {
                     }
                     SendPill { shell }
                 }
+                crate::ui::command::Spotlight { shell, pages, in_a_field, side_hidden, spaces }
                 mail_ui_kit::motion::Toast { shell }
             }
         }
