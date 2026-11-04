@@ -6,9 +6,9 @@
 //! HTML and as plain text from the same document, and a message is signed with both: the text
 //! in its text part, the HTML in its HTML part. [`doc`] is the signature inside a document.
 
-mod doc;
-
-pub use doc::{Placement, nodes_of, plain_of, recognise, region, swap};
+pub use mail_logic::signature::{
+    Placement, nodes_of, plain_of, purpose_of, recognise, region, swap,
+};
 
 use crate::compose::{doc_of, identity_of, save};
 use crate::error::CoreError;
@@ -35,15 +35,6 @@ pub fn default_for(
     Ok(store
         .default_signature(identity, purpose)?
         .filter(|signature| !signature.is_blank()))
-}
-
-/// Which default a draft starts with: a reply's or a forward's, or a new message's.
-pub fn purpose_of(draft: &Draft) -> SignatureUse {
-    if draft.in_reply_to.is_some() || draft.forward_of.is_some() {
-        SignatureUse::Replies
-    } else {
-        SignatureUse::NewMail
-    }
 }
 
 /// Every identity of every account that sends, by account oldest first, with its signatures:

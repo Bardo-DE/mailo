@@ -10,6 +10,8 @@
 //! The answers are typed: which protection a message carries, what was checked, the body it was
 //! opened to. The words for them are the front-end's.
 
+pub use mail_logic::protection::{Opening, Protection, Scheme, Sealed, Tried};
+
 use super::looks::{Looks, Read, held};
 use crate::SigningStore;
 use crate::pgp::{Ask, OpenPgp};
@@ -20,58 +22,6 @@ use mail_domain::*;
 use mail_logic::password::Password;
 use mail_mime::Parsed;
 use mail_store::{SqliteStore, Store};
-
-/// Which protection a message carries.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Scheme {
-    OpenPgp,
-    Smime,
-}
-
-/// Whether a passphrase was given, when a key stayed locked. `ask` is only called for a
-/// protected key, so a key still locked after one was given was given the wrong one.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Tried {
-    /// None was given: it needs one.
-    Nothing,
-    /// One was given, and it did not unlock the key.
-    Wrong,
-}
-
-/// What was checked about a message, by the protection it carries. The opened body and the bytes
-/// it was parsed from are not in here: they are [`Sealed::shown`], once.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Protection {
-    OpenPgp(Box<crate::pgp::Protected>),
-    Smime(Box<crate::smime::Protected>),
-}
-
-/// A message opened.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Sealed {
-    pub protection: Protection,
-    /// The decrypted or unwrapped message, parsed. `None` when there is nothing to show but what
-    /// is stored: it could not be read.
-    pub shown: Option<Box<Parsed>>,
-}
-
-/// What opening a message found.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Opening {
-    /// It carries no OpenPGP or S/MIME, or only its headers are here.
-    Plain,
-    Opened(Box<Sealed>),
-    /// Encrypted to the user's OpenPGP key `key`, whose passphrase is needed.
-    Locked {
-        key: Fingerprint,
-        tried: Tried,
-    },
-    /// Opening it failed: `why` is the error as the protocol's module words it.
-    Failed {
-        scheme: Scheme,
-        why: String,
-    },
-}
 
 /// One message's opening, and the count of key changes it was found under.
 #[derive(Debug)]

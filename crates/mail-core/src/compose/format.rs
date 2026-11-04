@@ -2,16 +2,8 @@
 
 use crate::error::Logged;
 use mail_domain::MessageId;
+pub use mail_logic::compose::Written;
 use mail_store::{SqliteStore, Store};
-
-/// What a message's body was written as.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Written {
-    /// It has an HTML part: formatting, with or without a plain copy beside it.
-    Rich,
-    /// Plain text alone.
-    Plain,
-}
 
 /// What `message` was written as, read from its stored bytes. `None` when that cannot be said
 /// here: the message is gone, its body has not been fetched, or its bytes do not parse. A caller

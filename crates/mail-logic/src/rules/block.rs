@@ -5,6 +5,15 @@ use crate::own::Own;
 use chrono::{DateTime, Utc};
 use mail_domain::{Filter, Rule, RuleAction, TextMatch};
 
+/// What blocking did.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Blocked {
+    /// A rule was made.
+    Made(Rule),
+    /// The address was already blocked by this rule; nothing was written.
+    Already(Rule),
+}
+
 /// The condition a block of `email` is: its From is exactly that address.
 pub fn condition(email: &str) -> Filter {
     Filter::From(TextMatch::Exact(email.trim().to_owned()))

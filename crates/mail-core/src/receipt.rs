@@ -6,27 +6,15 @@
 //! that this mailbox exists and was read, and when. The only way a receipt leaves is
 //! [`answer`] with [`ReceiptAnswer::Sent`], which a person asked for by name.
 
+pub use mail_logic::receipt::ReceiptState;
+
 use crate::error::CoreError;
 use crate::error::Logged;
 use chrono::{DateTime, Utc};
 use mail_domain::*;
-use mail_mime::{Human, OriginalHeaders, ReceiptAsk, Reporting, Words};
+use mail_mime::{Human, OriginalHeaders, Reporting, Words};
 use mail_store::{SqliteStore, Store};
 use porter_core::AccountId;
-
-/// Where a message stands on read receipts, for the reader to show.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ReceiptState {
-    /// It does not ask, or it is our own message, or it is a receipt itself.
-    NotAsked,
-    /// Only its headers are here; whether it asks is known once the body arrives.
-    Unknown,
-    /// It asks, and nobody has answered. Show `ask.to`, and warn when `ask.return_path` is
-    /// [`mail_mime::ReturnPath::Differs`].
-    Pending(ReceiptAsk),
-    /// Answered on this machine.
-    Answered(ReceiptAnswer),
-}
 
 /// What [`answer`] did.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -15,15 +15,14 @@
 //! process global: two of them share nothing. [`Looks::reads`] counts how often each lookup
 //! really read, so a test can say that a path did not.
 
-use super::list::{Offer, offer_of};
 use super::seal::{self, Kept};
 use crate::error::Logged;
 use crate::invite::InviteState;
-use crate::receipt::ReceiptState;
 use mail_domain::*;
+pub use mail_logic::looks::{Bodies, Invited, Read, Receipt};
 use mail_logic::recent::Recent;
+use mail_logic::unsubscribe::{Offer, offer_of};
 use mail_mime::AuthResults;
-use mail_pim::Invite;
 use mail_store::{SqliteStore, Store};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
@@ -41,47 +40,7 @@ const CODES: usize = 128;
 /// How many threads' list addresses to keep. Each is one id.
 const POSTS: usize = 64;
 
-/// What a thread's answers are a function of: its messages and the bytes each one has. A body
-/// that arrives, or a message that joins the thread, is a new key; nothing else changes it,
-/// because a blob is content-addressed.
-pub type Bodies = Vec<(MessageId, Option<BlobId>)>;
-
-/// Which lookup, for [`Looks::reads`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Read {
-    /// A sender's checks, read from the stored raw message.
-    Checks,
-    /// A message's invitation.
-    Invite,
-    /// Whether a message asks for a read receipt.
-    Receipt,
-    /// A thread's way out of its list.
-    List,
-    /// A message opened as OpenPGP or S/MIME.
-    Seal,
-    /// A message's one-time code.
-    Code,
-    /// Whether a thread's newest message names its list's address (`List-Post`).
-    Post,
-}
-
 const READS: usize = 7;
-
-/// An invitation a message carries, with what the user last answered it.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Invited {
-    pub invite: Box<Invite>,
-    pub answered: Option<InviteAnswer>,
-}
-
-/// One message's standing on read receipts, with the name the front-end calls its sender by.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Receipt {
-    pub message: MessageId,
-    /// The sender's name, else their address.
-    pub sender: String,
-    pub state: ReceiptState,
-}
 
 /// What a lookup found for a message, and the body it was found in: a new body asks again.
 type Found<T> = Mutex<Recent<MessageId, (Option<BlobId>, Option<T>)>>;

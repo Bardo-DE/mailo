@@ -58,7 +58,7 @@ pub fn look(path: &Path) -> Looked {
 /// What the sheet says of a source it found: its kind and message count, and for a Thunderbird
 /// profile that only what Thunderbird kept offline can be imported.
 pub fn described(source: &Source, count: usize) -> String {
-    let slug = source.archive.slug();
+    let slug = source.slug();
     let said = format!("{}, {}", copy::status::source_kind(slug), messages(count));
     match copy::status::source_note(slug) {
         Some(note) => format!("{said}. {note}"),
@@ -362,7 +362,7 @@ pub fn export_now(
         return Err("Nothing to export.".to_owned());
     }
     let done = client.export().export(&chosen, target, now, progress)?;
-    let said = mail_os::said::export::said(&done, target)
+    let said = mail_os::said::export::said(&done, &target.path)
         .lines()
         .collect::<Vec<_>>()
         .join(" ");

@@ -7,6 +7,9 @@ use chrono::{DateTime, TimeDelta, Utc};
 use porter_core::AccountId;
 use std::collections::{BTreeMap, BTreeSet};
 
+/// The file the setting is kept in, in the config directory.
+pub const FILE_NAME: &str = "offline.json";
+
 /// How much of an account a sync keeps here.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Keep {

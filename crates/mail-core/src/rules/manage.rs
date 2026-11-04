@@ -4,6 +4,8 @@
 //! What `mailo rules` does, asked a function at a time. Every refusal is a value ([`SaveError`],
 //! [`ConditionError`]) for a front end to word; nothing here prints or phrases.
 
+pub use mail_logic::rules::manage::{Draft, Sending, Step};
+
 use super::ListedRule;
 use crate::error::CoreError;
 use crate::error::Logged;
@@ -15,53 +17,6 @@ use porter_core::AccountId;
 
 /// How many conversations "Run on existing mail" takes at a time: `mailo rules run`'s batch.
 pub const BATCH: u32 = 200;
-
-/// A rule being written: what an editor's fields hold.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Draft {
-    /// The rule being edited, or `None` for a new one.
-    pub id: Option<RuleId>,
-    pub name: String,
-    /// The condition as typed.
-    pub query: String,
-    pub actions: Vec<RuleAction>,
-    pub after: AfterMatch,
-    /// A Reply answers one sender at most once in this many days.
-    pub reply_days: u32,
-}
-
-impl Draft {
-    /// A new rule, with nothing in it yet.
-    pub fn blank() -> Self {
-        Self {
-            id: None,
-            name: String::new(),
-            query: String::new(),
-            actions: Vec::new(),
-            after: AfterMatch::Continue,
-            reply_days: mail_domain::rule::DEFAULT_REPLY_DAYS,
-        }
-    }
-
-    /// `listed`, opened for editing: its condition as the list shows it.
-    pub fn of(listed: &ListedRule) -> Self {
-        Self {
-            id: Some(listed.rule.id),
-            name: listed.rule.name.clone(),
-            query: listed.condition.clone(),
-            actions: listed.rule.actions.clone(),
-            after: listed.rule.after,
-            reply_days: listed.rule.reply_days,
-        }
-    }
-}
-
-/// Which way a rule moves in the order.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Step {
-    Up,
-    Down,
-}
 
 /// Why a draft was not kept.
 #[derive(Debug)]
@@ -91,13 +46,6 @@ pub fn labels(store: &SqliteStore, account: AccountId) -> Vec<(String, LabelId)>
         .into_iter()
         .map(|label| (label.name, label.id))
         .collect()
-}
-
-/// Whether Apply Rules may send the mail its Reply and Forward rules ask for.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Sending {
-    Yes,
-    No,
 }
 
 /// Whether applying the rules to `threads` could send mail: an enabled rule on one of their

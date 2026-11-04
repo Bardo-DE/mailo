@@ -122,6 +122,48 @@ fn is_host(host: &str, root: &str) -> bool {
     host == root || host.ends_with(&format!(".{root}"))
 }
 
+/// Icons read once from the cache directory, each drawn ahead at the sizes a window asks for, as
+/// the `data:` URIs they are shown by.
+///
+/// Missing files are absent. The chip then draws the letter, which is also what a window with the
+/// setting on letters draws even when the file is there. Reading them is
+/// `mail_core::provider::icon`'s.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Loaded {
+    uris: [Vec<(u32, String)>; 6],
+}
+
+impl Loaded {
+    /// These, `(side, URI)`, as `provider`'s, in place of any it had.
+    pub fn with(mut self, provider: Provider, drawn: Vec<(u32, String)>) -> Self {
+        self.uris[slot(provider)] = drawn;
+        self
+    }
+
+    /// The `data:image/png;base64,` URI for `provider` drawn `side` device pixels across, when one
+    /// was cached: the size read for exactly that side, else the next larger, else the largest.
+    pub fn uri(&self, provider: Provider, side: u32) -> Option<String> {
+        let drawn = &self.uris[slot(provider)];
+        drawn
+            .iter()
+            .filter(|(at, _)| *at >= side)
+            .min_by_key(|(at, _)| *at)
+            .or_else(|| drawn.iter().max_by_key(|(at, _)| *at))
+            .map(|(_, uri)| uri.clone())
+    }
+}
+
+fn slot(provider: Provider) -> usize {
+    match provider {
+        Provider::Google => 0,
+        Provider::Microsoft => 1,
+        Provider::Fastmail => 2,
+        Provider::Icloud => 3,
+        Provider::Yahoo => 4,
+        Provider::Imap => 5,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{Provider, provider, service_name};

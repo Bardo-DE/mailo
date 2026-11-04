@@ -11,6 +11,8 @@
 //! and the stored messages and attachment parts nothing else uses. Nothing on the server is
 //! touched, and keys and certificates stay: they are the user's, not the account's.
 
+pub use mail_logic::account::RemoveError;
+
 use mail_secrets::AccountSecrets;
 use mail_store::{Freed, SqliteStore};
 use porter_core::AccountId;
@@ -22,33 +24,6 @@ pub struct Removed {
     pub address: String,
     /// The stored messages and parts that went with it.
     pub freed: Freed,
-}
-
-/// Why an account was not removed. In every case the account and its mail are still there; after
-/// [`RemoveError::Keyring`] or [`RemoveError::Store`], some of its saved sign-ins may already be
-/// forgotten (see the module's words), and it asks to sign in again.
-#[derive(Debug, thiserror::Error)]
-pub enum RemoveError {
-    /// No account has this id: removed already, or never added.
-    #[error("no such account")]
-    Unknown,
-    /// The mail kept on this computer and nowhere else. It holds imported mail, which removing
-    /// it would delete for good.
-    #[error("the account that keeps mail on this computer cannot be removed")]
-    Local,
-    /// The keyring would not forget a sign-in: the account and its mail stay, and a sign-in
-    /// forgotten before the refusal stays forgotten.
-    #[error(
-        "the keyring would not forget a saved sign-in, so the account was not removed \
-         (it may ask to sign in again): {0}"
-    )]
-    Keyring(String),
-    /// The database could not be read or written, after the sign-ins were forgotten: the account
-    /// and its mail stay, and it asks to sign in again.
-    #[error(
-        "the database refused, so the account was not removed (it will ask to sign in again): {0}"
-    )]
-    Store(String),
 }
 
 /// Remove `account` and everything kept of it here. See the module's words for the order.

@@ -10,52 +10,30 @@
 //! later caller refuse the same things: an alias needs an address, a Reply-To that is given must
 //! be one, and a blank name is no name.
 
+pub use mail_domain::account::Typed;
+
 use crate::error::{CoreError, Logged};
 use mail_domain::{Address, Identity, IdentityId, IsDefault};
 use mail_store::SqliteStore;
 use porter_core::AccountId;
 
-/// An identity as the person typed it: a name, an address and a Reply-To, each as written.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Typed {
-    pub name: String,
-    pub email: String,
-    pub reply_to: String,
+/// The `From` that `typed` says: the name trimmed, and none when it is blank, which goes out as
+/// the bare address rather than as an empty quoted name.
+fn from_of(typed: &Typed) -> Result<Address, CoreError> {
+    let email: Address = typed.email.trim().parse()?;
+    Ok(Address {
+        name: name(&typed.name),
+        email: email.email,
+    })
 }
 
-impl Typed {
-    /// What `identity` says, as its fields would show it.
-    pub fn of(identity: &Identity) -> Typed {
-        // No name and no Reply-To are empty fields.
-        let name = identity.from.name.clone().unwrap_or_default();
-        let reply_to = identity.reply_to.as_ref().map(ToString::to_string);
-        // As above: none is an empty field.
-        let reply_to = reply_to.unwrap_or_default();
-        Typed {
-            name,
-            email: identity.from.email.clone(),
-            reply_to,
-        }
+/// The Reply-To that `typed` says: none when the field is blank.
+fn reply_to_of(typed: &Typed) -> Result<Option<Address>, CoreError> {
+    let text = typed.reply_to.trim();
+    if text.is_empty() {
+        return Ok(None);
     }
-
-    /// The `From` this says: the name trimmed, and none when it is blank, which goes out as the
-    /// bare address rather than as an empty quoted name.
-    fn from(&self) -> Result<Address, CoreError> {
-        let email: Address = self.email.trim().parse()?;
-        Ok(Address {
-            name: name(&self.name),
-            email: email.email,
-        })
-    }
-
-    /// The Reply-To this says: none when the field is blank.
-    fn reply_to(&self) -> Result<Option<Address>, CoreError> {
-        let text = self.reply_to.trim();
-        if text.is_empty() {
-            return Ok(None);
-        }
-        Ok(Some(text.parse()?))
-    }
+    Ok(Some(text.parse()?))
 }
 
 /// A typed name as it is kept: trimmed, and none when nothing is left.
@@ -101,8 +79,8 @@ pub fn add_alias(
     let alias = Identity {
         id: IdentityId::generate(),
         account,
-        from: typed.from()?,
-        reply_to: typed.reply_to()?,
+        from: from_of(typed)?,
+        reply_to: reply_to_of(typed)?,
         signature: None,
         default: IsDefault::Alternate,
     };
@@ -117,11 +95,11 @@ pub fn edit(store: &SqliteStore, id: IdentityId, typed: &Typed) -> Result<Identi
     let Some(had) = store.identity(id)? else {
         return Err(mail_store::StoreError::NoIdentity(id).into());
     };
-    let from = typed.from()?;
+    let from = from_of(typed)?;
     if had.default == IsDefault::Default && !from.email.eq_ignore_ascii_case(&had.from.email) {
         return Err(CoreError::OwnAddressStays);
     }
-    let reply_to = typed.reply_to()?;
+    let reply_to = reply_to_of(typed)?;
     store.edit_identity(id, &from, reply_to.as_ref())?;
     mirrored(store, &had.account);
     Ok(Identity {

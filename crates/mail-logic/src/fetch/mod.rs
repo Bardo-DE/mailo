@@ -6,19 +6,20 @@
 //! `step` from a state and an event to the next state and what the caller must do about it.
 //!
 //! Nothing in this module reads the clock, opens a socket or touches the UI. Time arrives as an
-//! argument, effects leave as values, and [`crate::schedule`] does the rest. What the screen
+//! argument, effects leave as values, and `mail_engine::schedule` does the rest. What the screen
 //! says about a set of links is derived, not stored: that is the window's
 //! (`mail_app::ui::fetching`: `list_face` and `status_line`).
 
 mod body;
 mod download;
 mod folder;
+pub mod fresh;
 mod link;
 
 pub use body::{Body, BodyEffect, BodyEvent};
 pub use download::{Download, DownloadEffect, DownloadEvent};
 pub use folder::{AGAIN, FolderEffect, FolderEvent, FolderFetch};
 pub use link::{
-    BACKOFF_CEILING, Count, Effect, Event, First, Link, Live, PUSH_SILENCE, Pause, RETRY_NOW, Step,
-    Trigger, Trouble, backoff, step,
+    BACKOFF_CEILING, Count, Effect, Event, First, IDLE_REARM, Link, Live, PUSH_SILENCE, Pause,
+    RETRY_NOW, Step, Trigger, Trouble, backoff, step,
 };
