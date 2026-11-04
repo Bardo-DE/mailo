@@ -5242,6 +5242,8 @@ dependencies = [
  "mail-agent",
  "mail-client",
  "mail-core",
+ "mail-engine",
+ "mail-net",
  "mail-runtime",
  "mail-secrets",
  "mail-store",

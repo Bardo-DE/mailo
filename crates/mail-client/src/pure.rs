@@ -12,7 +12,8 @@ pub mod account {
         Credentials, Mode, Outcome, RemoveError, Setup, SignInError, authorize, oauth_client,
     };
     pub mod direct {
-        pub use mail_core::account::direct::{Profiles, WAIT, signs_in_directly};
+        pub use mail_core::account::direct::{WAIT, signs_in_directly};
+        pub use mail_secrets::authorize::Profiles;
     }
     pub mod draft {
         pub use mail_core::account::draft::{
@@ -23,18 +24,16 @@ pub mod account {
 }
 pub mod attach {
     pub use mail_core::attach::{
-        downloads_dir, human_size, opened_attachment, runs_when_opened, safe_name, save_opened,
-        write_new,
+        downloads_dir, opened_attachment, runs_when_opened, safe_name, save_opened, write_new,
     };
+    pub use mail_domain::human_size;
 }
 pub mod auth {
     pub use mail_core::auth::{Standing, sentence, standing};
 }
 pub mod bimi {
-    pub use mail_core::bimi::{
-        Cached, Lookup, Setting, Shared, SystemDns, anchors, brand_logo, cached, client_builder,
-        domain_of, load, shared,
-    };
+    pub use mail_core::bimi::{Setting, anchors, brand_logo, domain_of, load};
+    pub use mail_runtime::bimi::{Cached, Lookup, Shared, cached, shared};
 }
 pub mod compose {
     pub use mail_core::compose::{
@@ -51,14 +50,14 @@ pub mod config {
     };
 }
 pub mod contacts {
-    pub use mail_core::contacts::{
-        CardId, Contact, Group, GroupHome, GroupId, Imported, Origin, PersonCard,
-    };
+    pub use mail_core::contacts::Imported;
+    pub use mail_store::{CardId, Contact, Group, GroupHome, GroupId, Origin, PersonCard};
     pub mod groups {
         pub use mail_core::contacts::groups::{GroupError, Labelled, Offer, person_of};
     }
     pub mod people {
-        pub use mail_core::contacts::people::{Added, Details, PersonError, details};
+        pub use mail_core::contacts::people::{Added, PersonError, details};
+        pub use mail_pim::vcard::Details;
     }
 }
 pub mod discover {
@@ -119,9 +118,8 @@ pub mod notify {
     }
 }
 pub mod offline {
-    pub use mail_core::offline::{
-        Every, FILE_NAME, Keep, Kept, Remove, Window, change, damage, load, said, save,
-    };
+    pub use mail_core::offline::{FILE_NAME, change, damage, load, said, save};
+    pub use mail_logic::offline::{Every, Keep, Kept, Remove, Window};
 }
 pub mod pgp {
     pub use mail_core::pgp::{Ask, PgpError, Protected, WithSecret, no_passphrase};
@@ -150,7 +148,7 @@ pub mod receipt {
     pub use mail_core::receipt::ReceiptState;
 }
 pub mod remote_image {
-    pub use mail_core::remote_image::{Image, ImageFetcher, Route};
+    pub use mail_net::remote_image::{Image, ImageFetcher, Route};
 }
 pub mod rules {
     pub use mail_core::rules::ListedRule;
@@ -170,7 +168,7 @@ pub mod rules {
     }
 }
 pub mod schedule {
-    pub use mail_core::schedule::{Daemon, Lost, Schedule, Timing, probe};
+    pub use mail_engine::schedule::{Daemon, Lost, Schedule, Timing, probe};
 }
 pub mod search {
     // `run` reads what it is handed: a caller has only the client's (`Client::source`).
@@ -192,7 +190,7 @@ pub mod smime {
 pub mod sync {
     pub use mail_core::sync::Configured;
     pub mod due {
-        pub use mail_core::sync::due::IDLE;
+        pub use mail_logic::accounts::IDLE;
     }
     pub mod fresh {
         pub use mail_core::sync::fresh::{Freshness, Pace, of_link};
@@ -216,15 +214,15 @@ pub mod conversation {
     };
 }
 pub mod wanted {
-    pub use mail_core::wanted::{Claim, Wanted};
+    pub use mail_runtime::wanted::{Claim, Wanted};
 }
-pub use mail_core::Storage;
+pub use mail_proto::Storage;
 pub mod junk {
     pub use mail_logic::junk::{Filtering, Heed, Order, Policy, Treat};
 }
-pub use mail_core::Logged;
-pub use mail_core::RelayRefused;
-pub use mail_core::Syncing;
+pub use mail_runtime::Logged;
+pub use mail_runtime::graph::push::RelayRefused;
+pub use mail_store::Syncing;
 pub mod erase {
     pub use mail_core::erase::{Delete, Keep, Policy};
 }
@@ -232,7 +230,8 @@ pub mod signature {
     pub use mail_core::signature::{Placement, nodes_of, purpose_of, recognise, swap};
 }
 pub mod vip {
-    pub use mail_core::vip::{Mark, Vip, Vips, toggled};
+    pub use mail_core::vip::{Mark, Vips, toggled};
+    pub use mail_store::Vip;
 }
 pub mod identity {
     pub use mail_core::identity::Typed;
