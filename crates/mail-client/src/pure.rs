@@ -163,11 +163,21 @@ pub mod contacts {
     pub use mail_logic::contacts::Imported;
     pub use mail_store::{CardId, Contact, Group, GroupHome, GroupId, Origin, PersonCard};
     pub mod groups {
-        pub use mail_core::contacts::groups::{GroupError, Labelled, Offer, person_of};
+        pub use crate::book::{Expanded, GroupError, Labelled, Offer};
+
+        /// A contact as a chip names it: their name, else the local part of the address.
+        pub fn person_of(contact: &mail_store::Contact) -> mail_editor::Person {
+            mail_core::contacts::groups::person_of(contact)
+        }
     }
     pub mod people {
-        pub use mail_core::contacts::people::{Added, PersonError, details};
+        pub use crate::book::{Added, PersonError};
         pub use mail_pim::vcard::Details;
+
+        /// What `card` says, for the editor.
+        pub fn details(card: &mail_store::PersonCard) -> Details {
+            mail_core::contacts::people::details(card)
+        }
     }
 }
 pub mod discover {

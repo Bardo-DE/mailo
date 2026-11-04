@@ -380,7 +380,7 @@ pub use contacts::Contacts;
 mod contacts_groups {
     use crate::CallError;
     use crate::Client;
-    use mail_core::contacts::groups::*;
+    use crate::book::{GroupError, Labelled, Offer};
     use mail_store::{Group, GroupId};
 
     /// What the client calls in `mail_core::contacts::groups`.
@@ -398,21 +398,24 @@ mod contacts_groups {
         /// `mail_core::contacts::groups::offers`.
         pub fn offers(&self, typed: &str) -> Vec<Offer> {
             mail_core::contacts::groups::offers(self.0.store(), typed)
+                .into_iter()
+                .map(Offer::from)
+                .collect()
         }
 
         /// `mail_core::contacts::groups::add`.
         pub fn add(&self, id: &GroupId, typed: &str) -> Result<Group, GroupError> {
-            mail_core::contacts::groups::add(self.0.store(), id, typed)
+            mail_core::contacts::groups::add(self.0.store(), id, typed).map_err(GroupError::from)
         }
 
         /// `mail_core::contacts::groups::create`.
         pub fn create(&self, name: &str) -> Result<Group, GroupError> {
-            mail_core::contacts::groups::create(self.0.store(), name)
+            mail_core::contacts::groups::create(self.0.store(), name).map_err(GroupError::from)
         }
 
         /// `mail_core::contacts::groups::forget`.
         pub fn forget(&self, id: &GroupId) -> Result<(), GroupError> {
-            mail_core::contacts::groups::forget(self.0.store(), id)
+            mail_core::contacts::groups::forget(self.0.store(), id).map_err(GroupError::from)
         }
 
         /// `mail_core::contacts::groups::listed`.
@@ -424,16 +427,19 @@ mod contacts_groups {
         /// `mail_core::contacts::groups::members`.
         pub fn members(&self, group: &Group) -> Vec<(String, Labelled)> {
             mail_core::contacts::groups::members(self.0.store(), group)
+                .into_iter()
+                .map(|(uri, labelled)| (uri, Labelled::from(labelled)))
+                .collect()
         }
 
         /// `mail_core::contacts::groups::remove`.
         pub fn remove(&self, id: &GroupId, uri: &str) -> Result<Group, GroupError> {
-            mail_core::contacts::groups::remove(self.0.store(), id, uri)
+            mail_core::contacts::groups::remove(self.0.store(), id, uri).map_err(GroupError::from)
         }
 
         /// `mail_core::contacts::groups::rename`.
         pub fn rename(&self, id: &GroupId, name: &str) -> Result<Group, GroupError> {
-            mail_core::contacts::groups::rename(self.0.store(), id, name)
+            mail_core::contacts::groups::rename(self.0.store(), id, name).map_err(GroupError::from)
         }
     }
 }
@@ -442,7 +448,8 @@ pub use contacts_groups::ContactsGroups;
 mod contacts_people {
     use crate::CallError;
     use crate::Client;
-    use mail_core::contacts::people::{Added, Details, PersonError};
+    use crate::book::{Added, PersonError};
+    use mail_pim::vcard::Details;
     use mail_store::{CardId, PersonCard};
 
     /// What the client calls in `mail_core::contacts::people`.
@@ -460,16 +467,18 @@ mod contacts_people {
         /// `mail_core::contacts::people::add_sender`.
         pub fn add_sender(&self, address: &str, name: &str) -> Result<Added, PersonError> {
             mail_core::contacts::people::add_sender(self.0.store(), address, name)
+                .map(Added::from)
+                .map_err(PersonError::from)
         }
 
         /// `mail_core::contacts::people::create`.
         pub fn create(&self, details: &Details) -> Result<PersonCard, PersonError> {
-            mail_core::contacts::people::create(self.0.store(), details)
+            mail_core::contacts::people::create(self.0.store(), details).map_err(PersonError::from)
         }
 
         /// `mail_core::contacts::people::forget`.
         pub fn forget(&self, id: &CardId) -> Result<(), PersonError> {
-            mail_core::contacts::people::forget(self.0.store(), id)
+            mail_core::contacts::people::forget(self.0.store(), id).map_err(PersonError::from)
         }
 
         /// `mail_core::contacts::people::listed`.
@@ -485,7 +494,7 @@ mod contacts_people {
 
         /// `mail_core::contacts::people::save`.
         pub fn save(&self, id: &CardId, details: &Details) -> Result<PersonCard, PersonError> {
-            mail_core::contacts::people::save(self.0.store(), id, details)
+            mail_core::contacts::people::save(self.0.store(), id, details).map_err(PersonError::from)
         }
     }
 }
