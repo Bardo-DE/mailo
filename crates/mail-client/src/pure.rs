@@ -36,9 +36,11 @@ pub mod bimi {
     pub use mail_runtime::bimi::{Cached, Lookup, Shared, cached, shared};
 }
 pub mod compose {
-    pub use mail_core::compose::{
-        ATTACHMENT_BUDGET, Answer, Fit, Leaves, Myself, Quote, Redirected, Said, SendError,
-        SendLimit, Weight, Written, doc_of, fit, shows_inline,
+    pub use mail_core::compose::SendError;
+    pub use mail_logic::compose::doc::doc_of;
+    pub use mail_logic::compose::weight::{Fit, Said, SendLimit, Weight, fit};
+    pub use mail_logic::compose::{
+        ATTACHMENT_BUDGET, Answer, Leaves, Myself, Quote, Redirected, Written, shows_inline,
     };
     pub mod addresses {
         pub use mail_core::compose::addresses::{join_addresses, parse_addresses};

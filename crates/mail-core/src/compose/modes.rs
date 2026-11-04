@@ -7,6 +7,7 @@
 //! reply quoting less, and Edit as New is a blank draft filled in. Only a redirect is new, and it
 //! is no draft at all: the original goes again as it is, so there is nothing to edit.
 
+pub use mail_logic::compose::{Answer, Quote, Redirected};
 use super::enclosed::sent_bytes_of;
 use super::{answering, carried, identity_addressed, identity_of, quoted, quoting, save, signed};
 use crate::error::{CoreError, Logged};
@@ -15,27 +16,6 @@ use chrono::{DateTime, Local, Utc};
 use mail_domain::*;
 use mail_editor::plain_to_flowed;
 use mail_store::{SqliteStore, Store};
-use porter_core::AccountId;
-
-/// Whom an answer goes to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Answer {
-    /// A reply to the sender, or to everyone, as [`Draft::reply_to`] addresses it.
-    Scope(ReplyScope),
-    /// A reply to the list the message came through, at the address its `List-Post` names
-    /// (RFC 2369 §3.4), and to nobody else: the person who wrote to the list reads it there.
-    List,
-}
-
-/// What an answer quotes beneath its attribution line.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Quote<'a> {
-    /// The original's whole text part.
-    Whole,
-    /// Only this, the text the person had selected in the original when they asked to reply.
-    /// Blank is [`Quote::Whole`]: a selection of nothing but space is a click, not a choice.
-    Selection(&'a str),
-}
 
 /// What an answer says: who it goes to, what it quotes of the original, and the `body` written
 /// above (or below) the quote.
@@ -181,19 +161,6 @@ pub fn draft_again(
     draft.attachments = carried(store, &original);
     save(store, &draft)?;
     Ok(draft)
-}
-
-/// A redirect that is queued: whom it goes to, and what it takes to withdraw it
-/// ([`withdraw_redirect`]) while its grace period runs.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Redirected {
-    /// The addresses of the envelope, blind ones too.
-    pub to: Vec<String>,
-    pub account: AccountId,
-    /// The id its outbox entry is keyed by. No draft has it.
-    pub draft: DraftId,
-    /// When it was redirected.
-    pub at: DateTime<Utc>,
 }
 
 /// Redirect `message` to `to`: queue the original, unchanged, beneath a `Resent-` block

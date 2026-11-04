@@ -27,8 +27,7 @@ pub enum Carry {
     Attached,
 }
 
-/// The media type an attached message goes as.
-pub const ENCLOSED: &str = "message/rfc822";
+pub use mail_logic::compose::ENCLOSED;
 
 /// Whether `message`'s stored bytes `raw` were rebuilt from its parts rather than downloaded
 /// whole, so they are not the message as it was sent.

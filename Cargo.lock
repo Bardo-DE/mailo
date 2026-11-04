@@ -5878,6 +5878,7 @@ dependencies = [
  "mailo-archive",
  "mailo-domain",
  "mailo-editor",
+ "mailo-mime",
  "mailo-reader",
  "nucleo-matcher",
  "porter-core",

@@ -14,6 +14,7 @@
 pub mod accounts;
 pub mod act;
 pub mod arrival;
+pub mod compose;
 pub mod conversation;
 pub mod discover;
 pub mod follow_up;
