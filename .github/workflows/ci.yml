@@ -88,11 +88,16 @@ jobs:
       - name: Doctests
         run: cargo test --workspace --doc
 
-      # The rule the whole design rests on: the three pure crates must not be able to reach an
-      # I/O dependency. It is checked mechanically because a person reading Cargo.toml will not
-      # notice a transitive edge.
-      - name: The sans-I/O boundary
+      # The rule the whole design rests on: which workspace crate may depend on which is one table
+      # (scripts/boundary.toml), compared with `cargo metadata`; the pure crates must not be able to
+      # reach an I/O dependency, even through a chain. A new edge is a deliberate edit to the table.
+      - name: The dependency boundary
         run: ./scripts/check-boundary.sh
+
+      # What the sources may say, apart from dependencies: the lower crates name no part of the
+      # window, anyview's paths, the mail-core ratchets, no runtime or terminal in a library.
+      - name: What the sources may say
+        run: ./scripts/check-source.sh
 
       # A failure in a library crate is propagated, shown, logged or deliberately ignored with a
       # comment saying why, never dropped in silence: held by a ratchet on the uncommented
