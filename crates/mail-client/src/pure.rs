@@ -16,7 +16,7 @@ pub mod account {
         pub use mail_secrets::authorize::Profiles;
     }
     pub mod draft {
-        pub use mail_core::account::draft::{
+        pub use mail_logic::add_account::{
             Action, CopyMark, Draft, FieldDraft, ListKey, Out, Sheet, acted, is_manual, problem_of,
             retries, shown,
         };

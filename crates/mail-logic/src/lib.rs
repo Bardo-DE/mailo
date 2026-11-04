@@ -13,6 +13,7 @@
 
 pub mod accounts;
 pub mod act;
+pub mod add_account;
 pub mod arrival;
 pub mod auth;
 pub mod compose;

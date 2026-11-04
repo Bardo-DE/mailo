@@ -19,10 +19,10 @@ use porter_provider::Issuer;
 
 mod advice;
 pub mod direct;
-pub mod draft;
 mod remove;
 mod switch;
 
+pub use mail_logic::add_account as draft;
 pub use advice::{no_client_id, no_credential};
 pub use direct::{Direct, Mode, SignInError, sign_in_with};
 pub use remove::{RemoveError, Removed, remove};
