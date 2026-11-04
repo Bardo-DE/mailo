@@ -380,7 +380,7 @@ pub mod sync {
         pub use mail_logic::fetch::fresh::{Freshness, Pace, of_link};
     }
     pub mod report {
-        pub use mail_core::sync::report::Offer;
+        pub use mail_logic::remedy::Offer;
     }
 }
 pub mod transfer {

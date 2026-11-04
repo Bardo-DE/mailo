@@ -5,6 +5,8 @@
 //! which folder is at fault. None of that can be read back out of a sentence, so no sentence is
 //! made here; the window and the command line each word a [`PassEnd`] for themselves.
 
+pub use mail_logic::remedy::Offer;
+
 use std::collections::BTreeMap;
 use std::time::Duration;
 
@@ -69,15 +71,6 @@ pub enum PassEnd {
     },
     /// The caller's cancel signal ended it.
     Cancelled { account: AccountId, address: String },
-}
-
-/// What a person can do about a pass that failed, when it is neither waiting nor signing in
-/// again: the one action the window offers beside the failure.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Offer {
-    /// Set the account up again to read and send through Microsoft Graph: Microsoft refused it
-    /// mail over IMAP (`account::switch_to_graph`).
-    UseGraph,
 }
 
 /// The server will not serve the account over the protocol it was reached by: it refused a
