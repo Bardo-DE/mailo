@@ -11,7 +11,7 @@
 //! (a future spawned from a render is never polled). The cache is a value the front-end owns
 //! and hands to whoever renders, not a process global: two of them share nothing.
 
-pub use mail_logic::frames::{FIRST_PAGE, INLINE_BYTES, Key, Sent, ahead};
+pub use mail_logic::frames::{FIRST_PAGE, INLINE_BYTES, Key, Sent, Unsealed, ahead};
 
 use crate::error::Logged;
 use mail_domain::{Message, ThreadId};
@@ -48,10 +48,6 @@ pub fn render(
 /// How much rendered html to keep, in bytes. A long newsletter is a few hundred kilobytes.
 const BUDGET: usize = 32 * 1024 * 1024;
 
-/// The body OpenPGP or S/MIME opened a message to, when it has been opened. Such a message is
-/// not cached: its rendering is a function of more than the blob, and of a key that may be
-/// locked again.
-pub type Unsealed = Arc<dyn Fn(&Message) -> Option<Parsed> + Send + Sync>;
 
 struct Entry {
     /// Shared, so a hit hands out the rendering rather than a copy of its html and images.

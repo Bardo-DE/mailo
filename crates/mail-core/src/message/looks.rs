@@ -15,7 +15,7 @@
 //! process global: two of them share nothing. [`Looks::reads`] counts how often each lookup
 //! really read, so a test can say that a path did not.
 
-pub use mail_logic::looks::{Bodies, Invited, Receipt};
+pub use mail_logic::looks::{Bodies, Invited, Read, Receipt};
 use mail_logic::unsubscribe::{Offer, offer_of};
 use super::seal::{self, Kept};
 use crate::error::Logged;
@@ -39,25 +39,6 @@ const LISTS: usize = 64;
 const CODES: usize = 128;
 /// How many threads' list addresses to keep. Each is one id.
 const POSTS: usize = 64;
-
-/// Which lookup, for [`Looks::reads`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Read {
-    /// A sender's checks, read from the stored raw message.
-    Checks,
-    /// A message's invitation.
-    Invite,
-    /// Whether a message asks for a read receipt.
-    Receipt,
-    /// A thread's way out of its list.
-    List,
-    /// A message opened as OpenPGP or S/MIME.
-    Seal,
-    /// A message's one-time code.
-    Code,
-    /// Whether a thread's newest message names its list's address (`List-Post`).
-    Post,
-}
 
 const READS: usize = 7;
 

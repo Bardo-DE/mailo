@@ -3,8 +3,10 @@
 //! frame that draws it may render itself. The cache that holds the renderings is
 //! `mail_core::message::Frames`.
 
-use mail_domain::{BlobId, ThreadId};
+use mail_domain::{BlobId, Message, ThreadId};
+use mail_mime::Parsed;
 use mail_reader::{Prefer, SanitizePolicy};
+use std::sync::Arc;
 
 /// What a rendering is cached under: the bytes, the policy, and which body was preferred.
 pub type Key = (BlobId, SanitizePolicy, Prefer);
@@ -17,6 +19,11 @@ pub const INLINE_BYTES: u64 = 128 * 1024;
 
 /// How many conversations from the top of the list are rendered before anyone opens one.
 pub const FIRST_PAGE: usize = 20;
+
+/// The body OpenPGP or S/MIME opened a message to, when it has been opened. Such a message is
+/// not cached: its rendering is a function of more than the blob, and of a key that may be
+/// locked again.
+pub type Unsealed = Arc<dyn Fn(&Message) -> Option<Parsed> + Send + Sync>;
 
 /// Where each rendering one reader sent off the thread has got to.
 #[derive(Debug, Default)]

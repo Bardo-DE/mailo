@@ -4,7 +4,7 @@ use crate::ui::fixtures::{acct_account, dispatching, rebuild_into, seeded};
 use crate::ui::fixtures::{click, settle_for};
 use dioxus::prelude::*;
 use dioxus_core::VirtualDom;
-use mail_client::testing::core::message::{Looks, Read};
+use mail_client::message::{Looks, Read};
 use mail_client::testing::core::receipt::ReceiptState;
 use mail_client::testing::{SqliteStore, Store};
 use mail_domain::*;

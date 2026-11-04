@@ -26,3 +26,22 @@ pub struct Receipt {
     pub sender: String,
     pub state: ReceiptState,
 }
+
+/// Which lookup, for `reads`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Read {
+    /// A sender's checks, read from the stored raw message.
+    Checks,
+    /// A message's invitation.
+    Invite,
+    /// Whether a message asks for a read receipt.
+    Receipt,
+    /// A thread's way out of its list.
+    List,
+    /// A message opened as OpenPGP or S/MIME.
+    Seal,
+    /// A message's one-time code.
+    Code,
+    /// Whether a thread's newest message names its list's address (`List-Post`).
+    Post,
+}

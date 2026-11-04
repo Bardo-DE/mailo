@@ -242,9 +242,9 @@ pub mod mail {
     pub use mail_logic::clock::Clock;
 }
 pub mod message {
-    pub use mail_core::message::{Frames, Looks};
+    pub use crate::caches::{Frames, Looks};
     pub use mail_logic::frames::{FIRST_PAGE, INLINE_BYTES, Key, Sent, ahead};
-    pub use mail_logic::looks::{Bodies, Invited, Receipt};
+    pub use mail_logic::looks::{Bodies, Invited, Read, Receipt};
     pub use mail_logic::unsubscribe::Offer;
     pub use mail_logic::protection::{Opening, Protection, Scheme, Sealed, Tried};
 }
