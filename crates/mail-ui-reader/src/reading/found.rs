@@ -1,4 +1,6 @@
-//! ⌘F: find in the open conversation, in the words of its messages as they are drawn.
+//! The marks of a find in the open conversation, in the words of its messages as they are drawn:
+//! what ⌘F typed into the search card (`Shell::find`), or the words of the search the
+//! conversation was opened from.
 //!
 //! Each message's body is a frame with a document of its own (`blocks::Sandbox`), reached through
 //! the frame's node on Blitz (`NodeHandle`), as `fit` reads it. A find walks each shown frame's
@@ -6,7 +8,7 @@
 //! puts a `<mark>` around each piece of each match ([`FOUND_MARK`]); the frame's own sheet draws
 //! the marks, the current match stronger (`mail_core::message::frame`). The sender's markup is
 //! never rewritten: the frame is still drawn from the sanitized document, and in its live tree a
-//! matched text node is only stood aside while marks hold its words; closing the bar, or typing
+//! matched text node is only stood aside while marks hold its words; ending the find, or typing
 //! something else, puts every one back.
 //!
 //! The current match is brought to the middle of what scrolls it: the frame's own document for
@@ -18,28 +20,18 @@
 //! it. A find started while an older one still waits supersedes it (`Inner::pass`).
 
 use blitz_dom::{Attribute, BaseDocument, LocalName, Namespace, NodeId, QualName, ScrollBehavior};
-use chordkit::StandardAction;
 use dioxus::prelude::*;
 use dioxus_native_dom::NodeHandle;
 use ds::base::time::{FRAME_SLACK, clock::sleep};
-use ds::components::controls::button_model::{Bezel, ImagePosition};
-use ds::focus::request::use_focus_request;
-use ds::prelude::*;
-use ds::style::tokens::control_size::ControlSize;
-use mail_client::search::{Found, MOST_FOUND, Step, find_in};
+use mail_client::search::{Found, MOST_FOUND, find_terms};
 use mail_domain::MessageId;
 use mail_reader::{FOUND_CURRENT, FOUND_MARK};
-use mail_ui_kit::host::Host;
 use mail_ui_kit::view::{Finding, Shell};
-use mail_ui_model::copy;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ops::Range;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
-
-/// The bar's field, for focusing it again when ⌘F is pressed with the bar open.
-const FIELD: &str = ".find-bar input";
 
 /// The frames a reader draws, which a find looks through, and what it has marked in each.
 #[derive(Clone)]
@@ -110,13 +102,13 @@ impl Frames {
             .collect()
     }
 
-    /// Take every mark out and put `query`'s in, frame by frame; how many matches there are, or
+    /// Take every mark out and put `terms`' in, frame by frame; how many matches there are, or
     /// `None` when a newer find took over.
-    async fn refind(&self, query: &str) -> Option<usize> {
+    async fn refind(&self, terms: &[String]) -> Option<usize> {
         let pass = {
             let mut inner = self.inner.borrow_mut();
             inner.pass += 1;
-            if query.trim().is_empty() && inner.marks.is_empty() {
+            if terms.is_empty() && inner.marks.is_empty() {
                 return Some(0);
             }
             inner.pass
@@ -137,7 +129,7 @@ impl Frames {
                 if let Some(old) = &old {
                     unmark(doc, old);
                 }
-                mark(doc, query, MOST_FOUND - total.min(MOST_FOUND))
+                mark(doc, terms, MOST_FOUND - total.min(MOST_FOUND))
             });
             if let Some(marks) = marks.filter(|marks| !marks.found.is_empty()) {
                 total += marks.found.len();
@@ -313,10 +305,10 @@ fn inline_root(doc: &BaseDocument, id: NodeId) -> Option<NodeId> {
 /// A text node a find cuts: its words, and each piece a match covers with the match's number.
 type Cut = (NodeId, String, Vec<(Range<usize>, usize)>);
 
-/// Mark `query`'s matches in `doc`, at most `most` of them.
-fn mark(doc: &mut BaseDocument, query: &str, most: usize) -> Marks {
+/// Mark `terms`' matches in `doc`, at most `most` of them.
+fn mark(doc: &mut BaseDocument, terms: &[String], most: usize) -> Marks {
     let mut marks = Marks::default();
-    if query.trim().is_empty() || most == 0 {
+    if terms.iter().all(|term| term.trim().is_empty()) || most == 0 {
         return marks;
     }
     let Some(root) = root_of(doc) else {
@@ -330,7 +322,7 @@ fn mark(doc: &mut BaseDocument, query: &str, most: usize) -> Marks {
     for group in runs(doc) {
         let texts: Vec<&str> = group.iter().map(|(_, text)| text.as_str()).collect();
         let mut at: HashMap<usize, usize> = HashMap::new();
-        for Found(pieces) in find_in(&texts, query) {
+        for Found(pieces) in find_terms(&texts, terms) {
             if count == most {
                 break;
             }
@@ -513,9 +505,9 @@ fn scroller_of(
 }
 
 /// The reader's side of a find: its frames, provided to the frames it draws, marked again when
-/// what is typed changes or a frame is drawn again, and the current match shown when it moves.
-/// Call it among the reader's first hooks.
-pub(super) fn use_find(shell: Signal<Shell>) -> Frames {
+/// what is to be marked changes or a frame is drawn again, and the current match shown when it
+/// moves. Call it among the reader's first hooks.
+pub(super) fn use_found(shell: Signal<Shell>) -> Frames {
     let changed = use_signal(|| 0_u64);
     let marked = use_signal(|| 0_u64);
     let frames = use_context_provider(|| Frames {
@@ -523,32 +515,35 @@ pub(super) fn use_find(shell: Signal<Shell>) -> Frames {
         changed,
         marked,
     });
-    let query = use_memo(move || {
-        shell
-            .read()
-            .find
-            .as_ref()
-            .map(|finding| finding.find.query.clone())
-            // The bar closed: nothing typed, so every mark goes.
-            .unwrap_or_default()
+    // What the find holds, and what that marks: a find over, or none, holds nothing, so every
+    // mark but the search's own words goes.
+    let looking = use_memo(move || {
+        let now = shell.read();
+        (
+            now.find.as_ref().map(|finding| finding.find.query.clone()),
+            now.marking(),
+        )
     });
     let at = use_memo(move || shell.read().find.as_ref().and_then(Finding::at));
     let refinding = frames.clone();
     use_effect(move || {
-        let query = query();
+        let (typed, terms) = looking();
         // Read for its moves alone: a frame drawn again is marked again.
         let _ = changed();
         let frames = refinding.clone();
         spawn(async move {
-            let Some(total) = frames.refind(&query).await else {
+            let Some(total) = frames.refind(&terms).await else {
+                return;
+            };
+            let Some(typed) = typed else {
                 return;
             };
             let mut shell = shell;
             let news = shell.peek().find.as_ref().is_some_and(|finding| {
-                finding.find.query == query && !(finding.counted && finding.total == total)
+                finding.find.query == typed && !(finding.counted && finding.total == total)
             });
             if news && let Some(finding) = shell.write().find.as_mut() {
-                finding.found(&query, total);
+                finding.found(&typed, total);
             }
         });
     });
@@ -563,67 +558,6 @@ pub(super) fn use_find(shell: Signal<Shell>) -> Frames {
     frames
 }
 
-/// ⌘F: the bar, over the open conversation; with the bar open, its field again, what is typed
-/// selected. Nothing while nothing is open, or while a message is being written: `false`, and the
-/// key is left for the search it was before.
-pub fn open(mut shell: Signal<Shell>) -> bool {
-    let (reading, finding) = {
-        let now = shell.peek();
-        (
-            now.open.is_some() && now.composing.is_none(),
-            now.find.is_some(),
-        )
-    };
-    if !reading {
-        return false;
-    }
-    if finding {
-        Host::focus_all(FIELD);
-    } else {
-        shell.write().find = Some(Finding::default());
-    }
-    true
-}
-
-#[cfg(test)]
-mod open_tests {
-    use super::open;
-    use dioxus::prelude::*;
-    use mail_domain::ThreadId;
-    use mail_ui_kit::view::Shell;
-    use std::sync::Arc;
-    use std::sync::atomic::{AtomicU8, Ordering};
-
-    #[derive(Clone)]
-    struct Probe(Option<ThreadId>, Arc<AtomicU8>);
-
-    #[component]
-    fn Opener() -> Element {
-        let Probe(thread, took) = consume_context::<Probe>();
-        let shell = use_signal(|| Shell {
-            open: thread,
-            ..Shell::default()
-        });
-        use_hook(|| took.store(1 + u8::from(open(shell)), Ordering::SeqCst));
-        rsx! {}
-    }
-
-    fn took(thread: Option<ThreadId>) -> bool {
-        let took = Arc::new(AtomicU8::new(0));
-        let mut dom = VirtualDom::new(Opener).with_root_context(Probe(thread, took.clone()));
-        dom.rebuild_in_place();
-        took.load(Ordering::SeqCst) == 2
-    }
-
-    /// ⌘F finds in the open conversation, and with none open is not taken: it falls through to
-    /// the search it was.
-    #[test]
-    fn find_is_taken_only_by_an_open_conversation() {
-        assert!(took(Some(ThreadId::generate())));
-        assert!(!took(None));
-    }
-}
-
 #[cfg(test)]
 mod stamp_tests {
     use super::next_stamp;
@@ -635,108 +569,5 @@ mod stamp_tests {
         let (a, b, c) = (next_stamp(), next_stamp(), next_stamp());
         assert!(a != 0 && b != 0 && c != 0);
         assert!(a != b && b != c && a != c);
-    }
-}
-
-/// Enter or ⌘G, Shift+Enter or ⇧⌘G: the next or previous match.
-pub fn step(mut shell: Signal<Shell>, step: Step) {
-    if shell.peek().find.is_none() {
-        return;
-    }
-    if let Some(finding) = shell.write().find.as_mut() {
-        finding.step(step);
-    }
-}
-
-/// Escape or Done: the bar closes, the marks go, and the keyboard is the window's again.
-pub fn close(mut shell: Signal<Shell>) {
-    if shell.peek().find.is_some() {
-        shell.write().find = None;
-        Host::focus_app();
-    }
-}
-
-/// What the bar says beside what is typed: the match it is on, or that there is none; nothing
-/// while nothing is typed or it is still counting.
-fn count(finding: &Finding) -> Option<String> {
-    if finding.find.query.trim().is_empty() || !finding.counted {
-        return None;
-    }
-    Some(match finding.at() {
-        Some(at) => copy::status::match_of(at + 1, finding.total),
-        None => copy::status::NO_MATCHES.to_owned(),
-    })
-}
-
-/// ⌘F's bar: the field, with the keyboard as it opens, the count, and the steps and Done.
-#[component]
-pub(super) fn FindBar(shell: Signal<Shell>) -> Element {
-    let keys = use_keys();
-    let focus = FieldFocus::Controlled(use_focus_request().with_select_all());
-    let Some(finding) = shell.read().find.clone() else {
-        return rsx! {};
-    };
-    let said = count(&finding);
-    let any = finding.total > 0 && finding.counted;
-    rsx! {
-        div { class: "find-bar",
-            TextField {
-                label: copy::aria::FIND_IN_MESSAGE.to_owned(),
-                value: finding.find.query.clone(),
-                placeholder: copy::fields::FIND.to_owned(),
-                kind: FieldKind::Search,
-                size: ControlSize::Small,
-                focus,
-                common: mail_ui_kit::common::classed("find-field"),
-                suffix: said.map(|said| rsx! { span { class: "find-count", "{said}" } }),
-                oninput: move |text: String| {
-                    if let Some(finding) = shell.write().find.as_mut() {
-                        finding.retype(text);
-                    }
-                },
-                onkey: move |event: KeyboardEvent| {
-                    // A chord is still the window's: ⌘F selects what is typed, ⌘G steps, ⌘K
-                    // searches the mail. Every other key is the field's.
-                    if mail_ui_kit::actions::is_chord(keys, &event.key(), event.modifiers()) {
-                        return;
-                    }
-                    event.stop_propagation();
-                    match event.key() {
-                        Key::Enter => {
-                            event.prevent_default();
-                            let back = event.modifiers().contains(Modifiers::SHIFT);
-                            step(shell, if back { Step::Previous } else { Step::Next });
-                        }
-                        Key::Escape => close(shell),
-                        _ => {}
-                    }
-                },
-            }
-            Button {
-                bezel: Bezel::Toolbar,
-                image: ImagePosition::Only,
-                icon: Some(IconSource::Glyph(Icon::ChevronUp)),
-                label: copy::aria::PREVIOUS_MATCH.to_owned(),
-                title: Some(copy::aria::PREVIOUS_MATCH.to_owned()),
-                title_shortcut: Some(mail_ui_kit::actions::tip_standard(StandardAction::FindPrevious)),
-                availability: mail_ui_kit::press::available(any),
-                onclick: mail_ui_kit::press::on_primary(move || step(shell, Step::Previous)),
-            }
-            Button {
-                bezel: Bezel::Toolbar,
-                image: ImagePosition::Only,
-                icon: Some(IconSource::Glyph(Icon::ChevronDown)),
-                label: copy::aria::NEXT_MATCH.to_owned(),
-                title: Some(copy::aria::NEXT_MATCH.to_owned()),
-                title_shortcut: Some(mail_ui_kit::actions::tip_standard(StandardAction::FindNext)),
-                availability: mail_ui_kit::press::available(any),
-                onclick: mail_ui_kit::press::on_primary(move || step(shell, Step::Next)),
-            }
-            Button {
-                label: copy::controls::DONE.to_owned(),
-                title_shortcut: Some(mail_ui_kit::actions::escape()),
-                onclick: mail_ui_kit::press::on_primary(move || close(shell)),
-            }
-        }
     }
 }

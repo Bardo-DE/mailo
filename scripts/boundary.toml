@@ -1,0 +1,200 @@
+# The dependency boundary, as one table. `scripts/check-boundary.sh` compares it with
+# `cargo metadata` and fails on any difference, in either direction.
+#
+# [crates.X]  every workspace crate, and the workspace crates it may depend on.
+#   deps  normal and build dependencies (optional ones too: what Cargo.toml declares, whatever
+#         features are on).
+#   dev   dependencies used only by tests, examples and benches. Listed apart so a test seam
+#         is visible as one; a crate that is in `deps` is not repeated here. A crate's dev-dependency
+#         on itself (to turn on a feature in its tests) is not an edge and is not listed.
+#   Adding a dependency to a Cargo.toml means adding it here, in the same change: that is the
+#   point. A line here that Cargo.toml no longer has fails too, so the table cannot go stale.
+#   External crates are not listed here; they are held by the two forbid lists below.
+#
+# [[forbid]]         `crates` reach none of `reach_none`, through any chain of dependencies of
+#                    any kind (what `cargo tree -p X -i Y` finds). Names are packages, workspace or
+#                    not. A crate listed in `crates` is skipped when it is itself in `reach_none`.
+#                    Where the table already keeps an edge out, this is the guard that a later
+#                    table edit cannot let it back in through a third crate.
+# [[forbid_direct]]  `crates` declare none of `names` (shell-style `*` allowed) in any
+#                    dependency table, dev included.
+#
+# Not written as rules because they are the absence of lines in the table below: the app-side
+# crates (`mail-app`, `mail-cli`, `mail-intents`, `mail-edge`) go through `mail-core`'s `Mail`
+# handle and `mail-client` and name none of mail-store, mail-net, mail-secrets, mail-runtime or
+# mail-engine, dev-dependencies included (a test seeds a store through `mail_core::fixtures`); the
+# window's crates, `mail-ui-model` too, name none of those nor `mail-core` or `mail-agent` (a test
+# seeds through `mail_client::testing`); and `mail-cli`, `mail-intents`, `mail-edge` and the
+# `mail-ui*` crates do not name `mail-app` or one another's process crates: `mail-app` is the
+# process over them.
+
+# --- What may not be reached --------------------------------------------------------------------
+
+# The sans-I/O crates know no runtime, store, network or keyring, nor porter's client, its bus
+# vocabulary or quire's capability probe (the desktop's accountd), nor anyview (the attachment
+# peek and its card): only `mail-ui-reader` draws, behind its `anyview` feature.
+[[forbid]]
+crates = ["mailo-domain", "mailo-mime", "mailo-crypto", "mailo-archive", "mailo-proto", "mailo-pim", "mailo-editor", "mailo-reader", "mailo-logic"]
+reach_none = ["tokio", "rusqlite", "dioxus", "reqwest", "keyring-core", "porter-client", "porter-dbus", "ds-desktop", "zbus", "anyview-core", "anyview-peek"]
+
+# `mail-core` may use tokio and the network, but nothing that draws: the window's toolkit, the
+# renderer under it, anyview, or `mail-appkit`; the two front-ends sit over one core that knows neither.
+[[forbid]]
+crates = ["mail-core", "mail-agent", "mail-client"]
+reach_none = ["dioxus", "ds", "ds-settings", "ds-blitz", "blitz-dom", "dioxus-native-dom", "anyview-core", "anyview-peek", "mail-appkit"]
+
+# `mail-os` does no drawing: no toolkit, no renderer, no `mail-ui` (which would pull both in).
+[[forbid]]
+crates = ["mail-os"]
+reach_none = ["dioxus", "ds", "ds-settings", "ds-blitz", "blitz-dom", "dioxus-native-dom", "anyview-core", "anyview-peek", "mail-ui", "mail-ui-kit", "mail-ui-reader", "mail-ui-compose", "mail-ui-list", "mail-ui-settings"]
+
+# `mail-ui-model` and `mail-cli` draw nothing and reach neither the window nor what it is drawn from.
+# `ds-settings` (the settings-file library without its `dioxus` feature) is allowed to them.
+[[forbid]]
+crates = ["mail-ui-model", "mail-cli"]
+reach_none = ["dioxus", "ds", "ds-shell", "ds-motion", "ds-blitz", "blitz-dom", "dioxus-native-dom", "anyview-core", "anyview-peek", "mail-ui", "mail-ui-kit", "mail-ui-reader", "mail-ui-compose", "mail-ui-list", "mail-ui-settings"]
+
+# Between the pure crates and the core, and drawing nothing: anyview is `mail-ui-reader`'s alone.
+[[forbid]]
+crates = ["mail-store", "mail-net", "mail-secrets", "mail-runtime", "mail-engine", "mail-agent"]
+reach_none = ["anyview-core", "anyview-peek"]
+
+# The wire and the secrets sit beside the store, not over it.
+[[forbid]]
+crates = ["mail-net", "mail-secrets"]
+reach_none = ["mail-store"]
+
+# The drivers (`mail-runtime`) are under the engines (`mail-engine`): they do not call the scheduler.
+[[forbid]]
+crates = ["mail-net", "mail-secrets", "mail-runtime"]
+reach_none = ["mail-engine"]
+
+# The window is `mail-ui` over the feature crates over `mail-ui-kit` over `mail-ui-model`. The kit
+# and each feature crate reach nothing above (the shell, the program) or beside them (the other
+# feature crates); the kit, being below all of them, reaches no feature crate at all. What one
+# asks of another goes through the kit's intents and the shell's props.
+[[forbid]]
+crates = ["mail-ui-kit", "mail-ui-reader", "mail-ui-compose", "mail-ui-list", "mail-ui-settings"]
+reach_none = ["mail-ui", "mail-app", "mail-ui-reader", "mail-ui-compose", "mail-ui-list", "mail-ui-settings"]
+
+# The command line, the intents and the edge draw nothing: none names the toolkit.
+[[forbid_direct]]
+crates = ["mail-cli", "mail-intents", "mail-edge"]
+names = ["dioxus*", "ds", "ds-*", "blitz*", "quire*", "anyview*"]
+
+# `mail-store` is the only crate that speaks SQL: above it the store is a typed API, and a test
+# that needs a row asks `mail_store::testing`.
+[[forbid_direct]]
+crates = ["mail-core", "mail-net", "mail-secrets", "mail-runtime", "mail-engine", "mail-agent", "mail-app", "mail-cli", "mail-intents", "mail-edge"]
+names = ["rusqlite"]
+
+# Prompting a person is `mail-cli`.
+[[forbid_direct]]
+crates = ["mail-core"]
+names = ["rpassword"]
+
+# --- What may be depended on --------------------------------------------------------------------
+
+# The pure crates: sans-I/O, no runtime, no network, no store, nothing that draws.
+
+[crates.mailo-domain]
+deps = []
+
+[crates.mailo-mime]
+deps = ["mailo-domain"]
+
+[crates.mailo-crypto]
+deps = ["mailo-domain", "mailo-mime"]
+
+[crates.mailo-archive]
+deps = ["mailo-domain"]
+
+[crates.mailo-proto]
+deps = ["mailo-domain", "mailo-mime"]
+
+[crates.mailo-pim]
+deps = ["mailo-domain"]
+
+[crates.mailo-editor]
+deps = ["mailo-domain", "mailo-mime", "mailo-reader"]
+
+[crates.mailo-reader]
+deps = ["mailo-domain", "mailo-mime"]
+
+[crates.mailo-logic]
+deps = ["mailo-archive", "mailo-domain"]
+
+# Between the pure crates and the core: the store, the wire, the secrets, the drivers, the engines.
+
+[crates.mail-store]
+deps = ["mailo-domain"]
+
+[crates.mail-net]
+deps = ["mailo-crypto", "mailo-domain", "mailo-mime", "mailo-proto"]
+
+[crates.mail-secrets]
+deps = ["mail-net", "mailo-domain"]
+
+[crates.mail-runtime]
+deps = ["mail-net", "mail-secrets", "mail-store", "mailo-archive", "mailo-crypto", "mailo-domain", "mailo-mime", "mailo-pim", "mailo-proto"]
+
+[crates.mail-engine]
+deps = ["mail-net", "mail-runtime", "mail-secrets", "mail-store", "mailo-archive", "mailo-domain", "mailo-mime", "mailo-proto"]
+
+# The core, the agent and the one client the front-ends share.
+
+[crates.mail-core]
+deps = ["mail-engine", "mail-net", "mail-runtime", "mail-secrets", "mail-store", "mailo-archive", "mailo-crypto", "mailo-domain", "mailo-editor", "mailo-logic", "mailo-mime", "mailo-pim", "mailo-proto", "mailo-reader"]
+
+[crates.mail-agent]
+deps = ["mail-core", "mail-secrets", "mail-store", "mailo-domain", "mailo-logic"]
+
+[crates.mail-client]
+deps = ["mail-agent", "mail-core", "mail-runtime", "mail-secrets", "mail-store", "mailo-domain", "mailo-editor", "mailo-logic", "mailo-mime", "mailo-pim", "mailo-proto", "mailo-reader"]
+
+# The app layer: OS integration, the shared toolkit-free pieces, the front-ends' process.
+
+[crates.mail-os]
+deps = ["mail-appkit", "mail-client", "mailo-domain", "mailo-logic", "mailo-proto"]
+
+[crates.mail-appkit]
+deps = []
+
+[crates.mail-edge]
+deps = ["mail-core", "mailo-logic"]
+
+[crates.mail-intents]
+deps = ["mail-client", "mail-core", "mail-edge", "mail-ui", "mail-ui-model", "mailo-domain", "mailo-logic"]
+dev = ["mail-os"]
+
+[crates.mail-cli]
+deps = ["mail-agent", "mail-client", "mail-core", "mail-edge", "mail-os", "mail-ui-model", "mailo-archive", "mailo-crypto", "mailo-domain", "mailo-logic", "mailo-mime", "mailo-pim", "mailo-proto", "mailo-reader"]
+
+[crates.mail-app]
+deps = ["mail-agent", "mail-cli", "mail-client", "mail-core", "mail-edge", "mail-intents", "mail-os", "mail-ui", "mail-ui-compose", "mail-ui-kit", "mail-ui-model", "mail-ui-reader", "mailo-logic"]
+dev = ["mailo-crypto", "mailo-domain", "mailo-mime", "mailo-reader"]
+
+# The window: the state, the kit, the feature crates, the shell.
+
+[crates.mail-ui-model]
+deps = ["mail-client", "mailo-domain", "mailo-logic", "mailo-reader"]
+
+[crates.mail-ui-kit]
+deps = ["mail-client", "mail-os", "mail-ui-model", "mailo-crypto", "mailo-domain", "mailo-editor", "mailo-logic", "mailo-mime", "mailo-reader"]
+
+[crates.mail-ui-reader]
+deps = ["mail-appkit", "mail-client", "mail-os", "mail-ui-kit", "mail-ui-model", "mailo-crypto", "mailo-domain", "mailo-logic", "mailo-mime", "mailo-pim", "mailo-reader"]
+
+[crates.mail-ui-compose]
+deps = ["mail-client", "mail-ui-kit", "mail-ui-model", "mailo-domain", "mailo-editor", "mailo-logic", "mailo-mime", "mailo-reader"]
+
+[crates.mail-ui-list]
+deps = ["mail-client", "mail-ui-kit", "mail-ui-model", "mailo-domain", "mailo-logic", "mailo-proto"]
+
+[crates.mail-ui-settings]
+deps = ["mail-client", "mail-os", "mail-ui-kit", "mail-ui-model", "mailo-domain", "mailo-editor", "mailo-logic", "mailo-mime", "mailo-pim", "mailo-proto", "mailo-reader"]
+
+[crates.mail-ui]
+deps = ["mail-appkit", "mail-client", "mail-os", "mail-ui-compose", "mail-ui-kit", "mail-ui-list", "mail-ui-model", "mail-ui-reader", "mail-ui-settings", "mailo-crypto", "mailo-domain", "mailo-editor", "mailo-logic", "mailo-mime", "mailo-pim", "mailo-proto", "mailo-reader"]
+dev = ["mailo-archive"]
+

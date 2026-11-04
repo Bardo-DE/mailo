@@ -1,21 +1,23 @@
-//! Lane 16: finding in a conversation. ⌘F with a conversation open brings up a find bar over it,
-//! not the mail's search: what is typed is found in its messages as they are drawn, a plain-text
-//! message and a sender's HTML alike, counted ("1 of 4") and marked in their frames, the current
-//! match apart. Enter and ⌘G step forward, Shift+Enter and ⇧⌘G back, wrapping; Escape closes the
-//! bar and takes every mark out, leaving each message's words as they were. ⌘K is still the
-//! search panel's.
+//! Lane 16: finding in a conversation. ⌘F with a conversation open brings up the search card in
+//! its message mode, a chip naming the scope in place of the mail's syntax: what is typed is found
+//! in the conversation's messages as they are drawn, a plain-text message and a sender's HTML
+//! alike, counted ("1 of 4") and marked in their frames, the current match apart. Enter and ⌘G
+//! step forward, Shift+Enter and ⇧⌘G back, wrapping; Escape empties the field and then leaves
+//! the card, which leaves the marks, and Escape in the reader takes every mark out, leaving each
+//! message's words as they were. Backspace on the empty field is the ordinary ⌘K search again.
+//! A conversation opened from a search marks the search's words. There is no second search field
+//! in the window.
 
 use ds_harness::Harness;
 
 use super::drive::{Drive, Key, PRIMARY};
-use super::window::{Window, deliver};
+use super::window::{INBOX, Window, deliver};
 
 const SUBJECT: &str = "The quarterly report";
-/// The bar's field and its count.
-const FIELD: &str = ".find-bar input";
-const COUNT: &str = ".find-bar .find-count";
-/// The search panel's field.
-const SEARCH: &str = ".ds-search-card input";
+/// The card's field, in either mode, and the chips under it: the scope, then the count.
+const FIELD: &str = ".ds-search-card input";
+const SCOPE: &str = ".ds-search-card .ds-text-field-tokens .ds-chip:nth-child(1)";
+const COUNT: &str = ".ds-search-card .ds-text-field-tokens .ds-chip:nth-child(2)";
 
 /// A conversation of two: a plain-text message far taller than the window, its second match at
 /// its foot, and a reply in HTML whose word is cut by a `<b>` and which hides a preheader, as
@@ -114,13 +116,22 @@ fn scrolled(harness: &Harness) -> f64 {
         .unwrap_or_default()
 }
 
-/// The bar's count, as drawn.
+/// The card's count, as drawn.
 fn count(harness: &Harness) -> Option<String> {
     harness.text_of(COUNT).map(|text| text.trim().to_owned())
 }
 
+/// A press outside the card: it goes, and the marks stay.
+fn put_away(window: &mut Window) {
+    window.harness.click(ds::prelude::Point {
+        x: ds::prelude::Px(4.0),
+        y: ds::prelude::Px(4.0),
+    });
+    window.until("the card goes", |h| h.count(".ds-search-card") == 0);
+}
+
 #[test]
-fn command_f_finds_in_the_open_conversation_and_command_k_still_searches() {
+fn command_f_finds_in_the_open_conversation_through_the_search_card() {
     let mut window = Window::open(letters);
     window.open_subject(SUBJECT);
     window.until("both messages are drawn", |h| {
@@ -128,17 +139,22 @@ fn command_f_finds_in_the_open_conversation_and_command_k_still_searches() {
     });
     let before = (words(&window.harness, 1), words(&window.harness, 2));
 
-    // ⌘F: the bar, with the keyboard; what is typed is counted in both messages, the hidden
-    // preheader left out, a word cut by `<b>` and an accented one found.
+    // ⌘F: the card, with the keyboard, its chip naming the conversation; what is typed is
+    // counted in both messages, the hidden preheader left out, a word cut by `<b>` and an
+    // accented one found. There is no second search field.
     window.press(&[PRIMARY], Key::Char('f'), 1);
-    window.until("⌘F puts the keyboard in the find bar", |h| {
+    window.until("⌘F puts the keyboard in the card", |h| {
         h.is_focused(FIELD)
     });
     assert_eq!(
-        window.harness.count(SEARCH),
-        0,
-        "⌘F brought up the search panel"
+        window.harness.text_of(SCOPE).as_deref().map(str::trim),
+        Some(mail_ui_model::copy::fields::IN_THIS_MESSAGE),
+        "the card does not say it finds in the message"
     );
+    for gone in [".find-bar", ".find-field", ".find-count"] {
+        assert_eq!(window.harness.count(gone), 0, "{gone} is drawn");
+    }
+    assert_eq!(window.harness.count("input"), 1, "two fields are drawn");
     window.type_text("report");
     window.until("four matches, on the first", |h| {
         count(h).as_deref() == Some("1 of 4")
@@ -158,6 +174,10 @@ fn command_f_finds_in_the_open_conversation_and_command_k_still_searches() {
     window.until("the second match, far down", |h| {
         count(h).as_deref() == Some("2 of 4") && marks(h, 1).1 == ["report"] && scrolled(h) > 200.0
     });
+    assert!(
+        window.harness.count(FIELD) == 1,
+        "Return left the card instead of stepping"
+    );
     let steps: [(&[Key], Key, &str); 4] = [
         (&[], Key::Enter, "3 of 4"),
         (&[Key::Shift], Key::Enter, "2 of 4"),
@@ -176,7 +196,7 @@ fn command_f_finds_in_the_open_conversation_and_command_k_still_searches() {
         count(h).as_deref() == Some("1 of 4") && marks(h, 1).1 == ["Report"]
     });
 
-    // Across the `<b>`: one match, two marks.
+    // ⌘F again selects what is typed; across the `<b>`: one match, two marks.
     window.press(&[PRIMARY], Key::Char('f'), 1);
     window.type_text("report,");
     window.until("one match, cut by the bold", |h| {
@@ -190,11 +210,37 @@ fn command_f_finds_in_the_open_conversation_and_command_k_still_searches() {
         count(h).as_deref() == Some(mail_ui_model::copy::status::NO_MATCHES)
     });
 
-    // Escape: the bar goes, the marks with it, and the words are as they were.
+    // Escape with text empties the field and takes the marks with it; the card stays.
     window.press(&[], Key::Escape, 1);
-    window.until("Escape closes the bar", |h| {
-        h.count(".find-bar") == 0 && h.is_focused(".app")
+    window.until("the first Escape empties the field", |h| {
+        h.attr(FIELD, "value").as_deref() == Some("")
+            && h.is_focused(FIELD)
+            && count(h).is_none()
+            && marks(h, 1).0 == 0
+            && marks(h, 2).0 == 0
     });
+    assert_eq!(
+        (words(&window.harness, 1), words(&window.harness, 2)),
+        before,
+        "the messages' words changed"
+    );
+
+    // Typed again, and the card put away with a press outside it: the marks and the current
+    // match stay, and ⌘G goes on stepping without the card.
+    window.type_text("report");
+    window.until("four matches again", |h| {
+        count(h).as_deref() == Some("1 of 4") && marks(h, 1).0 == 2
+    });
+    put_away(&mut window);
+    assert_eq!(marks(&window.harness, 1).0, 2, "leaving took the marks");
+    window.press(&[PRIMARY], Key::Char('g'), 1);
+    window.until("⌘G steps with the card away", |h| {
+        marks(h, 1).1 == ["report"] && h.count(".ds-search-card") == 0
+    });
+
+    // Escape in the reader, the card away: the marks go and the words are as they were; the
+    // conversation stays open.
+    window.press(&[], Key::Escape, 1);
     window.until("no mark is left", |h| {
         marks(h, 1).0 == 0 && marks(h, 2).0 == 0
     });
@@ -211,10 +257,78 @@ fn command_f_finds_in_the_open_conversation_and_command_k_still_searches() {
         "Escape closed the conversation too"
     );
 
-    // ⌘K is the search panel's.
-    window.press(&[PRIMARY], Key::Char('k'), 1);
-    window.until("⌘K puts the keyboard in the search panel", |h| {
-        h.is_focused(SEARCH)
+    // An empty field left with Escape leaves nothing marked: the card goes.
+    window.press(&[PRIMARY], Key::Char('f'), 1);
+    window.until("the card is up", |h| h.is_focused(FIELD));
+    window.press(&[], Key::Escape, 1);
+    window.until("Escape on the empty field leaves the card", |h| {
+        h.count(".ds-search-card") == 0 && h.is_focused(".app")
     });
-    assert_eq!(window.harness.count(".find-bar"), 0);
+
+    // ⌘K is the ordinary search, with no chip for the conversation.
+    window.press(&[PRIMARY], Key::Char('k'), 1);
+    window.until("⌘K puts the keyboard in the search", |h| {
+        h.is_focused(FIELD)
+    });
+    assert_ne!(
+        window.harness.text_of(SCOPE).as_deref().map(str::trim),
+        Some(mail_ui_model::copy::fields::IN_THIS_MESSAGE)
+    );
+}
+
+#[test]
+fn a_conversation_opened_from_a_search_marks_its_words_and_backspace_returns_to_the_search() {
+    let mut window = Window::open(letters);
+    window.press(&[PRIMARY], Key::Char('k'), 1);
+    window.until("⌘K puts the keyboard in the search", |h| {
+        h.is_focused(FIELD)
+    });
+    window.type_text("report");
+    window.until("the list is the search", |h| {
+        let rows = h.count(".list .ds-thread");
+        rows > 0 && rows < INBOX.len() + 1
+    });
+    put_away(&mut window);
+    window.open_subject(SUBJECT);
+
+    // The search's word is marked in the conversation before any find.
+    window.until("the search's word is marked in both messages", |h| {
+        frames(h) == 2 && marks(h, 1).0 == 2 && marks(h, 2).0 == 3
+    });
+
+    // ⌘F opens on the word: Return steps through it.
+    window.press(&[PRIMARY], Key::Char('f'), 1);
+    window.until("the card holds the search's word", |h| {
+        h.is_focused(FIELD) && h.attr(FIELD, "value").as_deref() == Some("report")
+    });
+    window.until("four matches", |h| count(h).as_deref() == Some("1 of 4"));
+    window.press(&[], Key::Enter, 1);
+    window.until("Return steps", |h| count(h).as_deref() == Some("2 of 4"));
+
+    // Typed text replaces the search's words.
+    window.type_text("covers");
+    window.until("only what is typed is marked", |h| {
+        count(h).as_deref() == Some("1 of 1") && marks(h, 1).0 == 1 && marks(h, 2).0 == 0
+    });
+
+    // Escape empties the field; Backspace on the empty field takes the chip off, and the card is
+    // the ordinary search again, the list's search as it was.
+    window.press(&[], Key::Escape, 1);
+    window.until("the field is empty", |h| {
+        h.attr(FIELD, "value").as_deref() == Some("")
+    });
+    window.press(&[], Key::Backspace, 1);
+    window.until("the card is the search again", |h| {
+        h.attr(FIELD, "value").as_deref() == Some("report")
+            && h.text_of(SCOPE).as_deref().map(str::trim)
+                != Some(mail_ui_model::copy::fields::IN_THIS_MESSAGE)
+    });
+    assert!(
+        window.harness.count(".list .ds-thread") < INBOX.len() + 1,
+        "the list's search was lost"
+    );
+    put_away(&mut window);
+    window.until("the search's word is marked again", |h| {
+        marks(h, 1).0 == 2 && marks(h, 2).0 == 3
+    });
 }

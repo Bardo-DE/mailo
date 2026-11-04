@@ -55,7 +55,7 @@ pub enum Intent {
 ///
 /// A field keeps ⌘A, Shift+Enter, ⌥⌘U and Move to Trash for itself; a thread window has no sidebar, search,
 /// settings, list to step through or other conversation to start, so those are nothing there.
-/// Finding in the conversation is every window's, and a field's too: the find bar's own field
+/// Finding in the conversation is every window's, and a field's too: the search card's own field
 /// hands ⌘F and ⌘G on. The reader's text size is not a field's: ⌘+ and ⌘− belong to the field.
 pub fn intent(heard: Option<Heard>, scope: Scope) -> Option<Intent> {
     let chosen = match heard? {

@@ -48,6 +48,36 @@ pub fn find_in(runs: &[&str], query: &str) -> Vec<Found> {
     found
 }
 
+/// Every match of any of `terms` in `runs`, in reading order, at most [`MOST_FOUND`]: each term
+/// found as [`find_in`] finds it, and where two terms' matches overlap the earlier one is kept,
+/// so no text is marked twice. One term is [`find_in`].
+pub fn find_terms(runs: &[&str], terms: &[String]) -> Vec<Found> {
+    if let [term] = terms {
+        return find_in(runs, term);
+    }
+    let mut all: Vec<Found> = terms
+        .iter()
+        .flat_map(|term| find_in(runs, term))
+        .filter(|found| !found.0.is_empty())
+        .collect();
+    all.sort_by_key(|Found(pieces)| (pieces[0].0, pieces[0].1.start));
+    let mut kept: Vec<Found> = Vec::new();
+    for found in all {
+        let overlaps = kept.last().is_some_and(|Found(last)| {
+            let (run, bytes) = &found.0[0];
+            let (end_run, end_bytes) = &last[last.len() - 1];
+            (*run, bytes.start) < (*end_run, end_bytes.end)
+        });
+        if !overlaps {
+            kept.push(found);
+        }
+        if kept.len() == MOST_FOUND {
+            break;
+        }
+    }
+    kept
+}
+
 /// Where a folded char came from: its run, and its bytes there.
 type Origin = (usize, Range<usize>);
 
@@ -156,7 +186,7 @@ fn pieces(origin: &[Origin]) -> Found {
 
 #[cfg(test)]
 mod tests {
-    use super::{Found, MOST_FOUND, find_in, fold_by_tokens, folded_apart};
+    use super::{Found, MOST_FOUND, find_in, find_terms, fold_by_tokens, folded_apart};
 
     /// Each match as the text of its pieces.
     fn said(runs: &[&str], found: &[Found]) -> Vec<Vec<String>> {
@@ -296,5 +326,30 @@ mod tests {
         assert_eq!(find_in(&["a re:/a/ b"], "re:/a/").len(), 1);
         assert!(find_in(&["a cat"], "re:/a/").is_empty());
         assert_eq!(find_in(&["one two", "two one"], "one two").len(), 1);
+    }
+
+    #[test]
+    fn several_terms_are_found_in_reading_order_without_marking_text_twice() {
+        let runs = ["Lunch on Friday, lunch again", "on Friday"];
+        let terms = |words: &[&str]| -> Vec<String> {
+            words.iter().map(|word| (*word).to_owned()).collect()
+        };
+        let found = find_terms(&runs, &terms(&["friday", "lunch"]));
+        let want: Vec<Vec<String>> = ["Lunch", "Friday", "lunch", "Friday"]
+            .iter()
+            .map(|piece| vec![(*piece).to_owned()])
+            .collect();
+        assert_eq!(said(&runs, &found), want);
+        let found = find_terms(&runs, &terms(&["lunch on", "on fri"]));
+        assert_eq!(
+            said(&runs, &found),
+            vec![vec!["Lunch on".to_owned()], vec!["on Fri".to_owned()]],
+            "the one that starts inside an earlier one goes; the next run's own stays"
+        );
+        assert_eq!(
+            find_terms(&runs, &terms(&["lunch"])),
+            find_in(&runs, "lunch")
+        );
+        assert!(find_terms(&runs, &[]).is_empty());
     }
 }

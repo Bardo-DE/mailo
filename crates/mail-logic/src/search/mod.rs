@@ -27,7 +27,7 @@ use chrono::{DateTime, TimeZone, Utc};
 use mail_domain::{ThreadId, ThreadSummary};
 
 pub use expanding::{Expansion, expand, suggestions};
-pub use find::{Find, Highlight, Step, list_highlight};
+pub use find::{Find, Highlight, Step, list_highlight, text_words};
 pub use fuzzy::{FuzzyHit, match_list};
 pub use group::{ActionHit, Command, MailHit, PersonHit, Results, Top};
 pub use highlight::{marks, snippet};
@@ -36,7 +36,7 @@ pub use pipeline::{NEWEST_POOL, Prepared, QUICK_LIMIT, Searched, TOP_LIMIT, prep
 pub use ranking::{Affinity, MAX_BONUS, SenderStats, WEIGHTS, rank};
 pub use regex::{Extracted, compile, extract, hits as regex_hits};
 pub use source::{Source, first};
-pub use within::{Found, MOST_FOUND, find_in};
+pub use within::{Found, MOST_FOUND, find_in, find_terms};
 
 /// A query that has been parsed, expanded and ranked.
 #[derive(Debug, Clone)]

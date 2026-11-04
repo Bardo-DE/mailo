@@ -152,12 +152,18 @@ cargo test --doc --workspace
 for s in scripts/check-*.sh; do bash "$s"; done
 ```
 
-- `check-boundary.sh`: the pure crates reach none of tokio, rusqlite, dioxus, reqwest, the
-  keyring or the bus; `mail-core` reaches nothing that draws; `mail-store`, `mail-net`, `mail-secrets`,
-  `mail-runtime` and `mail-engine` reach no anyview, `mail-net` and `mail-secrets` reach no
-  `mail-store`, and no driver crate reaches `mail-engine`; `ui` and `cli` do not name each other. The app crates (`mail-app`, `mail-cli`, `mail-intents`, `mail-edge`) and the window's crates name
-  no store, runtime, engine or wire crate in their Cargo.toml, dev-dependencies included. It also ratchets
-  the `mail-core` code listed in `scripts/core-prose-allowlist.txt` and
+- `check-boundary.sh`: `scripts/boundary.toml` lists, for every workspace crate, the workspace
+  crates it may depend on (dev-dependencies apart), and the script compares it with
+  `cargo metadata`: a new dependency, or a table line Cargo.toml no longer has, fails. A new edge is
+  a deliberate edit to the table. The same file lists what a group of crates may never reach, through
+  any chain: the pure crates no tokio, rusqlite, dioxus, reqwest, keyring or bus; `mail-core` nothing
+  that draws; the lower crates no anyview; `mail-net` and `mail-secrets` no `mail-store`; no driver
+  crate `mail-engine`; the window's kit and feature crates nothing above or beside them. The app
+  crates and the window's crates name no store, runtime, engine or wire crate: that is the absence
+  of a line in the table.
+- `check-source.sh`: the greps over sources that are not dependencies: no part of the window named
+  in the lower crates, anyview's paths, no runtime or terminal in a library, no SQL above
+  `mail-store`, and the ratchets on the `mail-core` code listed in `scripts/core-prose-allowlist.txt` and
   `scripts/core-result-string-allowlist.txt`.
 - `check-discards.sh`: in the library crates, a `let _ =`, `.ok()` or `unwrap_or_default()` with
   no comment on or above its line is counted against `scripts/discards.txt`. A fallible result
