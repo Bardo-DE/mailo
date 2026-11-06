@@ -66,6 +66,7 @@ impl Eq for dyn Command {}
 /// The commands the window can run today, in the order the panel offers them.
 pub(in crate::ui) const COMMANDS: &[&dyn Command] = &[
     &Compose,
+    &WriteTo,
     &FromTemplate,
     &ForwardAttached,
     &ReplyList,
@@ -145,6 +146,37 @@ impl Command for Compose {
         // A refusal is the composer's to say (`open_composer` logs it).
         let _ = open_composer(&client, acts.shell, Writes::New);
         close(acts.shell);
+    }
+}
+
+/// Lists the book's people in the same panel; picking one writes to them.
+#[derive(Debug)]
+pub(in crate::ui) struct WriteTo;
+
+impl Command for WriteTo {
+    fn key(&self) -> &'static str {
+        "write-to"
+    }
+
+    fn label(&self) -> &'static str {
+        menus::NEW_MESSAGE_TO
+    }
+
+    fn icon(&self) -> Icon {
+        Icon::Pen
+    }
+
+    fn closes_first(&self) -> bool {
+        false
+    }
+
+    fn run(&self, acts: Acts) {
+        let mut shell = acts.shell;
+        if let Bar::Open(open) = &mut shell.write().bar {
+            open.listing = BarListing::Recipient(String::new());
+            open.active = 0;
+            open.moved = false;
+        }
     }
 }
 

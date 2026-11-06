@@ -180,9 +180,12 @@ pub fn is_either(token: &Token) -> bool {
     !token.quoted && !token.negated && joins(&token.text)
 }
 
+/// The word that joins two terms into an either-or term, as a search mailo writes spells it.
+pub const OR: &str = "OR";
+
 /// Whether `word`, as typed, is the one that joins two terms into an either-or term.
 pub fn joins(word: &str) -> bool {
-    word == "OR" || word == "|"
+    word == OR || word == "|"
 }
 
 /// `tokens` grouped as `OR` joins them: each group one term, or several that are one either-or

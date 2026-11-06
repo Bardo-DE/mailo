@@ -1,6 +1,6 @@
 //! The search panel as a person drives it: typing brings up the sections, the arrows move
 //! across them, Return runs and Tab completes the highlighted row (or an operator being typed),
-//! Escape empties then closes the panel, ⌘K or the toolbar's magnifier summons it, the toolbar
+//! Tab on a person opens them, New Message to… writes to the person picked, Escape empties then closes the panel, ⌘K or the toolbar's magnifier summons it, the toolbar
 //! shows a search the panel left behind, and the sidebar has no field of its own.
 
 use super::pictures::{BarAlone, BarAloneProps, held};
@@ -324,4 +324,112 @@ async fn command_k_in_the_panel_selects_what_is_typed() {
     );
     assert_eq!(search(&bar.dom), "sync");
     assert!(open(&bar.dom).is_some(), "⌘K closed the panel");
+}
+
+/// The bar alone over the contact book's fixture: Daniel written to twice, Dana heard from once.
+fn over_the_book(recorder: &Recorder) -> Alone<tempfile::TempDir> {
+    let (store, dir) = crate::ui::settings_tests::contacts::the_book();
+    alone_over(recorder, store, dir)
+}
+
+fn listing(bar: &Alone<impl Sized>) -> Option<BarListing> {
+    open(&bar.dom).map(|open| open.listing)
+}
+
+/// Tab on a person opens them in the panel: what can be done with them under their name, then
+/// the conversations they are in. Typing narrows the rows and leaves the list's search alone;
+/// Escape empties the field, then goes back to the search as it was.
+#[tokio::test]
+async fn tab_on_a_person_opens_them() {
+    use crate::ui::settings_tests::contacts::WRITTEN;
+    use mail_ui_model::copy::headers;
+    let recorder = Recorder::default();
+    let mut bar = over_the_book(&recorder);
+    bar.typed("daniel", |page| has(page, WRITTEN)).await;
+    bar.key("Tab");
+    let Some(BarListing::Person { person, typed }) = listing(&bar) else {
+        panic!("Tab did not open the person: {:?}", listing(&bar));
+    };
+    assert_eq!(
+        (
+            person.address.as_str(),
+            person.name.as_str(),
+            typed.as_str()
+        ),
+        (WRITTEN, "Daniel Brook", "")
+    );
+    let page = until(&mut bar.dom, "Tab", |page| {
+        has(page, &format!(">{}<", headers::WITH_THEM)) && has(page, "message 2")
+    })
+    .await;
+    for words in [
+        menus::NEW_MESSAGE,
+        menus::COPY_ADDRESS,
+        menus::MAIL_FROM,
+        menus::MAIL_WITH,
+        menus::ADD_TO_CONTACTS,
+    ] {
+        assert!(has(&page, words), "no {words:?}:\n{page}");
+    }
+    bar.typed("copy", |page| !has(page, menus::MAIL_FROM)).await;
+    assert_eq!(
+        search(&bar.dom),
+        "daniel",
+        "typing over a person changed the search"
+    );
+    bar.key("Escape");
+    assert!(matches!(listing(&bar), Some(BarListing::Person { typed, .. }) if typed.is_empty()));
+    bar.key("Escape");
+    assert_eq!(listing(&bar), Some(BarListing::Search));
+    assert_eq!(search(&bar.dom), "daniel");
+}
+
+/// Return on Mail With Them, in a person opened: the list's search is every conversation they
+/// are in, and the panel goes.
+#[tokio::test]
+async fn a_persons_search_is_set_in_the_list() {
+    use crate::ui::settings_tests::contacts::WRITTEN;
+    let recorder = Recorder::default();
+    let mut bar = over_the_book(&recorder);
+    bar.typed("daniel", |page| has(page, WRITTEN)).await;
+    bar.key("Tab");
+    bar.typed("with", |page| {
+        has(page, menus::MAIL_WITH) && !has(page, menus::COPY_ADDRESS)
+    })
+    .await;
+    bar.key("Enter");
+    assert_eq!(open(&bar.dom), None, "the panel stayed");
+    assert_eq!(search(&bar.dom), mail_ui_kit::person::mail_with(WRITTEN),);
+}
+
+/// New Message to… lists the book's people; Return writes to the one lit, and the composer
+/// opens on a draft to them.
+#[tokio::test]
+async fn new_message_to_writes_to_the_person_picked() {
+    use crate::ui::settings_tests::contacts::HEARD;
+    let recorder = Recorder::default();
+    let (store, dir) = crate::ui::settings_tests::contacts::the_book();
+    let mut bar = alone_over(&recorder, store.clone(), dir);
+    let action = commands::WriteTo.label();
+    bar.typed(action, |page| {
+        words(page).contains(&format!("{COMMANDS}{action}"))
+    })
+    .await;
+    bar.key("Enter");
+    assert_eq!(listing(&bar), Some(BarListing::Recipient(String::new())));
+    bar.typed("dana", |page| has(page, HEARD)).await;
+    bar.key("Enter");
+    assert_eq!(open(&bar.dom), None, "the panel stayed");
+    let draft = bar
+        .dom
+        .in_runtime(|| held().shell.peek().composing.as_ref().map(|c| c.draft))
+        .expect("no composer opened");
+    let to: Vec<String> = store
+        .draft(draft)
+        .unwrap_or_else(|why| panic!("the draft: {why}"))
+        .to
+        .into_iter()
+        .map(|to| to.email)
+        .collect();
+    assert_eq!(to, [HEARD]);
 }

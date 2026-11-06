@@ -123,21 +123,6 @@ fn card_row(address: &str) -> mail_ui_kit::menu::MenuItem {
     }
 }
 
-/// Add to Contacts, or Show Contact Card: the sender's card, made if there was none, opened in
-/// Settings › Contacts. A new card is said in a toast.
-fn show_card(address: &str, in_mail: &str) {
-    let client = mail_ui_kit::live::client();
-    match book::add_sender(&client, address, in_mail) {
-        Ok((card, said)) => {
-            if let Some(said) = said {
-                tell(said, Follow::Nothing);
-            }
-            mail_ui_kit::settings_at::open_card(card);
-        }
-        Err(why) => tell(why, Follow::Nothing),
-    }
-}
-
 /// A sender's name in the reader's header, in the headline type: `shown`, which is their address
 /// when the mail gave no name (`in_mail` empty), and the VIP mark after it when they are one. A
 /// right click offers Edit Contact…, which opens [`ContactEditor`] hung from the name, and Add to
@@ -207,7 +192,7 @@ pub fn SenderName(shown: String, in_mail: String, address: String) -> Element {
                                 asked.set(Asked::Editing);
                             } else {
                                 asked.set(Asked::Resting);
-                                show_card(&address, &in_mail);
+                                mail_ui_kit::person::show_card(&address, &in_mail);
                             }
                         }
                     },

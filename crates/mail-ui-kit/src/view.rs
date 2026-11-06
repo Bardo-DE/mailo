@@ -378,6 +378,16 @@ pub enum BarListing {
     /// is left alone, as it is for the templates. It lists no rows; the count of matches is
     /// said beside the field and the reader marks them.
     Message,
+    /// A person, opened from their row: what can be done with them ([`crate::person`]) and the
+    /// conversations they are in, narrowed by `typed`. The list's search is left alone, as it is
+    /// for the templates.
+    Person {
+        person: crate::person::Person,
+        typed: String,
+    },
+    /// New Message to…: the book's people for the text held here; picking one writes to them.
+    /// The list's search is left alone.
+    Recipient(String),
 }
 
 /// Which of the two mail-file sheets is open, and what its field holds.

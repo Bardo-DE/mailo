@@ -47,6 +47,7 @@ pub(in crate::ui) fn Spotlight(
     let client = mail_ui_kit::live::use_client();
     let keys = use_keys();
     let drawn = use_signal(Drawn::default);
+    let threads = use_signal(Vec::new);
     let desk = try_use_context::<mail_ui_compose::compose::Desk>();
     // What was opened and put aside, for Recent. The window provides it; a test may not.
     let today = try_use_context::<Signal<mail_ui_kit::today::Today>>();
@@ -71,6 +72,7 @@ pub(in crate::ui) fn Spotlight(
                 keymap,
                 today: today.as_ref().unwrap_or(&none),
                 hours: mail_ui_kit::clock::hours(),
+                threads: &threads.read(),
             };
             panel_rows(&world, &drawn.read(), &open.listing, sidebar)
         })
@@ -98,7 +100,13 @@ pub(in crate::ui) fn Spotlight(
     // search holds has a remove button that takes it out. The keyboard stays in the field. A
     // press acts on the field as it is then, and only while it still shows the chip pressed.
     let (tokens, on_token, on_token_remove) = match &open.listing {
-        BarListing::Templates(_) => (Vec::new(), None, None),
+        BarListing::Templates(_) | BarListing::Recipient(_) => (Vec::new(), None, None),
+        // The person opened is the one chip; taking it out goes back to the search.
+        BarListing::Person { person, .. } => (
+            vec![person.shown().to_owned()],
+            None,
+            Some(EventHandler::new(move |_: usize| back(shell))),
+        ),
         BarListing::Message => (message::chips(&shell.read()), None, None),
         BarListing::Search => match chips(&text) {
             Chips::Offered(offered) => (
@@ -131,12 +139,20 @@ pub(in crate::ui) fn Spotlight(
     let (label, placeholder) = match &open.listing {
         BarListing::Message => (copy::aria::FIND_IN_MESSAGE, copy::fields::FIND),
         BarListing::Search | BarListing::Templates(_) => (LABEL, copy::fields::SEARCH_EVERYTHING),
+        BarListing::Person { .. } => (LABEL, copy::fields::FIND),
+        BarListing::Recipient(_) => (LABEL, copy::fields::ADD_A_PERSON),
     };
+    // A person's acts and New Message to…'s people are a pick list: the first row is lit as
+    // typing narrows it, so Return writes to the one named.
+    let picking = matches!(
+        open.listing,
+        BarListing::Person { .. } | BarListing::Recipient(_)
+    );
     // The highlighted row, by its key: quire's cursor names a row by what picking it hands back.
     // Typed text lights a row only once it names it, or once a key or the pointer chose one.
     let lit = rows
         .get(open.active.min(rows.len().saturating_sub(1)))
-        .filter(|row| text.trim().is_empty() || open.moved || lights(row, &text))
+        .filter(|row| picking || text.trim().is_empty() || open.moved || lights(row, &text))
         .map(|row| row.key.clone());
     let keyed = rows.clone();
     let keyed_on = rows.clone();
@@ -144,6 +160,7 @@ pub(in crate::ui) fn Spotlight(
     rsx! {
         {line}
         Fetch { shell, drawn }
+        super::person::Threads { shell, threads }
         SearchField::<String> {
             label: label.to_owned(),
             placeholder: placeholder.to_owned(),
@@ -209,7 +226,12 @@ fn on_key(ctx: Ctx, keys: Keys, rows: &[mail_ui_kit::menu::MenuItem], event: Key
     };
     // Tab completes an operator the last word starts ("fr" to "from:") before it completes a row.
     let typed = field_text(&shell.peek());
+    let listing = match &shell.peek().bar {
+        Bar::Open(open) => open.listing.clone(),
+        Bar::Closed => BarListing::Search,
+    };
     if key == BarKey::Tab
+        && listing == BarListing::Search
         && let Some(done) = complete_syntax(&typed)
     {
         event.prevent_default();
@@ -251,8 +273,27 @@ fn on_key(ctx: Ctx, keys: Keys, rows: &[mail_ui_kit::menu::MenuItem], event: Key
             }
         }
         Step::Complete(at) => {
-            if let Some(row) = rows.get(at) {
-                set_text(shell, ctx.pages, completion(row));
+            let Some(row) = rows.get(at) else {
+                return;
+            };
+            // Tab on a person opens them, in the search's People and in New Message to….
+            let names = match &listing {
+                BarListing::Search => ctx.drawn.peek().names.clone(),
+                BarListing::Recipient(_) => [(
+                    row.key.trim_start_matches("person:").to_owned(),
+                    row.name.clone(),
+                )]
+                .into(),
+                BarListing::Person { .. } | BarListing::Templates(_) | BarListing::Message => {
+                    return;
+                }
+            };
+            match super::person::of_key(&row.key, &names) {
+                Some(person) => super::person::open(shell, person),
+                None if listing == BarListing::Search => {
+                    set_text(shell, ctx.pages, completion(row));
+                }
+                None => {}
             }
         }
         Step::Clear => set_text(shell, ctx.pages, String::new()),
@@ -282,6 +323,10 @@ fn run_row(ctx: Ctx, key: &str) {
     };
     match listing {
         BarListing::Templates(_) => super::templates::run(ctx.shell, key),
+        BarListing::Person { person, .. } => {
+            super::person::run(ctx.shell, ctx.pages, &person, key);
+        }
+        BarListing::Recipient(_) => super::person::write(ctx.shell, key),
         BarListing::Message => {}
         BarListing::Search => {
             let choice = super::sections::choice_of(&ctx.drawn.peek().results, key);
@@ -295,7 +340,10 @@ fn run_row(ctx: Ctx, key: &str) {
 fn field_text(shell: &Shell) -> String {
     match &shell.bar {
         Bar::Open(BarOpen {
-            listing: BarListing::Templates(typed),
+            listing:
+                BarListing::Templates(typed)
+                | BarListing::Recipient(typed)
+                | BarListing::Person { typed, .. },
             ..
         }) => typed.clone(),
         Bar::Open(BarOpen {
@@ -313,7 +361,10 @@ fn set_text(mut shell: Signal<Shell>, mut pages: Signal<u32>, text: String) {
         Bar::Open(open) => {
             open.active = 0;
             open.moved = false;
-            if let BarListing::Templates(typed) = &mut open.listing {
+            if let BarListing::Templates(typed)
+            | BarListing::Recipient(typed)
+            | BarListing::Person { typed, .. } = &mut open.listing
+            {
                 *typed = text;
                 return;
             }
@@ -339,12 +390,15 @@ fn set_active(mut shell: Signal<Shell>, to: usize) {
     }
 }
 
-/// Escape in an empty field: back to the search from the templates, else the panel goes and
-/// the keyboard goes back to the window.
+/// Escape in an empty field: back to the search from the templates, a person or New Message
+/// to…, else the panel goes and the keyboard goes back to the window.
 fn back(shell: Signal<Shell>) {
     let mut shell = shell;
     if let Bar::Open(open) = &mut shell.write().bar
-        && matches!(open.listing, BarListing::Templates(_))
+        && matches!(
+            open.listing,
+            BarListing::Templates(_) | BarListing::Person { .. } | BarListing::Recipient(_)
+        )
     {
         open.listing = BarListing::Search;
         open.active = 0;

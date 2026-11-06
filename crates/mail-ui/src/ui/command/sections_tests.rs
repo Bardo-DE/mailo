@@ -212,7 +212,6 @@ fn tab_completes_a_row_as_its_text() {
             mail_ui_model::copy::menus::SETTINGS,
             mail_ui_model::copy::menus::SETTINGS,
         ),
-        ("person:dana@example.org", "Dana", "from:dana@example.org"),
         ("place:2", "Projects", "Projects"),
     ];
     for (key, name, want) in CASES {

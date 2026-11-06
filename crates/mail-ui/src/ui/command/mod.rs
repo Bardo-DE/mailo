@@ -14,6 +14,7 @@ mod keys;
 mod message;
 mod panel;
 pub(in crate::ui) mod people;
+mod person;
 mod recent;
 mod sections;
 mod spotlight;

@@ -2,6 +2,8 @@
 //!
 //! Case: Title Case ("Sync Now", "New Space"). "…" only when more input follows before anything happens.
 
+/// Beside a person's row in ⌘K: the key that opens them there.
+pub const OPEN_PERSON_KEY: &str = "⇥";
 /// The way out of a window with no account.
 pub const ADD_ACCOUNT: &str = "Add Account…";
 /// The Folders header's action: a folder at the top.

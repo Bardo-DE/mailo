@@ -182,13 +182,10 @@ pub(in crate::ui) fn choice_of(results: &Results, key: &str) -> Option<Choice> {
     }
 }
 
-/// The text Tab puts in the field for `row`: a command's or a place's name, and a person as the
-/// search for their mail.
+/// The text Tab puts in the field for `row`: a command's or a place's name. Tab on a person
+/// opens them instead (`super::person`).
 pub(in crate::ui) fn completion(row: &MenuItem) -> String {
-    match row.key.split_once(':') {
-        Some(("person", email)) => format!("from:{email}"),
-        _ => row.name.clone(),
-    }
+    row.name.clone()
 }
 
 #[cfg(test)]
