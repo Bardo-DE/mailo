@@ -219,7 +219,7 @@ fn mark_class(run: &Run) -> String {
     .join(" ")
 }
 
-/// A run's size and colour, as an inline style. The sizes are the ratios the written keywords
+/// A run's size, colour and font, as an inline style. The sizes are the ratios the written keywords
 /// come to at the body's size, so the composer shows what the reader will see.
 fn run_style(run: &Run) -> Option<String> {
     let mut style = Vec::new();
@@ -233,6 +233,9 @@ fn run_style(run: &Run) -> Option<String> {
     }
     if let Some(color) = run.marks.color {
         style.push(format!("color:{}", color.css()));
+    }
+    if let Some(font) = &run.marks.font {
+        style.push(format!("font-family:{}", font.css()));
     }
     style_of(style)
 }

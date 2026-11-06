@@ -1,6 +1,7 @@
-//! Setting an inline mark, a link, a size or a colour over a range, one paragraph at a time.
+//! Setting an inline mark, a link, a size, a colour or a font over a range, one paragraph at a
+//! time.
 
-use mail_reader::{SafeUrl, TextColor, TextSize};
+use mail_reader::{FontFace, SafeUrl, TextColor, TextSize};
 
 use super::{Op, check_range, covers, one_or_seq, paragraph_mut};
 use crate::doc::{Doc, Mark, Marks, Node, Pos, Presence, Range, Run};
@@ -79,7 +80,18 @@ pub(super) fn set_color(
     )
 }
 
-/// One of a run's valued marks (its link, size or colour): how it is read, how it is written,
+pub(super) fn set_font(doc: &mut Doc, range: Range, font: Option<FontFace>) -> Result<Op, OpError> {
+    set_field(
+        doc,
+        range,
+        font,
+        |marks| marks.font.clone(),
+        |marks, font| marks.font = font,
+        |range, font| Op::SetFont { range, font },
+    )
+}
+
+/// One of a run's valued marks (its link, size, colour or font): how it is read, how it is written,
 /// and the edit that sets it over a range.
 struct Field<T> {
     get: fn(&Marks) -> T,

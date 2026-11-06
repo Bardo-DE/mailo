@@ -24,6 +24,6 @@ pub use limits::{Limits, Reached};
 pub use parse::{from_html, from_text};
 pub(crate) use parse::{from_html_describing, from_text_keeping_lines};
 pub(crate) use style::allowed as allowed_style;
-pub use style::{Align, ParaStyle, RunStyle, TextColor, TextSize};
+pub use style::{Align, FontFace, FontKind, ParaStyle, RunStyle, TextColor, TextSize};
 
 pub use url::{LINK_REL, LINK_TARGET, SafeUrl};

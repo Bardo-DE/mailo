@@ -934,3 +934,59 @@ fn a_paste_into_code_of_html_alone_is_its_words() {
     window.until("the paste lands", |h| outline(h) == ["pre keepbold"]);
     assert_eq!(window.harness.count(".c-body .m-b"), 0, "the bold came too");
 }
+
+/// A font picked from the bubble sets the selected words in it, in the composer and in the
+/// message sent, with the kind of face a reader without it falls back to.
+#[test]
+fn a_font_picked_in_the_bubble_sets_the_words_in_it() {
+    let mut window = composing();
+    window.type_text("hello world");
+    select_back(&mut window, 5);
+    window.click(".bubble [*|aria-label=\"Font\"]");
+    window.menu_item("Georgia");
+    window.until("the words are in Georgia", |h| {
+        run_is(h, "[style*=\"Georgia\"]", "world")
+    });
+    assert!(run_is(&window.harness, "[style*=\"serif\"]", "world"));
+
+    window.press(&[], Key::End, 1);
+    window.click(".c-props [*|data-row=to] .c-pin input");
+    window.type_text("ada@example.test\n");
+    window.click(".c-title input");
+    window.type_text("Type");
+    window.click(&super::look::send());
+    window.until("the send pill shows", |h| h.count(".ds-send-pill") == 1);
+    let sent = queued(&window.store);
+    let html = parsed(&sent[0].raw).html.unwrap_or_default();
+    assert!(
+        html.contains("<span style=\"font-family:'Georgia',serif\">world</span>"),
+        "the font is not in the HTML part:\n{html}"
+    );
+}
+
+/// The `/` menu opens where it stays. quire places a menu it caps to the room below the line
+/// from its uncapped height for its first frame, so a tall menu low in the window is drawn
+/// higher up, then drops into place.
+#[test]
+#[ignore = "gap: quire's menu surface places a capped menu from its uncapped height for one frame"]
+fn the_slash_menu_opens_where_it_stays() {
+    let mut window = composing();
+    window.harness.resize_window(ds_blitz::Extent {
+        width: 1100,
+        height: 640,
+    });
+    window.harness.advance(ms(200));
+    window.type_text("one\ntwo\nthree\nfour\nhello ");
+    window.harness.key_pending(Key::Char('/'));
+    let mut tops = Vec::new();
+    for _ in 0..4 {
+        window.harness.step_frame();
+        if let Some(menu) = window.harness.rect(".ds-menu") {
+            tops.push(menu.origin.y.0);
+        }
+    }
+    assert!(
+        tops.windows(2).all(|two| (two[0] - two[1]).abs() < 0.5),
+        "the menu moved as it opened: {tops:?}"
+    );
+}

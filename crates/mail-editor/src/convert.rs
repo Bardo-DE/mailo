@@ -226,6 +226,7 @@ fn walk_spans(spans: &[Span], marks: &Marks, out: &mut Vec<Run>) {
                 let mut next = marks.clone();
                 next.size = style.size.or(next.size);
                 next.color = style.color.or(next.color);
+                next.font = style.font.clone().or(next.font);
                 walk_spans(spans, &next, out);
             }
         }

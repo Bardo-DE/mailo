@@ -6,7 +6,7 @@
 //! [`Op::InsertNodes`]: one insert of text cannot restore an object or a second paragraph.
 //! [`Op::Seq`] is several of these applied as one inverse.
 
-use mail_reader::{Align, SafeUrl, TextColor, TextSize};
+use mail_reader::{Align, FontFace, SafeUrl, TextColor, TextSize};
 
 mod delete;
 mod nodes;
@@ -95,6 +95,13 @@ pub enum Op {
         /// The colour, or none.
         color: Option<TextColor>,
     },
+    /// Set the font of the text of `range`. `None` is the body's font.
+    SetFont {
+        /// Which text.
+        range: Range,
+        /// The font, or none.
+        font: Option<FontFace>,
+    },
     /// Insert `nodes` at `at`, splitting a paragraph when `at` is in the middle of one.
     InsertNodes {
         /// Where they go.
@@ -149,6 +156,7 @@ fn apply_mut(doc: &mut Doc, op: Op) -> Result<Op, OpError> {
         Op::SetLink { range, url } => paint::set_link(doc, range, url),
         Op::SetSize { range, size } => paint::set_size(doc, range, size),
         Op::SetColor { range, color } => paint::set_color(doc, range, color),
+        Op::SetFont { range, font } => paint::set_font(doc, range, font),
         Op::InsertNodes { at, nodes } => nodes::insert_nodes(doc, at, nodes),
         Op::Replace { index, take, nodes } => nodes::replace(doc, index, take, nodes),
         Op::Seq(ops) => {

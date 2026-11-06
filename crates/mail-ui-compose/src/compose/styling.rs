@@ -13,8 +13,8 @@ use ds::root::common::Common;
 use super::float::commit;
 use super::page::{Float, Page};
 use mail_editor::{
-    Align, Caret, Marks, Nest, Op, Range, TextColor, TextSize, align_at, code_tab, indent,
-    marks_at_start, quote, step_size, tab,
+    Align, Caret, FontFace, Marks, Nest, Op, Range, TextColor, TextSize, align_at, code_tab,
+    indent, marks_at_start, quote, step_size, tab,
 };
 use mail_ui_kit::actions::{Own, hint_own};
 use mail_ui_kit::menu::{MenuItem, Right, menu_items};
@@ -159,6 +159,56 @@ pub(super) fn colour(mut page: Signal<Page>, color: Option<TextColor>) -> bool {
     true
 }
 
+/// Set the selection's font; with none, the text typed next's.
+pub(super) fn font(mut page: Signal<Page>, font: Option<FontFace>) -> bool {
+    let range = target(&page.peek());
+    if range.is_collapsed() {
+        let mut marks = typing(&page.peek(), range);
+        marks.font = font;
+        page.write().session.pending = Some(marks);
+    } else {
+        keep(page, vec![Op::SetFont { range, font }]);
+    }
+    true
+}
+
+/// The key the body's own font is picked by, and the start of every family's.
+const DEFAULT_FONT: &str = "font";
+const FONT_KEY: &str = "font:";
+
+/// The font menu: the body's own, the fonts every reader has, then those installed here, the one
+/// the selection starts with checked.
+fn font_items(now: Option<&FontFace>, installed: &[String]) -> Vec<MenuItem> {
+    let now = now.map(FontFace::family);
+    let family = |name: &str, group: &str| MenuItem {
+        right: Right::Check(now == Some(name)),
+        group: Some(group.to_owned()),
+        ..MenuItem::plain(format!("{FONT_KEY}{name}"), name)
+    };
+    let own = MenuItem {
+        right: Right::Check(now.is_none()),
+        ..MenuItem::plain(DEFAULT_FONT, copy::menus::DEFAULT_FONT)
+    };
+    let everywhere = FontFace::EVERYWHERE
+        .into_iter()
+        .map(|name| family(name, copy::headers::FONTS_EVERYWHERE));
+    let here = installed
+        .iter()
+        .filter(|name| !FontFace::EVERYWHERE.contains(&name.as_str()))
+        .filter(|name| FontFace::named(name).is_some())
+        .map(|name| family(name, copy::headers::FONTS_THIS_MAC));
+    std::iter::once(own).chain(everywhere).chain(here).collect()
+}
+
+/// A pick from the font menu.
+fn font_picked(page: Signal<Page>, key: &str) {
+    if key == DEFAULT_FONT {
+        font(page, None);
+    } else if let Some(face) = key.strip_prefix(FONT_KEY).and_then(FontFace::named) {
+        font(page, Some(face));
+    }
+}
+
 /// The keys a size, an alignment and a pull-down row are picked by.
 const SMALL: &str = "small";
 const NORMAL: &str = "normal";
@@ -271,17 +321,38 @@ fn picked(page: Signal<Page>, key: &str) {
 /// swatch row in the bar's place) and the Paragraph pull-down.
 #[component]
 pub(super) fn Controls(page: Signal<Page>) -> Element {
-    let (now_size, now_align) = {
+    let (now_size, now_font, now_align) = {
         let read = page.read();
         let range = target(&read);
-        (
-            marks_at_start(&read.session.doc, range).size,
-            align_at(&read.session.doc, range),
-        )
+        let marks = marks_at_start(&read.session.doc, range);
+        (marks.size, marks.font, align_at(&read.session.doc, range))
     };
+    // The installed fonts are read once, off the drawing thread: until then the menu offers
+    // the ones every reader has.
+    let mut installed = use_signal(mail_os::fonts::installed);
+    use_hook(move || {
+        if installed.peek().is_empty() {
+            spawn(async move {
+                if let Ok(read) = tokio::task::spawn_blocking(mail_os::fonts::load).await {
+                    installed.set(read);
+                }
+            });
+        }
+    });
+    let fonts = font_items(now_font.as_ref(), installed());
     let keys = use_keys();
     let paragraph = keys.with_keymap(|keymap| paragraph_items(now_align, keymap));
     rsx! {
+        PullDownButton::<String> {
+            items: menu_items("", &fonts, false),
+            title: copy::aria::FONT.to_owned(),
+            common: Common {
+                aria_label: Some(copy::aria::FONT.to_owned()),
+                ..Common::default()
+            },
+            on_open_change: move |to: Shown| menu_shown(page, to),
+            onpick: move |key: String| font_picked(page, &key),
+        }
         // quire's tip around the pull-down: on its own it would say "Menu". The tip is the
         // control's name, the same words its aria label carries.
         Tooltip { text: copy::aria::TEXT_SIZE.to_owned(),

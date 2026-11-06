@@ -14,9 +14,9 @@ pub mod sanitize;
 pub mod script;
 
 pub use block::{
-    Action, Align, Block, Dir, Document, ImgSrc, Inlined, LINK_REL, LINK_TARGET, Limits, ListKind,
-    ParaStyle, Reached, RunStyle, SafeUrl, Shape, Span, TextColor, TextSize, from_html, from_text,
-    is_mapped, mapped_tags,
+    Action, Align, Block, Dir, Document, FontFace, FontKind, ImgSrc, Inlined, LINK_REL,
+    LINK_TARGET, Limits, ListKind, ParaStyle, Reached, RunStyle, SafeUrl, Shape, Span, TextColor,
+    TextSize, from_html, from_text, is_mapped, mapped_tags,
 };
 pub use frame::{FOUND_CURRENT, FOUND_MARK, FrameBody, Prefer, Source, frame_of};
 pub use print::{Labels, Options, Pages, Remote, Sheet, escape_html, print_with, remote_images};

@@ -194,7 +194,8 @@ fn write_runs(out: &mut String, runs: &[Run]) {
     }
 }
 
-/// One run: the link outermost, then its size and colour, then the styles, in a fixed order.
+/// One run: the link outermost, then its size, colour and font, then the styles, in a fixed
+/// order.
 fn write_run(out: &mut String, run: &Run) {
     if let Some(url) = &run.marks.link {
         out.push_str("<a href=\"");
@@ -204,6 +205,7 @@ fn write_run(out: &mut String, run: &Run) {
     let styled = RunStyle {
         size: run.marks.size,
         color: run.marks.color,
+        font: run.marks.font.clone(),
     }
     .css();
     if let Some(css) = &styled {

@@ -18,6 +18,10 @@ mail-client = { workspace = true, features = ["desktop"] }
 mail-domain.workspace = true
 mail-logic.workspace = true
 mail-proto.workspace = true
+# The fonts installed on the machine, for the composer's font menu (`fonts`): the font library the
+# renderer finds its own with, already in the lock through parley at this version and with this
+# feature. MIT OR Apache-2.0.
+fontique = { version = "0.11.1", default-features = false, features = ["system"] }
 
 # The unread count on the launcher entry (`launcher/session.rs`): one signal on the session bus.
 # Already in the lock through notify-rust and the keyring's Secret Service store, at this version
