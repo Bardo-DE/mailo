@@ -15,7 +15,7 @@
 //! [`QUIET`](mail_ui_kit::debounce::QUIET), and an answer to text a newer keystroke has replaced
 //! is dropped, so Return runs a row on screen, not one from a query run afresh.
 
-use super::items::{Chips, chips, complete_syntax, take_chip, without_operator};
+use super::items::{Chips, chips, complete_syntax, take_chip};
 use super::keys::{BarKey, Plain, Step, Typed, bar_key, step};
 use super::message;
 use super::panel::{Drawn, Fetch, World, panel_rows};
@@ -26,6 +26,7 @@ use ds::base::geometry::placement::{Align, Side};
 use ds::host::measure::MountedRef;
 use ds::prelude::*;
 use ds::style::tokens::control_size::ControlSize;
+use mail_client::search::without_operator;
 use mail_ui_kit::menu::anchor_at;
 use mail_ui_kit::space::Spaces;
 use mail_ui_kit::view::{Bar, BarListing, BarOpen, Shell};
@@ -94,7 +95,8 @@ pub(in crate::ui) fn Spotlight(
     };
     let text = field_text(&shell.read());
     // A search's chips act: an offered operator is typed with a press, and an operator the
-    // search holds has a remove button that takes it out. The keyboard stays in the field.
+    // search holds has a remove button that takes it out. The keyboard stays in the field. A
+    // press acts on the field as it is then, and only while it still shows the chip pressed.
     let (tokens, on_token, on_token_remove) = match &open.listing {
         BarListing::Templates(_) => (Vec::new(), None, None),
         BarListing::Message => (message::chips(&shell.read()), None, None),
@@ -103,18 +105,23 @@ pub(in crate::ui) fn Spotlight(
                 offered.iter().map(|chip| (*chip).to_owned()).collect(),
                 Some(EventHandler::new(move |at: usize| {
                     let typed = field_text(&shell.peek());
-                    if let Some(chip) = offered.get(at) {
+                    let Chips::Offered(now) = chips(&typed) else {
+                        return;
+                    };
+                    if let Some(chip) = now.get(at).filter(|chip| offered.get(at) == Some(chip)) {
                         set_text(shell, pages, take_chip(&typed, chip));
                     }
                 })),
                 None,
             ),
             Chips::Held(held) => (
-                held,
+                held.clone(),
                 None,
                 Some(EventHandler::new(move |at: usize| {
                     let typed = field_text(&shell.peek());
-                    if let Some(left) = without_operator(&typed, at) {
+                    let still =
+                        matches!(chips(&typed), Chips::Held(now) if now.get(at) == held.get(at));
+                    if let Some(left) = still.then(|| without_operator(&typed, at)).flatten() {
                         set_text(shell, pages, left);
                     }
                 })),

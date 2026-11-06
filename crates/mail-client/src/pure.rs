@@ -424,7 +424,7 @@ pub mod search {
     pub use mail_logic::search::{
         ActionHit, Affinity, Command, Find, Found, Highlight, MOST_FOUND, PersonHit, Results,
         SenderStats, Source, Step, Top, find_in, find_terms, first, list_highlight, match_list,
-        parse, run, search_list, snippet, text_words,
+        parse, run, search_list, snippet, text_words, without_operator,
     };
 }
 pub mod server_search {

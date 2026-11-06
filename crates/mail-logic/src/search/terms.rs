@@ -60,16 +60,33 @@ pub fn without_terms(line: &str, terms: &[&str]) -> String {
     cuts.dedup();
     let mut out = line.to_owned();
     for cut in cuts.into_iter().rev() {
-        let after = out[cut.end..].len() - out[cut.end..].trim_start().len();
-        let start = if cut.end + after == out.len() {
-            // At the end of the line the space before goes instead.
-            out[..cut.start].trim_end().len()
-        } else {
-            cut.start
-        };
-        out.replace_range(start..cut.end + after, "");
+        cut_out(&mut out, cut);
     }
     out.trim().to_owned()
+}
+
+/// `line` without the operator it holds at `at` (as the parser lists them, an either-or whole),
+/// cut out as [`without_terms`] cuts one. `None` when there is no such operator.
+pub fn without_operator(line: &str, at: usize) -> Option<String> {
+    let parsed = parse(line, &Utc, &unnamed);
+    let spans = parsed.operator_spans.get(at)?;
+    let start = spans.iter().map(|span| span.start).min()?;
+    let end = spans.iter().map(|span| span.end).max()?;
+    let mut out = line.to_owned();
+    cut_out(&mut out, start..end);
+    Some(out.trim().to_owned())
+}
+
+/// `cut` taken out of `out` with the space after it, or before it at the end of the line.
+fn cut_out(out: &mut String, cut: Range<usize>) {
+    let after = out[cut.end..].len() - out[cut.end..].trim_start().len();
+    let start = if cut.end + after == out.len() {
+        // At the end of the line the space before goes instead.
+        out[..cut.start].trim_end().len()
+    } else {
+        cut.start
+    };
+    out.replace_range(start..cut.end + after, "");
 }
 
 /// Whether `line` has something in it and all of it is operators that mean one of `terms`: a

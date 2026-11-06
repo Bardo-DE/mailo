@@ -3,7 +3,6 @@
 
 use super::items::{
     Chips, Pick, chips, complete_syntax, interpret, rows_of, search_now, take_chip,
-    without_operator,
 };
 use super::*;
 use crate::ui::fixtures::work;
@@ -169,7 +168,11 @@ fn the_chips_offer_the_syntax_until_a_search_holds_operators() {
         assert_eq!(chips(query), Chips::Held(want), "{query:?}");
     }
     assert_eq!(complete_syntax("lunch fr").as_deref(), Some("lunch from:"));
-    assert_eq!(complete_syntax("is:u").as_deref(), Some("is:unread"));
+    assert_eq!(complete_syntax("is:u").as_deref(), Some("is:unread "));
+    assert!(
+        !matches!(chips("subject:\"lunch fr"), Chips::Offered(_)),
+        "nothing is offered inside a phrase"
+    );
     assert_eq!(complete_syntax("lunch"), None);
 }
 
@@ -180,11 +183,12 @@ fn an_offered_chip_is_typed_and_a_held_one_removed() {
     assert_eq!(take_chip("", "from:"), "from:");
     assert_eq!(take_chip("  ", "to:"), "to:");
     assert_eq!(take_chip("lunch fr", "from:"), "lunch from:");
-    assert_eq!(take_chip("is:u", "is:unread"), "is:unread");
+    assert_eq!(take_chip("is:u", "is:unread"), "is:unread ");
+    assert_eq!(take_chip("", "has:attachment"), "has:attachment ");
     const CASES: &[(&str, usize, Option<&str>)] = &[
         ("from:dana", 0, Some("")),
         ("from:dana lunch", 0, Some("lunch")),
-        ("lunch from:dana", 0, Some("lunch ")),
+        ("lunch from:dana", 0, Some("lunch")),
         ("spec from:dana  lunch", 0, Some("spec lunch")),
         ("from:dana is:unread spec", 1, Some("from:dana spec")),
         ("from:ada OR from:bob spec", 0, Some("spec")),
@@ -193,7 +197,7 @@ fn an_offered_chip_is_typed_and_a_held_one_removed() {
     ];
     for (query, at, want) in CASES {
         assert_eq!(
-            without_operator(query, *at).as_deref(),
+            mail_client::search::without_operator(query, *at).as_deref(),
             *want,
             "{query:?} {at}"
         );
