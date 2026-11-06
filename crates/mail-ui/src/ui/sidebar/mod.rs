@@ -245,6 +245,8 @@ pub(super) fn Places(
             // the mail is, and warns when it is not (`sync`). Each end is a hold of mailo's own,
             // as wide as the other (`style/shell.css`), so the dots stand at the foot's centre
             // whatever either end holds.
+            // A newer mailo ready to put in place, over the foot (`update`).
+            crate::ui::update::UpdateBanner {}
             div { oncontextmenu: space_menu,
                 SpacesFoot {
                     handle,

@@ -30,6 +30,7 @@ mod signatures;
 mod space_menu;
 mod style;
 mod switch;
+mod update;
 mod window;
 mod window_core;
 

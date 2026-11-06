@@ -86,6 +86,10 @@ impl Page for General {
                 title: Some(copy::headers::CALENDAR),
                 lines: &[Line::Calendar, Line::Key("calendar.keep_in_step")],
             },
+            Section {
+                title: Some(copy::headers::UPDATES),
+                lines: &[Line::Key("updates.channel")],
+            },
         ]
     }
 }

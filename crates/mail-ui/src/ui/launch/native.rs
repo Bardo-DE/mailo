@@ -210,6 +210,8 @@ pub(super) fn run(opening: Opening) -> Result<(), ds_blitz::LaunchError> {
     // The last window closed: the copies Open wrote go now, unedited, when the setting says so,
     // as it says by then.
     clean_up_at_quit(quit_root.as_ref());
+    // A newer mailo staged while this one ran takes its place now, and opens when it was asked to.
+    crate::ui::update::at_quit();
     ran
 }
 

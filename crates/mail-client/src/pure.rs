@@ -471,6 +471,21 @@ pub mod unsubscribe {
             .map_err(|e| crate::CallError::new(crate::Fault::Other, e.to_string()))
     }
 }
+pub mod update {
+    use std::time::Duration;
+
+    /// The HTTP client a new mailo is looked for and downloaded with: the system's roots, a
+    /// bound on connecting and on a stall, none on the whole, since a release is tens of
+    /// megabytes. GitHub's API turns away a request that names no agent.
+    pub fn client() -> Result<reqwest::Client, crate::CallError> {
+        mail_net::roots::trusting_system(reqwest::Client::builder())
+            .connect_timeout(Duration::from_secs(15))
+            .read_timeout(Duration::from_secs(60))
+            .user_agent(concat!("mailo/", env!("CARGO_PKG_VERSION")))
+            .build()
+            .map_err(|e| crate::CallError::new(crate::Fault::Other, e.to_string()))
+    }
+}
 pub mod conversation {
     pub use mail_logic::conversation::{
         Place, Say, Source, allowed_actions, default_places, find_place, folder_filter, folder_of,
