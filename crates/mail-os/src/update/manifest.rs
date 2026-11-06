@@ -94,12 +94,13 @@ pub struct Release {
 }
 
 /// The release `channel` takes from `releases`, newest first as GitHub lists them: a daily
-/// takes the newest published release, daily or stable; a stable mailo only a stable one. A
-/// draft is no one's yet.
+/// mailo the newest daily, a stable one the newest stable release. A draft is no one's yet. A
+/// daily does not take a stable release: one tagged on an older commit than the newest daily has
+/// a higher build all the same, and would take the daily back.
 pub fn pick(releases: &[Release], channel: Channel) -> Option<&Release> {
     releases
         .iter()
-        .find(|release| !release.draft && (channel == Channel::Daily || !release.prerelease))
+        .find(|release| !release.draft && release.prerelease == (channel == Channel::Daily))
 }
 
 /// Whether `bytes` are the file `file` names.

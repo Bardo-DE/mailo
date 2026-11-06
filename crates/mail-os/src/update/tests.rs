@@ -83,20 +83,20 @@ fn release(tag: &str, draft: bool, prerelease: bool) -> Release {
     }
 }
 
-/// A daily mailo takes the newest published release, a stable one the newest stable release;
-/// a draft neither.
+/// A daily mailo takes the newest daily, a stable one the newest stable release, even when a
+/// stable release is listed above the daily; a draft neither.
 #[test]
 fn each_channel_takes_its_newest_published_release() {
     let listed = [
         release("v0.2.0", true, false),
-        release("daily-9", false, true),
         release("v0.1.0", false, false),
+        release("daily-9", false, true),
         release("daily-8", false, true),
     ];
     let tag = |channel| manifest::pick(&listed, channel).map(|r| r.tag_name.as_str());
     assert_eq!(tag(Channel::Daily), Some("daily-9"));
     assert_eq!(tag(Channel::Stable), Some("v0.1.0"));
-    assert_eq!(manifest::pick(&listed[..2], Channel::Stable), None);
+    assert_eq!(manifest::pick(&listed[..1], Channel::Stable), None);
 }
 
 /// A download is the manifest's file only with its size and its hash, in either case of hex.
