@@ -77,7 +77,8 @@ jobs:
           if [ "$channel" = daily ] && git ls-remote --exit-code --tags origin "refs/tags/v$base" > /dev/null; then
             package=$base+daily.$BUILD
           else
-            package="${version//-/~}"
+            # tr, not ${version//-/~}: bash 5.2 expands a ~ in the replacement to $HOME.
+            package=$(printf %s "$version" | tr - "~")
           fi
           {
             echo "channel=$channel"
