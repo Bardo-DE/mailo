@@ -22,6 +22,10 @@ done
 # `path+file:///…/crates/mail-app#0.1.0`, or `…#mail-app@0.1.0`: the version is after the last
 # `#` or `@`.
 version="$(cargo pkgid -p mail-app | sed 's/.*[#@]//')"
+# The build number the release workflow gives (its run number, which only goes up), the one the
+# updater orders releases by; a build made by hand is 0, older than every release. The binary
+# reads MAILO_BUILD and MAILO_CHANNEL from the environment it is compiled in.
+build="${MAILO_BUILD:-0}"
 
 # `quire-desktop` is our desktop's extras (the link to accountd over D-Bus): not in a macOS build.
 cargo build --release --locked --no-default-features -p mail-app --bin mailo
@@ -30,7 +34,7 @@ rm -rf "$out"
 app="$out/mailo.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp "$target/release/mailo" "$app/Contents/MacOS/mailo"
-sed "s/@VERSION@/$version/g" packaging/macos/Info.plist >"$app/Contents/Info.plist"
+sed -e "s/@VERSION@/$version/g" -e "s/@BUILD@/$build/g" packaging/macos/Info.plist >"$app/Contents/Info.plist"
 plutil -lint "$app/Contents/Info.plist"
 
 # The icon, at every size an .icns holds, drawn on macOS's rounded square with its margin.
@@ -63,4 +67,8 @@ ln -s /Applications "$stage/Applications"
 hdiutil create -volname mailo -srcfolder "$stage" -ov -format UDZO "$out/mailo-$version.dmg"
 rm -rf "$stage"
 
-echo "bundle.sh: $app and $out/mailo-$version.dmg"
+# The app as the updater takes it: a zip of mailo.app, made by ditto so the signature, the
+# extended attributes and the symlinks come through as they are.
+ditto -c -k --keepParent "$app" "$out/mailo.app.zip"
+
+echo "bundle.sh: $app, $out/mailo-$version.dmg and $out/mailo.app.zip"

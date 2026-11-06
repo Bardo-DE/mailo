@@ -1,0 +1,220 @@
+name: release
+
+# Every push to master publishes a daily: a pre-release tagged `daily-<build>` with the macOS app and
+# the Linux packages, which the app's updater finds and offers. A tag `vX.Y.Z` builds the same and
+# drafts a stable release, which a person reads and publishes; the updater sees it once published.
+# By hand (workflow_dispatch) it is a daily.
+#
+# What the updater trusts is `update.json`, signed here with the Ed25519 key in the
+# MAILO_UPDATE_KEY secret; the app holds the public half (packaging/update-key.pub). The manifest
+# names the build, the release's tag and each file with its SHA-256, so a file is taken only from
+# the release the signed manifest names and only with the hash it names.
+#
+# The build number is this workflow's run number: it only goes up, across dailies and tags alike,
+# so it orders every release the updater compares. A master that fails its own CI still publishes:
+# a pull request reaches master only once `check` has passed, and a daily is fixed forward.
+on:
+  push:
+    branches: [master]
+    tags: ["v*"]
+  workflow_dispatch:
+
+# The builds read; only `publish` writes (the release), and only it sees the signing key.
+permissions:
+  contents: read
+
+# Releases are made one at a time, in push order, none cancelled: each is a build someone may run.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  # What this run releases: the channel, the version, the tag and the build number.
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      channel: ${{ steps.plan.outputs.channel }}
+      version: ${{ steps.plan.outputs.version }}
+      tag: ${{ steps.plan.outputs.tag }}
+      build: ${{ steps.plan.outputs.build }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: plan
+        run: |
+          base=$(sed -n 's/^version = "\(.*\)"$/\1/p' crates/mail-app/Cargo.toml | head -1)
+          build=${{ github.run_number }}
+          if [ "${{ github.ref_type }}" = tag ]; then
+            # The tag names the version Cargo.toml has.
+            test "${{ github.ref_name }}" = "v$base" || {
+              echo "the tag ${{ github.ref_name }} is not v$base, mail-app's version" >&2
+              exit 1
+            }
+            channel=stable version=$base tag=${{ github.ref_name }}
+          else
+            channel=daily version=$base-daily.$build tag=daily-$build
+          fi
+          {
+            echo "channel=$channel"
+            echo "version=$version"
+            echo "tag=$tag"
+            echo "build=$build"
+          } >> "$GITHUB_OUTPUT"
+          echo "$channel $version ($tag, build $build)"
+
+  # mailo.app: the .dmg a person installs from, and the zip the updater swaps in.
+  macos:
+    needs: plan
+    runs-on: macos-latest
+    # One release build (fat LTO over one codegen unit), cold.
+    timeout-minutes: 120
+    env:
+      MAILO_BUILD: ${{ needs.plan.outputs.build }}
+      MAILO_CHANNEL: ${{ needs.plan.outputs.channel }}
+      MAILO_VERSION: ${{ needs.plan.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release
+      - name: mailo.app, its .dmg and its zip
+        run: ./packaging/macos/bundle.sh
+      - name: Name them for the release
+        run: |
+          mkdir -p out
+          mv target/macos/mailo-*.dmg "out/mailo-$MAILO_VERSION.dmg"
+          mv target/macos/mailo.app.zip "out/mailo-$MAILO_VERSION-macos-arm64.zip"
+          ls -l out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-macos
+          path: out/*
+          if-no-files-found: error
+
+  # The .deb and the .rpm, versioned so a package manager orders a daily below the release it
+  # leads to (`0.1.0~daily.N` sorts before `0.1.0`).
+  linux:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      MAILO_BUILD: ${{ needs.plan.outputs.build }}
+      MAILO_CHANNEL: ${{ needs.plan.outputs.channel }}
+      MAILO_VERSION: ${{ needs.plan.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release
+      - name: System libraries for the window
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libfontconfig1-dev
+      - name: Packaging tools
+        run: cargo install --locked cargo-deb cargo-generate-rpm
+      - name: .deb and .rpm
+        run: MAILO_PACKAGE_VERSION="${MAILO_VERSION//-/~}" ./scripts/package.sh deb rpm
+      - name: Name them for the release
+        run: |
+          mkdir -p out
+          mv target/debian/*.deb "out/mailo-$MAILO_VERSION-amd64.deb"
+          mv target/generate-rpm/*.rpm "out/mailo-$MAILO_VERSION-x86_64.rpm"
+          ls -l out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-linux
+          path: out/*
+          if-no-files-found: error
+
+  # The signed manifest and the release: a daily is published at once (and the dailies past the
+  # newest five go); a stable one is a draft for a person to publish.
+  publish:
+    needs: [plan, macos, linux]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      CHANNEL: ${{ needs.plan.outputs.channel }}
+      VERSION: ${{ needs.plan.outputs.version }}
+      TAG: ${{ needs.plan.outputs.tag }}
+      BUILD: ${{ needs.plan.outputs.build }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: out
+          merge-multiple: true
+
+      - name: The manifest
+        working-directory: out
+        run: |
+          file() {
+            jq -n --arg name "$1" --arg sha256 "$(sha256sum "$1" | cut -d' ' -f1)" \
+              --argjson size "$(stat -c %s "$1")" '{name: $name, sha256: $sha256, size: $size}'
+          }
+          jq -n \
+            --argjson build "$BUILD" --arg version "$VERSION" --arg channel "$CHANNEL" \
+            --arg tag "$TAG" --arg commit "$GITHUB_SHA" \
+            --argjson macos "$(file "mailo-$VERSION-macos-arm64.zip")" \
+            --argjson deb "$(file "mailo-$VERSION-amd64.deb")" \
+            --argjson rpm "$(file "mailo-$VERSION-x86_64.rpm")" \
+            '{build: $build, version: $version, channel: $channel, tag: $tag, commit: $commit,
+              files: {macos_arm64: $macos, deb_amd64: $deb, rpm_x86_64: $rpm}}' > update.json
+          cat update.json
+
+      # The signature is over update.json's bytes as published, Ed25519 (raw 64 bytes, base64 in
+      # update.json.sig). It is checked against the public key the app holds before anything is
+      # published, so a secret that is not the app's key fails here, not in every app.
+      - name: Sign it
+        working-directory: out
+        env:
+          MAILO_UPDATE_KEY: ${{ secrets.MAILO_UPDATE_KEY }}
+        run: |
+          umask 077
+          key=$(mktemp)
+          trap 'rm -f "$key"' EXIT
+          printf '%s\n' "$MAILO_UPDATE_KEY" > "$key"
+          openssl pkeyutl -sign -rawin -inkey "$key" -in update.json -out update.json.raw
+          { printf '\x30\x2a\x30\x05\x06\x03\x2b\x65\x70\x03\x21\x00'; base64 -d < ../packaging/update-key.pub; } > pub.der
+          openssl pkeyutl -verify -rawin -pubin -keyform DER -inkey pub.der \
+            -in update.json -sigfile update.json.raw
+          base64 -w0 update.json.raw > update.json.sig
+          rm update.json.raw pub.der
+
+      - name: Release
+        working-directory: out
+        run: |
+          case "$CHANNEL" in
+            daily)
+              gh release create "$TAG" --target "$GITHUB_SHA" --prerelease \
+                --title "Daily $BUILD" \
+                --notes "Built from $GITHUB_SHA on master. The app updates itself to the newest daily when its Update channel is Daily (Settings)." \
+                ./*
+              ;;
+            stable)
+              gh release create "$TAG" --verify-tag --draft --title "mailo $VERSION" \
+                --notes "Unsigned: macOS says the developer cannot be verified (README, Install). The app updates itself once this release is published." \
+                ./*
+              ;;
+          esac
+
+      # The newest five dailies stay; the rest, and their tags, go. A stable release is never
+      # touched.
+      - name: Older dailies
+        if: needs.plan.outputs.channel == 'daily'
+        run: |
+          gh release list --limit 100 --json tagName,createdAt \
+            --jq '[.[] | select(.tagName | startswith("daily-"))] | sort_by(.createdAt) | reverse | .[5:] | .[].tagName' |
+          while read -r tag; do
+            gh release delete "$tag" --cleanup-tag --yes
+          done

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- mailo.app's Info.plist. `packaging/macos/bundle.sh` writes the version in for @VERSION@. -->
+<!-- mailo.app's Info.plist. `packaging/macos/bundle.sh` writes the version in for @VERSION@ and the
+     build number (the release workflow's run, 0 for a build made by hand) for @BUILD@. -->
 <plist version="1.0">
 <dict>
 	<key>CFBundleIdentifier</key>
@@ -20,7 +21,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>@VERSION@</string>
 	<key>CFBundleVersion</key>
-	<string>@VERSION@</string>
+	<string>@BUILD@</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>11.0</string>
 	<key>LSApplicationCategoryType</key>

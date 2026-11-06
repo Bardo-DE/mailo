@@ -244,14 +244,12 @@ jobs:
         if: runner.os == 'macOS'
         run: cargo check --workspace --all-targets
 
-  # Unsigned packages for each platform, on every push to master and by hand. They are artifacts
-  # of the run, not a release: nothing here publishes anything.
+  # The Windows MSI, unsigned, on every push to master and by hand: an artifact of the run, not a
+  # release. The macOS app and the Linux packages are released (release.yml).
   #
-  # Signing is left out. Where it would go: the macOS app and .dmg in packaging/macos/bundle.sh
-  # (a Developer ID certificate and notarisation credentials as secrets), and the Windows MSI with
-  # `signtool` after `cargo wix` below (a code-signing certificate as a secret). Neither exists
-  # yet, so macOS says the developer cannot be verified and Windows SmartScreen warns, as README
-  # says.
+  # Signing is left out. Where it would go: the Windows MSI with `signtool` after `cargo wix` below
+  # (a code-signing certificate as a secret), which does not exist yet, so Windows SmartScreen
+  # warns, as README says.
   package:
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/master')
     strategy:
@@ -259,7 +257,7 @@ jobs:
       matrix:
         # WiX Toolset v3, which cargo-wix drives, is on the windows-2022 image; the MSI step
         # installs it where it is not.
-        os: [ubuntu-latest, macos-latest, windows-2022]
+        os: [windows-2022]
     runs-on: ${{ matrix.os }}
     # One release build (fat LTO over one codegen unit, about two and a half times a thin build)
     # and the packaging tools, cold.
@@ -270,38 +268,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: package
-
-      # Linux: a .deb and an .rpm through scripts/package.sh, which makes the release build.
-      - name: System libraries for the window
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libfontconfig1-dev
-      - name: Packaging tools (Linux)
-        if: runner.os == 'Linux'
-        run: cargo install --locked cargo-deb cargo-generate-rpm
-      - name: .deb and .rpm
-        if: runner.os == 'Linux'
-        run: ./scripts/package.sh deb rpm
-      - uses: actions/upload-artifact@v4
-        if: runner.os == 'Linux'
-        with:
-          name: mailo-linux
-          path: |
-            target/debian/*.deb
-            target/generate-rpm/*.rpm
-          if-no-files-found: error
-
-      # macOS: mailo.app in a .dmg.
-      - name: mailo.app and .dmg
-        if: runner.os == 'macOS'
-        run: ./packaging/macos/bundle.sh
-      - uses: actions/upload-artifact@v4
-        if: runner.os == 'macOS'
-        with:
-          name: mailo-macos
-          path: target/macos/*.dmg
-          if-no-files-found: error
 
       # Windows: an MSI through cargo-wix, registering mailo for mailto: links.
       - name: Release build (Windows)
