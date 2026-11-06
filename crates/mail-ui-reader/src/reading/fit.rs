@@ -11,11 +11,18 @@
 //! laid out wider than the pane is drawn smaller to fit it ([`shrink`]), as Mail does, rather
 //! than cut at its right edge. It is drawn at the reader's text size (`reading.text_zoom`, ⌘+ and
 //! ⌘−) by the same zoom, so a larger size makes a page larger only until it fills its frame.
+//!
+//! The zoom is set on the document already in the frame ([`draw_at`]), which restyles it, rather
+//! than written into a new one, which Blitz would parse, lay out and load the pictures of again.
+//! What a page was fitted to is kept for the next time it opens ([`remembered`]), so it opens at
+//! that and is laid out once.
 
 use dioxus::core::Task;
 use dioxus::prelude::*;
 use dioxus_native_dom::NodeHandle;
 use ds::base::time::clock::sleep;
+use std::cell::RefCell;
+use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -40,6 +47,99 @@ fn content_height(frame: &MountedData) -> Option<f32> {
         .bottom
         .max(layout.size.height);
     (height > 0.0).then_some(height.ceil())
+}
+
+/// How many pages' fits are kept: a few bytes each, the oldest let go first.
+const KEPT: usize = 500;
+
+/// A page (its document's fingerprint) at a text size (in thousandths).
+type Fit = (u64, u32);
+
+/// The fits pages were last drawn at, the oldest first.
+#[derive(Default)]
+struct Fitted {
+    drawn: HashMap<Fit, Drawn>,
+    order: VecDeque<Fit>,
+}
+
+impl Fitted {
+    fn get(&self, fit: Fit) -> Option<Drawn> {
+        self.drawn.get(&fit).copied()
+    }
+
+    fn keep(&mut self, fit: Fit, drawn: Drawn) {
+        if self.drawn.insert(fit, drawn).is_none() {
+            self.order.push_back(fit);
+        }
+        while self.order.len() > KEPT {
+            if let Some(oldest) = self.order.pop_front() {
+                self.drawn.remove(&oldest);
+            }
+        }
+    }
+}
+
+thread_local! {
+    static FITTED: RefCell<Fitted> = RefCell::default();
+}
+
+fn fit_of(page: u64, text: f32) -> Fit {
+    // A text size is a step of a few, never negative.
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    (page, (text * 1000.0).round() as u32)
+}
+
+/// How `page` was last drawn at the text size `text`, if it has been fitted since mailo opened.
+pub(super) fn remembered(page: u64, text: f32) -> Option<Drawn> {
+    FITTED.with(|fitted| fitted.borrow().get(fit_of(page, text)))
+}
+
+fn remember(page: u64, text: f32, drawn: Drawn) {
+    FITTED.with(|fitted| fitted.borrow_mut().keep(fit_of(page, text), drawn));
+}
+
+/// Draw `frame`'s document at `zoom` where it stands, by its root element's own style, which a
+/// new document from [`zoomed`] has none of until it is set again here. Whether it is at `zoom`
+/// or set to be: not while the document is not styled yet.
+fn draw_at(frame: &MountedData, zoom: f32) -> bool {
+    let Some(handle) = frame.downcast::<NodeHandle>() else {
+        return false;
+    };
+    // Free now, and nothing runs before it is taken: no await between.
+    if handle.try_doc().is_none() {
+        return false;
+    }
+    let mut doc = handle.doc_mut();
+    let Some(sub) = doc.subdoc_mut(handle.node_id()) else {
+        return false;
+    };
+    let mut inner = sub.inner_mut();
+    let root = inner.root_element();
+    let Some(now) = root
+        .primary_styles()
+        .map(|style| style.effective_zoom.value())
+    else {
+        return false;
+    };
+    if (now - zoom).abs() >= 0.001 {
+        let root = root.id;
+        inner.set_style_property(root, "zoom", &format!("{zoom:.3}"));
+        inner.shell_provider.request_redraw();
+    }
+    true
+}
+
+/// Draw `frame`'s document at `zoom` once it is styled: a page never shrunk ([`shrink`]), a
+/// plain-text message, is at the text size all the same.
+pub(super) fn hold(frame: Rc<MountedData>, zoom: Signal<f32>) -> Task {
+    spawn(async move {
+        for _ in 0..READS {
+            if draw_at(&frame, *zoom.peek()) {
+                return;
+            }
+            sleep(EVERY).await;
+        }
+    })
 }
 
 /// The least a message is shrunk to: past this its words are too small to read, and the
@@ -69,8 +169,7 @@ const RELAXED: &str = "td:only-child,th:only-child{width:auto}";
 /// text size grows a page only until it fills the frame, and a pane widened while the page is
 /// still read lets it grow back. When the width is a cell's wish rather than what the page holds,
 /// the cells let go of it instead ([`RELAXED`]) and the page is read again. The document's width
-/// is read in its own pixels, whatever zoom it is drawn at now, so a read taken before a new
-/// zoom has landed asks for the same one. `None` when it is not laid out.
+/// is read in its own pixels. `None` when it is not laid out, or not yet at `now`'s zoom.
 fn fitting(frame: &MountedData, text: f32, now: Drawn) -> Option<Drawn> {
     let handle = frame.downcast::<NodeHandle>()?;
     let doc = handle.try_doc()?;
@@ -78,15 +177,13 @@ fn fitting(frame: &MountedData, text: f32, now: Drawn) -> Option<Drawn> {
     let sub = doc.subdoc(handle.node_id())?;
     let inner = sub.inner();
     let (boxes, held) = laid_width(&inner)?;
-    let unzoom = |drawn: f32| {
-        inner
-            .root_element()
-            .primary_styles()
-            .map_or(drawn, |style| style.effective_zoom.unzoom(drawn))
-    };
-    if width <= 0.0 {
+    // Read only at the zoom it is judged at: a page as wide as its frame is that wide at every
+    // zoom, so read at another it would ask for that one back.
+    let drawn = inner.root_element().primary_styles()?.effective_zoom;
+    if width <= 0.0 || (drawn.value() - now.zoom).abs() >= 0.001 {
         return None;
     }
+    let unzoom = |px: f32| drawn.unzoom(px);
     Some(decide(unzoom(boxes), unzoom(held), width, text, now))
 }
 
@@ -220,12 +317,14 @@ fn insets_of(node: &blitz_dom::Node, centred: bool) -> f32 {
 
 /// Keep `zoom` at the text size `text` where the page fits `frame`'s width, else at what fits,
 /// as Mail shrinks a message laid out wider than its pane rather than cut its right edge, while
-/// its pictures may still widen it.
+/// its pictures may still widen it. The document is drawn at `zoom` where it stands, and what it
+/// came to is kept for `page`'s next opening.
 pub(super) fn shrink(
     frame: Rc<MountedData>,
     mut zoom: Signal<f32>,
     mut relaxed: Signal<bool>,
     text: f32,
+    page: u64,
 ) -> Task {
     spawn(async move {
         for _ in 0..READS {
@@ -233,13 +332,16 @@ pub(super) fn shrink(
                 zoom: *zoom.peek(),
                 relaxed: *relaxed.peek(),
             };
-            if let Some(next) = fitting(&frame, text, now) {
+            let _ = draw_at(&frame, now.zoom);
+            if let Some(next) = fitting(&frame, text, now)
+                && (next.relaxed != now.relaxed || (next.zoom - now.zoom).abs() >= 0.01)
+            {
                 if next.relaxed != now.relaxed {
                     relaxed.set(next.relaxed);
                 }
-                if (next.zoom - now.zoom).abs() >= 0.01 {
-                    zoom.set(next.zoom);
-                }
+                zoom.set(next.zoom);
+                remember(page, text, next);
+                let _ = draw_at(&frame, next.zoom);
             }
             sleep(EVERY).await;
         }
@@ -281,7 +383,7 @@ pub(super) fn follow(frame: Rc<MountedData>, mut height: Signal<Option<f32>>) ->
 
 #[cfg(test)]
 mod tests {
-    use super::{Drawn, LEAST, decide, fitted, zoomed};
+    use super::{Drawn, Fitted, KEPT, LEAST, decide, fit_of, fitted, zoomed};
 
     const PAGE: &str =
         "<!DOCTYPE html><html><head><style>p {}</style></head><body><p>Hi</p></body></html>";
@@ -334,5 +436,26 @@ mod tests {
         // Boxes as wide as what they hold (an 800 px table) are shrunk, not let go.
         let wide = decide(836.0, 836.0, 700.0, 1.0, fresh);
         assert!(!wide.relaxed && (wide.zoom - 700.0 / 836.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn a_fit_is_kept_per_page_and_text_size_and_the_oldest_let_go() {
+        let mut fitted = Fitted::default();
+        let wide = Drawn {
+            zoom: 0.8,
+            relaxed: false,
+        };
+        fitted.keep(fit_of(1, 1.0), wide);
+        assert_eq!(fitted.get(fit_of(1, 1.0)), Some(wide));
+        assert_eq!(fitted.get(fit_of(1, 1.25)), None, "another text size");
+        for page in 2..=KEPT as u64 {
+            fitted.keep(fit_of(page, 1.0), wide);
+        }
+        assert_eq!(fitted.get(fit_of(1, 1.0)), Some(wide), "full, not over");
+        fitted.keep(fit_of(1, 1.0), wide);
+        assert_eq!(fitted.order.len(), KEPT, "kept again is not kept twice");
+        fitted.keep(fit_of(9999, 1.0), wide);
+        assert_eq!(fitted.get(fit_of(1, 1.0)), None, "the oldest goes");
+        assert_eq!(fitted.drawn.len(), KEPT);
     }
 }
