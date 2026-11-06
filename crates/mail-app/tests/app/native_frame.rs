@@ -421,11 +421,43 @@ fn a_newsletter_fixed_wider_than_the_frame_is_still_shrunk_to_fit() {
     let markup = "<table width='100%'><tr><td align='center'>\
         <table width='800' style='width: 800px'><tr><td width='800'>\
         <div class='copy' style='width: 800px'>Fixed at 800</div></td></tr></table></td></tr></table>";
-    let harness = drawn(&document("", markup), 700);
+    let page = document("", markup);
+    let harness = drawn(&page, 700);
     let copy = frame_width(&harness, ".copy");
     // 700 over the 800 and the inset's two 18 px: about 0.84 of 800.
     assert!(
         (600.0..700.0).contains(&copy),
         "the 800 px newsletter is {copy} px in a 700 px pane"
+    );
+    // Shrunk where it stood: the frame was not given a new document to parse and lay out again.
+    let srcdoc = harness.attr(FRAME, "srcdoc").expect("the frame's document");
+    assert!(!srcdoc.contains("zoom"), "the zoom was a new document");
+
+    // Opened again, it starts at the fit it came to, and is laid out once.
+    drop(harness);
+    let again = drawn(&page, 700);
+    let srcdoc = again.attr(FRAME, "srcdoc").expect("the frame's document");
+    assert!(srcdoc.contains("zoom"), "opened again at its own size");
+    let copy_again = frame_width(&again, ".copy");
+    assert!(
+        (copy_again - copy).abs() < 1.0,
+        "opened again it is {copy_again} px, not the {copy} px it was fitted to"
+    );
+}
+
+/// A fit kept from a narrow pane is not a wider one's: there the page opened again comes back
+/// to its own size.
+#[test]
+fn a_fit_kept_in_a_narrow_pane_is_fitted_again_in_a_wider_one() {
+    let markup = "<table width='800' style='width: 800px'><tr><td>\
+        <div class='copy' style='width: 800px'>Fixed at 800</div></td></tr></table>";
+    let page = document("", markup);
+    let narrow = frame_width(&drawn(&page, 700), ".copy");
+    assert!(narrow < 700.0, "not shrunk in the narrow pane: {narrow}");
+    let wide = drawn(&page, 1100);
+    let copy = frame_width(&wide, ".copy");
+    assert!(
+        (copy - 800.0).abs() < 1.0,
+        "in a 1100 px pane the 800 px page is {copy} px"
     );
 }

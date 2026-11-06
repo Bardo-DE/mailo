@@ -27,6 +27,8 @@ use mail_client::search::{Found, MOST_FOUND, find_terms};
 use mail_domain::MessageId;
 use mail_reader::{FOUND_CURRENT, FOUND_MARK};
 use mail_ui_kit::view::{Finding, Shell};
+
+use super::subdoc::{free, in_frame};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ops::Range;
@@ -183,30 +185,6 @@ impl Frames {
 
 /// How many frames a task waits for a document to be free, or a mark to be laid out.
 const TRIES: usize = 30;
-
-/// `frame`'s node, once the window's document is free to borrow; `None` if it is not a node of a
-/// Blitz document, or never comes free.
-async fn free(frame: &MountedData) -> Option<&NodeHandle> {
-    let handle = frame.downcast::<NodeHandle>()?;
-    for _ in 0..TRIES {
-        if handle.try_doc().is_some() {
-            return Some(handle);
-        }
-        sleep(FRAME_SLACK).await;
-    }
-    None
-}
-
-/// Run `change` on the document in `handle`'s frame. Free a moment ago, and nothing has run
-/// since: the caller has not awaited between.
-fn in_frame<T>(handle: &NodeHandle, change: impl FnOnce(&mut BaseDocument) -> T) -> Option<T> {
-    let mut doc = handle.doc_mut();
-    let sub = doc.subdoc_mut(handle.node_id())?;
-    let mut inner = sub.inner_mut();
-    let said = change(&mut inner);
-    inner.shell_provider.request_redraw();
-    Some(said)
-}
 
 /// The attribute a find stamps its document's root element with, to know that document again.
 const STAMP: &str = "data-found-doc";

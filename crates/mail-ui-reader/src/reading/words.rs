@@ -18,9 +18,8 @@
 
 use blitz_dom::{BaseDocument, NodeId};
 use dioxus::prelude::*;
-use dioxus_native_dom::NodeHandle;
-use ds::base::time::clock::sleep;
-use std::time::Duration;
+
+use super::subdoc::{free, in_frame};
 
 /// A selection in a frame's document: where it starts and ends (an inline root and a byte offset
 /// into its text, each) and the words it holds.
@@ -103,35 +102,11 @@ fn held_in(doc: &BaseDocument) -> Option<Held> {
     })
 }
 
-/// How long a task waits for the window's document to be free, a frame at a time, before it
-/// gives up.
-const TRIES: usize = 30;
-const FRAME_TIME: Duration = Duration::from_millis(16);
-
-/// `frame`'s node, once the window's document is free to borrow; `None` if it is not a node of
-/// a Blitz document, or never comes free.
-async fn free(frame: &MountedData) -> Option<&NodeHandle> {
-    let handle = frame.downcast::<NodeHandle>()?;
-    for _ in 0..TRIES {
-        if handle.try_doc().is_some() {
-            return Some(handle);
-        }
-        sleep(FRAME_TIME).await;
-    }
-    None
-}
-
 /// Change `frame`'s document with `change` once the window's document is free, and draw it
 /// again; what `change` said, or `None` when there was no document to change.
 async fn change<T>(frame: &MountedData, change: impl FnOnce(&mut BaseDocument) -> T) -> Option<T> {
     let handle = free(frame).await?;
-    // Free a moment ago, and nothing has run since: no await lies between.
-    let mut doc = handle.doc_mut();
-    let sub = doc.subdoc_mut(handle.node_id())?;
-    let mut inner = sub.inner_mut();
-    let said = change(&mut inner);
-    inner.shell_provider.request_redraw();
-    Some(said)
+    in_frame(handle, change)
 }
 
 /// The most nodes a frame is walked through for its text: a page could be very large.

@@ -15,6 +15,7 @@ mod marking;
 pub mod peek;
 mod render;
 mod source;
+mod subdoc;
 mod thumb;
 mod tools;
 mod words;
