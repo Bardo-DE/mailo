@@ -234,6 +234,8 @@ pub(super) fn App() -> Element {
     super::launcher_count::use_launcher_count(shell);
     // Trash and Spam erased after the time Settings gives them, and Delete's under "deletes now".
     super::erase::use_eraser(shell);
+    // A newer mailo, looked for and downloaded in the background, ready for the next restart.
+    super::update::use_updates();
 
     // The accounts the list is showing. A memo of its own, so only a change of Space reaches the
     // counts, never a keystroke.

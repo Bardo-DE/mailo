@@ -486,3 +486,8 @@ pub fn server_found(address: &str, found: usize, fetched: usize, more: u64) -> S
 pub fn server_not_searched(address: &str, what: &str) -> String {
     format!("Not searched on {address}'s server: {what}.")
 }
+
+/// The sidebar's banner once a newer mailo is downloaded and waits for a restart.
+pub fn update_ready(version: &str) -> String {
+    format!("mailo {version} is ready")
+}

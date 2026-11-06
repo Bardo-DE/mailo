@@ -32,6 +32,8 @@ pub const COPY_ALL: &str = "Copy All";
 pub const USE_DEFAULTS: &str = "Use Defaults";
 /// Ends mailo, leaving unreadable settings files as they are.
 pub const QUIT: &str = "Quit";
+/// The update banner's button: mailo quits, the new one is put in place and opened.
+pub const RESTART_TO_UPDATE: &str = "Restart to Update";
 /// A toast's button that puts back what was just deleted.
 pub const UNDO: &str = "Undo";
 /// Tidy Up's button: archive the conversations it lists.

@@ -75,3 +75,5 @@ pub const ADDRESSES: &str = "Addresses";
 pub const MEMBERS: &str = "Members";
 /// Settings › General's third group.
 pub const CALENDAR: &str = "Calendar";
+/// Settings › General's fourth group: how mailo updates itself.
+pub const UPDATES: &str = "Updates";

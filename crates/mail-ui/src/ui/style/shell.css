@@ -55,6 +55,8 @@
    (`space_editor.css`, `spaces.css`). */
 .side .foot-lead, .side .foot-end { display: flex; align-items: center; flex: 1000 1 0; }
 .side .foot-end { justify-content: flex-end; }
+/* A newer mailo ready to put in place: a banner over the foot, at its own height. */
+.side .update-banner { flex: none; }
 /* Downloads in the title row and Sync at the foot: each button's hold carries a dot. Downloads'
    says a file is being saved, or one was saved since the list was last opened; Sync's that the
    mail is stale or cannot be fetched, which its tip explains. */

@@ -25,7 +25,8 @@ pub use words::{
     JunkSwitch, JunkTreat, KeepCalendar, LabelChips, LoadRemoteImages, MarkRead, MarkReadDelay,
     MessageFormat, NewMail, NotifyFor, NotifyPlaces, NotifySound, PreferPlainText, Protect,
     ProviderMarks, ReadReceipts, RelayKind, RemoveUnedited, ReplySameFormat, ServerSearch,
-    SignatureAboveQuote, Snippets, Spelling, TextZoom, UndoSend, WhileQuit, ZoomStep,
+    SignatureAboveQuote, Snippets, Spelling, TextZoom, UndoSend, UpdateChannel, WhileQuit,
+    ZoomStep,
 };
 
 use ds_core::word::Word;
@@ -627,6 +628,19 @@ pub struct CalendarSettings {
     pub default: String,
 }
 
+/// `updates.*`: how mailo updates itself.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, ds_settings::SettingsSchema)]
+#[serde(default)]
+#[settings(file = "mailo/settings.toml", domain = "updates", page = page())]
+pub struct UpdateSettings {
+    #[settings(
+        label = "Update channel",
+        help = "Daily gets each new build of mailo; Stable only the releases. A new mailo is downloaded in the background and put in place when mailo restarts.",
+        section = "Updates"
+    )]
+    pub channel: UpdateChannel,
+}
+
 /// `mailo/settings.toml`, whole.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(default)]
@@ -642,6 +656,7 @@ pub struct MailSettings {
     pub mailboxes: MailboxSettings,
     pub junk: JunkSettings,
     pub calendar: CalendarSettings,
+    pub updates: UpdateSettings,
 }
 
 impl SettingsDoc for MailSettings {
@@ -663,6 +678,7 @@ pub fn schema() -> Schema {
         MailboxSettings::schema(),
         JunkSettings::schema(),
         CalendarSettings::schema(),
+        UpdateSettings::schema(),
     ]
     .into_iter()
     .flat_map(|schema| schema.key)

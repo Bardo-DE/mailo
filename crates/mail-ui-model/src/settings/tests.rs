@@ -163,6 +163,7 @@ fn the_schema_names_every_key_on_mailo_s_page_in_mailo_s_file() {
         ("junk.order", pair("after", "before")),
         ("calendar.keep_in_step", pair("on", "off")),
         ("calendar.default", KeyKind::Text),
+        ("updates.channel", pair("daily", "stable")),
     ]
     .into_iter()
     .map(|(path, kind)| (path.to_owned(), kind))

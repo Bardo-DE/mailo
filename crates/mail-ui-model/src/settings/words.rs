@@ -637,6 +637,26 @@ impl From<DeleteMeans> for mail_client::erase::Delete {
     }
 }
 
+/// `updates.channel`: which releases mailo updates itself to. `Daily` is the build each change
+/// to mailo makes; `Stable` only the releases published as such. A new setting starts on the
+/// channel this mailo was built for (`MAILO_CHANNEL`), so a daily keeps following the dailies.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Word)]
+#[serde(rename_all = "snake_case")]
+#[word(case = snake)]
+pub enum UpdateChannel {
+    Daily,
+    Stable,
+}
+
+impl Default for UpdateChannel {
+    fn default() -> Self {
+        match option_env!("MAILO_CHANNEL") {
+            Some("daily") => Self::Daily,
+            _ => Self::Stable,
+        }
+    }
+}
+
 /// `calendar.keep_in_step`: whether answering an invitation also changes the event in the
 /// calendar it was added to: accepting or saying maybe updates it, declining takes it out. Only an
 /// event already there is touched; an answer never adds one.

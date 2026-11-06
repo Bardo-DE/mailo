@@ -5420,8 +5420,10 @@ dependencies = [
 name = "mail-os"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "block2 0.6.2",
  "dispatch2",
+ "ed25519-dalek",
  "fontique",
  "mail-appkit",
  "mail-client",
@@ -5431,6 +5433,11 @@ dependencies = [
  "objc2 0.6.4",
  "objc2-app-kit 0.3.2",
  "objc2-foundation 0.3.2",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
  "zbus",
 ]
 
