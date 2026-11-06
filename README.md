@@ -67,18 +67,25 @@ the least exercised.
 
 ## Install
 
-CI builds the packages (the `package` job of `.github/workflows/ci.yml`) on every push to master.
-There is no tagged release yet, so take them from a run's artifacts.
+Take mailo from [the releases](https://github.com/PoHsuanLai/mailo/releases)
+(`.github/workflows/release.yml`). Every push to master publishes a **daily**, a pre-release tagged
+`daily-<build>` (the newest five are kept); a tag `vX.Y.Z` drafts a **stable** release, published
+by hand. Each release holds:
 
 | OS | Package |
 | --- | --- |
-| macOS | `mailo-<version>.dmg` holding `mailo.app` |
-| Debian, Ubuntu | `.deb` |
-| Fedora | `.rpm` |
-| Windows | `mailo-x86_64.msi` |
+| macOS (Apple silicon) | `mailo-<version>.dmg` holding `mailo.app`, and the zip the updater takes |
+| Debian, Ubuntu | `mailo-<version>-amd64.deb` |
+| Fedora | `mailo-<version>-x86_64.rpm` |
+
+and `update.json`, the signed manifest the app's updater reads (each file's SHA-256, signed with
+the Ed25519 key whose public half is `packaging/update-key.pub`). A daily's packages are versioned
+`<version>~daily.<build>`, so a package manager orders it before the release it leads to. The
+Windows MSI (`mailo-x86_64.msi`) is not released yet: take it from a CI run's artifacts (the
+`package` job of `.github/workflows/ci.yml`).
 
 ```sh
-sudo apt install ./mailo_*.deb          # Debian, Ubuntu
+sudo apt install ./mailo-*.deb          # Debian, Ubuntu
 sudo dnf install ./mailo-*.rpm          # Fedora
 ```
 

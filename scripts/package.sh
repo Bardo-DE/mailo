@@ -15,7 +15,8 @@
 #
 # The .deb and .rpm need a release build (`cargo build --release -p mail-app`), which this
 # script makes once. The packages land in target/debian/, target/generate-rpm/ and
-# target/flatpak/.
+# target/flatpak/. MAILO_PACKAGE_VERSION, when set, is the .deb's and the .rpm's version in place
+# of mail-app's (the release workflow's `0.1.0~daily.N`).
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -56,7 +57,8 @@ deb() {
         return
     fi
     release
-    cargo deb -p mail-app --no-build || failed=$((failed + 1))
+    cargo deb -p mail-app --no-build ${MAILO_PACKAGE_VERSION:+--deb-version "$MAILO_PACKAGE_VERSION"} ||
+        failed=$((failed + 1))
 }
 
 rpm() {
@@ -66,7 +68,9 @@ rpm() {
     fi
     release
     # cargo-generate-rpm does not strip; the release profile's binary is shipped as built.
-    cargo generate-rpm -p crates/mail-app --target-dir "$target" || failed=$((failed + 1))
+    cargo generate-rpm -p crates/mail-app --target-dir "$target" \
+        ${MAILO_PACKAGE_VERSION:+--set-metadata "version = \"$MAILO_PACKAGE_VERSION\""} ||
+        failed=$((failed + 1))
 }
 
 flatpak() {
