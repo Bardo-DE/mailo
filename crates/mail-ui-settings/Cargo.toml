@@ -49,9 +49,9 @@ dioxus = { version = "0.7" }
 # chordkit, the keymap core quire resolves keys with. The rev quire pins, so one chordkit is built.
 chordkit = { git = "https://github.com/PoHsuanLai/chordkit.git", rev = "99eec9ddd03ee345b669fcc7954ed44590724290" }
 # quire, the shared design system, pinned as the desktop manifest pins it.
-ds = { git = "https://github.com/PoHsuanLai/quire.git", rev = "0ac76386ccbdfbd5a44ada347fd84467e148a86e" }  # 0ac76386 (quire#67, not merged yet; forks blitz 841386a7, blitz-kit 5b5380d0)
-ds-settings = { git = "https://github.com/PoHsuanLai/quire.git", rev = "0ac76386ccbdfbd5a44ada347fd84467e148a86e", features = ["dioxus"] }  # 0ac76386 (quire#67, not merged yet; forks blitz 841386a7, blitz-kit 5b5380d0)
-ds-blitz = { git = "https://github.com/PoHsuanLai/quire.git", rev = "0ac76386ccbdfbd5a44ada347fd84467e148a86e", features = ["pdf", "print", "spell"] }  # 0ac76386 (quire#67, not merged yet; forks blitz 841386a7, blitz-kit 5b5380d0)
+ds = { git = "https://github.com/PoHsuanLai/quire.git", rev = "c5a80212f5a17f35e21e8144fa3a237ce17b49a9" }  # c5a80212 (master, palette-rows-menu-place-tokens merged; forks blitz 841386a7, blitz-kit 5b5380d0)
+ds-settings = { git = "https://github.com/PoHsuanLai/quire.git", rev = "c5a80212f5a17f35e21e8144fa3a237ce17b49a9", features = ["dioxus"] }  # c5a80212 (master, palette-rows-menu-place-tokens merged; forks blitz 841386a7, blitz-kit 5b5380d0)
+ds-blitz = { git = "https://github.com/PoHsuanLai/quire.git", rev = "c5a80212f5a17f35e21e8144fa3a237ce17b49a9", features = ["pdf", "print", "spell"] }  # c5a80212 (master, palette-rows-menu-place-tokens merged; forks blitz 841386a7, blitz-kit 5b5380d0)
 base64 = "0.22"
 toml = "1"
 
