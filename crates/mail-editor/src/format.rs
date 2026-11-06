@@ -3,7 +3,7 @@
 //!
 //! Each returns the edits and changes nothing; the caller applies them as one undo step.
 //! Alignment, size and colour need no help to be set: they are one [`Op`] each
-//! ([`Op::SetAlign`], [`Op::SetSize`], [`Op::SetColor`]).
+//! ([`Op::SetAlign`], [`Op::SetSize`], [`Op::SetColor`], [`Op::SetFont`]).
 
 use mail_reader::{Align, TextColor, TextSize};
 

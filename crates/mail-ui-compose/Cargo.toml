@@ -29,6 +29,8 @@ mail-ui-model.workspace = true
 mail-ui-kit.workspace = true
 mail-mime.workspace = true
 mail-reader.workspace = true
+# The fonts installed, for the format bar's font menu.
+mail-os.workspace = true
 # What the window logs; the program installs the one logger it goes through.
 log.workspace = true
 # The runtime the composer's sends and saves run on.

@@ -326,6 +326,7 @@ pub const QUOTE_LESS: &str = "Decrease Quote Level";
 
 // The format bar's colours: none, then the palette.
 pub const NO_TEXT_COLOUR: &str = "No Colour";
+pub const DEFAULT_FONT: &str = "Default Font";
 pub const GREY: &str = "Grey";
 pub const RED: &str = "Red";
 pub const ORANGE: &str = "Orange";

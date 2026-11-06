@@ -219,9 +219,11 @@ fn mark_class(run: &Run) -> String {
     .join(" ")
 }
 
-/// A run's size and colour, as an inline style. The sizes are the ratios the written keywords
-/// come to at the body's size, so the composer shows what the reader will see.
-fn run_style(run: &Run) -> Option<String> {
+/// A run's size, colour and font, as an inline style. The sizes are the ratios the written keywords
+/// come to at the body's size, so the composer shows what the reader will see. Code keeps its
+/// own face, as it does where it is read: a code block is sent as its plain text, and inline code
+/// stays monospaced inside the font's span.
+fn run_style(run: &Run, kind: ParaKind) -> Option<String> {
     let mut style = Vec::new();
     if let Some(size) = run.marks.size {
         let em = match size {
@@ -233,6 +235,12 @@ fn run_style(run: &Run) -> Option<String> {
     }
     if let Some(color) = run.marks.color {
         style.push(format!("color:{}", color.css()));
+    }
+    if let (Some(font), false) = (
+        &run.marks.font,
+        kind == ParaKind::Code || run.marks.has(Mark::Code),
+    ) {
+        style.push(format!("font-family:{}", font.css()));
     }
     style_of(style)
 }
@@ -263,13 +271,13 @@ fn para_style(kind: ParaKind, layout: Layout, marker: Option<String>) -> Option<
 /// An empty paragraph holds a non-breaking space, so it is one line high and the caret has a line
 /// to stand on: a `<br>` alone would be a line and the empty one after it, Blitz drops a plain
 /// space, and a heading's weight gives a zero-width space no height.
-fn text(runs: &[Run]) -> Element {
+fn text(runs: &[Run], kind: ParaKind) -> Element {
     rsx! {
         for (index, run) in runs.iter().enumerate() {
             if let Some(url) = &run.marks.link {
-                a { key: "{index}", class: "m-a {mark_class(run)}", style: run_style(run), href: "{url.as_str()}", "{run.text}" }
+                a { key: "{index}", class: "m-a {mark_class(run)}", style: run_style(run, kind), href: "{url.as_str()}", "{run.text}" }
             } else {
-                span { key: "{index}", class: "{mark_class(run)}", style: run_style(run), "{run.text}" }
+                span { key: "{index}", class: "{mark_class(run)}", style: run_style(run, kind), "{run.text}" }
             }
         }
         if runs.is_empty() {
@@ -291,7 +299,7 @@ fn Para(
 ) -> Element {
     #[cfg(any(test, feature = "testing"))]
     PARA_RENDERS.with(|renders| *renders.borrow_mut().entry(n).or_insert(0) += 1);
-    let inner = text(&runs);
+    let inner = text(&runs, kind);
     let style = para_style(kind, layout, marker);
     match kind {
         ParaKind::Paragraph => rsx! { p { style, ..node_attrs(n), {inner} } },

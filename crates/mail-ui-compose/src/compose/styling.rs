@@ -13,8 +13,8 @@ use ds::root::common::Common;
 use super::float::commit;
 use super::page::{Float, Page};
 use mail_editor::{
-    Align, Caret, Marks, Nest, Op, Range, TextColor, TextSize, align_at, code_tab, indent,
-    marks_at_start, quote, step_size, tab,
+    Align, Caret, FontFace, Marks, Nest, Op, Range, TextColor, TextSize, align_at, code_tab,
+    indent, marks_at_start, quote, step_size, tab,
 };
 use mail_ui_kit::actions::{Own, hint_own};
 use mail_ui_kit::menu::{MenuItem, Right, menu_items};
@@ -134,16 +134,19 @@ pub(super) fn size(mut page: Signal<Page>, size: Option<TextSize>) -> bool {
 
 /// A size bigger or smaller than the one the selection starts with: ⌘> and ⌘<.
 pub(super) fn step(page: Signal<Page>, nest: Nest) -> bool {
-    let now = {
-        let read = page.peek();
-        let range = target(&read);
-        if range.is_collapsed() {
-            typing(&read, range).size
-        } else {
-            marks_at_start(&read.session.doc, range).size
-        }
-    };
+    let now = marks_now(&page.peek()).size;
     size(page, step_size(now, nest))
+}
+
+/// The marks a pick acts from: the text typed next's at a caret, else those the selection
+/// starts with.
+fn marks_now(page: &Page) -> Marks {
+    let range = target(page);
+    if range.is_collapsed() {
+        typing(page, range)
+    } else {
+        marks_at_start(&page.session.doc, range)
+    }
 }
 
 /// Colour the selection; with none, the text typed next.
@@ -157,6 +160,65 @@ pub(super) fn colour(mut page: Signal<Page>, color: Option<TextColor>) -> bool {
         keep(page, vec![Op::SetColor { range, color }]);
     }
     true
+}
+
+/// Set the selection's font; with none, the text typed next's.
+pub(super) fn font(mut page: Signal<Page>, font: Option<FontFace>) -> bool {
+    let range = target(&page.peek());
+    if range.is_collapsed() {
+        let mut marks = typing(&page.peek(), range);
+        marks.font = font;
+        page.write().session.pending = Some(marks);
+    } else {
+        keep(page, vec![Op::SetFont { range, font }]);
+    }
+    true
+}
+
+/// The key the body's own font is picked by, and the start of every family's.
+const DEFAULT_FONT: &str = "font";
+const FONT_KEY: &str = "font:";
+
+/// The installed families the font menu lists after the ones every reader has: those whose name
+/// is plain words and not one of them.
+fn pickable(installed: &[String]) -> Vec<String> {
+    installed
+        .iter()
+        .filter(|name| !FontFace::EVERYWHERE.contains(&name.as_str()))
+        .filter(|name| FontFace::named(name).is_some())
+        .cloned()
+        .collect()
+}
+
+/// The font menu: the body's own, the fonts every reader has, then those installed here
+/// ([`pickable`]), the one the selection starts with checked.
+fn font_items(now: Option<&FontFace>, here: &[String]) -> Vec<MenuItem> {
+    let now = now.map(FontFace::family);
+    let family = |name: &str, group: &str| MenuItem {
+        right: Right::Check(now == Some(name)),
+        group: Some(group.to_owned()),
+        ..MenuItem::plain(format!("{FONT_KEY}{name}"), name)
+    };
+    let own = MenuItem {
+        right: Right::Check(now.is_none()),
+        ..MenuItem::plain(DEFAULT_FONT, copy::menus::DEFAULT_FONT)
+    };
+    let everywhere = FontFace::EVERYWHERE
+        .into_iter()
+        .map(|name| family(name, copy::headers::FONTS_EVERYWHERE));
+    let here = here
+        .iter()
+        .map(|name| family(name, copy::headers::FONTS_THIS_MAC));
+    std::iter::once(own).chain(everywhere).chain(here).collect()
+}
+
+/// A pick from the font menu.
+fn font_picked(page: Signal<Page>, key: &str) {
+    if key == DEFAULT_FONT {
+        font(page, None);
+    } else if let Some(face) = key.strip_prefix(FONT_KEY).and_then(FontFace::named) {
+        font(page, Some(face));
+    }
 }
 
 /// The keys a size, an alignment and a pull-down row are picked by.
@@ -274,14 +336,47 @@ pub(super) fn Controls(page: Signal<Page>) -> Element {
     let (now_size, now_align) = {
         let read = page.read();
         let range = target(&read);
-        (
-            marks_at_start(&read.session.doc, range).size,
-            align_at(&read.session.doc, range),
-        )
+        (marks_now(&read).size, align_at(&read.session.doc, range))
     };
+    // The installed fonts are read off the drawing thread as the bar comes up and again each time
+    // the menu opens, so one installed since shows: until the first read the menu offers the ones
+    // every reader has. The menu is built again only when the list or the checked font changes,
+    // not at every keystroke.
+    let mut installed = use_signal(Vec::<String>::new);
+    let reread = move || {
+        spawn(async move {
+            if let Ok(read) = tokio::task::spawn_blocking(mail_os::fonts::installed).await
+                && *installed.peek() != read
+            {
+                installed.set(read);
+            }
+        });
+    };
+    use_hook(reread);
+    let here = use_memo(move || pickable(&installed.read()));
+    let now_font = use_memo(move || marks_now(&page.read()).font);
+    let fonts =
+        use_memo(move || menu_items("", &font_items(now_font().as_ref(), &here.read()), false));
     let keys = use_keys();
     let paragraph = keys.with_keymap(|keymap| paragraph_items(now_align, keymap));
     rsx! {
+        Tooltip { text: copy::aria::FONT.to_owned(),
+            PullDownButton::<String> {
+                items: fonts(),
+                title: copy::aria::FONT.to_owned(),
+                common: Common {
+                    aria_label: Some(copy::aria::FONT.to_owned()),
+                    ..Common::default()
+                },
+                on_open_change: move |to: Shown| {
+                    if to == Shown::Visible {
+                        reread();
+                    }
+                    menu_shown(page, to);
+                },
+                onpick: move |key: String| font_picked(page, &key),
+            }
+        }
         // quire's tip around the pull-down: on its own it would say "Menu". The tip is the
         // control's name, the same words its aria label carries.
         Tooltip { text: copy::aria::TEXT_SIZE.to_owned(),

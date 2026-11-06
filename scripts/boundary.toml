@@ -186,7 +186,7 @@ deps = ["mail-client", "mail-os", "mail-ui-model", "mailo-crypto", "mailo-domain
 deps = ["mail-appkit", "mail-client", "mail-os", "mail-ui-kit", "mail-ui-model", "mailo-crypto", "mailo-domain", "mailo-logic", "mailo-mime", "mailo-pim", "mailo-reader"]
 
 [crates.mail-ui-compose]
-deps = ["mail-client", "mail-ui-kit", "mail-ui-model", "mailo-domain", "mailo-editor", "mailo-logic", "mailo-mime", "mailo-reader"]
+deps = ["mail-client", "mail-os", "mail-ui-kit", "mail-ui-model", "mailo-domain", "mailo-editor", "mailo-logic", "mailo-mime", "mailo-reader"]
 
 [crates.mail-ui-list]
 deps = ["mail-client", "mail-ui-kit", "mail-ui-model", "mailo-domain", "mailo-logic", "mailo-proto"]

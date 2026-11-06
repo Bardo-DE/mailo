@@ -15,7 +15,8 @@ use crate::text::{grapheme_len, node_len, runs_text};
 /// Into a code block it all goes as the plain text it is, whatever else the clipboard holds.
 ///
 /// The sanitizer keeps the clipboard's inline styles, since a word processor writes bold and
-/// italic as a span's `font-weight` and `font-style`; `from_html` reads those two and no more.
+/// italic as a span's `font-weight` and `font-style`; `from_html` reads those two, and the size,
+/// colour and font only in the form mailo writes them (`mail_reader`'s block styles), and no more.
 pub(crate) fn paste(doc: &Doc, selection: Range, event: &InputEvent) -> Result<Edit, OpError> {
     let nodes = match &event.html {
         Some(html) => {

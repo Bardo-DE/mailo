@@ -226,12 +226,19 @@ struct CanonRun {
     link: Option<String>,
     size: Option<TextSize>,
     color: Option<TextColor>,
+    font: Option<FontFace>,
 }
 
 impl CanonRun {
     fn same_look(&self, other: &CanonRun) -> bool {
-        (self.bits, &self.link, self.size, self.color)
-            == (other.bits, &other.link, other.size, other.color)
+        (self.bits, &self.link, self.size, self.color, &self.font)
+            == (
+                other.bits,
+                &other.link,
+                other.size,
+                other.color,
+                &other.font,
+            )
     }
 }
 
@@ -302,6 +309,7 @@ fn canon_para(kind: ParaKind, runs: &[Run], layout: Layout) -> Option<Canon> {
             link,
             size: run.marks.size.filter(|_| styled),
             color: run.marks.color.filter(|_| styled),
+            font: run.marks.font.clone().filter(|_| styled),
         };
         match kept.last_mut() {
             Some(last) if last.same_look(&next) => last.text.push_str(&next.text),

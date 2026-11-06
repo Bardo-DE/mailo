@@ -5,7 +5,7 @@
 
 use crate::text::normalize_runs;
 use mail_reader::block::Block;
-use mail_reader::{Align, ParaStyle, SafeUrl, TextColor, TextSize};
+use mail_reader::{Align, FontFace, ParaStyle, SafeUrl, TextColor, TextSize};
 
 /// A heading's level. One, two, or three: deeper headings are not a thing this editor writes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -108,10 +108,10 @@ impl Layout {
     pub const MAX_DEPTH: u8 = ParaStyle::MAX_INDENT;
 }
 
-/// Inline marks on one run, plus an optional link, size and colour.
+/// Inline marks on one run, plus an optional link, size, colour and font.
 ///
-/// The five styles are bits. The link, the size and the colour are their own fields, because
-/// none of them is a flag.
+/// The five styles are bits. The link, the size, the colour and the font are their own fields,
+/// because none of them is a flag.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Marks {
     bits: u8,
@@ -121,6 +121,8 @@ pub struct Marks {
     pub size: Option<TextSize>,
     /// Its colour, `None` for the text's own.
     pub color: Option<TextColor>,
+    /// Its font, `None` for the body's.
+    pub font: Option<FontFace>,
 }
 
 const BIT_BOLD: u8 = 1 << 0;
@@ -137,6 +139,7 @@ impl Marks {
             link: None,
             size: None,
             color: None,
+            font: None,
         }
     }
 
