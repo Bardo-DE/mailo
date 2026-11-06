@@ -186,6 +186,7 @@ pub const CHOOSE_DOWNLOADS_FOLDER: &str = "Choose Folder for Attachments";
 // The composer's format bar.
 /// The pop-up of text sizes.
 pub const TEXT_SIZE: &str = "Text Size";
+pub const FONT: &str = "Font";
 /// The button that shows the colours, and the row of them.
 pub const TEXT_COLOUR: &str = "Text Colour";
 /// The pull-down of alignment, indentation and quote level.

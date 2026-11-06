@@ -5566,6 +5566,7 @@ version = "0.1.0"
 dependencies = [
  "block2 0.6.2",
  "dispatch2",
+ "fontique",
  "mail-appkit",
  "mail-client",
  "mailo-domain",
@@ -5763,6 +5764,7 @@ dependencies = [
  "image",
  "log",
  "mail-client",
+ "mail-os",
  "mail-ui-kit",
  "mail-ui-model",
  "mailo-domain",

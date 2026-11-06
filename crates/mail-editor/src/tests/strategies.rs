@@ -23,6 +23,14 @@ fn color_strategy() -> impl Strategy<Value = Option<TextColor>> {
     prop::option::of(prop::sample::select(TextColor::ALL.to_vec()))
 }
 
+/// No font, or one of a few, of each kind.
+fn font_strategy() -> impl Strategy<Value = Option<FontFace>> {
+    prop::option::of(
+        prop::sample::select(vec!["Georgia", "Avenir Next", "SF Mono"])
+            .prop_filter_map("a plain name", FontFace::named),
+    )
+}
+
 /// Any alignment, and any depth up to the deepest.
 pub(super) fn layout_strategy() -> impl Strategy<Value = Layout> {
     (
@@ -33,8 +41,14 @@ pub(super) fn layout_strategy() -> impl Strategy<Value = Layout> {
 }
 
 pub(super) fn marks_strategy() -> impl Strategy<Value = Marks> {
-    (0u8..32, any::<bool>(), size_strategy(), color_strategy()).prop_map(
-        |(bits, linked, size, color)| {
+    (
+        0u8..32,
+        any::<bool>(),
+        size_strategy(),
+        color_strategy(),
+        font_strategy(),
+    )
+        .prop_map(|(bits, linked, size, color, font)| {
             let mut marks = Marks::new();
             for (index, mark) in [
                 Mark::Bold,
@@ -55,9 +69,9 @@ pub(super) fn marks_strategy() -> impl Strategy<Value = Marks> {
             }
             marks.size = size;
             marks.color = color;
+            marks.font = font;
             marks
-        },
-    )
+        })
 }
 
 fn kind_strategy() -> impl Strategy<Value = ParaKind> {
@@ -152,6 +166,8 @@ fn op_strategy(doc: &Doc) -> impl Strategy<Value = Op> + use<> {
             .prop_map(|(range, size)| Op::SetSize { range, size }),
         1 => (range_strategy(doc), color_strategy())
             .prop_map(|(range, color)| Op::SetColor { range, color }),
+        1 => (range_strategy(doc), font_strategy())
+            .prop_map(|(range, font)| Op::SetFont { range, font }),
         1 => (pos_strategy(doc), prop::collection::vec(node_strategy(), 0..3))
             .prop_map(|(at, nodes)| Op::InsertNodes { at, nodes }),
         1 => (0..=count, 0usize..3, prop::collection::vec(node_strategy(), 0..3))
