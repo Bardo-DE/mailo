@@ -5,7 +5,7 @@
 //! Alignment, size and colour need no help to be set: they are one [`Op`] each
 //! ([`Op::SetAlign`], [`Op::SetSize`], [`Op::SetColor`], [`Op::SetFont`]).
 
-use mail_reader::{Align, FontFace, TextColor, TextSize};
+use mail_reader::{Align, TextColor, TextSize};
 
 use crate::doc::{Doc, Layout, Marks, Node, ParaKind, Pos, Range};
 use crate::op::{Op, apply_all, kind_targets};
@@ -250,11 +250,6 @@ pub fn size_at(doc: &Doc, range: Range) -> Option<TextSize> {
 /// The colour of the text `range` starts with.
 pub fn color_at(doc: &Doc, range: Range) -> Option<TextColor> {
     marks_at_start(doc, range).color
-}
-
-/// The font of the text `range` starts with.
-pub fn font_at(doc: &Doc, range: Range) -> Option<FontFace> {
-    marks_at_start(doc, range).font
 }
 
 /// The size a step from `size` goes to: small, normal, large, huge, held at either end.

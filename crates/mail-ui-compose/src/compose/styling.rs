@@ -134,16 +134,19 @@ pub(super) fn size(mut page: Signal<Page>, size: Option<TextSize>) -> bool {
 
 /// A size bigger or smaller than the one the selection starts with: ⌘> and ⌘<.
 pub(super) fn step(page: Signal<Page>, nest: Nest) -> bool {
-    let now = {
-        let read = page.peek();
-        let range = target(&read);
-        if range.is_collapsed() {
-            typing(&read, range).size
-        } else {
-            marks_at_start(&read.session.doc, range).size
-        }
-    };
+    let now = marks_now(&page.peek()).size;
     size(page, step_size(now, nest))
+}
+
+/// The marks a pick acts from: the text typed next's at a caret, else those the selection
+/// starts with.
+fn marks_now(page: &Page) -> Marks {
+    let range = target(page);
+    if range.is_collapsed() {
+        typing(page, range)
+    } else {
+        marks_at_start(&page.session.doc, range)
+    }
 }
 
 /// Colour the selection; with none, the text typed next.
@@ -176,9 +179,20 @@ pub(super) fn font(mut page: Signal<Page>, font: Option<FontFace>) -> bool {
 const DEFAULT_FONT: &str = "font";
 const FONT_KEY: &str = "font:";
 
-/// The font menu: the body's own, the fonts every reader has, then those installed here, the one
-/// the selection starts with checked.
-fn font_items(now: Option<&FontFace>, installed: &[String]) -> Vec<MenuItem> {
+/// The installed families the font menu lists after the ones every reader has: those whose name
+/// is plain words and not one of them.
+fn pickable(installed: &[String]) -> Vec<String> {
+    installed
+        .iter()
+        .filter(|name| !FontFace::EVERYWHERE.contains(&name.as_str()))
+        .filter(|name| FontFace::named(name).is_some())
+        .cloned()
+        .collect()
+}
+
+/// The font menu: the body's own, the fonts every reader has, then those installed here
+/// ([`pickable`]), the one the selection starts with checked.
+fn font_items(now: Option<&FontFace>, here: &[String]) -> Vec<MenuItem> {
     let now = now.map(FontFace::family);
     let family = |name: &str, group: &str| MenuItem {
         right: Right::Check(now == Some(name)),
@@ -192,10 +206,8 @@ fn font_items(now: Option<&FontFace>, installed: &[String]) -> Vec<MenuItem> {
     let everywhere = FontFace::EVERYWHERE
         .into_iter()
         .map(|name| family(name, copy::headers::FONTS_EVERYWHERE));
-    let here = installed
+    let here = here
         .iter()
-        .filter(|name| !FontFace::EVERYWHERE.contains(&name.as_str()))
-        .filter(|name| FontFace::named(name).is_some())
         .map(|name| family(name, copy::headers::FONTS_THIS_MAC));
     std::iter::once(own).chain(everywhere).chain(here).collect()
 }
@@ -321,37 +333,49 @@ fn picked(page: Signal<Page>, key: &str) {
 /// swatch row in the bar's place) and the Paragraph pull-down.
 #[component]
 pub(super) fn Controls(page: Signal<Page>) -> Element {
-    let (now_size, now_font, now_align) = {
+    let (now_size, now_align) = {
         let read = page.read();
         let range = target(&read);
-        let marks = marks_at_start(&read.session.doc, range);
-        (marks.size, marks.font, align_at(&read.session.doc, range))
+        (marks_now(&read).size, align_at(&read.session.doc, range))
     };
-    // The installed fonts are read once, off the drawing thread: until then the menu offers
-    // the ones every reader has.
-    let mut installed = use_signal(mail_os::fonts::installed);
-    use_hook(move || {
-        if installed.peek().is_empty() {
-            spawn(async move {
-                if let Ok(read) = tokio::task::spawn_blocking(mail_os::fonts::load).await {
-                    installed.set(read);
-                }
-            });
-        }
-    });
-    let fonts = font_items(now_font.as_ref(), installed());
+    // The installed fonts are read off the drawing thread as the bar comes up and again each time
+    // the menu opens, so one installed since shows: until the first read the menu offers the ones
+    // every reader has. The menu is built again only when the list or the checked font changes,
+    // not at every keystroke.
+    let mut installed = use_signal(Vec::<String>::new);
+    let reread = move || {
+        spawn(async move {
+            if let Ok(read) = tokio::task::spawn_blocking(mail_os::fonts::installed).await
+                && *installed.peek() != read
+            {
+                installed.set(read);
+            }
+        });
+    };
+    use_hook(reread);
+    let here = use_memo(move || pickable(&installed.read()));
+    let now_font = use_memo(move || marks_now(&page.read()).font);
+    let fonts =
+        use_memo(move || menu_items("", &font_items(now_font().as_ref(), &here.read()), false));
     let keys = use_keys();
     let paragraph = keys.with_keymap(|keymap| paragraph_items(now_align, keymap));
     rsx! {
-        PullDownButton::<String> {
-            items: menu_items("", &fonts, false),
-            title: copy::aria::FONT.to_owned(),
-            common: Common {
-                aria_label: Some(copy::aria::FONT.to_owned()),
-                ..Common::default()
-            },
-            on_open_change: move |to: Shown| menu_shown(page, to),
-            onpick: move |key: String| font_picked(page, &key),
+        Tooltip { text: copy::aria::FONT.to_owned(),
+            PullDownButton::<String> {
+                items: fonts(),
+                title: copy::aria::FONT.to_owned(),
+                common: Common {
+                    aria_label: Some(copy::aria::FONT.to_owned()),
+                    ..Common::default()
+                },
+                on_open_change: move |to: Shown| {
+                    if to == Shown::Visible {
+                        reread();
+                    }
+                    menu_shown(page, to);
+                },
+                onpick: move |key: String| font_picked(page, &key),
+            }
         }
         // quire's tip around the pull-down: on its own it would say "Menu". The tip is the
         // control's name, the same words its aria label carries.

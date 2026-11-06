@@ -35,8 +35,8 @@ pub use doc::{
 };
 pub use error::OpError;
 pub use format::{
-    Nest, align_at, code_tab, color_at, font_at, indent, is_item, marks_at_start, quote, settled,
-    size_at, step_size, tab, turn,
+    Nest, align_at, code_tab, color_at, indent, is_item, marks_at_start, quote, settled, size_at,
+    step_size, tab, turn,
 };
 pub use input::{Edit, InputEvent, Record, interpret};
 pub use keys::{Caret, Grip, Motion, backspace, enter};

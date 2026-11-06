@@ -3,11 +3,13 @@
 //! A paragraph may be aligned and indented; a run of text may be a size, a colour and a font.
 //! Each is one of a fixed set, or of a fixed form, written as one fixed declaration, and read
 //! back only when the value is exactly one of those: `font-size` from [`TextSize`], `color` from
-//! [`TextColor`]'s palette, `font-family` as [`FontFace`] writes it (one family of plain words
-//! and the kind of face to fall back to), `text-align` from [`Align`] and `margin-left` in
-//! [`ParaStyle::INDENT_PX`] steps. Any other declaration, and any other value of these five, is
-//! not read and does not survive [`crate::sanitize`] under [`crate::Styles::Dropped`]: a
-//! sender's CSS never reaches the blocks.
+//! [`TextColor`]'s palette, `font-family` character for character as [`FontFace`] writes it (one
+//! family of plain words in single quotes and the kind its name says it falls back to),
+//! `text-align` from [`Align`] and `margin-left` in [`ParaStyle::INDENT_PX`] steps. Any other
+//! declaration, and any other value of these five, is not read and does not survive
+//! [`crate::sanitize`] under [`crate::Styles::Dropped`]: a sender's CSS never reaches the blocks,
+//! and a font a sender or a pasted page names its own way (`"Calibri",sans-serif`,
+//! `arial,sans-serif`) is dropped with it.
 
 /// How a paragraph's lines sit across the column.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -175,20 +177,25 @@ impl FontKind {
     }
 
     /// The kind a family's name says it is, as far as its name says: a monospaced or a serif
-    /// face that names itself so, or one of the well-known ones, else sans.
+    /// face that names itself so, or one of the well-known ones, else sans. A monospaced face is
+    /// told by a whole word of its name ("Source Code Pro", not "Arial Unicode MS").
     pub fn of(family: &str) -> Self {
         let name = family.to_lowercase();
         let has = |words: &[&str]| words.iter().any(|word| name.contains(word));
-        if has(&[
-            "mono",
-            "code",
-            "courier",
-            "menlo",
-            "monaco",
-            "consol",
-            "terminal",
-            "typewriter",
-        ]) {
+        let mono = |word: &str| {
+            matches!(
+                word,
+                "mono"
+                    | "monospace"
+                    | "monospaced"
+                    | "code"
+                    | "courier"
+                    | "menlo"
+                    | "monaco"
+                    | "terminal"
+            ) || word.contains("consol")
+        };
+        if name.split(|c: char| !c.is_alphanumeric()).any(mono) {
             FontKind::Mono
         } else if !has(&["sans"])
             && has(&[
@@ -278,19 +285,11 @@ impl FontFace {
         format!("'{}',{}", self.family, self.kind.css())
     }
 
-    /// The face a `font-family` value names, when it is in the form [`FontFace::css`] writes:
-    /// one family, quoted or not, and one generic kind after it.
+    /// The face a `font-family` value names, when it is character for character what
+    /// [`FontFace::css`] writes for the face [`FontFace::named`] makes of its family.
     pub fn from_css(value: &str) -> Option<Self> {
-        let (family, kind) = value.split_once(',')?;
-        let kind = FontKind::ALL
-            .into_iter()
-            .find(|one| one.css().eq_ignore_ascii_case(kind.trim()))?;
-        let family = family.trim();
-        let family = ['\'', '"']
-            .into_iter()
-            .find_map(|quote| family.strip_prefix(quote)?.strip_suffix(quote))
-            .unwrap_or(family);
-        Self::new(family, kind)
+        let (family, _) = value.strip_prefix('\'')?.split_once("',")?;
+        Self::named(family).filter(|face| face.css() == value)
     }
 }
 
@@ -444,13 +443,15 @@ mod tests {
                 Some("font-family:'Avenir Next',sans-serif"),
             ),
             (
-                "font-family: \"Georgia\" , SERIF",
+                " font-family: 'Georgia',serif ",
                 Some("font-family:'Georgia',serif"),
             ),
-            (
-                "font-family:Menlo,monospace",
-                Some("font-family:'Menlo',monospace"),
-            ),
+            ("font-family: \"Georgia\" , SERIF", None),
+            ("font-family:\"Calibri\",sans-serif", None),
+            ("font-family:arial,sans-serif", None),
+            ("font-family:'Georgia', serif", None),
+            ("font-family:'Georgia',sans-serif", None),
+            ("font-family:Menlo,monospace", None),
             ("font-family:Arial,Helvetica,sans-serif", None),
             ("font-family:Arial", None),
             ("font-family:'A\\'',serif", None),
@@ -520,6 +521,11 @@ mod tests {
             ("Menlo", FontKind::Mono),
             ("JetBrains Mono", FontKind::Mono),
             ("Courier New", FontKind::Mono),
+            ("Source Code Pro", FontKind::Mono),
+            ("Inconsolata", FontKind::Mono),
+            ("Arial Unicode MS", FontKind::Sans),
+            ("Lucida Sans Unicode", FontKind::Sans),
+            ("Encode Sans", FontKind::Sans),
         ] {
             assert_eq!(
                 FontFace::named(family).map(|f| f.kind()),
