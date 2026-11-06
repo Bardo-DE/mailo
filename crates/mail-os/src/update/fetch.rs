@@ -70,24 +70,40 @@ pub async fn look(
     }))
 }
 
-/// `offer`'s file, downloaded into `dir` as `mailo.zip`, once its size and hash are the ones the
-/// manifest names. A download that is not is removed.
+/// `offer`'s file, downloaded into `dir` as `mailo-<build>.zip`, once its size and hash are the
+/// ones the manifest names. What is downloaded is removed on any failure.
 pub async fn download(
     http: &reqwest::Client,
     offer: &Offer,
     dir: &Path,
 ) -> Result<PathBuf, Failure> {
-    let install = |e: std::io::Error| Failure::Install(e.to_string());
-    std::fs::create_dir_all(dir).map_err(install)?;
-    let part = dir.join("mailo.zip.part");
-    let done = dir.join("mailo.zip");
+    let part = dir.join(format!("mailo-{}.zip.part", offer.manifest.build));
+    let done = part.with_extension("");
+    let got = fill(http, offer, dir, &part).await;
+    let kept =
+        got.and_then(|()| std::fs::rename(&part, &done).map_err(|e| Failure::Disk(e.to_string())));
+    if kept.is_err() {
+        let _ = std::fs::remove_file(&part);
+    }
+    kept.map(|()| done)
+}
+
+/// `part` written with `offer`'s file, checked as it arrives.
+async fn fill(
+    http: &reqwest::Client,
+    offer: &Offer,
+    dir: &Path,
+    part: &Path,
+) -> Result<(), Failure> {
+    let disk = |e: std::io::Error| Failure::Disk(e.to_string());
+    std::fs::create_dir_all(dir).map_err(disk)?;
     let mut response = http
         .get(&offer.url)
         .send()
         .await
         .and_then(reqwest::Response::error_for_status)
         .map_err(|e| Failure::Network(e.to_string()))?;
-    let mut out = std::fs::File::create(&part).map_err(install)?;
+    let mut out = std::fs::File::create(part).map_err(disk)?;
     let mut hash = Sha256::new();
     let mut size = 0u64;
     while let Some(chunk) = response
@@ -100,15 +116,13 @@ pub async fn download(
             break;
         }
         hash.update(&chunk);
-        out.write_all(&chunk).map_err(install)?;
+        out.write_all(&chunk).map_err(disk)?;
     }
-    drop(out);
-    if !manifest::matches(&offer.file, size, &hash.finalize()) {
-        let _ = std::fs::remove_file(&part);
-        return Err(Failure::Hash);
+    if manifest::matches(&offer.file, size, &hash.finalize()) {
+        Ok(())
+    } else {
+        Err(Failure::Hash)
     }
-    std::fs::rename(&part, &done).map_err(install)?;
-    Ok(done)
 }
 
 async fn get(request: reqwest::RequestBuilder) -> Result<Vec<u8>, Failure> {

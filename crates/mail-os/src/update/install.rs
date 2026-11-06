@@ -9,11 +9,12 @@ use std::process::{Command, Stdio};
 /// The bundle identifier every mailo.app has (`packaging/macos/bundle.sh`).
 pub const IDENTIFIER: &str = "io.github.PoHsuanLai.mailo";
 
-/// The app in `zip`, unpacked into `dir/staged`, once it is a mailo.app of build `build` whose
-/// signature holds. What an earlier stage left there goes first.
+/// The app in `zip`, unpacked into `dir/staged-<build>`, once it is a mailo.app of build `build`
+/// whose signature holds. What an earlier stage of the same build left there goes first; another
+/// build's is left for [`tidy`].
 pub fn stage(zip: &Path, dir: &Path, build: u64) -> Result<PathBuf, Failure> {
     let unpack = |said: String| Failure::Unpack(said);
-    let staged = dir.join("staged");
+    let staged = dir.join(format!("staged-{build}"));
     if staged.exists() {
         std::fs::remove_dir_all(&staged).map_err(|e| unpack(e.to_string()))?;
     }
@@ -47,8 +48,8 @@ pub fn stage(zip: &Path, dir: &Path, build: u64) -> Result<PathBuf, Failure> {
     Ok(app)
 }
 
-/// `staged` put where `bundle` is. A copy is made beside `bundle` first and renamed over it, so
-/// a failure on the way leaves the running mailo where it was.
+/// `staged` put where `bundle` is. It is moved (or, from another volume, copied) beside `bundle`
+/// first and renamed over it, so a failure on the way leaves the running mailo where it was.
 pub fn swap(staged: &Path, bundle: &Path) -> Result<(), Failure> {
     let install = |said: String| Failure::Install(said);
     let parent = bundle
@@ -61,18 +62,49 @@ pub fn swap(staged: &Path, bundle: &Path) -> Result<(), Failure> {
             std::fs::remove_dir_all(left).map_err(|e| install(e.to_string()))?;
         }
     }
-    run(Command::new("/usr/bin/ditto").arg(staged).arg(&incoming)).map_err(install)?;
+    if std::fs::rename(staged, &incoming).is_err() {
+        run(Command::new("/usr/bin/ditto").arg(staged).arg(&incoming)).map_err(install)?;
+    }
+    // What was moved goes back where it was staged, for another try; a copy goes.
+    let give_back = || {
+        if std::fs::rename(&incoming, staged).is_err() {
+            let _ = std::fs::remove_dir_all(&incoming);
+        }
+    };
     if let Err(e) = std::fs::rename(bundle, &outgoing) {
-        let _ = std::fs::remove_dir_all(&incoming);
+        give_back();
         return Err(install(e.to_string()));
     }
     if let Err(e) = std::fs::rename(&incoming, bundle) {
         let _ = std::fs::rename(&outgoing, bundle);
-        let _ = std::fs::remove_dir_all(&incoming);
+        give_back();
         return Err(install(e.to_string()));
     }
     let _ = std::fs::remove_dir_all(&outgoing);
     Ok(())
+}
+
+/// Everything in `dir` (downloads and staged apps) but what belongs to build `keep`.
+pub fn tidy(dir: &Path, keep: Option<u64>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    let kept = keep.map(|build| [format!("staged-{build}"), format!("mailo-{build}.zip")]);
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        if kept
+            .as_ref()
+            .is_some_and(|kept| kept.iter().any(|k| name == k.as_str()))
+        {
+            continue;
+        }
+        let path = entry.path();
+        let _ = if path.is_dir() {
+            std::fs::remove_dir_all(&path)
+        } else {
+            std::fs::remove_file(&path)
+        };
+    }
 }
 
 /// Opens `bundle` once this process has ended, from a shell left behind to wait for it: mailo

@@ -34,17 +34,6 @@ pub enum Channel {
     Stable,
 }
 
-impl Channel {
-    /// The channel the release workflow built this mailo for (`MAILO_CHANNEL`): a daily follows
-    /// the dailies, anything else the stable releases.
-    pub fn built() -> Self {
-        match option_env!("MAILO_CHANNEL") {
-            Some("daily") => Self::Daily,
-            _ => Self::Stable,
-        }
-    }
-}
-
 /// The mailo this process is.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Running {
@@ -55,12 +44,14 @@ pub struct Running {
 }
 
 impl Running {
-    /// This process, when it is a mailo the release workflow built and runs from its `.app`;
-    /// `None` for one built by hand (build 0), run from `target/`, or on another system.
+    /// This process, when it is a mailo the release workflow built and runs from an `.app` that
+    /// can be replaced; `None` for one built by hand (build 0), run from `target/`, on another
+    /// system, or from where no update could be put: the disk image, a copy macOS runs from a
+    /// hidden place of its own (App Translocation), a folder this user may not write.
     pub fn here() -> Option<Self> {
         let build = built()?;
         let bundle = bundle_of(&std::env::current_exe().ok()?)?;
-        Some(Self { build, bundle })
+        replaceable(&bundle).then_some(Self { build, bundle })
     }
 }
 
@@ -86,6 +77,22 @@ pub fn bundle_of(exe: &std::path::Path) -> Option<PathBuf> {
     .then(|| bundle.to_path_buf())
 }
 
+/// Whether an update could be put where `bundle` is: not on a mounted disk image, not
+/// translocated, and in a folder a file can be made in.
+pub fn replaceable(bundle: &std::path::Path) -> bool {
+    let shown = bundle.to_string_lossy();
+    if shown.starts_with("/Volumes/") || shown.contains("/AppTranslocation/") {
+        return false;
+    }
+    let Some(parent) = bundle.parent() else {
+        return false;
+    };
+    let probe = parent.join(format!(".mailo-update-{}", std::process::id()));
+    let made = std::fs::File::create(&probe).is_ok();
+    let _ = std::fs::remove_file(&probe);
+    made
+}
+
 /// Why no update was found, fetched or put in place.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Failure {
@@ -99,6 +106,8 @@ pub enum Failure {
     NoFile,
     /// The downloaded file is not the one the manifest names.
     Hash,
+    /// The download could not be kept on disk: the system's words.
+    Disk(String),
     /// The download could not be unpacked, or holds no app this mailo would run.
     Unpack(String),
     /// The app could not be put where the running one is: the system's words.
@@ -113,6 +122,7 @@ impl fmt::Display for Failure {
             Self::Manifest(said) => write!(f, "the release's manifest is not usable: {said}"),
             Self::NoFile => f.write_str("the release has no file for this system"),
             Self::Hash => f.write_str("the download is not the file the release names"),
+            Self::Disk(said) => write!(f, "the download could not be saved: {said}"),
             Self::Unpack(said) => write!(f, "the download could not be unpacked: {said}"),
             Self::Install(said) => write!(f, "the new mailo could not be put in place: {said}"),
         }

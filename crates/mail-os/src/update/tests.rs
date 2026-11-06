@@ -128,6 +128,41 @@ fn the_bundle_is_the_app_around_the_executable() {
     );
 }
 
+/// An update is put only where it can be: not on the disk image, not translocated, and not in
+/// a folder that is not there to write in.
+#[test]
+fn an_app_on_the_disk_image_or_translocated_is_not_replaced() {
+    let scratch = tempfile::tempdir().expect("scratch");
+    assert!(super::replaceable(&scratch.path().join("mailo.app")));
+    assert!(!super::replaceable(Path::new("/Volumes/mailo/mailo.app")));
+    assert!(!super::replaceable(Path::new(
+        "/private/var/folders/x/AppTranslocation/ABC/d/mailo.app"
+    )));
+    assert!(!super::replaceable(&scratch.path().join("gone/mailo.app")));
+}
+
+/// Tidying keeps the build named and removes every other download and staged app.
+#[test]
+fn tidying_keeps_only_the_build_named() {
+    let scratch = tempfile::tempdir().expect("scratch");
+    let dir = scratch.path();
+    for name in ["staged-41", "staged-42"] {
+        std::fs::create_dir_all(dir.join(name)).expect("a staged app");
+    }
+    for name in ["mailo-41.zip", "mailo-42.zip", "mailo-43.zip.part"] {
+        std::fs::write(dir.join(name), b"zip").expect("a download");
+    }
+    super::install::tidy(dir, Some(42));
+    let mut left: Vec<_> = std::fs::read_dir(dir)
+        .expect("listed")
+        .map(|e| e.expect("entry").file_name().into_string().expect("utf-8"))
+        .collect();
+    left.sort();
+    assert_eq!(left, ["mailo-42.zip", "staged-42"]);
+    super::install::tidy(dir, None);
+    assert_eq!(std::fs::read_dir(dir).expect("listed").count(), 0);
+}
+
 #[cfg(target_os = "macos")]
 mod macos {
     use super::super::Failure;
@@ -192,6 +227,7 @@ mod macos {
         let cache = scratch.path().join("cache");
 
         let good = made("good", IDENTIFIER, 42, true);
+        assert!(stage(&good, &cache, 42).is_ok(), "staged once");
         let app = stage(&good, &cache, 42).expect("staged");
         assert!(app.join("Contents/MacOS/mailo").exists());
 
