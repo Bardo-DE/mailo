@@ -1,7 +1,10 @@
 //! The search bar's rows over the reference fixture, what its commands do, and the pages its
 //! screenshots are taken from. How the bar itself behaves is `bar_tests.rs`.
 
-use super::items::{Pick, chips, complete_syntax, interpret, rows_of, search_now};
+use super::items::{
+    Chips, Pick, chips, complete_syntax, interpret, rows_of, search_now, take_chip,
+    without_operator,
+};
 use super::*;
 use crate::ui::fixtures::work;
 use chordkit::Platform;
@@ -145,26 +148,56 @@ fn the_renamed_sidebar_row_is_marked_for_its_own_wording() {
 /// operator, which Tab completes; otherwise the operators the search holds.
 #[test]
 fn the_chips_offer_the_syntax_until_a_search_holds_operators() {
-    let syntax: Vec<String> = super::items::SYNTAX
-        .iter()
-        .map(|chip| (*chip).to_owned())
-        .collect();
-    const CASES: &[(&str, &[&str])] = &[
+    let syntax = Chips::Offered(super::items::SYNTAX.to_vec());
+    let offered: &[(&str, &[&str])] = &[
         ("lunch fr", &["from:"]),
         ("is:", &["is:unread", "is:starred"]),
         ("lunch is:u", &["is:unread"]),
+    ];
+    let held: &[(&str, &[&str])] = &[
         ("from:dana spec", &["from:dana"]),
         ("lunch ", &[]),
         ("from:", &[]),
     ];
     assert_eq!(chips(""), syntax);
     assert_eq!(chips("   "), syntax);
-    for (query, want) in CASES {
-        assert_eq!(chips(query), *want, "{query:?}");
+    for (query, want) in offered {
+        assert_eq!(chips(query), Chips::Offered(want.to_vec()), "{query:?}");
+    }
+    for (query, want) in held {
+        let want = want.iter().map(|chip| (*chip).to_owned()).collect();
+        assert_eq!(chips(query), Chips::Held(want), "{query:?}");
     }
     assert_eq!(complete_syntax("lunch fr").as_deref(), Some("lunch from:"));
     assert_eq!(complete_syntax("is:u").as_deref(), Some("is:unread"));
     assert_eq!(complete_syntax("lunch"), None);
+}
+
+/// A press on an offered chip types it, in place of the word it completes; a held operator's
+/// remove button takes it and its value out, and the words around it close up.
+#[test]
+fn an_offered_chip_is_typed_and_a_held_one_removed() {
+    assert_eq!(take_chip("", "from:"), "from:");
+    assert_eq!(take_chip("  ", "to:"), "to:");
+    assert_eq!(take_chip("lunch fr", "from:"), "lunch from:");
+    assert_eq!(take_chip("is:u", "is:unread"), "is:unread");
+    const CASES: &[(&str, usize, Option<&str>)] = &[
+        ("from:dana", 0, Some("")),
+        ("from:dana lunch", 0, Some("lunch")),
+        ("lunch from:dana", 0, Some("lunch ")),
+        ("spec from:dana  lunch", 0, Some("spec lunch")),
+        ("from:dana is:unread spec", 1, Some("from:dana spec")),
+        ("from:ada OR from:bob spec", 0, Some("spec")),
+        ("from:dana", 1, None),
+        ("lunch", 0, None),
+    ];
+    for (query, at, want) in CASES {
+        assert_eq!(
+            without_operator(query, *at).as_deref(),
+            *want,
+            "{query:?} {at}"
+        );
+    }
 }
 
 /// The People row's name keeps the typed characters marked, as the ⌘K menu drew them. quire's

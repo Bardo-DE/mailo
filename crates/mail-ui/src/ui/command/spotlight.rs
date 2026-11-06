@@ -4,7 +4,8 @@
 //!
 //! What is typed is the list's search, so the mail it finds fills the list behind the card, and
 //! the card shows none. Under the field, chips show the search's syntax while nothing is typed or
-//! while the last word starts an operator, which Tab completes.
+//! while the last word starts an operator, which Tab or a press on the chip completes; once the
+//! search holds operators, the chips are those, each with a remove button that takes it out.
 //! The card is quire's `SearchField` in its card form (the field and its rows as one surface,
 //! floated from the line at the top; a press outside it closes it, with no scrim). The rows show
 //! at once (`Panel::Shown`) and the arrows stop at the ends (`stop_at_ends`); the keyboard stays in
@@ -14,7 +15,7 @@
 //! [`QUIET`](mail_ui_kit::debounce::QUIET), and an answer to text a newer keystroke has replaced
 //! is dropped, so Return runs a row on screen, not one from a query run afresh.
 
-use super::items::{chips, complete_syntax};
+use super::items::{Chips, chips, complete_syntax, take_chip, without_operator};
 use super::keys::{BarKey, Plain, Step, Typed, bar_key, step};
 use super::message;
 use super::panel::{Drawn, Fetch, World, panel_rows};
@@ -92,10 +93,33 @@ pub(in crate::ui) fn Spotlight(
         return line;
     };
     let text = field_text(&shell.read());
-    let chips = match &open.listing {
-        BarListing::Templates(_) => Vec::new(),
-        BarListing::Message => message::chips(&shell.read()),
-        BarListing::Search => chips(&text),
+    // A search's chips act: an offered operator is typed with a press, and an operator the
+    // search holds has a remove button that takes it out. The keyboard stays in the field.
+    let (tokens, on_token, on_token_remove) = match &open.listing {
+        BarListing::Templates(_) => (Vec::new(), None, None),
+        BarListing::Message => (message::chips(&shell.read()), None, None),
+        BarListing::Search => match chips(&text) {
+            Chips::Offered(offered) => (
+                offered.iter().map(|chip| (*chip).to_owned()).collect(),
+                Some(EventHandler::new(move |at: usize| {
+                    let typed = field_text(&shell.peek());
+                    if let Some(chip) = offered.get(at) {
+                        set_text(shell, pages, take_chip(&typed, chip));
+                    }
+                })),
+                None,
+            ),
+            Chips::Held(held) => (
+                held,
+                None,
+                Some(EventHandler::new(move |at: usize| {
+                    let typed = field_text(&shell.peek());
+                    if let Some(left) = without_operator(&typed, at) {
+                        set_text(shell, pages, left);
+                    }
+                })),
+            ),
+        },
     };
     let (label, placeholder) = match &open.listing {
         BarListing::Message => (copy::aria::FIND_IN_MESSAGE, copy::fields::FIND),
@@ -118,7 +142,9 @@ pub(in crate::ui) fn Spotlight(
             placeholder: placeholder.to_owned(),
             size: ControlSize::ExtraLarge,
             value: text,
-            tokens: chips,
+            tokens,
+            on_token,
+            on_token_remove,
             suggestions: vec![SuggestionSection::bare(items)],
             // The rows are the person's to run before a key is typed, and Escape on an empty field
             // is ours: it leaves the panel (or the templates), the rows staying until then.

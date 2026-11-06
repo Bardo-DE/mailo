@@ -224,18 +224,54 @@ pub(in crate::ui) const SYNTAX: &[&str] = &[
     "after:",
 ];
 
+/// The chips under the field: operators offered to type, a press on one typing it, or the
+/// operators the search holds, each with a remove button that takes it out.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(in crate::ui) enum Chips {
+    Offered(Vec<&'static str>),
+    Held(Vec<String>),
+}
+
 /// The chips under the field for `query`: the whole syntax while nothing is typed, the operators
 /// the last word is the start of while it is one ("fr" is offered "from:", "is:" both of its
 /// kinds), and otherwise the operators the search holds, so the person sees what narrows it.
-pub(in crate::ui) fn chips(query: &str) -> Vec<String> {
+pub(in crate::ui) fn chips(query: &str) -> Chips {
     if query.trim().is_empty() {
-        return SYNTAX.iter().map(|chip| (*chip).to_owned()).collect();
+        return Chips::Offered(SYNTAX.to_vec());
     }
     let started = starting(query);
     if !started.is_empty() {
-        return started.into_iter().map(str::to_owned).collect();
+        return Chips::Offered(started);
     }
-    search::parse(query, &Utc, &mail_logic::query::unnamed).operator_tokens
+    Chips::Held(search::parse(query, &Utc, &mail_logic::query::unnamed).operator_tokens)
+}
+
+/// `query` with the offered `chip` typed: in place of the word it completes, or as the whole
+/// query when nothing is typed.
+pub(in crate::ui) fn take_chip(query: &str, chip: &str) -> String {
+    if query.trim().is_empty() {
+        return chip.to_owned();
+    }
+    let kept = query.trim_end_matches(|c: char| !c.is_whitespace());
+    format!("{kept}{chip}")
+}
+
+/// `query` without the operator it holds at `at` (as [`chips`] lists them), its value with it,
+/// and the space where it stood closed up. A search left with words keeps a space after them,
+/// so the last is a finished word, not one still being typed. `None` when there is no such
+/// operator.
+pub(in crate::ui) fn without_operator(query: &str, at: usize) -> Option<String> {
+    let parsed = search::parse(query, &Utc, &mail_logic::query::unnamed);
+    let spans = parsed.operator_spans.get(at)?;
+    let start = spans.iter().map(|span| span.start).min()?;
+    let end = spans.iter().map(|span| span.end).max()?;
+    let before = query[..start].trim_end();
+    let after = query[end..].trim_start();
+    Some(match (before.is_empty(), after.is_empty()) {
+        (true, _) => after.to_owned(),
+        (false, true) => format!("{before} "),
+        (false, false) => format!("{before} {after}"),
+    })
 }
 
 /// The operators `query`'s last word is the start of, and not yet one of: none when the query
@@ -263,8 +299,7 @@ fn starting(query: &str) -> Vec<&'static str> {
 /// it starts none.
 pub(in crate::ui) fn complete_syntax(query: &str) -> Option<String> {
     let chip = starting(query).into_iter().next()?;
-    let kept = query.trim_end_matches(|c: char| !c.is_whitespace());
-    Some(format!("{kept}{chip}"))
+    Some(take_chip(query, chip))
 }
 
 /// Run the menu's search. Its People are the contact book's, as [`super::people::from_book`]
