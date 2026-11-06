@@ -23,9 +23,11 @@ on:
 permissions:
   contents: read
 
-# Releases are made one at a time, in push order, none cancelled: each is a build someone may run.
+# Releases are made one at a time per kind, none cancelled once running. GitHub keeps one run
+# waiting per group and a newer one replaces it, so dailies and tags wait apart: a burst of master
+# pushes may skip a daily in the middle (the next one carries it), but never a tag's release.
 concurrency:
-  group: release
+  group: release-${{ github.ref_type }}
   cancel-in-progress: false
 
 env:
@@ -40,31 +42,51 @@ jobs:
     outputs:
       channel: ${{ steps.plan.outputs.channel }}
       version: ${{ steps.plan.outputs.version }}
+      package: ${{ steps.plan.outputs.package }}
       tag: ${{ steps.plan.outputs.tag }}
       build: ${{ steps.plan.outputs.build }}
     steps:
       - uses: actions/checkout@v4
       - id: plan
+        env:
+          REF: ${{ github.ref }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          BUILD: ${{ github.run_number }}
         run: |
-          base=$(sed -n 's/^version = "\(.*\)"$/\1/p' crates/mail-app/Cargo.toml | head -1)
-          build=${{ github.run_number }}
-          if [ "${{ github.ref_type }}" = tag ]; then
+          # The version Cargo gives mail-app, as bundle.sh reads it, without resolving dependencies.
+          base=$(cargo metadata --no-deps --format-version 1 |
+            jq -r '.packages[] | select(.name == "mail-app") | .version')
+          if [ "$REF_TYPE" = tag ]; then
             # The tag names the version Cargo.toml has.
-            test "${{ github.ref_name }}" = "v$base" || {
-              echo "the tag ${{ github.ref_name }} is not v$base, mail-app's version" >&2
+            test "$REF_NAME" = "v$base" || {
+              echo "the tag $REF_NAME is not v$base, mail-app's version" >&2
               exit 1
             }
-            channel=stable version=$base tag=${{ github.ref_name }}
+            channel=stable version=$base tag=$REF_NAME
           else
-            channel=daily version=$base-daily.$build tag=daily-$build
+            # A daily is master's, whoever starts the run by hand.
+            test "$REF" = refs/heads/master || {
+              echo "a daily is built from master, not $REF" >&2
+              exit 1
+            }
+            channel=daily version=$base-daily.$BUILD tag=daily-$BUILD
+          fi
+          # A package manager orders a daily before the release it leads to (`0.1.0~daily.N`),
+          # and after the one already out when Cargo.toml was not moved on since (`0.1.0+daily.N`).
+          if [ "$channel" = daily ] && git ls-remote --exit-code --tags origin "refs/tags/v$base" > /dev/null; then
+            package=$base+daily.$BUILD
+          else
+            package="${version//-/~}"
           fi
           {
             echo "channel=$channel"
             echo "version=$version"
+            echo "package=$package"
             echo "tag=$tag"
-            echo "build=$build"
+            echo "build=$BUILD"
           } >> "$GITHUB_OUTPUT"
-          echo "$channel $version ($tag, build $build)"
+          echo "$channel $version ($tag, build $BUILD, package $package)"
 
   # mailo.app: the .dmg a person installs from, and the zip the updater swaps in.
   macos:
@@ -96,8 +118,8 @@ jobs:
           path: out/*
           if-no-files-found: error
 
-  # The .deb and the .rpm, versioned so a package manager orders a daily below the release it
-  # leads to (`0.1.0~daily.N` sorts before `0.1.0`).
+  # The .deb and the .rpm, versioned so a package manager orders a daily among the releases
+  # (`plan`).
   linux:
     needs: plan
     runs-on: ubuntu-latest
@@ -119,7 +141,9 @@ jobs:
       - name: Packaging tools
         run: cargo install --locked cargo-deb cargo-generate-rpm
       - name: .deb and .rpm
-        run: MAILO_PACKAGE_VERSION="${MAILO_VERSION//-/~}" ./scripts/package.sh deb rpm
+        env:
+          MAILO_PACKAGE_VERSION: ${{ needs.plan.outputs.package }}
+        run: ./scripts/package.sh deb rpm
       - name: Name them for the release
         run: |
           mkdir -p out
@@ -213,8 +237,8 @@ jobs:
       - name: Older dailies
         if: needs.plan.outputs.channel == 'daily'
         run: |
-          gh release list --limit 100 --json tagName,createdAt \
-            --jq '[.[] | select(.tagName | startswith("daily-"))] | sort_by(.createdAt) | reverse | .[5:] | .[].tagName' |
+          gh release list --limit 100 --json tagName \
+            --jq '[.[] | select(.tagName | startswith("daily-"))] | sort_by(.tagName | ltrimstr("daily-") | tonumber) | reverse | .[5:] | .[].tagName' |
           while read -r tag; do
             gh release delete "$tag" --cleanup-tag --yes
           done
