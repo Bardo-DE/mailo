@@ -54,17 +54,12 @@ pub fn Sandbox(
     }
     // The page is drawn at the text size, and a sender's page that would then be wider than the
     // frame smaller, to fit it (`super::fit::shrink`); a plain-text message wraps to the frame
-    // and is never wider.
-    // Which page this is, for what it was fitted to when it was last open.
+    // and is never wider. It opens at what it was fitted to when it was last open, if it was.
     let page = use_memo(use_reactive!(|html| words::fingerprint(&html)));
-    let opened = move |text: f32| {
-        super::fit::remembered(*page.peek(), text).unwrap_or(super::fit::Drawn {
-            zoom: text,
-            relaxed: false,
-        })
-    };
-    let mut zoom = use_signal(|| opened(text).zoom);
-    let relaxed = use_signal(|| opened(text).relaxed);
+    let kept = move |text: f32| super::fit::remembered(*page.peek(), text);
+    let opened = use_hook(|| super::fit::opening(kept(text), text));
+    let mut zoom = use_signal(|| opened.zoom);
+    let mut relaxed = use_signal(|| opened.relaxed);
     // The frame's node, and what was selected in it when the last left press let go.
     let mut frame = use_signal(|| None::<Rc<MountedData>>);
     let mut reading = use_signal(Vec::<Task>::new);
@@ -84,37 +79,56 @@ pub fn Sandbox(
         if plain {
             started.push(super::fit::hold(frame, zoom));
         } else {
-            started.push(super::fit::shrink(frame, zoom, relaxed, text, *page.peek()));
+            let page = *page.peek();
+            let kept = super::fit::remembered(page, text);
+            started.push(super::fit::shrink(frame, zoom, relaxed, text, page, kept));
         }
         reading.set(started);
     };
-    // The size the frame was last measured for: a new one starts the page at it and measures
-    // again.
-    let mut measured = use_signal(|| text);
+    // Start the page as it opens for `text`, and measure it again.
+    let mut open = move |text: f32| {
+        let opened = super::fit::opening(kept(text), text);
+        zoom.set(opened.zoom);
+        if *relaxed.peek() != opened.relaxed {
+            relaxed.set(opened.relaxed);
+        }
+        measure(text);
+    };
+    // The size the frame was last measured for, and the page: a new one of either opens again.
+    let mut measured = use_signal(|| (text, *page.peek()));
     use_effect(use_reactive!(|text| {
-        if (*measured.peek() - text).abs() >= 0.001 {
-            measured.set(text);
-            zoom.set(opened(text).zoom);
-            measure(text);
+        let now = (text, page());
+        let was = *measured.peek();
+        if (was.0 - now.0).abs() >= 0.001 || was.1 != now.1 {
+            measured.set(now);
+            open(text);
         }
     }));
     // The frame's document: a new one only for other html or cells let go, as each is parsed and
-    // laid out again; a zoom is set on the one there (`super::fit::shrink`).
+    // laid out again; a zoom is set on the one there (`super::fit::shrink`). With which document
+    // it is, for what was selected in it.
     let document = use_memo(use_reactive!(|html| {
-        super::fit::zoomed(&html, *zoom.peek(), relaxed())
+        let (zoom, relaxed) = (*zoom.peek(), relaxed());
+        let which = {
+            use std::hash::{DefaultHasher, Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            (page(), zoom.to_bits(), relaxed).hash(&mut hasher);
+            hasher.finish()
+        };
+        (super::fit::zoomed(&html, zoom, relaxed), which)
     }));
-    let html = document();
+    let (html, key) = document();
     let found = use_hook(try_consume_context::<super::found::Frames>);
-    // A new document in the frame (a zoom to fit is one) holds none of what a find marked.
+    // What a find marked is marked again, and its match brought back to the middle, in a new
+    // document, or one drawn at another zoom, whose lines have moved.
     {
         let found = found.clone();
-        use_effect(use_reactive!(|html| {
-            // Read for its changes alone: each is a new document.
-            let _ = html;
+        use_effect(move || {
+            let _ = (document.read().1, zoom());
             if let Some(found) = &found {
                 found.changed();
             }
-        }));
+        });
     }
     {
         let found = found.clone();
@@ -129,9 +143,8 @@ pub fn Sandbox(
         _ => String::new(),
     };
     let keys = use_keys();
-    // Kept with the fingerprint of the document it was taken in: a frame given other html is a
-    // new document, whose nodes and offsets are not these.
-    let key = use_memo(move || words::fingerprint(&document.read()))();
+    // Kept with the document it was taken in (`key`): a frame given other html is a new
+    // document, whose nodes and offsets are not these.
     let mut held = use_signal(|| None::<(u64, words::Held)>);
     rsx! {
         iframe {
