@@ -224,24 +224,42 @@ pub(in crate::ui) const SYNTAX: &[&str] = &[
     "after:",
 ];
 
+/// The chips under the field: operators offered to type, a press on one typing it, or the
+/// operators the search holds, each with a remove button that takes it out.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(in crate::ui) enum Chips {
+    Offered(Vec<&'static str>),
+    Held(Vec<String>),
+}
+
 /// The chips under the field for `query`: the whole syntax while nothing is typed, the operators
 /// the last word is the start of while it is one ("fr" is offered "from:", "is:" both of its
 /// kinds), and otherwise the operators the search holds, so the person sees what narrows it.
-pub(in crate::ui) fn chips(query: &str) -> Vec<String> {
+pub(in crate::ui) fn chips(query: &str) -> Chips {
     if query.trim().is_empty() {
-        return SYNTAX.iter().map(|chip| (*chip).to_owned()).collect();
+        return Chips::Offered(SYNTAX.to_vec());
     }
     let started = starting(query);
     if !started.is_empty() {
-        return started.into_iter().map(str::to_owned).collect();
+        return Chips::Offered(started);
     }
-    search::parse(query, &Utc, &mail_logic::query::unnamed).operator_tokens
+    Chips::Held(search::parse(query, &Utc, &mail_logic::query::unnamed).operator_tokens)
+}
+
+/// `query` with the offered `chip` typed: in place of the word it completes, or as the whole
+/// query when nothing is typed. An operator that takes no value (`is:unread`) is finished, so a
+/// space follows it and the next word typed is a word of its own.
+pub(in crate::ui) fn take_chip(query: &str, chip: &str) -> String {
+    let kept = query.trim_end_matches(|c: char| !c.is_whitespace());
+    let kept = if kept.trim().is_empty() { "" } else { kept };
+    let space = if chip.ends_with(':') { "" } else { " " };
+    format!("{kept}{chip}{space}")
 }
 
 /// The operators `query`'s last word is the start of, and not yet one of: none when the query
-/// ends in a space, the word is whole, or it starts nothing.
+/// ends in a space, the word is whole, it starts nothing, or it is inside a quoted phrase.
 fn starting(query: &str) -> Vec<&'static str> {
-    if query.ends_with(char::is_whitespace) {
+    if query.ends_with(char::is_whitespace) || query.matches('"').count() % 2 == 1 {
         return Vec::new();
     }
     let last = query
@@ -263,8 +281,7 @@ fn starting(query: &str) -> Vec<&'static str> {
 /// it starts none.
 pub(in crate::ui) fn complete_syntax(query: &str) -> Option<String> {
     let chip = starting(query).into_iter().next()?;
-    let kept = query.trim_end_matches(|c: char| !c.is_whitespace());
-    Some(format!("{kept}{chip}"))
+    Some(take_chip(query, chip))
 }
 
 /// Run the menu's search. Its People are the contact book's, as [`super::people::from_book`]

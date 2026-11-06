@@ -964,11 +964,10 @@ fn a_font_picked_in_the_bubble_sets_the_words_in_it() {
     );
 }
 
-/// The `/` menu opens where it stays. quire places a menu it caps to the room below the line
-/// from its uncapped height for its first frame, so a tall menu low in the window is drawn
-/// higher up, then drops into place.
+/// The `/` menu opens where it stays: quire places a menu it caps to the room below the line at
+/// that height from its first frame, so a tall menu low in the window is never drawn higher up
+/// for a frame before it drops into place.
 #[test]
-#[ignore = "gap: quire's menu surface places a capped menu from its uncapped height for one frame"]
 fn the_slash_menu_opens_where_it_stays() {
     let mut window = composing();
     window.harness.resize_window(ds_blitz::Extent {

@@ -546,3 +546,41 @@ fn the_headers_chips_are_the_parsers_tokens() {
         Some("\"on friday\"")
     );
 }
+
+/// The panel's chips act: a press on an offered operator types it, the keyboard staying in the
+/// field; once the search holds it, its remove button takes it out with its value.
+#[test]
+fn the_panels_chips_type_an_operator_and_take_one_out() {
+    let mut window = Window::open(|_| {});
+    let tokens = ".ds-search-card .ds-text-field-tokens";
+    let first = format!("{tokens} .ds-chip:nth-child(1)");
+    search(&mut window, "");
+    window.until("the syntax is offered, each chip a button", |h| {
+        h.text_of(&format!("{first} .ds-chip-press"))
+            .is_some_and(|chip| chip.trim() == "from:")
+            && h.count(&format!("{tokens} .ds-chip-remove")) == 0
+    });
+    window.click(&format!("{first} .ds-chip-press"));
+    window.until("the press types from:", |h| {
+        h.attr(FIELD, "value").as_deref() == Some("from:")
+    });
+    window.until("the keyboard is still in the field", |h| {
+        h.is_focused(FIELD)
+    });
+
+    window.type_text("ada lunch");
+    window.harness.advance(ms(800));
+    window.until("from:ada is held, with a remove button", |h| {
+        h.text_of(&first)
+            .is_some_and(|chip| chip.contains("from:ada"))
+            && h.count(&format!("{tokens} .ds-chip-remove")) == 1
+            && h.count(&format!("{tokens} .ds-chip-press")) == 0
+    });
+    window.click(&format!("{first} .ds-chip-remove"));
+    window.until("from:ada is taken out, its value with it", |h| {
+        h.attr(FIELD, "value").as_deref() == Some("lunch")
+    });
+    window.until("the keyboard is still in the field", |h| {
+        h.is_focused(FIELD)
+    });
+}
