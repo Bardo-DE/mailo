@@ -85,7 +85,7 @@ Windows MSI (`mailo-x86_64.msi`) is not released yet: take it from a CI run's ar
 `package` job of `.github/workflows/ci.yml`).
 
 ```sh
-sudo apt install ./mailo_*.deb          # Debian, Ubuntu
+sudo apt install ./mailo-*.deb          # Debian, Ubuntu
 sudo dnf install ./mailo-*.rpm          # Fedora
 ```
 

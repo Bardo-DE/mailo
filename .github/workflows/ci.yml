@@ -252,13 +252,9 @@ jobs:
   # warns, as README says.
   package:
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/master')
-    strategy:
-      fail-fast: false
-      matrix:
-        # WiX Toolset v3, which cargo-wix drives, is on the windows-2022 image; the MSI step
-        # installs it where it is not.
-        os: [windows-2022]
-    runs-on: ${{ matrix.os }}
+    # WiX Toolset v3, which cargo-wix drives, is on the windows-2022 image; the MSI step installs
+    # it where it is not.
+    runs-on: windows-2022
     # One release build (fat LTO over one codegen unit, about two and a half times a thin build)
     # and the packaging tools, cold.
     timeout-minutes: 120
@@ -269,18 +265,15 @@ jobs:
         with:
           key: package
 
-      # Windows: an MSI through cargo-wix, registering mailo for mailto: links.
-      - name: Release build (Windows)
-        if: runner.os == 'Windows'
+      # An MSI through cargo-wix, registering mailo for mailto: links.
+      - name: Release build
         run: cargo build --release --locked --no-default-features -p mail-app --bin mailo
-      - name: Icon (Windows)
-        if: runner.os == 'Windows'
+      - name: Icon
         shell: bash
         run: |
           mkdir -p target/wix
           cp packaging/windows/mailo.ico target/wix/mailo.ico
       - name: MSI
-        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           cargo install --locked cargo-wix
@@ -295,7 +288,6 @@ jobs:
             --include packaging/windows/main.wxs `
             --output target/wix/mailo-x86_64.msi
       - uses: actions/upload-artifact@v4
-        if: runner.os == 'Windows'
         with:
           name: mailo-windows
           path: target/wix/*.msi
