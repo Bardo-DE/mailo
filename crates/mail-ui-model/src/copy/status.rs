@@ -2,6 +2,9 @@
 //!
 //! Case: Sentence case, as short as says it ("Updated 3 minutes ago").
 
+/// Between two names on a line of recipients.
+pub const LIST_SEPARATOR: &str = ", ";
+
 /// "1 message", "132 messages".
 pub fn messages(count: u64) -> String {
     if count == 1 {

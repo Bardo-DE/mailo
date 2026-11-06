@@ -40,7 +40,7 @@ async fn a_sender_marked_vip_in_the_reader_is_marked_and_listed_in_the_vips_plac
     let opened = click(&mut dom, seen.one("aria-label", &format!("Open {UIDL}")));
     let seen = quiet(&mut dom, seen.merge(opened)).await;
     let name = *seen
-        .fixed("class", "sender-name")
+        .fixed("class", "person-name")
         .last()
         .expect("the reader names the sender");
     let menu = right_click(&mut dom, name);
@@ -58,7 +58,7 @@ async fn a_sender_marked_vip_in_the_reader_is_marked_and_listed_in_the_vips_plac
     );
     assert_eq!(vips[0].name.as_deref(), Some("Dana Okafor"));
     let page = dioxus_ssr::render(&dom);
-    let reader = &page[page.find("sender-name").expect("the reader")..];
+    let reader = &page[page.find("class=\"person-name\"").expect("the reader")..];
     assert!(
         reader[..reader.find("msg-when").unwrap_or(reader.len())].contains("data-vip"),
         "no mark beside her name in the reader"

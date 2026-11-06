@@ -153,7 +153,7 @@ fn narrowed(rows: Vec<MenuItem>, typed: &str) -> Vec<MenuItem> {
 pub(super) fn run(shell: Signal<Shell>, pages: Signal<u32>, person: &Person, key: &str) {
     if let Some(act) = Act::of_key(key) {
         super::close(shell);
-        mail_ui_kit::person::run(act, person, shell, Some(pages));
+        mail_ui_kit::person::run(act, person, Some(shell), Some(pages));
         return;
     }
     if let Some(id) = key
@@ -186,7 +186,7 @@ pub(super) fn write(shell: Signal<Shell>, key: &str) {
         name,
     };
     super::close(shell);
-    mail_ui_kit::person::run(Act::Write, &person, shell, None);
+    mail_ui_kit::person::run(Act::Write, &person, Some(shell), None);
 }
 
 fn initial(name: &str) -> char {

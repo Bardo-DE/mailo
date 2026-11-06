@@ -1,7 +1,6 @@
-/* A person, edited from their name in mail: the sender's name in the reader's header, which a
-   right click turns into Edit Contact…, and the popover that hangs from it, the address over the
-   name field and its Save. */
-.sender-name { display: inline-flex; min-width: 0; }
+/* A person, edited from their name in mail: a name in the reader's header, whose card and menu
+   offer Edit Contact…, and the popover that hangs from it, the address over the name field and
+   its Save. */
 .contact-editor { display: grid; gap: var(--s-6); width: 260px; }
 /* Settings › Contacts: a card's photo, round as an avatar is, on its row and on its page, with
    Choose Photo… and Remove Photo beside it. */

@@ -4,6 +4,11 @@
 
 /// Beside a person's row in ⌘K: the key that opens them there.
 pub const OPEN_PERSON_KEY: &str = "⇥";
+/// The end of a line of recipients in the reader, counting those not named; pressed, it names
+/// them all.
+pub fn more_people(more: usize) -> String {
+    format!("+{more}")
+}
 /// The way out of a window with no account.
 pub const ADD_ACCOUNT: &str = "Add Account…";
 /// The Folders header's action: a folder at the top.
