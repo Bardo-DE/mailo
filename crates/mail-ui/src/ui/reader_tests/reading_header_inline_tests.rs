@@ -1,38 +1,11 @@
 use dioxus::prelude::*;
 use mail_domain::*;
-use mail_ui_reader::reading::header::{Detail, MessageHead, detail_at, recipients, to_line};
+use mail_ui_reader::reading::header::{Detail, MessageHead, detail_at, shows_to};
 
 fn person(name: &str, email: &str) -> Address {
     Address {
         name: (!name.is_empty()).then(|| name.to_owned()),
         email: email.to_owned(),
-    }
-}
-
-#[test]
-fn recipients_are_named_then_counted() {
-    let ada = person("Ada", "ada@example.test");
-    let bob = person("Bob", "bob@example.test");
-    let nameless = person("", "carol@example.test");
-    let dan = person("Dan", "dan@example.test");
-    let eve = person(" ", "eve@example.test");
-    let cases: &[(&str, Vec<Address>, Option<&str>)] = &[
-        ("nobody", vec![], None),
-        ("one", vec![ada.clone()], Some("Ada")),
-        ("two", vec![ada.clone(), bob.clone()], Some("Ada, Bob")),
-        (
-            "an address for a missing name",
-            vec![nameless.clone()],
-            Some("carol@example.test"),
-        ),
-        (
-            "the rest counted",
-            vec![ada.clone(), bob.clone(), nameless, dan, eve],
-            Some("Ada, Bob +3"),
-        ),
-    ];
-    for (name, people, want) in cases {
-        assert_eq!(recipients(people).as_deref(), *want, "{name}");
     }
 }
 
@@ -106,14 +79,22 @@ fn the_full_header_says_who_when_and_to_whom_once() {
     );
     assert_eq!(page.matches("class=\"ds-avatar\"").count(), 1, "{page}");
     assert_eq!(page.matches(">Bob<").count(), 1, "{page}");
-    // The address is the name's tooltip, not a word on the line.
+    // The address is in the name's card, not a word on the line.
     assert!(!page.contains(">bob@example.test<"), "{page}");
+    // Each recipient is a name of their own, the first two named and the rest counted.
+    assert_eq!(page.matches("class=\"person-name\"").count(), 4, "{page}");
+    assert!(
+        !page.contains(">Alan<") && !page.contains(">carol@example.test<"),
+        "{page}"
+    );
     assert!(page.contains("aria-label=\"2023-11-15 07:13\""), "{page}");
     assert!(page.contains(">07:13<"), "{page}");
     // The composer's rows: a label, then its value.
     for (row, label, value) in [
         ("from", "From", "Bob"),
-        ("to", "To", "Ada, Grace +3"),
+        ("to", "To", "Ada"),
+        ("to", "To", "Grace"),
+        ("to", "To", "+3"),
         ("cc", "Cc", "Edsger"),
     ] {
         let at = page
@@ -136,26 +117,27 @@ fn a_message_to_only_you_has_no_to_line() {
     let yours = vec!["me@example.test".to_owned()];
     let me = person("Me", "Me@Example.test");
     let ada = person("Ada", "ada@example.test");
-    type Case<'a> = (&'a str, Vec<Address>, Vec<Address>, Option<&'a str>);
+    type Case<'a> = (&'a str, Vec<Address>, Vec<Address>, bool);
     let cases: &[Case] = &[
-        ("only you", vec![me.clone()], vec![], None),
+        ("only you", vec![me.clone()], vec![], false),
         (
             "you and another",
             vec![me.clone(), ada.clone()],
             vec![],
-            Some("Me, Ada"),
+            true,
         ),
         (
             "you, copied to another",
             vec![me.clone()],
             vec![ada.clone()],
-            Some("Me"),
+            true,
         ),
-        ("someone else", vec![ada.clone()], vec![], Some("Ada")),
+        ("someone else", vec![ada.clone()], vec![], true),
+        ("nobody", vec![], vec![ada.clone()], false),
     ];
     for (name, to, cc, want) in cases {
-        let got = to_line(&message(to.clone(), cc.clone()), &yours);
-        assert_eq!(got.as_deref(), *want, "{name}");
+        let got = shows_to(&message(to.clone(), cc.clone()), &yours);
+        assert_eq!(got, *want, "{name}");
     }
 }
 
@@ -169,4 +151,34 @@ fn a_compact_header_is_who_and_when() {
     assert!(page.contains(">Bob<") && page.contains(">07:13<"), "{page}");
     assert!(!page.contains("data-row=\""), "{page}");
     assert!(!page.contains(">bob@example.test<"), "{page}");
+}
+
+/// The count at the end of a line of recipients names the rest when pressed.
+#[tokio::test]
+async fn the_count_of_the_rest_names_them_when_pressed() {
+    use crate::ui::fixtures::{click, dispatching, rebuild_into};
+    #[component]
+    fn Line() -> Element {
+        let people = ["Ada", "Grace", "Alan", "Dan"]
+            .map(|name| person(name, &format!("{}@example.test", name.to_lowercase())))
+            .to_vec();
+        rsx! {
+            ds::prelude::Ds {
+                appearance: ds::prelude::Appearance::default(),
+                material: ds::prelude::Material::Window,
+                mail_ui_reader::sender::People { people }
+            }
+        }
+    }
+    dispatching();
+    let mut dom = dioxus_core::VirtualDom::new(Line);
+    let seen = rebuild_into(&mut dom);
+    let page = dioxus_ssr::render(&dom);
+    assert!(page.contains(">+2<") && !page.contains(">Alan<"), "{page}");
+    let more = seen.one("aria-label", &mail_ui_model::copy::aria::show_all_people(4));
+    click(&mut dom, more);
+    dom.render_immediate(&mut dioxus_core::NoOpMutations);
+    let page = dioxus_ssr::render(&dom);
+    assert!(page.contains(">Alan<") && page.contains(">Dan<"), "{page}");
+    assert!(!page.contains(">+2<"), "{page}");
 }

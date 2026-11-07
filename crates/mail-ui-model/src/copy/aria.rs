@@ -2,6 +2,11 @@
 //!
 //! Case: Title Case for a control's name ("Sync Now", "More"); a fuller phrase may carry a value ("Settings for {name}").
 
+/// The count at the end of a line of recipients in the reader: it names them all.
+pub fn show_all_people(count: usize) -> String {
+    format!("Show All {count} Recipients")
+}
+
 // The sidebar.
 pub const SIDEBAR: &str = "Sidebar";
 /// The chevron at the foot's right.

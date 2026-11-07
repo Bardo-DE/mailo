@@ -1,7 +1,7 @@
 //! A message's header in the reader, set as the composer's is (`compose::props`): one label
 //! column, From, To and Cc, every value at one x, and one hairline under them. From is the
-//! sender's avatar and name (their address its tooltip) with the date at the row's end; To is
-//! drawn unless the message went only to you.
+//! sender's avatar and name with the date at the row's end; To is drawn unless the message went
+//! only to you. Each name opens that person's card (`crate::sender`).
 //!
 //! A conversation of one message has one header. In a longer one every message keeps a compact
 //! header (a small avatar, the name, the date) and only the message the conversation opens on,
@@ -15,8 +15,9 @@ use ds::components::content::avatar::{AvatarFace, AvatarSize};
 use ds::components::content::label::{LabelRole, LabelStyle};
 use ds::components::overlays::inline_banner::InlineBanner;
 use ds::prelude::*;
-use mail_domain::{Address, BlobId, Message, MessageId};
+use mail_domain::{BlobId, Message, MessageId};
 use mail_ui_kit::lines::{Line, List, list_label};
+use mail_ui_kit::person::Person;
 use mail_ui_kit::text::{address, from_name};
 
 /// How much a message's header says.
@@ -37,38 +38,13 @@ pub fn detail_at(at: usize, count: usize) -> Detail {
     }
 }
 
-/// How many names a line of recipients spells out before it counts the rest.
-const NAMED: usize = 2;
-
-/// A row of recipients: the first [`NAMED`] of `people` by name (their address when they gave
-/// none), the rest as a count; none for nobody.
-pub fn recipients(people: &[Address]) -> Option<String> {
-    if people.is_empty() {
-        return None;
-    }
-    let names: Vec<&str> = people
-        .iter()
-        .take(NAMED)
-        .map(|person| person.shown())
-        .collect();
-    let more = people.len().saturating_sub(NAMED);
-    let named = names.join(", ");
-    Some(match more {
-        0 => named,
-        more => format!("{named} +{more}"),
-    })
-}
-
-/// The To row, unless the message went to nobody but `yours` (the person's own addresses,
-/// lowercased), which is what a message in their inbox goes to and needs no saying.
-pub fn to_line(message: &Message, yours: &[String]) -> Option<String> {
+/// Whether the To row is drawn: unless the message went to nobody but `yours` (the person's own
+/// addresses, lowercased), which is what a message in their inbox goes to and needs no saying.
+pub fn shows_to(message: &Message, yours: &[String]) -> bool {
     let only_you = message.cc.is_empty()
         && message.to.len() == 1
         && yours.contains(&message.to[0].email.trim().to_lowercase());
-    if only_you {
-        return None;
-    }
-    recipients(&message.to)
+    !message.to.is_empty() && !only_you
 }
 
 /// What the newest message's header is keyed by in the reader: the message and its body, which
@@ -203,12 +179,14 @@ fn full_head(
     avatar: Option<Element>,
     trust: Option<crate::checks::Trust>,
 ) -> Element {
-    let (name, addr) = named(message);
-    // What the right click's contact editor starts from: the name the mail gave, and whom.
-    let (given, email) = (from_name(message), message.from.email.clone());
+    // The sender as their card and editor start from: the name the mail gave, and whom.
+    let sender = Person {
+        address: message.from.email.clone(),
+        name: from_name(message),
+    };
     let face = row_face(message);
-    let to = to_line(message, yours);
-    let cc = recipients(&message.cc);
+    let to = shows_to(message, yours).then(|| message.to.clone());
+    let cc = (!message.cc.is_empty()).then(|| message.cc.clone());
     let avatar = avatar.unwrap_or_else(|| {
         rsx! {
             div { class: "reader-av",
@@ -225,13 +203,7 @@ fn full_head(
         header { class: "msg-head reader-meta", "data-detail": "full", "data-standing": standing,
             Line { label: mail_ui_model::copy::fields::FROM, row: "from",
                 {avatar}
-                if addr.is_empty() {
-                    crate::sender::SenderName { shown: name, in_mail: given, address: email }
-                } else {
-                    Tooltip { text: addr,
-                        crate::sender::SenderName { shown: name, in_mail: given, address: email }
-                    }
-                }
+                crate::sender::PersonName { person: sender }
                 if let Some((mark, lines)) = mark {
                     TrustMark { mark, lines }
                 }
@@ -240,12 +212,12 @@ fn full_head(
             }
             if let Some(to) = to {
                 Line { label: list_label(List::To), row: "to",
-                    Label { text: to, common: mail_ui_kit::common::classed("truncate") }
+                    crate::sender::People { people: to }
                 }
             }
             if let Some(cc) = cc {
                 Line { label: list_label(List::Cc), row: "cc",
-                    Label { text: cc, common: mail_ui_kit::common::classed("truncate") }
+                    crate::sender::People { people: cc }
                 }
             }
         }

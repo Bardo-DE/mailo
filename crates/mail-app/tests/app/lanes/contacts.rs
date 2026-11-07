@@ -77,7 +77,7 @@ fn a_vcard_imports_from_the_command_panel_and_a_group_expands_in_to() {
 fn a_sender_is_renamed_from_their_name_in_the_reader() {
     let mut window = Window::open(|_| {});
     window.open_subject("Flight to the conference");
-    let name = ".msg-head .sender-name";
+    let name = ".msg-head [*|data-row=from] .person-name";
     window.until("the reader names the sender", |h| h.count(name) >= 1);
     let at = window.centre(name);
     window

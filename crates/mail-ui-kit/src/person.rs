@@ -132,33 +132,40 @@ pub fn rows(person: &Person, client: Option<&Client>, shell: Option<&Shell>) -> 
         .collect()
 }
 
-/// Do `act` with `person`. A search is set in the list, `pages` back to the first; the composer,
-/// the card and the VIP mark are the window's.
-pub fn run(act: Act, person: &Person, shell: Signal<Shell>, pages: Option<Signal<u32>>) {
-    let search = |mut shell: Signal<Shell>, query: String| {
-        shell.write().search = query;
+/// Do `act` with `person`. A search is set in the list, `pages` back to the first; the composer
+/// and the VIP mark are the window's, and with no `shell` (a lone reader in a test) only the
+/// clipboard and the card are reached.
+pub fn run(act: Act, person: &Person, shell: Option<Signal<Shell>>, pages: Option<Signal<u32>>) {
+    let search = |query: String| {
+        if let Some(mut shell) = shell {
+            shell.write().search = query;
+        }
         if let Some(mut pages) = pages {
             pages.set(1);
         }
     };
     match act {
         Act::Write => {
-            let client = crate::live::client();
-            // A refusal is the composer's to say (`write_to` logs it).
-            let _ = crate::ops::write_to(&client, shell, &[person.recipient()]);
+            if let Some(shell) = shell {
+                let client = crate::live::client();
+                // A refusal is the composer's to say (`write_to` logs it).
+                let _ = crate::ops::write_to(&client, shell, &[person.recipient()]);
+            }
         }
         Act::Copy => {
             crate::hover::copy(&person.address);
             tell(copy::toasts::ADDRESS_COPIED.to_owned(), Follow::Nothing);
         }
-        Act::MailFrom => search(shell, mail_from(&person.address)),
-        Act::MailWith => search(shell, mail_with(&person.address)),
+        Act::MailFrom => search(mail_from(&person.address)),
+        Act::MailWith => search(mail_with(&person.address)),
         Act::Card => show_card(&person.address, &person.name),
         Act::Vip => {
-            let vips = shell.peek().vips.clone();
-            let name = Some(person.name.as_str()).filter(|name| !name.trim().is_empty());
-            let mark = mail_client::vip::toggled(&vips, &person.address);
-            crate::vip::set(crate::vip::Marking { shell }, &person.address, name, mark);
+            if let Some(shell) = shell {
+                let vips = shell.peek().vips.clone();
+                let name = Some(person.name.as_str()).filter(|name| !name.trim().is_empty());
+                let mark = mail_client::vip::toggled(&vips, &person.address);
+                crate::vip::set(crate::vip::Marking { shell }, &person.address, name, mark);
+            }
         }
     }
 }
