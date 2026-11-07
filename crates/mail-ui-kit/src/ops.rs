@@ -48,22 +48,27 @@ pub fn composes(kind: OpKind) -> Option<Composes> {
 ///
 /// Which message that answers is [`mail_client::conversation::reply_target`]'s decision, not this function's.
 /// Open a composer on the newest message of `thread`, replying or forwarding.
-/// Begin a message that answers nothing.
+/// Begin a message that answers nothing, going to `to`.
 ///
 /// `known` is the shell's own list, so the common case — one account — asks the client nothing
 /// and the multi-account case picks a default the user can see and change in the From row.
 /// Empty only before the first `use_effect` has run or before an account exists, and the client
 /// is asked then, because a window that has just been opened should still be able to write.
-pub fn start_new(client: &Client, known: &[(String, AccountId)]) -> Result<Draft, String> {
+pub fn start_new(
+    client: &Client,
+    known: &[(String, AccountId)],
+    to: &[Address],
+) -> Result<Draft, String> {
     let account = match known.first() {
         Some((_, id)) => id.clone(),
         None => client.compose().account_for(None)?,
     };
-    // No recipients and no subject: there is no original to take either from, and a guess is
-    // something the sender has to notice and undo. Saved anyway, so closing the window keeps it.
+    // No subject, and no recipients but the ones asked for: there is no original to take either
+    // from, and a guess is something the sender has to notice and undo. Saved anyway, so closing
+    // the window keeps it.
     client
         .compose()
-        .draft_new(account, &[], "", "", chrono::Utc::now())
+        .draft_new(account, to, "", "", chrono::Utc::now())
         .map_err(String::from)
 }
 
@@ -102,20 +107,7 @@ pub fn open_composer(
     what: Writes,
 ) -> Result<(), String> {
     let opened = match what {
-        Writes::New => {
-            let known = shell.peek().accounts.clone();
-            let started = start_new(client, &known);
-            if let Err(why) = &started
-                && known.is_empty()
-                && client.compose().sending_accounts().is_empty()
-            {
-                shell.write().no_account = true;
-                return Err(why.clone());
-            }
-            started
-                .map(|draft| copied(client, draft))
-                .map(|draft| shell.write().compose(&draft))
-        }
+        Writes::New => return write_to(client, shell, &[]),
         Writes::On(thread, composes) | Writes::OnMessage(thread, _, composes) => {
             let only = match what {
                 Writes::OnMessage(_, message, _) => Some(message),
@@ -133,6 +125,28 @@ pub fn open_composer(
         }
         Writes::Draft(id) => shell.write().compose_id(client, id),
     };
+    if let Err(why) = &opened {
+        log::warn!("compose: {why}");
+    }
+    opened
+}
+
+/// Open the composer on a new message to `to`: a person's New Message, or none for the pencil.
+/// With no account to send from it says so and offers Add Account (`no_account`), as
+/// [`open_composer`] does.
+pub fn write_to(client: &Client, mut shell: Signal<Shell>, to: &[Address]) -> Result<(), String> {
+    let known = shell.peek().accounts.clone();
+    let started = start_new(client, &known, to);
+    if let Err(why) = &started
+        && known.is_empty()
+        && client.compose().sending_accounts().is_empty()
+    {
+        shell.write().no_account = true;
+        return Err(why.clone());
+    }
+    let opened = started
+        .map(|draft| copied(client, draft))
+        .map(|draft| shell.write().compose(&draft));
     if let Err(why) = &opened {
         log::warn!("compose: {why}");
     }

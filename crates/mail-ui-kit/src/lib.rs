@@ -46,6 +46,7 @@ pub mod ops;
 pub mod original;
 pub mod pasted_image;
 pub mod pending;
+pub mod person;
 pub mod pgp;
 pub mod pick;
 pub mod picks;

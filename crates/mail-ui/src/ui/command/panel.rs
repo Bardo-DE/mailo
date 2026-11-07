@@ -26,6 +26,8 @@ pub(super) struct World<'a> {
     pub today: &'a Today,
     /// How the person keeps the hours, for the times Recent's rows say.
     pub hours: mail_logic::when::Clock,
+    /// The conversations of the person opened in the panel, once read.
+    pub threads: &'a [mail_domain::ThreadSummary],
 }
 
 /// The panel's rows for what it lists.
@@ -42,6 +44,7 @@ pub(super) fn panel_rows(
         keymap,
         today,
         hours,
+        threads,
     } = world;
     match listing {
         // The find lists no rows: the reader marks what it finds.
@@ -54,6 +57,10 @@ pub(super) fn panel_rows(
                 ..row
             })
             .collect(),
+        BarListing::Person { person, typed } => {
+            super::person::rows(client, shell, person, typed, threads)
+        }
+        BarListing::Recipient(typed) => super::person::recipients(client, typed),
         BarListing::Search => {
             let query = drawn.settled.text.as_str();
             let mut rows: Vec<MenuItem> = rows_of(&drawn.results, &drawn.names, query, keymap)

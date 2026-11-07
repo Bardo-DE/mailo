@@ -57,6 +57,10 @@ pub const RECENT: &str = "Recent";
 pub const PLACES_AND_PEOPLE: &str = "Places and People";
 pub const COMMANDS: &str = "Commands";
 pub const TEMPLATES: &str = "Templates";
+/// A person opened in ⌘K: the conversations they are in, newest first.
+pub const WITH_THEM: &str = "Conversations";
+/// ⌘K's New Message to…: who to write to.
+pub const WRITE_TO: &str = "Write To";
 /// Under a Space's name in ⌘K, saying what it is.
 pub const SPACE: &str = "Space";
 

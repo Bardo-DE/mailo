@@ -137,7 +137,8 @@ fn person_item(
         },
         name: name.clone(),
         help: None,
-        right: Right::None,
+        // Tab opens them in the panel: what can be done with them, and their conversations.
+        right: Right::Hint(mail_ui_model::copy::controls::OPEN_PERSON_KEY.to_owned()),
         group: Some(group.to_owned()),
         marks: name_marks.clone(),
         title: vec![

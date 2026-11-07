@@ -21,6 +21,8 @@ pub const CANCEL_SENDING: &str = "Cancel Sending";
 
 // ⌘K's commands: the verbs the window runs, each listed with its key.
 pub const NEW_MESSAGE: &str = "New Message";
+/// Lists the people in ⌘K itself; picking one writes to them.
+pub const NEW_MESSAGE_TO: &str = "New Message to…";
 /// Lists the templates in ⌘K itself.
 pub const NEW_FROM_TEMPLATE: &str = "New from Template…";
 pub const FORWARD_AS_ATTACHMENT: &str = "Forward as Attachment";
@@ -272,6 +274,12 @@ pub const COPY: &str = "Copy";
 // A label's ⋯ in the sidebar, and its editor's first colour.
 pub const EDIT_LABEL: &str = "Edit Label…";
 pub const NO_COLOUR: &str = "None";
+// What can be done with a person, wherever one is offered (`mail_ui_kit::person`).
+pub const COPY_ADDRESS: &str = "Copy Address";
+/// The search for what they sent.
+pub const MAIL_FROM: &str = "Mail From Them";
+/// The search for every conversation they are in: what they sent, and what went to them.
+pub const MAIL_WITH: &str = "Mail With Them";
 pub const ADD_TO_CONTACTS: &str = "Add to Contacts";
 pub const SHOW_CONTACT_CARD: &str = "Show Contact Card";
 /// ⌘K's way to Settings › Contacts.

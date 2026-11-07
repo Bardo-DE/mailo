@@ -229,6 +229,7 @@ fn dana_is_marked_in_the_persons_name() {
 /// added here, and a label renamed changes nothing in this table.
 const EVERY_COMMAND: &[&str] = &[
     "action:compose",
+    "action:write-to",
     "action:from-template",
     "action:forward-attached",
     "action:reply-list",

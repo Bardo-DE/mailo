@@ -8,6 +8,8 @@ use mail_logic::when::{Clock, Stamp, stamp};
 
 /// A message's one-time code, put on the clipboard by Copy Code.
 pub const CODE_COPIED: &str = "Code copied";
+/// A person's address, put on the clipboard by Copy Address.
+pub const ADDRESS_COPIED: &str = "Address copied";
 
 // A folder change, done.
 pub fn folder_made(name: &str) -> String {
