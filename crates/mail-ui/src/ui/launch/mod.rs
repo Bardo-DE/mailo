@@ -150,6 +150,9 @@ pub use mail_ui_kit::program::DesktopSettings;
 /// config directory.
 #[component]
 pub(super) fn ShellRoot() -> Element {
+    // Above the damaged settings' question, which a window may be closed at without reading what
+    // it was opened for.
+    crate::ui::handoff::use_window_coming();
     let settings = DesktopSettings::current();
     let store = settings.store();
     let spawner: Arc<dyn Spawner> = Arc::new(ds_blitz::TokioSpawner::current());
@@ -189,12 +192,19 @@ pub(super) fn ShellRoot() -> Element {
 
 /// The main window opened again, after the last one closed while mailo.app ran on (the Dock icon
 /// clicked, a banner's conversation, a `mailto:` link: `crate::background`). [`ShellRoot`], but
-/// at the inbox, whatever the launch was opened on, and past the damaged settings' question, which
-/// the first window asked: what it carries in from outside comes through the hand-off's queue.
+/// at the inbox, whatever the launch was opened on: what it carries in from outside comes through
+/// the hand-off's queue. The damaged settings are looked for again, since the first window may
+/// have been closed at its question unanswered; answered, they were set aside and none are found.
 #[component]
 pub(super) fn ReopenedRoot() -> Element {
     use_context_provider(crate::ui::ask::Open::raise);
-    use_context_provider(gate::Found::default);
+    use_context_provider(|| {
+        gate::Found(
+            try_consume_context::<WindowDirs>()
+                .map(|dirs| gate::found(&dirs))
+                .unwrap_or_default(),
+        )
+    });
     rsx! { ShellRoot {} }
 }
 

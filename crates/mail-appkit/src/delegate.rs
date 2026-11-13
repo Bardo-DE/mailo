@@ -25,11 +25,22 @@ define_class!(
         #[unsafe(method(applicationShouldHandleReopen:hasVisibleWindows:))]
         fn application_should_handle_reopen(
             &self,
-            _application: &NSApplication,
-            _has_visible_windows: bool,
+            application: &NSApplication,
+            has_visible_windows: bool,
         ) -> bool {
+            // Answering `false` skips AppKit's own handling, which is what brings a minimized
+            // window back, and the callback's raise cannot: winit leaves a minimized window be.
+            // So with nothing on screen, the minimized windows come back here.
+            if !has_visible_windows {
+                for window in application.windows() {
+                    if window.isMiniaturized() {
+                        window.deminiaturize(None);
+                    }
+                }
+            }
             (self.ivars())();
-            // The event is ours: the callback raises the window, so AppKit need not.
+            // The event is ours: the windows are back and the callback raises the main one (or
+            // opens it), so AppKit need not.
             false
         }
     }
