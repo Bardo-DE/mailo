@@ -36,13 +36,16 @@ pub(in crate::ui) fn use_handoff(shell: Signal<Shell>, spaces: Handle) {
         }
     });
     let window = ds_blitz::use_window_handle();
+    let took = use_hook(|| try_consume_context::<Took>().unwrap_or_default());
     use_future(move || {
         let requests = requests.clone();
         let window = window.clone();
+        let took = took.clone();
         async move {
             let Some(mut queue) = requests.take() else {
                 return;
             };
+            took.0.set(true);
             while let Some(open) = queue.recv().await {
                 let here = Window { shell, spaces };
                 if open.ask.arrives_first() {
@@ -60,3 +63,27 @@ pub(in crate::ui) fn use_handoff(shell: Signal<Shell>, spaces: Handle) {
 /// Where there is no bus and no socket nothing is served, so there is nothing to read.
 #[cfg(windows)]
 pub(in crate::ui) fn use_handoff(_shell: Signal<Shell>, _spaces: Handle) {}
+
+/// Whether this main window took the request queue ([`use_handoff`] marks it).
+#[derive(Clone, Default)]
+pub(in crate::ui) struct Took(std::rc::Rc<std::cell::Cell<bool>>);
+
+/// For the main window's root, above the damaged settings' question: a window that closes
+/// without ever reading the queue (closed at that question, or before its first frame) says so,
+/// or the queue would wait for it for ever and the Dock icon would open nothing again.
+pub(in crate::ui) fn use_window_coming() {
+    let took = use_context_provider(Took::default);
+    #[cfg(target_os = "macos")]
+    {
+        let requests = use_hook(try_consume_context::<crate::handoff::Requests>);
+        use_drop(move || {
+            if let Some(requests) = &requests
+                && !took.0.get()
+            {
+                requests.gone_before_taking();
+            }
+        });
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = took;
+}

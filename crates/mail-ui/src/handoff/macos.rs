@@ -127,6 +127,17 @@ impl Requests {
         }
     }
 
+    /// The window on its way closed without taking the queue (at the damaged settings' question,
+    /// say, or before its first frame): the next request opens another rather than wait for it
+    /// for ever. Called only by a window that never took the queue, so while the queue waits in
+    /// the slot nobody else is coming for it.
+    pub fn gone_before_taking(&self) {
+        let mut slot = self.slot();
+        if slot.queue.is_some() {
+            slot.coming = false;
+        }
+    }
+
     /// Mark the Dock icon heard; false when it was already.
     fn hear_reopen_once(&self) -> bool {
         !std::mem::replace(&mut self.slot().reopen_heard, true)
@@ -404,6 +415,39 @@ mod tests {
         assert_eq!(again.try_recv(), Some(Open::new(Thread(thread()), None)));
         assert_eq!(again.try_recv(), Some(Open::raise()));
         assert_eq!(again.try_recv(), Some(Open::raise()));
+    }
+
+    #[test]
+    fn a_window_gone_before_it_took_the_queue_lets_the_next_request_open_one() {
+        let (requests, _sender) = Requests::local();
+        let opened = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        requests.open_with({
+            let opened = Arc::clone(&opened);
+            move || {
+                opened.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                true
+            }
+        });
+        let count = || opened.load(std::sync::atomic::Ordering::SeqCst);
+
+        // The launch's window is coming, and a click waits for it.
+        requests.send(Open::raise());
+        assert_eq!(count(), 0);
+        // It closes without ever reading the queue: the next click opens one.
+        requests.gone_before_taking();
+        requests.send(Open::raise());
+        assert_eq!(count(), 1, "the Dock icon opens a window");
+        requests.send(Open::raise());
+        assert_eq!(count(), 1, "and waits for that one");
+
+        // A window that took the queue and gave it back changes nothing by saying so.
+        let reading = requests.take().expect("the new window takes the queue");
+        drop(reading);
+        requests.gone_before_taking();
+        requests.send(Open::raise());
+        assert_eq!(count(), 2);
+        requests.send(Open::raise());
+        assert_eq!(count(), 2, "one window on its way");
     }
 
     #[test]
