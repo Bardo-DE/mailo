@@ -7,7 +7,7 @@ edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 description = "Mail as values that are already read, and kept read as the store changes"
-repository = "https://github.com/PoHsuanLai/mailo"
+repository = "https://github.com/Bardo-DE/mailo"
 authors = ["Po Hsuan Lai <pohsuanlai0208@gmail.com>"]
 
 # Between `mail-core` and its callers. A caller asks this crate for a value and is handed one

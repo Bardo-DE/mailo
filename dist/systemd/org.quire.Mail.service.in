@@ -6,7 +6,7 @@
 # binary; the packages ship packaging/systemd/org.quire.Mail.service with /usr/bin/mailo.
 [Unit]
 Description=mailo intents provider (what the desktop asks mail to do)
-Documentation=https://github.com/PoHsuanLai/mailo
+Documentation=https://github.com/Bardo-DE/mailo
 
 [Service]
 Type=dbus

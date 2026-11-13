@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 Report it privately through GitHub's private vulnerability reporting on this repository:
-<https://github.com/PoHsuanLai/mailo/security/advisories/new> (the Security tab, then "Report a
+<https://github.com/Bardo-DE/mailo/security/advisories/new> (the Security tab, then "Report a
 vulnerability"). Please do not open a public issue or pull request for a vulnerability.
 
 Include the version, the platform, and what you did to reach the problem. A malformed message that

@@ -7,7 +7,7 @@ edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 description = "A desktop mail client: IMAP, POP3, JMAP and SMTP over a local SQLite store"
-repository = "https://github.com/PoHsuanLai/mailo"
+repository = "https://github.com/Bardo-DE/mailo"
 authors = ["Po Hsuan Lai <pohsuanlai0208@gmail.com>"]
 
 # Packaging for `cargo deb` and `cargo generate-rpm`, both external tools (`scripts/package.sh`).
@@ -82,7 +82,7 @@ path = "src/main.rs"
 # gate (`cargo check --workspace --no-default-features`), opens files in the system's app alone.
 default = ["quire-desktop", "anyview"]
 quire-desktop = ["mail-ui-kit/quire-desktop"]
-# anyview's peek and card (github.com/PoHsuanLai/anyview) for the attachments mailo does not draw
+# anyview's peek and card (github.com/Bardo-DE/anyview) for the attachments mailo does not draw
 # itself: a picture in the reader's strip and a card in Peek, both over the stored bytes
 # (`reading/anyview.rs` in `mail-ui-reader`). On by default; off, the strip shows a picture's or a PDF's thumbnail
 # and Peek those, the calendars, contacts and messages mailo reads itself, and "no preview" for the
@@ -122,7 +122,7 @@ log.workspace = true
 # `mail-edge`'s.
 tokio = { version = "1", features = ["sync"] }
 # Settings I/O: `appearance.toml` (imported once from `appearance.json`), the settings portal.
-ds-settings = { git = "https://github.com/PoHsuanLai/quire.git", rev = "c5a80212f5a17f35e21e8144fa3a237ce17b49a9", features = ["dioxus"] }  # c5a80212 (master, palette-rows-menu-place-tokens merged; forks blitz 841386a7, blitz-kit 5b5380d0)
+ds-settings = { git = "https://github.com/Bardo-DE/quire.git", rev = "e8ee4fb35c23b1e7531814e55c4fa50fcd59258a", features = ["dioxus"] }  # c5a80212 (master, palette-rows-menu-place-tokens merged; forks blitz 841386a7, blitz-kit 5b5380d0)
 
 [target.'cfg(target_os = "linux")'.dependencies]
 # The account secrets in the Secret Service through oo7: Linux's store, which the other platforms
@@ -137,15 +137,15 @@ latchkey.workspace = true
 mail-ui = { workspace = true, features = ["testing"] }
 # The window's integration tests drive it as the launched program does (`tests/app`).
 dioxus = { version = "0.7" }
-ds = { git = "https://github.com/PoHsuanLai/quire.git", rev = "c5a80212f5a17f35e21e8144fa3a237ce17b49a9" }  # c5a80212 (master, palette-rows-menu-place-tokens merged; forks blitz 841386a7, blitz-kit 5b5380d0)
+ds = { git = "https://github.com/Bardo-DE/quire.git", rev = "e8ee4fb35c23b1e7531814e55c4fa50fcd59258a" }  # c5a80212 (master, palette-rows-menu-place-tokens merged; forks blitz 841386a7, blitz-kit 5b5380d0)
 # The account sheets' views: `ds_shell::accounts`, the parts `sill` draws the same sheet with.
 # Only the accounts module is used; the shell's own surfaces (bar, dock, lock) are not drawn here.
-ds-shell = { git = "https://github.com/PoHsuanLai/quire.git", rev = "c5a80212f5a17f35e21e8144fa3a237ce17b49a9" }  # c5a80212 (master, palette-rows-menu-place-tokens merged; forks blitz 841386a7, blitz-kit 5b5380d0)
+ds-shell = { git = "https://github.com/Bardo-DE/quire.git", rev = "e8ee4fb35c23b1e7531814e55c4fa50fcd59258a" }  # c5a80212 (master, palette-rows-menu-place-tokens merged; forks blitz 841386a7, blitz-kit 5b5380d0)
 # The window: quire's Blitz host (the window, its fonts, focus, clipboard, PDF output), and
 # `print`: the system's print dialog for a PDF (the desktop portal on Linux, else the PDF opened
 # in the viewer); `spell`: the composer's spelling, against the system's Hunspell dictionaries
 # (none is bundled); `pdf` also rasterises a PDF attachment's first page (`PdfFileThumb`).
-ds-blitz = { git = "https://github.com/PoHsuanLai/quire.git", rev = "c5a80212f5a17f35e21e8144fa3a237ce17b49a9", features = ["pdf", "print", "spell"] }  # c5a80212 (master, palette-rows-menu-place-tokens merged; forks blitz 841386a7, blitz-kit 5b5380d0)
+ds-blitz = { git = "https://github.com/Bardo-DE/quire.git", rev = "e8ee4fb35c23b1e7531814e55c4fa50fcd59258a", features = ["pdf", "print", "spell"] }  # c5a80212 (master, palette-rows-menu-place-tokens merged; forks blitz 841386a7, blitz-kit 5b5380d0)
 base64 = "0.22"
 blitz-dom = { workspace = true }
 dioxus-native-dom = { workspace = true }
@@ -179,8 +179,8 @@ uuid = { workspace = true }
 # The linter (`lint::assert_clean`, the markup lint) and the test driver (`Harness`, `Driver`,
 # `Query`, `snapshot`; `pdf` is `Harness::pdf` for the print tests): quire's own crates, at the
 # same tag.
-ds-lint = { git = "https://github.com/PoHsuanLai/quire.git", rev = "c5a80212f5a17f35e21e8144fa3a237ce17b49a9" }  # c5a80212 (master, palette-rows-menu-place-tokens merged; forks blitz 841386a7, blitz-kit 5b5380d0)
-ds-harness = { git = "https://github.com/PoHsuanLai/quire.git", rev = "c5a80212f5a17f35e21e8144fa3a237ce17b49a9", features = ["pdf"] }  # c5a80212 (master, palette-rows-menu-place-tokens merged; forks blitz 841386a7, blitz-kit 5b5380d0)
+ds-lint = { git = "https://github.com/Bardo-DE/quire.git", rev = "e8ee4fb35c23b1e7531814e55c4fa50fcd59258a" }  # c5a80212 (master, palette-rows-menu-place-tokens merged; forks blitz 841386a7, blitz-kit 5b5380d0)
+ds-harness = { git = "https://github.com/Bardo-DE/quire.git", rev = "e8ee4fb35c23b1e7531814e55c4fa50fcd59258a", features = ["pdf"] }  # c5a80212 (master, palette-rows-menu-place-tokens merged; forks blitz 841386a7, blitz-kit 5b5380d0)
 
 [lints]
 workspace = true

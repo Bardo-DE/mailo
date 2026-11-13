@@ -17,5 +17,5 @@ signs, seals, verifies and opens the bytes it made, as PGP/MIME or as S/MIME.
 
 All are off by default.
 
-Part of [mailo](https://github.com/PoHsuanLai/mailo). Licensed under MIT or Apache-2.0, at your
+Part of [mailo](https://github.com/Bardo-DE/mailo). Licensed under MIT or Apache-2.0, at your
 option.

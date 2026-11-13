@@ -20,8 +20,8 @@ impl Source {
     /// mailo's own repository.
     pub fn github() -> Self {
         Self {
-            api: "https://api.github.com/repos/PoHsuanLai/mailo".into(),
-            download: "https://github.com/PoHsuanLai/mailo/releases/download".into(),
+            api: "https://api.github.com/repos/Bardo-DE/mailo".into(),
+            download: "https://github.com/Bardo-DE/mailo/releases/download".into(),
         }
     }
 }

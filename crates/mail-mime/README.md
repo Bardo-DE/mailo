@@ -23,5 +23,5 @@ assert!(message.html.is_some());
 What a parsed message shows (sanitizing, blocks, the printed page) is
 [`mailo-reader`](https://crates.io/crates/mailo-reader)'s.
 
-Part of [mailo](https://github.com/PoHsuanLai/mailo). Licensed under MIT or Apache-2.0, at your
+Part of [mailo](https://github.com/Bardo-DE/mailo). Licensed under MIT or Apache-2.0, at your
 option.

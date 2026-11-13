@@ -11,5 +11,5 @@ asks the store, or draws a window; a clock is a value, and a store or an index i
 What the decisions are made over is `mailo-domain`; what acts on them, the sync, the store and
 the network, is `mail-core` and the crates under it, which depend on this one.
 
-Part of [mailo](https://github.com/PoHsuanLai/mailo). Licensed under MIT or Apache-2.0, at your
+Part of [mailo](https://github.com/Bardo-DE/mailo). Licensed under MIT or Apache-2.0, at your
 option.

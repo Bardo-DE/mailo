@@ -2,7 +2,7 @@
 
 mailo is a desktop mail client written in Rust. It keeps your mail in a local SQLite database,
 talks to servers over IMAP, POP3, JMAP and Microsoft Graph, sends over SMTP, JMAP or Graph, and
-draws its window with [quire](https://github.com/PoHsuanLai/quire) (Blitz and wgpu; there is no
+draws its window with [quire](https://github.com/Bardo-DE/quire) (Blitz and wgpu; there is no
 webview). One binary, `mailo`, is both the window (no arguments) and a command line (anything
 else), over the same store.
 
@@ -67,7 +67,7 @@ the least exercised.
 
 ## Install
 
-Take mailo from [the releases](https://github.com/PoHsuanLai/mailo/releases)
+Take mailo from [the releases](https://github.com/Bardo-DE/mailo/releases)
 (`.github/workflows/release.yml`). Every push to master publishes a **daily**, a pre-release tagged
 `daily-<build>` (the newest five are kept); a tag `vX.Y.Z` drafts a **stable** release, published
 by hand. Each release holds:

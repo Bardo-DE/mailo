@@ -12,5 +12,5 @@ assert_eq!(cards[0].formatted_name.as_deref(), Some("Ada Lovelace"));
 assert_eq!(cards[0].emails[0].address, "ada@example.test");
 ```
 
-Part of [mailo](https://github.com/PoHsuanLai/mailo). Licensed under MIT or Apache-2.0, at your
+Part of [mailo](https://github.com/Bardo-DE/mailo). Licensed under MIT or Apache-2.0, at your
 option.

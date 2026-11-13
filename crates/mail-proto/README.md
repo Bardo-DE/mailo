@@ -34,5 +34,5 @@ else {
 assert!(needs.iter().any(|need| matches!(need, IoNeed::Write(_))));
 ```
 
-Part of [mailo](https://github.com/PoHsuanLai/mailo). Licensed under MIT or Apache-2.0, at your
+Part of [mailo](https://github.com/Bardo-DE/mailo). Licensed under MIT or Apache-2.0, at your
 option.

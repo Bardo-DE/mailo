@@ -28,5 +28,5 @@ assert!(!safe.as_str().contains("onclick"));
 assert!(!safe.as_str().contains("tracker.test"));
 ```
 
-Part of [mailo](https://github.com/PoHsuanLai/mailo). Licensed under MIT or Apache-2.0, at your
+Part of [mailo](https://github.com/Bardo-DE/mailo). Licensed under MIT or Apache-2.0, at your
 option.

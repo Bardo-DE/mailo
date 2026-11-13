@@ -19,5 +19,5 @@ assert_eq!(normalize_id("<not an id>"), "");
 assert_ne!(subject_or_none(""), "");
 ```
 
-Part of [mailo](https://github.com/PoHsuanLai/mailo). Licensed under MIT or Apache-2.0, at your
+Part of [mailo](https://github.com/Bardo-DE/mailo). Licensed under MIT or Apache-2.0, at your
 option.

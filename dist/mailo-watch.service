@@ -10,7 +10,7 @@
 # disables it.
 [Unit]
 Description=mailo mail sync (new-mail banners and the unread count)
-Documentation=https://github.com/PoHsuanLai/mailo
+Documentation=https://github.com/Bardo-DE/mailo
 PartOf=graphical-session.target
 After=graphical-session.target
 StartLimitIntervalSec=900

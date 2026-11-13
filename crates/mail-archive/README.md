@@ -8,5 +8,5 @@ multi-gigabyte archive streams through.
 What a file says about where a message belonged and what had happened to it is reduced to one
 `Placement`, whichever format said it.
 
-Part of [mailo](https://github.com/PoHsuanLai/mailo). Licensed under MIT or Apache-2.0, at your
+Part of [mailo](https://github.com/Bardo-DE/mailo). Licensed under MIT or Apache-2.0, at your
 option.

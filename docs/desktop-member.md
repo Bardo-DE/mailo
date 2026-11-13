@@ -137,7 +137,7 @@ seeds the desktop's file; nothing in mailo's directory is written or deleted.
 uncommitted `.cargo/config.toml` (the file is in `.git/info/exclude` in the integration worktree):
 
 ```toml
-[patch."https://github.com/PoHsuanLai/quire"]
+[patch."https://github.com/Bardo-DE/quire"]
 ds = { path = "../quire/crates/ds" }
 ds-settings = { path = "../quire/crates/ds-settings" }
 ds-blitz = { path = "../quire/crates/ds-blitz" }

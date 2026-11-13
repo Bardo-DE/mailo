@@ -9,7 +9,7 @@ edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 description = "mailo's list: conversations drawn with quire, below the window"
-repository = "https://github.com/PoHsuanLai/mailo"
+repository = "https://github.com/Bardo-DE/mailo"
 authors = ["Po Hsuan Lai <pohsuanlai0208@gmail.com>"]
 
 [features]
@@ -36,9 +36,9 @@ chrono.workspace = true
 # The renderer is quire's `ds-blitz` (Blitz, drawn with wgpu); dioxus itself brings none.
 dioxus = { version = "0.7" }
 # chordkit, the keymap core quire resolves keys with. The rev quire pins, so one chordkit is built.
-chordkit = { git = "https://github.com/PoHsuanLai/chordkit.git", rev = "99eec9ddd03ee345b669fcc7954ed44590724290" }
+chordkit = { git = "https://github.com/Bardo-DE/chordkit.git", rev = "99eec9ddd03ee345b669fcc7954ed44590724290" }
 # quire, the shared design system, pinned as the desktop manifest pins it.
-ds = { git = "https://github.com/PoHsuanLai/quire.git", rev = "c5a80212f5a17f35e21e8144fa3a237ce17b49a9" }  # c5a80212 (master, palette-rows-menu-place-tokens merged; forks blitz 841386a7, blitz-kit 5b5380d0)
+ds = { git = "https://github.com/Bardo-DE/quire.git", rev = "e8ee4fb35c23b1e7531814e55c4fa50fcd59258a" }  # c5a80212 (master, palette-rows-menu-place-tokens merged; forks blitz 841386a7, blitz-kit 5b5380d0)
 
 [dev-dependencies]
 # The values a test starts from (`mail_domain::testing`): the program never has them.

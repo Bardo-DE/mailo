@@ -7,7 +7,7 @@ edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 description = "mailo's window without the drawing: the settings files, the words, and the state the window moves through"
-repository = "https://github.com/PoHsuanLai/mailo"
+repository = "https://github.com/Bardo-DE/mailo"
 authors = ["Po Hsuan Lai <pohsuanlai0208@gmail.com>"]
 
 # The window's view-models, state machines and words, and the settings files the command line reads
@@ -19,8 +19,8 @@ authors = ["Po Hsuan Lai <pohsuanlai0208@gmail.com>"]
 mail-client.workspace = true
 mail-domain.workspace = true
 mail-logic.workspace = true
-ds-core = { git = "https://github.com/PoHsuanLai/quire.git", rev = "c5a80212f5a17f35e21e8144fa3a237ce17b49a9" }  # c5a80212 (master, palette-rows-menu-place-tokens merged; forks blitz 841386a7, blitz-kit 5b5380d0)
-ds-settings = { git = "https://github.com/PoHsuanLai/quire.git", rev = "c5a80212f5a17f35e21e8144fa3a237ce17b49a9" }  # c5a80212 (master, palette-rows-menu-place-tokens merged; forks blitz 841386a7, blitz-kit 5b5380d0)
+ds-core = { git = "https://github.com/Bardo-DE/quire.git", rev = "e8ee4fb35c23b1e7531814e55c4fa50fcd59258a" }  # c5a80212 (master, palette-rows-menu-place-tokens merged; forks blitz 841386a7, blitz-kit 5b5380d0)
+ds-settings = { git = "https://github.com/Bardo-DE/quire.git", rev = "e8ee4fb35c23b1e7531814e55c4fa50fcd59258a" }  # c5a80212 (master, palette-rows-menu-place-tokens merged; forks blitz 841386a7, blitz-kit 5b5380d0)
 serde.workspace = true
 mail-reader.workspace = true
 # Porter's account service, hosted in this process for the Add account window

@@ -7,7 +7,7 @@ edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 description = "The per-user watch's lock and door, and the desktop notifications that announce new mail"
-repository = "https://github.com/PoHsuanLai/mailo"
+repository = "https://github.com/Bardo-DE/mailo"
 authors = ["Po Hsuan Lai <pohsuanlai0208@gmail.com>"]
 
 # What lives beside the logic as a process: the one `mailo watch` per profile (its lock, its door

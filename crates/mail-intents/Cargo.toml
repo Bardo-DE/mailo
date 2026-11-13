@@ -7,7 +7,7 @@ edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 description = "Mailo as a provider of the desktop's intents over D-Bus, and the search index it pushes"
-repository = "https://github.com/PoHsuanLai/mailo"
+repository = "https://github.com/Bardo-DE/mailo"
 authors = ["Po Hsuan Lai <pohsuanlai0208@gmail.com>"]
 
 # What the desktop's intent router asks of mailo (`dist/intents/org.quire.Mail.toml`). It does not

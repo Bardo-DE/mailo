@@ -13,7 +13,7 @@ pkgver=0.1.0
 pkgrel=1
 pkgdesc='A desktop mail client'
 arch=('x86_64')
-url='https://github.com/PoHsuanLai/mailo'
+url='https://github.com/Bardo-DE/mailo'
 license=('MIT' 'Apache-2.0')
 # fontconfig is linked at build time; Wayland, X11, xkbcommon and the GPU drivers are opened at
 # run time and are the desktop's.

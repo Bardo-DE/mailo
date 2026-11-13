@@ -48,7 +48,7 @@
 
         <Icon Id="mailo.ico" SourceFile="$(var.CargoTargetDir)\wix\mailo.ico" />
         <Property Id="ARPPRODUCTICON" Value="mailo.ico" />
-        <Property Id="ARPHELPLINK" Value="https://github.com/PoHsuanLai/mailo" />
+        <Property Id="ARPHELPLINK" Value="https://github.com/Bardo-DE/mailo" />
 
         <Directory Id="TARGETDIR" Name="SourceDir">
             <Directory Id="$(var.PlatformProgramFilesFolder)" Name="PFiles">

@@ -7,7 +7,7 @@ edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 description = "The `mailo` command line: its words, what each command does, and what `mailo watch` keeps"
-repository = "https://github.com/PoHsuanLai/mailo"
+repository = "https://github.com/Bardo-DE/mailo"
 authors = ["Po Hsuan Lai <pohsuanlai0208@gmail.com>"]
 
 # The terminal front end, over `mail-core`. It words nothing of the window and draws nothing: no
